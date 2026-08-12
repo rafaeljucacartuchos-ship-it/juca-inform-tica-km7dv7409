@@ -34,12 +34,20 @@ export function ResetPasswordModal({ open, onOpenChange, user }: ResetPasswordMo
     }
   }, [open])
 
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value.replace(/\D/g, '').slice(0, 8))
+  }
+
+  const handleConfirmChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setConfirmPassword(e.target.value.replace(/\D/g, '').slice(0, 8))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
-    if (password.length < 8) {
-      setError('A senha deve ter no mínimo 8 caracteres')
+    if (password.length < 4 || password.length > 8) {
+      setError('A senha deve ter entre 4 e 8 dígitos numéricos')
       return
     }
     if (password !== confirmPassword) {
@@ -67,15 +75,18 @@ export function ResetPasswordModal({ open, onOpenChange, user }: ResetPasswordMo
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3 py-2">
           <p className="text-xs text-slate-500">
-            Defina uma nova senha para <span className="font-semibold">{user?.name}</span>.
+            Defina uma nova senha numérica para <span className="font-semibold">{user?.name}</span>.
           </p>
           <div className="space-y-1">
-            <Label className="text-xs font-semibold text-slate-700">Nova Senha *</Label>
+            <Label className="text-xs font-semibold text-slate-700">
+              Nova Senha (apenas números) *
+            </Label>
             <Input
               type="password"
-              placeholder="Mínimo 8 caracteres"
+              inputMode="numeric"
+              placeholder="4 a 8 dígitos"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={handlePasswordChange}
               className="h-9 text-xs"
             />
           </div>
@@ -83,9 +94,10 @@ export function ResetPasswordModal({ open, onOpenChange, user }: ResetPasswordMo
             <Label className="text-xs font-semibold text-slate-700">Confirmar Senha *</Label>
             <Input
               type="password"
+              inputMode="numeric"
               placeholder="Repita a nova senha"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={handleConfirmChange}
               className="h-9 text-xs"
             />
           </div>

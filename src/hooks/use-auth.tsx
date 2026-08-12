@@ -5,8 +5,13 @@ import { User } from '@/types'
 interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
-  signIn: (email: string, pass: string) => Promise<{ error: any }>
-  signUp: (email: string, pass: string, name: string, role: string) => Promise<{ error: any }>
+  signIn: (registrationCode: string, pass: string) => Promise<{ error: any }>
+  signUp: (
+    registrationCode: string,
+    pass: string,
+    name: string,
+    role: string,
+  ) => Promise<{ error: any }>
   signOut: () => void
   loading: boolean
 }
@@ -47,9 +52,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const signIn = async (email: string, pass: string) => {
+  const signIn = async (registrationCode: string, pass: string) => {
     try {
-      const res = await pb.collection('users').authWithPassword(email, pass)
+      const res = await pb.collection('users').authWithPassword(registrationCode, pass)
       setUser(res.record as unknown as User)
       return { error: null }
     } catch (error) {
@@ -57,12 +62,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const signUp = async (email: string, pass: string, name: string, role: string) => {
+  const signUp = async (registrationCode: string, pass: string, name: string, role: string) => {
     try {
       await pb
         .collection('users')
-        .create({ email, password: pass, passwordConfirm: pass, name, role })
-      const res = await pb.collection('users').authWithPassword(email, pass)
+        .create({ username: registrationCode, password: pass, passwordConfirm: pass, name, role })
+      const res = await pb.collection('users').authWithPassword(registrationCode, pass)
       setUser(res.record as unknown as User)
       return { error: null }
     } catch (error) {

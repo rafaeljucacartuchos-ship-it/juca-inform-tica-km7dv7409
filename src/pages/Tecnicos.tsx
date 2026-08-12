@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Plus, Search, Pencil, Trash2, KeyRound, Shield } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, KeyRound, Shield, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { User, UserRole } from '@/types'
-import { getUsers, deleteUser, updateUser } from '@/services/users'
+import { getUsers, deleteUser, updateUser, regenerateRegistrationCode } from '@/services/users'
 import { NewTechnicianModal } from '@/components/NewTechnicianModal'
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
 import { ResetPasswordModal } from '@/components/ResetPasswordModal'
@@ -79,12 +79,22 @@ export default function Tecnicos() {
     }
   }
 
+  const handleRegenerateCode = async (userId: string) => {
+    try {
+      await regenerateRegistrationCode(userId)
+      toast({ title: 'Código de cadastro regenerado com sucesso!' })
+      loadData()
+    } catch {
+      toast({ title: 'Erro ao regenerar código', variant: 'destructive' })
+    }
+  }
+
   const filtered = users.filter((u) => {
     if (!search.trim()) return true
     const q = search.toLowerCase()
     return (
       u.name?.toLowerCase().includes(q) ||
-      u.email?.toLowerCase().includes(q) ||
+      u.username?.toLowerCase().includes(q) ||
       u.phone?.toLowerCase().includes(q)
     )
   })
@@ -130,7 +140,7 @@ export default function Tecnicos() {
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
                 <tr>
                   <th className="py-3 px-4">Nome</th>
-                  <th className="py-3 px-4 hidden sm:table-cell">E-mail</th>
+                  <th className="py-3 px-4 hidden sm:table-cell">Cadastro</th>
                   <th className="py-3 px-4 hidden md:table-cell">Telefone</th>
                   <th className="py-3 px-4">Função</th>
                   <th className="py-3 px-4 text-right">Ações</th>
@@ -152,11 +162,23 @@ export default function Tecnicos() {
                         )}
                       </div>
                       <span className="sm:hidden block font-normal font-mono text-slate-500 mt-0.5">
-                        {u.email}
+                        {u.username || '-'}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-slate-600 font-mono hidden sm:table-cell">
-                      {u.email}
+                    <td className="py-3 px-4 hidden sm:table-cell">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-indigo-600 text-sm">
+                          {u.username || '-'}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-slate-400 hover:text-indigo-600"
+                          onClick={() => handleRegenerateCode(u.id)}
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </td>
                     <td className="py-3 px-4 font-mono text-slate-600 hidden md:table-cell">
                       {u.phone || '-'}

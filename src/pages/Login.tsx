@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Wrench, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react'
+import { Wrench, Lock, Hash, ArrowRight, ShieldCheck, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 
 export default function Login() {
-  const [email, setEmail] = useState('')
+  const [cadastro, setCadastro] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const { signIn } = useAuth()
@@ -18,16 +18,16 @@ export default function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email || !password) return
+    if (!cadastro || !password) return
 
     setLoading(true)
-    const { error } = await signIn(email, password)
+    const { error } = await signIn(cadastro, password)
     setLoading(false)
 
     if (error) {
       toast({
         title: 'Falha no login',
-        description: 'Credenciais inválidas. Tente novamente.',
+        description: 'Código de cadastro ou senha inválidos. Tente novamente.',
         variant: 'destructive',
       })
     } else {
@@ -39,9 +39,13 @@ export default function Login() {
     }
   }
 
-  const fillTestAccount = (userEmail: string) => {
-    setEmail(userEmail)
-    setPassword('Skip@Pass')
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value.replace(/\D/g, '').slice(0, 8))
+  }
+
+  const fillTestAccount = (code: string) => {
+    setCadastro(code)
+    setPassword('12345678')
   }
 
   return (
@@ -65,31 +69,33 @@ export default function Login() {
         <CardContent className="space-y-4">
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-300">E-mail corporativo</Label>
+              <Label className="text-xs font-semibold text-slate-300">Cadastro</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                <Hash className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
                 <Input
-                  type="email"
-                  placeholder="usuario@assistencia.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Código de cadastro"
+                  value={cadastro}
+                  onChange={(e) => setCadastro(e.target.value)}
                   required
-                  className="pl-9 bg-slate-800/80 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-indigo-500 text-xs h-9"
+                  className="pl-9 bg-slate-800/80 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-indigo-500 text-xs h-9 font-mono"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold text-slate-300">Senha de acesso</Label>
+                <Label className="text-xs font-semibold text-slate-300">Senha</Label>
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
                 <Input
                   type="password"
+                  inputMode="numeric"
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={handlePasswordChange}
                   required
                   className="pl-9 bg-slate-800/80 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-indigo-500 text-xs h-9"
                 />
@@ -120,27 +126,30 @@ export default function Login() {
           <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
-              onClick={() => fillTestAccount('rafaeljucacartuchos@gmail.com')}
+              onClick={() => fillTestAccount('100001')}
               className="flex flex-col items-center justify-center rounded-lg border border-slate-800 bg-slate-800/40 p-2 text-center transition-all hover:bg-slate-800 hover:border-indigo-500/50"
             >
               <ShieldCheck className="h-4 w-4 text-amber-400 mb-1" />
-              <span className="text-[11px] font-semibold text-slate-200">Admin</span>
+              <span className="text-[11px] font-mono font-bold text-slate-200">100001</span>
+              <span className="text-[9px] text-slate-400">Admin</span>
             </button>
             <button
               type="button"
-              onClick={() => fillTestAccount('atendimento.ana@assistencia.com')}
+              onClick={() => fillTestAccount('200002')}
               className="flex flex-col items-center justify-center rounded-lg border border-slate-800 bg-slate-800/40 p-2 text-center transition-all hover:bg-slate-800 hover:border-indigo-500/50"
             >
-              <Mail className="h-4 w-4 text-sky-400 mb-1" />
-              <span className="text-[11px] font-semibold text-slate-200">Atendente</span>
+              <User className="h-4 w-4 text-sky-400 mb-1" />
+              <span className="text-[11px] font-mono font-bold text-slate-200">200002</span>
+              <span className="text-[9px] text-slate-400">Atendente</span>
             </button>
             <button
               type="button"
-              onClick={() => fillTestAccount('tecnico.carlos@assistencia.com')}
+              onClick={() => fillTestAccount('300003')}
               className="flex flex-col items-center justify-center rounded-lg border border-slate-800 bg-slate-800/40 p-2 text-center transition-all hover:bg-slate-800 hover:border-indigo-500/50"
             >
               <Wrench className="h-4 w-4 text-emerald-400 mb-1" />
-              <span className="text-[11px] font-semibold text-slate-200">Técnico</span>
+              <span className="text-[11px] font-mono font-bold text-slate-200">300003</span>
+              <span className="text-[9px] text-slate-400">Técnico</span>
             </button>
           </div>
         </CardContent>

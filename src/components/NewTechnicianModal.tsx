@@ -13,6 +13,7 @@ import { createUser, updateUser } from '@/services/users'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
 import { User } from '@/types'
+import { CheckCircle2, Copy } from 'lucide-react'
 
 interface NewTechnicianModalProps {
   open: boolean
@@ -29,12 +30,12 @@ export function NewTechnicianModal({
 }: NewTechnicianModalProps) {
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [createdCode, setCreatedCode] = useState<string | null>(null)
   const { toast } = useToast()
   const isEdit = !!editTechnician
 
   const [formData, setFormData] = useState({
     name: '',
-    email: '',
     phone: '',
     password: '',
     passwordConfirm: '',
@@ -43,19 +44,34 @@ export function NewTechnicianModal({
   useEffect(() => {
     if (open) {
       setErrors({})
+      setCreatedCode(null)
       if (editTechnician) {
         setFormData({
           name: editTechnician.name || '',
-          email: editTechnician.email || '',
           phone: editTechnician.phone || '',
           password: '',
           passwordConfirm: '',
         })
       } else {
-        setFormData({ name: '', email: '', phone: '', password: '', passwordConfirm: '' })
+        setFormData({ name: '', phone: '', password: '', passwordConfirm: '' })
       }
     }
   }, [open, editTechnician])
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const numeric = e.target.value.replace(/\D/g, '').slice(0, 8)
+    setFormData({ ...formData, password: numeric })
+  }
+
+  const handlePasswordConfirmChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const numeric = e.target.value.replace(/\D/g, '').slice(0, 8)
+    setFormData({ ...formData, passwordConfirm: numeric })
+  }
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+    toast({ title: 'Código copiado!' })
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -69,12 +85,15 @@ export function NewTechnicianModal({
       if (isEdit && editTechnician) {
         await updateUser(editTechnician.id, { name: formData.name, phone: formData.phone })
         toast({ title: 'Técnico atualizado!', description: formData.name })
+        onOpenChange(false)
       } else {
-        if (!formData.email.trim() || !formData.password.trim()) {
-          setErrors({
-            email: !formData.email.trim() ? 'E-mail é obrigatório' : '',
-            password: !formData.password.trim() ? 'Senha é obrigatória' : '',
-          })
+        if (!formData.password.trim()) {
+          setErrors({ password: 'Senha é obrigatória' })
+          setLoading(false)
+          return
+        }
+        if (formData.password.length < 4 || formData.password.length > 8) {
+          setErrors({ password: 'A senha deve ter entre 4 e 8 dígitos' })
           setLoading(false)
           return
         }
@@ -83,24 +102,77 @@ export function NewTechnicianModal({
           setLoading(false)
           return
         }
-        await createUser({
-          email: formData.email,
+        const result = await createUser({
           password: formData.password,
           passwordConfirm: formData.passwordConfirm,
           name: formData.name,
           role: 'technician',
           phone: formData.phone,
         })
+        setCreatedCode(result.username || '')
         toast({ title: 'Técnico cadastrado!', description: formData.name })
+        if (onCreated) onCreated()
       }
-      onOpenChange(false)
-      if (onCreated) onCreated()
     } catch (err) {
       setErrors(extractFieldErrors(err))
       toast({ title: 'Erro ao salvar técnico', variant: 'destructive' })
     } finally {
       setLoading(false)
     }
+  }
+
+  if (createdCode) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-slate-900">
+              Técnico Cadastrado!
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
+                <CheckCircle2 className="h-8 w-8 text-emerald-600" />
+              </div>
+              <p className="text-sm text-slate-600">
+                O técnico foi cadastrado com sucesso. Compartilhe o código de cadastro e a senha
+                para que ele possa acessar o sistema.
+              </p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                    Código de Cadastro
+                  </p>
+                  <p className="text-xl font-bold font-mono text-indigo-600">{createdCode}</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1"
+                  onClick={() => copyToClipboard(createdCode)}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  Copiar
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={() => onOpenChange(false)}
+            >
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )
   }
 
   return (
@@ -112,6 +184,27 @@ export function NewTechnicianModal({
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3 py-2">
+          {isEdit && editTechnician?.username && (
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">Código de Cadastro</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={editTechnician.username}
+                  disabled
+                  className="h-9 text-xs font-mono font-bold text-indigo-600"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 px-2"
+                  onClick={() => copyToClipboard(editTechnician.username!)}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="space-y-1">
             <Label className="text-xs font-semibold text-slate-700">Nome Completo *</Label>
             <Input
@@ -121,18 +214,6 @@ export function NewTechnicianModal({
               className="h-9 text-xs"
             />
             {errors.name && <p className="text-[11px] text-red-500">{errors.name}</p>}
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold text-slate-700">E-mail</Label>
-            <Input
-              type="email"
-              placeholder="tecnico@email.com"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="h-9 text-xs"
-              disabled={isEdit}
-            />
-            {errors.email && <p className="text-[11px] text-red-500">{errors.email}</p>}
           </div>
           <div className="space-y-1">
             <Label className="text-xs font-semibold text-slate-700">Telefone / WhatsApp</Label>
@@ -147,12 +228,15 @@ export function NewTechnicianModal({
           {!isEdit && (
             <>
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">Senha *</Label>
+                <Label className="text-xs font-semibold text-slate-700">
+                  Senha (apenas números) *
+                </Label>
                 <Input
                   type="password"
-                  placeholder="Mínimo 8 caracteres"
+                  inputMode="numeric"
+                  placeholder="4 a 8 dígitos"
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  onChange={handlePasswordChange}
                   className="h-9 text-xs"
                 />
                 {errors.password && <p className="text-[11px] text-red-500">{errors.password}</p>}
@@ -161,15 +245,19 @@ export function NewTechnicianModal({
                 <Label className="text-xs font-semibold text-slate-700">Confirmar Senha *</Label>
                 <Input
                   type="password"
+                  inputMode="numeric"
                   placeholder="Repita a senha"
                   value={formData.passwordConfirm}
-                  onChange={(e) => setFormData({ ...formData, passwordConfirm: e.target.value })}
+                  onChange={handlePasswordConfirmChange}
                   className="h-9 text-xs"
                 />
                 {errors.passwordConfirm && (
                   <p className="text-[11px] text-red-500">{errors.passwordConfirm}</p>
                 )}
               </div>
+              <p className="text-[11px] text-slate-400">
+                O código de cadastro será gerado automaticamente após o cadastro.
+              </p>
             </>
           )}
           <DialogFooter className="pt-2">

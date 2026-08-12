@@ -12,7 +12,6 @@ export const getTechnicians = () =>
 export const getUser = (id: string) => pb.collection('users').getOne<User>(id)
 
 export const createUser = (data: {
-  email: string
   password: string
   passwordConfirm: string
   name: string
@@ -35,3 +34,6 @@ export const resetUserPassword = (id: string, password: string) =>
   pb.collection('users').update<User>(id, { password, passwordConfirm: password })
 
 export const deleteUser = (id: string) => pb.collection('users').delete(id)
+
+export const regenerateRegistrationCode = (id: string) =>
+  pb.send(`/backend/v1/users/${id}/regenerate-code`, { method: 'POST' })
