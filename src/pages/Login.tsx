@@ -130,7 +130,7 @@ export default function Login() {
               className="flex flex-col items-center justify-center rounded-lg border border-slate-800 bg-slate-800/40 p-2 text-center transition-all hover:bg-slate-800 hover:border-indigo-500/50"
             >
               <ShieldCheck className="h-4 w-4 text-amber-400 mb-1" />
-              <span className="text-[10px] font-mono font-bold text-slate-200">administrador</span>
+              <span className="text-[11px] font-mono font-bold text-slate-200">administrador</span>
               <span className="text-[9px] text-slate-400">Admin</span>
             </button>
             <button
