@@ -9,7 +9,9 @@ import {
   UserCheck,
   Timer,
   Loader2,
+  FileDown,
 } from 'lucide-react'
+import { ExportReportsModal } from '@/components/ExportReportsModal'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,6 +45,7 @@ export default function Dashboard() {
   const [customEnd, setCustomEnd] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [exportOpen, setExportOpen] = useState(false)
 
   const loadData = async () => {
     try {
@@ -131,6 +134,14 @@ export default function Dashboard() {
               />
             </div>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setExportOpen(true)}
+            className="ml-2 gap-1.5"
+          >
+            <FileDown className="h-4 w-4" /> Exportar Relatórios
+          </Button>
         </div>
       </div>
 
@@ -311,6 +322,15 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
+
+      <ExportReportsModal
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        orders={orders}
+        payments={payments}
+        technicians={technicians}
+        history={history}
+      />
     </div>
   )
 }

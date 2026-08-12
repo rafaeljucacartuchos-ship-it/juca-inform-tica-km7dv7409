@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { CheckCircle, Loader2, Pen } from 'lucide-react'
+import { CheckCircle, Loader2, Pen, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CompanyHeader } from '@/components/CompanyHeader'
 import { SignaturePad } from '@/components/SignaturePad'
 import { COMPANY_DATA } from '@/lib/company'
+import { getFileUrl } from '@/lib/pocketbase/files'
 import pb from '@/lib/pocketbase/client'
 
 interface ShareItem {
@@ -28,6 +29,7 @@ interface ShareData {
   total: number
   created: string
   customer_signature: string
+  technician_signature: string
   customer: {
     name: string
     phone: string
@@ -39,6 +41,17 @@ interface ShareData {
   } | null
   technician: { name: string; phone: string } | null
   items: ShareItem[]
+  status_history: Array<{
+    status: string
+    note: string
+    changed_by: string
+    created: string
+  }>
+  attachments: Array<{
+    id: string
+    file: string
+    caption: string
+  }>
 }
 
 const statusLabels: Record<string, string> = {
@@ -121,6 +134,16 @@ export default function OrdemShare() {
   return (
     <div className="min-h-screen bg-slate-50 py-6 px-4">
       <div className="max-w-3xl mx-auto space-y-5">
+        <div className="no-print flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.print()}
+            className="text-xs gap-1.5"
+          >
+            <Printer className="h-4 w-4" /> Imprimir
+          </Button>
+        </div>
         <CompanyHeader />
 
         <Card className="border-slate-200 shadow-sm">
@@ -204,6 +227,81 @@ export default function OrdemShare() {
                   R$ {(data.total || paidTotal).toFixed(2)}
                 </span>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {data.attachments && data.attachments.length > 0 && (
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-bold text-slate-900">
+                Fotos do Atendimento
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-3">
+                {data.attachments.map((a) => (
+                  <div key={a.id}>
+                    <img
+                      src={getFileUrl(a.id, a.file, 'service_attachments', '300x300')}
+                      alt={a.caption || ''}
+                      className="h-28 w-full rounded-lg border border-slate-200 object-cover"
+                    />
+                    {a.caption && <p className="mt-0.5 text-[10px] text-slate-600">{a.caption}</p>}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {data.status_history && data.status_history.length > 0 && (
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-bold text-slate-900">
+                Histórico de Alterações
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <table className="w-full text-left text-xs">
+                <thead className="border-y border-slate-200 bg-slate-50 text-slate-500">
+                  <tr>
+                    <th className="px-4 py-2">Status</th>
+                    <th className="px-4 py-2">Observação</th>
+                    <th className="px-4 py-2">Alterado por</th>
+                    <th className="px-4 py-2">Data</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {data.status_history.map((h, i) => (
+                    <tr key={i}>
+                      <td className="px-4 py-2">{statusLabels[h.status] || h.status}</td>
+                      <td className="px-4 py-2">{h.note || '—'}</td>
+                      <td className="px-4 py-2">{h.changed_by || '—'}</td>
+                      <td className="px-4 py-2 font-mono">
+                        {h.created?.substring(0, 10).split('-').reverse().join('/')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        )}
+
+        {data.technician_signature && (
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-bold text-slate-900">
+                Assinatura do Técnico
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <img
+                src={getFileUrl(data.id, data.technician_signature, 'service_orders')}
+                alt="Assinatura do Técnico"
+                className="h-24 w-full rounded-lg border border-slate-200 bg-white object-contain"
+              />
             </CardContent>
           </Card>
         )}

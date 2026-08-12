@@ -288,3 +288,18 @@
     animation: spotlight 2s ease forwards;
   }
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+  }
+  .print-document {
+    max-width: none !important;
+  }
+  @page {
+    margin: 1.5cm;
+  }
+}

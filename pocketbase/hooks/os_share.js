@@ -34,6 +34,33 @@ routerAdd('GET', '/backend/v1/os/{id}/share', (e) => {
     )
   } catch (_) {}
 
+  let statusHistory = []
+  try {
+    statusHistory = $app.findRecordsByFilter(
+      'status_history',
+      'service_order = "' + id + '"',
+      'created',
+      200,
+      0,
+    )
+    for (var i = 0; i < statusHistory.length; i++) {
+      try {
+        $app.expandRecord(statusHistory[i], ['changed_by'])
+      } catch (_) {}
+    }
+  } catch (_) {}
+
+  let attachments = []
+  try {
+    attachments = $app.findRecordsByFilter(
+      'service_attachments',
+      'service_order = "' + id + '"',
+      'created',
+      200,
+      0,
+    )
+  } catch (_) {}
+
   const customer = record.expanded('customer')
   const technician = record.expanded('technician')
 
@@ -81,6 +108,23 @@ routerAdd('GET', '/backend/v1/os/{id}/share', (e) => {
         amount: p.get('amount') || 0,
         method: p.getString('method'),
         status: p.getString('status'),
+      }
+    }),
+    technician_signature: record.getString('technician_signature'),
+    status_history: statusHistory.map(function (h) {
+      var cb = h.expanded('changed_by')
+      return {
+        status: h.getString('status'),
+        note: h.getString('note'),
+        changed_by: cb ? cb.getString('name') : '',
+        created: h.getString('created'),
+      }
+    }),
+    attachments: attachments.map(function (a) {
+      return {
+        id: a.id,
+        file: a.getString('file'),
+        caption: a.getString('caption'),
       }
     }),
   }

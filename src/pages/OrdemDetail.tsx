@@ -9,6 +9,7 @@ import {
   CheckCircle,
   MessageCircle,
   Share2,
+  Printer,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -249,6 +250,14 @@ export default function OrdemDetail() {
           <p className="text-xs text-slate-500">{order.title}</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/ordens/${order.id}/imprimir`)}
+            className="text-xs gap-1.5"
+          >
+            <Printer className="h-4 w-4" /> Imprimir / PDF
+          </Button>
           <Button variant="outline" size="sm" onClick={handleShare} className="text-xs gap-1.5">
             <Share2 className="h-4 w-4" /> Compartilhar
           </Button>
