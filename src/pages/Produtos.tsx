@@ -1,47 +1,47 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import { Plus, Search, Eye, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Package } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
-import { Customer } from '@/types'
-import { getCustomers, deleteCustomer } from '@/services/customers'
-import { NewCustomerModal } from '@/components/NewCustomerModal'
+import { Badge } from '@/components/ui/badge'
+import { Product } from '@/types'
+import { getProducts, deleteProduct } from '@/services/products'
+import { NewProductModal } from '@/components/NewProductModal'
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 
-export default function Clientes() {
-  const [customers, setCustomers] = useState<Customer[]>([])
+export default function Produtos() {
+  const [products, setProducts] = useState<Product[]>([])
   const [search, setSearch] = useState('')
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editCustomer, setEditCustomer] = useState<Customer | null>(null)
-  const [deleteCustomerItem, setDeleteCustomerItem] = useState<Customer | null>(null)
+  const [newModalOpen, setNewModalOpen] = useState(false)
+  const [editProduct, setEditProduct] = useState<Product | null>(null)
+  const [deleteProductItem, setDeleteProductItem] = useState<Product | null>(null)
   const { toast } = useToast()
 
   const loadData = async () => {
     try {
-      const data = await getCustomers(search)
-      setCustomers(data)
+      const data = await getProducts(search)
+      setProducts(data)
     } catch {
-      /* intentionally ignored */
+      /* ignored */
     }
   }
 
   useEffect(() => {
     loadData()
   }, [search])
-  useRealtime('customers', loadData)
+  useRealtime('products', loadData)
 
   const handleDelete = async () => {
-    if (!deleteCustomerItem) return
+    if (!deleteProductItem) return
     try {
-      await deleteCustomer(deleteCustomerItem.id)
-      toast({ title: 'Cliente excluído com sucesso!' })
-      setDeleteCustomerItem(null)
+      await deleteProduct(deleteProductItem.id)
+      toast({ title: 'Produto excluído com sucesso!' })
+      setDeleteProductItem(null)
       loadData()
     } catch {
-      toast({ title: 'Erro ao excluir cliente', variant: 'destructive' })
+      toast({ title: 'Erro ao excluir produto', variant: 'destructive' })
     }
   }
 
@@ -49,17 +49,17 @@ export default function Clientes() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Base de Clientes</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Produtos e Peças</h1>
           <p className="text-xs sm:text-sm text-slate-500">
-            Gerencie os dados de contato e histórico de chamados dos clientes.
+            Gerencie o catálogo de peças, acessórios e estoque.
           </p>
         </div>
         <Button
-          onClick={() => setModalOpen(true)}
+          onClick={() => setNewModalOpen(true)}
           className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 h-9 text-xs sm:text-sm"
         >
           <Plus className="h-4 w-4" />
-          <span>Novo Cliente</span>
+          <span>Novo Produto</span>
         </Button>
       </div>
 
@@ -67,7 +67,7 @@ export default function Clientes() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
           <Input
-            placeholder="Buscar por nome, e-mail ou telefone..."
+            placeholder="Buscar por nome ou SKU..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9 h-9 text-xs bg-slate-50 border-slate-200"
@@ -82,37 +82,34 @@ export default function Clientes() {
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
                 <tr>
                   <th className="py-3 px-4">Nome</th>
-                  <th className="py-3 px-4">Telefone</th>
-                  <th className="py-3 px-4">E-mail</th>
-                  <th className="py-3 px-4">Cidade / UF</th>
+                  <th className="py-3 px-4">SKU</th>
+                  <th className="py-3 px-4">Preço</th>
+                  <th className="py-3 px-4">Estoque</th>
+                  <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {customers.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 font-bold text-slate-900">{c.name}</td>
-                    <td className="py-3 px-4 font-mono text-slate-600">{c.phone}</td>
-                    <td className="py-3 px-4 text-slate-600">{c.email || '-'}</td>
-                    <td className="py-3 px-4 text-slate-600">
-                      {c.city ? `${c.city} / ${c.state || ''}` : '-'}
+                {products.map((p) => (
+                  <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="py-3 px-4 font-bold text-slate-900">{p.name}</td>
+                    <td className="py-3 px-4 font-mono text-slate-600">{p.sku || '-'}</td>
+                    <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                      R$ {(p.price || 0).toFixed(2)}
+                    </td>
+                    <td className="py-3 px-4 text-slate-600">{p.stock_quantity ?? 0}</td>
+                    <td className="py-3 px-4">
+                      <Badge variant={p.active ? 'default' : 'secondary'} className="text-[10px]">
+                        {p.active ? 'Ativo' : 'Inativo'}
+                      </Badge>
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Link to={`/clientes/${c.id}`}>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs text-indigo-600 gap-1"
-                          >
-                            <Eye className="h-3.5 w-3.5" /> Detalhes
-                          </Button>
-                        </Link>
                         <Button
                           variant="ghost"
                           size="sm"
                           className="h-7 text-xs text-amber-600 gap-1"
-                          onClick={() => setEditCustomer(c)}
+                          onClick={() => setEditProduct(p)}
                         >
                           <Pencil className="h-3.5 w-3.5" /> Editar
                         </Button>
@@ -120,7 +117,7 @@ export default function Clientes() {
                           variant="ghost"
                           size="sm"
                           className="h-7 w-7 p-0 text-red-600"
-                          onClick={() => setDeleteCustomerItem(c)}
+                          onClick={() => setDeleteProductItem(p)}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
@@ -128,10 +125,10 @@ export default function Clientes() {
                     </td>
                   </tr>
                 ))}
-                {customers.length === 0 && (
+                {products.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-400">
-                      Nenhum cliente encontrado.
+                    <td colSpan={6} className="py-8 text-center text-slate-400">
+                      Nenhum produto encontrado.
                     </td>
                   </tr>
                 )}
@@ -141,19 +138,19 @@ export default function Clientes() {
         </CardContent>
       </Card>
 
-      <NewCustomerModal open={modalOpen} onOpenChange={setModalOpen} onCreated={loadData} />
-      <NewCustomerModal
-        open={!!editCustomer}
-        onOpenChange={(o) => !o && setEditCustomer(null)}
+      <NewProductModal open={newModalOpen} onOpenChange={setNewModalOpen} onCreated={loadData} />
+      <NewProductModal
+        open={!!editProduct}
+        onOpenChange={(o) => !o && setEditProduct(null)}
         onCreated={loadData}
-        editCustomer={editCustomer}
+        editProduct={editProduct}
       />
       <ConfirmDeleteDialog
-        open={!!deleteCustomerItem}
-        onOpenChange={(o) => !o && setDeleteCustomerItem(null)}
+        open={!!deleteProductItem}
+        onOpenChange={(o) => !o && setDeleteProductItem(null)}
         onConfirm={handleDelete}
-        title="Excluir Cliente"
-        description={`Tem certeza que deseja excluir ${deleteCustomerItem?.name}? Esta ação não pode ser desfeita.`}
+        title="Excluir Produto"
+        description={`Tem certeza que deseja excluir ${deleteProductItem?.name}? Esta ação não pode ser desfeita.`}
       />
     </div>
   )

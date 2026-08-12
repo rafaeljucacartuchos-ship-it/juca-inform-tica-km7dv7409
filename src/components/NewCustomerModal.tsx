@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -10,32 +10,62 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { createCustomer } from '@/services/customers'
+import { createCustomer, updateCustomer } from '@/services/customers'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
+import { Customer } from '@/types'
 
 interface NewCustomerModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreated?: () => void
+  editCustomer?: Customer | null
 }
 
-export function NewCustomerModal({ open, onOpenChange, onCreated }: NewCustomerModalProps) {
+const emptyForm = {
+  name: '',
+  email: '',
+  phone: '',
+  street: '',
+  number: '',
+  city: '',
+  state: '',
+  zip: '',
+  notes: '',
+}
+
+export function NewCustomerModal({
+  open,
+  onOpenChange,
+  onCreated,
+  editCustomer,
+}: NewCustomerModalProps) {
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const { toast } = useToast()
+  const isEdit = !!editCustomer
+  const [formData, setFormData] = useState(emptyForm)
 
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    street: '',
-    number: '',
-    city: '',
-    state: '',
-    zip: '',
-    notes: '',
-  })
+  useEffect(() => {
+    if (open) {
+      setErrors({})
+      if (editCustomer) {
+        setFormData({
+          name: editCustomer.name || '',
+          email: editCustomer.email || '',
+          phone: editCustomer.phone || '',
+          street: editCustomer.street || '',
+          number: editCustomer.number || '',
+          city: editCustomer.city || '',
+          state: editCustomer.state || '',
+          zip: editCustomer.zip || '',
+          notes: editCustomer.notes || '',
+        })
+      } else {
+        setFormData(emptyForm)
+      }
+    }
+  }, [open, editCustomer])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -47,32 +77,21 @@ export function NewCustomerModal({ open, onOpenChange, onCreated }: NewCustomerM
       })
       return
     }
-
     setLoading(true)
     try {
-      await createCustomer(formData)
-      toast({
-        title: 'Cliente cadastrado!',
-        description: `${formData.name} foi adicionado à base de clientes.`,
-      })
-
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        street: '',
-        number: '',
-        city: '',
-        state: '',
-        zip: '',
-        notes: '',
-      })
+      if (isEdit && editCustomer) {
+        await updateCustomer(editCustomer.id, formData)
+        toast({ title: 'Cliente atualizado!', description: formData.name })
+      } else {
+        await createCustomer(formData)
+        toast({ title: 'Cliente cadastrado!', description: formData.name })
+      }
       onOpenChange(false)
       if (onCreated) onCreated()
     } catch (err) {
       setErrors(extractFieldErrors(err))
       toast({
-        title: 'Erro ao cadastrar cliente',
+        title: isEdit ? 'Erro ao atualizar cliente' : 'Erro ao cadastrar cliente',
         description: 'Verifique as informações prestadas.',
         variant: 'destructive',
       })
@@ -85,9 +104,10 @@ export function NewCustomerModal({ open, onOpenChange, onCreated }: NewCustomerM
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-lg font-bold text-slate-900">Novo Cliente</DialogTitle>
+          <DialogTitle className="text-lg font-bold text-slate-900">
+            {isEdit ? 'Editar Cliente' : 'Novo Cliente'}
+          </DialogTitle>
         </DialogHeader>
-
         <form onSubmit={handleSubmit} className="space-y-3 py-2">
           <div className="space-y-1">
             <Label className="text-xs font-semibold text-slate-700">
@@ -101,7 +121,6 @@ export function NewCustomerModal({ open, onOpenChange, onCreated }: NewCustomerM
             />
             {errors.name && <p className="text-[11px] text-red-500">{errors.name}</p>}
           </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-slate-700">Telefone / WhatsApp *</Label>
@@ -113,7 +132,6 @@ export function NewCustomerModal({ open, onOpenChange, onCreated }: NewCustomerM
               />
               {errors.phone && <p className="text-[11px] text-red-500">{errors.phone}</p>}
             </div>
-
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-slate-700">E-mail</Label>
               <Input
@@ -123,9 +141,9 @@ export function NewCustomerModal({ open, onOpenChange, onCreated }: NewCustomerM
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="h-9 text-xs"
               />
+              {errors.email && <p className="text-[11px] text-red-500">{errors.email}</p>}
             </div>
           </div>
-
           <div className="grid grid-cols-3 gap-2">
             <div className="col-span-2 space-y-1">
               <Label className="text-xs font-semibold text-slate-700">Rua / Logradouro</Label>
@@ -146,7 +164,6 @@ export function NewCustomerModal({ open, onOpenChange, onCreated }: NewCustomerM
               />
             </div>
           </div>
-
           <div className="grid grid-cols-3 gap-2">
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-slate-700">Cidade</Label>
@@ -176,7 +193,6 @@ export function NewCustomerModal({ open, onOpenChange, onCreated }: NewCustomerM
               />
             </div>
           </div>
-
           <div className="space-y-1">
             <Label className="text-xs font-semibold text-slate-700">Observações do Cliente</Label>
             <Textarea
@@ -187,7 +203,6 @@ export function NewCustomerModal({ open, onOpenChange, onCreated }: NewCustomerM
               className="text-xs"
             />
           </div>
-
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               Cancelar
@@ -198,7 +213,7 @@ export function NewCustomerModal({ open, onOpenChange, onCreated }: NewCustomerM
               disabled={loading}
               className="bg-indigo-600 hover:bg-indigo-700 text-white"
             >
-              {loading ? 'Salvando...' : 'Salvar Cliente'}
+              {loading ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Salvar Cliente'}
             </Button>
           </DialogFooter>
         </form>

@@ -1,16 +1,25 @@
 import { useState, useEffect } from 'react'
-import { Plus, Briefcase, Clock, Check, X } from 'lucide-react'
+import { Plus, Briefcase, Clock, Pencil, Trash2, Power } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CatalogService } from '@/types'
-import { getCatalogServices, updateCatalogService } from '@/services/services_catalog'
+import {
+  getCatalogServices,
+  updateCatalogService,
+  deleteCatalogService,
+} from '@/services/services_catalog'
 import { NewServiceModal } from '@/components/NewServiceModal'
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
 import { useRealtime } from '@/hooks/use-realtime'
+import { useToast } from '@/hooks/use-toast'
 
 export default function Servicos() {
   const [services, setServices] = useState<CatalogService[]>([])
   const [modalOpen, setModalOpen] = useState(false)
+  const [editService, setEditService] = useState<CatalogService | null>(null)
+  const [deleteService, setDeleteService] = useState<CatalogService | null>(null)
+  const { toast } = useToast()
 
   const loadData = async () => {
     try {
@@ -24,12 +33,28 @@ export default function Servicos() {
   useEffect(() => {
     loadData()
   }, [])
-
   useRealtime('services', loadData)
 
-  const toggleActive = async (id: string, current: boolean) => {
-    await updateCatalogService(id, { active: !current })
-    loadData()
+  const toggleActive = async (s: CatalogService) => {
+    try {
+      await updateCatalogService(s.id, { active: !s.active })
+      toast({ title: s.active ? 'Serviço desativado' : 'Serviço ativado' })
+      loadData()
+    } catch {
+      toast({ title: 'Erro ao alterar status', variant: 'destructive' })
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteService) return
+    try {
+      await deleteCatalogService(deleteService.id)
+      toast({ title: 'Serviço excluído com sucesso!' })
+      setDeleteService(null)
+      loadData()
+    } catch {
+      toast({ title: 'Erro ao excluir serviço', variant: 'destructive' })
+    }
   }
 
   return (
@@ -65,25 +90,65 @@ export default function Servicos() {
                   {s.active ? 'Ativo' : 'Inativo'}
                 </Badge>
               </div>
-
               <p className="text-xs text-slate-500 line-clamp-2">
                 {s.description || 'Sem descrição.'}
               </p>
-
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1 text-slate-500 font-mono text-[11px]">
                   <Clock className="h-3.5 w-3.5" /> {s.estimated_duration} min
                 </div>
-                <span className="font-mono font-bold text-slate-900 text-sm">
-                  R$ {(s.price || 0).toFixed(2)}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-slate-900 text-sm">
+                    R$ {(s.price || 0).toFixed(2)}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-slate-400 hover:text-emerald-600"
+                    onClick={() => toggleActive(s)}
+                  >
+                    <Power className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-amber-600"
+                    onClick={() => setEditService(s)}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-red-600"
+                    onClick={() => setDeleteService(s)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
+      {services.length === 0 && (
+        <div className="py-12 text-center text-slate-400 text-sm">Nenhum serviço cadastrado.</div>
+      )}
 
       <NewServiceModal open={modalOpen} onOpenChange={setModalOpen} onCreated={loadData} />
+      <NewServiceModal
+        open={!!editService}
+        onOpenChange={(o) => !o && setEditService(null)}
+        onCreated={loadData}
+        editService={editService}
+      />
+      <ConfirmDeleteDialog
+        open={!!deleteService}
+        onOpenChange={(o) => !o && setDeleteService(null)}
+        onConfirm={handleDelete}
+        title="Excluir Serviço"
+        description={`Tem certeza que deseja excluir ${deleteService?.name}? Esta ação não pode ser desfeita.`}
+      />
     </div>
   )
 }

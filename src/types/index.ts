@@ -132,3 +132,50 @@ export interface Payment {
   created?: string
   updated?: string
 }
+
+export interface Product {
+  id: string
+  name: string
+  description?: string
+  sku?: string
+  price?: number
+  stock_quantity?: number
+  active?: boolean
+  created?: string
+  updated?: string
+}
+
+export type EquipmentType =
+  | 'notebook'
+  | 'desktop'
+  | 'monitor'
+  | 'printer'
+  | 'smartphone'
+  | 'tablet'
+  | 'network'
+  | 'other'
+
+export interface Equipment {
+  id: string
+  customer: string
+  name: string
+  type?: EquipmentType
+  brand?: string
+  model?: string
+  serial_number?: string
+  notes?: string
+  created?: string
+  updated?: string
+  expand?: {
+    customer?: Customer
+  }
+}
+
+export interface ServiceAttachment {
+  id: string
+  service_order: string
+  file: string
+  caption?: string
+  created?: string
+  updated?: string
+}

@@ -14,6 +14,9 @@ import Clientes from '@/pages/Clientes'
 import ClienteDetail from '@/pages/ClienteDetail'
 import Servicos from '@/pages/Servicos'
 import Relatorios from '@/pages/Relatorios'
+import Tecnicos from '@/pages/Tecnicos'
+import Produtos from '@/pages/Produtos'
+import Equipamentos from '@/pages/Equipamentos'
 import NotFound from '@/pages/NotFound'
 
 const App = () => (
@@ -33,6 +36,9 @@ const App = () => (
               <Route path="/clientes" element={<Clientes />} />
               <Route path="/clientes/:id" element={<ClienteDetail />} />
               <Route path="/servicos" element={<Servicos />} />
+              <Route path="/produtos" element={<Produtos />} />
+              <Route path="/equipamentos" element={<Equipamentos />} />
+              <Route path="/tecnicos" element={<Tecnicos />} />
               <Route path="/relatorios" element={<Relatorios />} />
             </Route>
           </Route>
