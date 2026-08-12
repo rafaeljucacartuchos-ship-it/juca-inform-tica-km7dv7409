@@ -6,12 +6,7 @@ interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
   signIn: (registrationCode: string, pass: string) => Promise<{ error: any }>
-  signUp: (
-    registrationCode: string,
-    pass: string,
-    name: string,
-    role: string,
-  ) => Promise<{ error: any }>
+  signUp: (name: string, pass: string, role: string) => Promise<{ error: any }>
   signOut: () => void
   loading: boolean
 }
@@ -62,12 +57,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const signUp = async (registrationCode: string, pass: string, name: string, role: string) => {
+  const signUp = async (name: string, pass: string, role: string) => {
     try {
-      await pb
+      const created = await pb
         .collection('users')
-        .create({ username: registrationCode, password: pass, passwordConfirm: pass, name, role })
-      const res = await pb.collection('users').authWithPassword(registrationCode, pass)
+        .create<User>({ password: pass, passwordConfirm: pass, name, role })
+      const loginName = created.username || name
+      const res = await pb.collection('users').authWithPassword(loginName, pass)
       setUser(res.record as unknown as User)
       return { error: null }
     } catch (error) {

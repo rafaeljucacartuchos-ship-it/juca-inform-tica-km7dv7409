@@ -136,15 +136,15 @@ export function NewTechnicianModal({
                 <CheckCircle2 className="h-8 w-8 text-emerald-600" />
               </div>
               <p className="text-sm text-slate-600">
-                O técnico foi cadastrado com sucesso. Compartilhe o código de cadastro e a senha
-                para que ele possa acessar o sistema.
+                O técnico foi cadastrado com sucesso. Compartilhe o login e a senha para que ele
+                possa acessar o sistema.
               </p>
             </div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                    Código de Cadastro
+                    Login
                   </p>
                   <p className="text-xl font-bold font-mono text-indigo-600">{createdCode}</p>
                 </div>
@@ -186,7 +186,7 @@ export function NewTechnicianModal({
         <form onSubmit={handleSubmit} className="space-y-3 py-2">
           {isEdit && editTechnician?.username && (
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">Código de Cadastro</Label>
+              <Label className="text-xs font-semibold text-slate-700">Login</Label>
               <div className="flex items-center gap-2">
                 <Input
                   value={editTechnician.username}
@@ -256,7 +256,7 @@ export function NewTechnicianModal({
                 )}
               </div>
               <p className="text-[11px] text-slate-400">
-                O código de cadastro será gerado automaticamente após o cadastro.
+                O login será gerado automaticamente a partir do nome após o cadastro.
               </p>
             </>
           )}

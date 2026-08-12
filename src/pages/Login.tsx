@@ -126,29 +126,29 @@ export default function Login() {
           <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
-              onClick={() => fillTestAccount('100001')}
+              onClick={() => fillTestAccount('administrador')}
               className="flex flex-col items-center justify-center rounded-lg border border-slate-800 bg-slate-800/40 p-2 text-center transition-all hover:bg-slate-800 hover:border-indigo-500/50"
             >
               <ShieldCheck className="h-4 w-4 text-amber-400 mb-1" />
-              <span className="text-[11px] font-mono font-bold text-slate-200">100001</span>
+              <span className="text-[10px] font-mono font-bold text-slate-200">administrador</span>
               <span className="text-[9px] text-slate-400">Admin</span>
             </button>
             <button
               type="button"
-              onClick={() => fillTestAccount('200002')}
+              onClick={() => fillTestAccount('atendente')}
               className="flex flex-col items-center justify-center rounded-lg border border-slate-800 bg-slate-800/40 p-2 text-center transition-all hover:bg-slate-800 hover:border-indigo-500/50"
             >
               <User className="h-4 w-4 text-sky-400 mb-1" />
-              <span className="text-[11px] font-mono font-bold text-slate-200">200002</span>
+              <span className="text-[11px] font-mono font-bold text-slate-200">atendente</span>
               <span className="text-[9px] text-slate-400">Atendente</span>
             </button>
             <button
               type="button"
-              onClick={() => fillTestAccount('300003')}
+              onClick={() => fillTestAccount('tecnico')}
               className="flex flex-col items-center justify-center rounded-lg border border-slate-800 bg-slate-800/40 p-2 text-center transition-all hover:bg-slate-800 hover:border-indigo-500/50"
             >
               <Wrench className="h-4 w-4 text-emerald-400 mb-1" />
-              <span className="text-[11px] font-mono font-bold text-slate-200">300003</span>
+              <span className="text-[11px] font-mono font-bold text-slate-200">tecnico</span>
               <span className="text-[9px] text-slate-400">Técnico</span>
             </button>
           </div>

@@ -82,10 +82,10 @@ export default function Tecnicos() {
   const handleRegenerateCode = async (userId: string) => {
     try {
       await regenerateRegistrationCode(userId)
-      toast({ title: 'Código de cadastro regenerado com sucesso!' })
+      toast({ title: 'Login regenerado com sucesso!' })
       loadData()
     } catch {
-      toast({ title: 'Erro ao regenerar código', variant: 'destructive' })
+      toast({ title: 'Erro ao regenerar login', variant: 'destructive' })
     }
   }
 
