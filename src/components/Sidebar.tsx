@@ -46,11 +46,13 @@ export function Sidebar({ onNavClick }: SidebarProps) {
     if (isCadastroActive) setCadastroOpen(true)
   }, [isCadastroActive])
 
+  const isTechnician = user?.role === 'technician'
+
   const mainNavItems = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Agendamentos', path: '/agendamentos', icon: Calendar },
     { label: 'Ordens de Serviço', path: '/ordens', icon: Wrench },
-    { label: 'Relatórios', path: '/relatorios', icon: BarChart3 },
+    ...(isTechnician ? [] : [{ label: 'Relatórios', path: '/relatorios', icon: BarChart3 }]),
   ]
 
   const isAdmin = user?.role === 'admin'
@@ -127,45 +129,47 @@ export function Sidebar({ onNavClick }: SidebarProps) {
           )
         })}
 
-        <Collapsible open={cadastroOpen} onOpenChange={setCadastroOpen}>
-          <CollapsibleTrigger className="w-full group flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 transition-all duration-200">
-            <Database
-              className={cn(
-                'h-5 w-5 transition-transform duration-200 group-hover:scale-110',
-                isCadastroActive && 'text-indigo-400',
-              )}
-            />
-            <span className="flex-1 text-left">Cadastro</span>
-            <ChevronDown
-              className={cn(
-                'h-4 w-4 transition-transform duration-200',
-                cadastroOpen && 'rotate-180',
-              )}
-            />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-1 mt-1 ml-4 pl-3 border-l border-slate-700/50">
-            {cadastroChildren.map((item) => {
-              const isActive = isPathActive(item.path)
-              const Icon = item.icon
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={onNavClick}
-                  className={cn(
-                    'flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition-all duration-200',
-                    isActive
-                      ? 'bg-indigo-600/20 text-indigo-300'
-                      : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200',
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span>{item.label}</span>
-                </Link>
-              )
-            })}
-          </CollapsibleContent>
-        </Collapsible>
+        {!isTechnician && (
+          <Collapsible open={cadastroOpen} onOpenChange={setCadastroOpen}>
+            <CollapsibleTrigger className="w-full group flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 transition-all duration-200">
+              <Database
+                className={cn(
+                  'h-5 w-5 transition-transform duration-200 group-hover:scale-110',
+                  isCadastroActive && 'text-indigo-400',
+                )}
+              />
+              <span className="flex-1 text-left">Cadastro</span>
+              <ChevronDown
+                className={cn(
+                  'h-4 w-4 transition-transform duration-200',
+                  cadastroOpen && 'rotate-180',
+                )}
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-1 mt-1 ml-4 pl-3 border-l border-slate-700/50">
+              {cadastroChildren.map((item) => {
+                const isActive = isPathActive(item.path)
+                const Icon = item.icon
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={onNavClick}
+                    className={cn(
+                      'flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition-all duration-200',
+                      isActive
+                        ? 'bg-indigo-600/20 text-indigo-300'
+                        : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200',
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span>{item.label}</span>
+                  </Link>
+                )
+              })}
+            </CollapsibleContent>
+          </Collapsible>
+        )}
 
         {isAdmin && (
           <Link

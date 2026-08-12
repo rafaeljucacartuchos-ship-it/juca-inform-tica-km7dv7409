@@ -30,4 +30,7 @@ export const updateUser = (
   }>,
 ) => pb.collection('users').update<User>(id, data)
 
+export const resetUserPassword = (id: string, password: string) =>
+  pb.collection('users').update<User>(id, { password, passwordConfirm: password })
+
 export const deleteUser = (id: string) => pb.collection('users').delete(id)
