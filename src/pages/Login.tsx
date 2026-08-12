@@ -27,7 +27,7 @@ export default function Login() {
     if (error) {
       toast({
         title: 'Falha no login',
-        description: 'Código de cadastro ou senha inválidos. Tente novamente.',
+        description: 'Nome de usuário ou senha inválidos. Tente novamente.',
         variant: 'destructive',
       })
     } else {
@@ -71,11 +71,10 @@ export default function Login() {
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-300">Cadastro</Label>
               <div className="relative">
-                <Hash className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                <User className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
                 <Input
                   type="text"
-                  inputMode="numeric"
-                  placeholder="Código de cadastro"
+                  placeholder="Nome de usuário"
                   value={cadastro}
                   onChange={(e) => setCadastro(e.target.value)}
                   required
