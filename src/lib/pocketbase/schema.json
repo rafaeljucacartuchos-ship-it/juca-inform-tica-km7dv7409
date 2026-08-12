@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-12T16:50:11.262Z",
+  "generatedAt": "2026-08-12T17:03:36.562Z",
   "collections": [
     {
       "name": "users",
@@ -362,6 +362,18 @@
         {
           "name": "customer_signature",
           "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "attendance_date",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "attendance_time",
+          "type": "text",
           "required": false,
           "system": false
         }

@@ -1,8 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Plus, Trash2, ArrowLeft, DollarSign, Play, CheckCircle, MessageCircle } from 'lucide-react'
+import {
+  Plus,
+  Trash2,
+  ArrowLeft,
+  DollarSign,
+  Play,
+  CheckCircle,
+  MessageCircle,
+  Share2,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { CompanyHeader } from '@/components/CompanyHeader'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -145,7 +155,8 @@ export default function OrdemDetail() {
       toast({ title: 'Serviço concluído com sucesso!' })
       const phone = order.expand?.customer?.phone || ''
       const name = order.expand?.customer?.name || 'Cliente'
-      if (phone) triggerWhatsAppEvaluation(phone, name, order.number)
+      const shareUrl = `${window.location.origin}/share/${order.id}`
+      if (phone) triggerWhatsAppEvaluation(phone, name, order.number, shareUrl)
       loadAll()
     } catch {
       toast({ title: 'Erro ao concluir serviço', variant: 'destructive' })
@@ -167,10 +178,22 @@ export default function OrdemDetail() {
       toast({ title: 'Cliente sem telefone cadastrado', variant: 'destructive' })
       return
     }
+    const shareUrl = `${window.location.origin}/share/${order.id}`
     openWhatsApp(
       phone,
-      buildServiceMessage(order.expand?.customer?.name || 'Cliente', order.number, order.status),
+      buildServiceMessage(
+        order.expand?.customer?.name || 'Cliente',
+        order.number,
+        order.status,
+        shareUrl,
+      ),
     )
+  }
+
+  const handleShare = () => {
+    const shareUrl = `${window.location.origin}/share/${order.id}`
+    navigator.clipboard.writeText(shareUrl)
+    toast({ title: 'Link de compartilhamento copiado!' })
   }
 
   const handleAddItem = async () => {
@@ -210,6 +233,8 @@ export default function OrdemDetail() {
 
   return (
     <div className="space-y-6">
+      <CompanyHeader />
+
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate('/ordens')} className="h-8 w-8">
           <ArrowLeft className="h-4 w-4" />
@@ -223,9 +248,14 @@ export default function OrdemDetail() {
           </div>
           <p className="text-xs text-slate-500">{order.title}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleWhatsApp} className="text-xs gap-1.5">
-          <MessageCircle className="h-4 w-4" /> WhatsApp
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleShare} className="text-xs gap-1.5">
+            <Share2 className="h-4 w-4" /> Compartilhar
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleWhatsApp} className="text-xs gap-1.5">
+            <MessageCircle className="h-4 w-4" /> WhatsApp
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

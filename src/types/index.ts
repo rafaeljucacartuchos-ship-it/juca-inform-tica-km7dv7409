@@ -74,12 +74,15 @@ export interface ServiceOrder {
   technician_signature?: string
   customer_signature?: string
   equipment_ref?: string
+  attendance_date?: string
+  attendance_time?: string
   created?: string
   updated?: string
   expand?: {
     customer?: Customer
     technician?: User
     appointment?: Appointment
+    equipment_ref?: Equipment
   }
 }
 

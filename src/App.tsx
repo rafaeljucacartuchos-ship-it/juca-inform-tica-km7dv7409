@@ -18,6 +18,7 @@ import Relatorios from '@/pages/Relatorios'
 import Tecnicos from '@/pages/Tecnicos'
 import Produtos from '@/pages/Produtos'
 import Equipamentos from '@/pages/Equipamentos'
+import OrdemShare from '@/pages/OrdemShare'
 import NotFound from '@/pages/NotFound'
 
 const App = () => (
@@ -45,6 +46,7 @@ const App = () => (
                 <Route path="/relatorios" element={<Relatorios />} />
               </Route>
             </Route>
+            <Route path="/share/:id" element={<OrdemShare />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </TooltipProvider>
