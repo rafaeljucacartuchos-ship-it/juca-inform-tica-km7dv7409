@@ -85,6 +85,7 @@ export default function OrdemShare() {
   const handleSign = async (blob: Blob) => {
     if (!id) return
     setSaving(true)
+    setError('')
     try {
       const formData = new FormData()
       formData.append('signature', blob, 'signature.png')
@@ -92,11 +93,15 @@ export default function OrdemShare() {
         method: 'POST',
         body: formData,
       })
-      if (!res.ok) throw new Error('Failed to save signature')
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null)
+        throw new Error(errData?.error || 'Failed to save signature')
+      }
       setSigned(true)
-      setData((prev) => (prev ? { ...prev, customer_signature: 'signed' } : prev))
-    } catch {
-      setError('Erro ao salvar assinatura. Tente novamente.')
+      const fresh: ShareData = await pb.send(`/backend/v1/os/${id}/share`, { method: 'GET' })
+      setData(fresh)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao salvar assinatura. Tente novamente.')
     } finally {
       setSaving(false)
     }
@@ -335,13 +340,18 @@ export default function OrdemShare() {
               </div>
             ) : (
               <div className="space-y-2">
+                {error && (
+                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                    {error}
+                  </p>
+                )}
                 <div className="flex items-center gap-2 text-slate-600 mb-2">
                   <Pen className="h-4 w-4" />
                   <p className="text-xs">Assine abaixo para confirmar esta ordem de serviço.</p>
                 </div>
                 <SignaturePad onConfirm={handleSign} />
               </div>
-            )}
+            )}{' '}
           </CardContent>
         </Card>
 
