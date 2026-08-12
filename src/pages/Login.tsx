@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Wrench, Lock, Hash, ArrowRight, ShieldCheck, User } from 'lucide-react'
+import { Wrench, Lock, ArrowRight, ShieldCheck, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,7 +21,7 @@ export default function Login() {
     if (!cadastro || !password) return
 
     setLoading(true)
-    const { error } = await signIn(cadastro, password)
+    const { error } = await signIn(cadastro.trim(), password)
     setLoading(false)
 
     if (error) {

@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (registrationCode: string, pass: string) => {
     try {
-      const res = await pb.collection('users').authWithPassword(registrationCode, pass)
+      const res = await pb.collection('users').authWithPassword(registrationCode.trim(), pass)
       setUser(res.record as unknown as User)
       return { error: null }
     } catch (error) {
