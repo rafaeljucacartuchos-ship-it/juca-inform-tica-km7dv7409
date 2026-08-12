@@ -1,16 +1,31 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Phone, Mail, MapPin, Wrench } from 'lucide-react'
+import { ArrowLeft, Phone, Mail, MapPin, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Customer, ServiceOrder } from '@/types'
+import { Customer, ServiceOrder, Equipment } from '@/types'
 import { getCustomer } from '@/services/customers'
 import { getServiceOrders } from '@/services/service_orders'
+import { getEquipmentByCustomer } from '@/services/equipment'
+import { getFileUrl } from '@/lib/pocketbase/files'
+import { NewEquipmentModal } from '@/components/NewEquipmentModal'
+import { EquipmentHistoryDialog } from '@/components/EquipmentHistoryDialog'
 
 export default function ClienteDetail() {
   const { id } = useParams<{ id: string }>()
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [orders, setOrders] = useState<ServiceOrder[]>([])
+  const [equipments, setEquipments] = useState<Equipment[]>([])
+  const [modalOpen, setModalOpen] = useState(false)
+  const [selectedEquip, setSelectedEquip] = useState<Equipment | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+
+  const loadEquipment = () => {
+    if (id)
+      getEquipmentByCustomer(id)
+        .then(setEquipments)
+        .catch(() => {})
+  }
 
   useEffect(() => {
     if (!id) return
@@ -20,6 +35,7 @@ export default function ClienteDetail() {
     getServiceOrders(`customer = "${id}"`)
       .then(setOrders)
       .catch(() => {})
+    loadEquipment()
   }, [id])
 
   if (!customer) {
@@ -105,6 +121,80 @@ export default function ClienteDetail() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-slate-200 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <CardTitle className="text-sm font-bold text-slate-900">
+            Equipamentos do Cliente
+          </CardTitle>
+          <Button
+            size="sm"
+            onClick={() => setModalOpen(true)}
+            className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700"
+          >
+            <Plus className="h-3.5 w-3.5 mr-1" /> Novo Equipamento
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {equipments.map((e) => {
+              const photos = e.photos || []
+              return (
+                <div
+                  key={e.id}
+                  className="border border-slate-200 rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => {
+                    setSelectedEquip(e)
+                    setHistoryOpen(true)
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    {photos[0] ? (
+                      <img
+                        src={getFileUrl(e.id, photos[0], 'equipment', '64x64')}
+                        alt=""
+                        className="h-8 w-8 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="h-8 w-8 rounded-lg bg-indigo-50" />
+                    )}
+                    <h3 className="text-xs font-bold text-slate-900">{e.name}</h3>
+                  </div>
+                  <div className="text-[11px] text-slate-500 space-y-0.5">
+                    <p>
+                      <span className="font-semibold">Marca:</span> {e.brand || '-'}
+                    </p>
+                    <p>
+                      <span className="font-semibold">Modelo:</span> {e.model || '-'}
+                    </p>
+                    <p>
+                      <span className="font-semibold">Série:</span>{' '}
+                      <span className="font-mono">{e.serial_number || '-'}</span>
+                    </p>
+                  </div>
+                </div>
+              )
+            })}
+            {equipments.length === 0 && (
+              <p className="text-xs text-slate-400 py-4 text-center">
+                Nenhum equipamento cadastrado.
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <NewEquipmentModal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        onCreated={loadEquipment}
+        defaultCustomerId={id}
+      />
+      <EquipmentHistoryDialog
+        equipment={selectedEquip}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+      />
     </div>
   )
 }

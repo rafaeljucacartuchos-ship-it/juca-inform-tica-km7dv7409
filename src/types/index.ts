@@ -70,6 +70,10 @@ export interface ServiceOrder {
   estimated_cost?: number
   total?: number
   notes?: string
+  service_report?: string
+  technician_signature?: string
+  customer_signature?: string
+  equipment_ref?: string
   created?: string
   updated?: string
   expand?: {
@@ -164,6 +168,7 @@ export interface Equipment {
   model?: string
   serial_number?: string
   notes?: string
+  photos?: string[]
   created?: string
   updated?: string
   expand?: {

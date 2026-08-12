@@ -44,3 +44,15 @@ export const getStatusHistory = (orderId: string) =>
 
 export const addStatusHistory = (data: Partial<StatusHistory>) =>
   pb.collection('status_history').create<StatusHistory>(data)
+
+export const uploadSignature = (
+  id: string,
+  field: 'technician_signature' | 'customer_signature',
+  blob: Blob,
+) => {
+  const formData = new FormData()
+  formData.append(field, blob, 'signature.png')
+  return pb.collection('service_orders').update<ServiceOrder>(id, formData, {
+    expand: 'customer,technician',
+  })
+}

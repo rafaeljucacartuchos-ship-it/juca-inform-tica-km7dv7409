@@ -1,5 +1,5 @@
 import pb from '@/lib/pocketbase/client'
-import { Equipment } from '@/types'
+import { Equipment, ServiceOrder } from '@/types'
 
 export const getEquipment = () =>
   pb.collection('equipment').getFullList<Equipment>({
@@ -23,3 +23,13 @@ export const updateEquipment = (id: string, data: Partial<Equipment>) =>
   pb.collection('equipment').update<Equipment>(id, data, { expand: 'customer' })
 
 export const deleteEquipment = (id: string) => pb.collection('equipment').delete(id)
+
+export const createEquipmentWithPhotos = (data: FormData) =>
+  pb.collection('equipment').create<Equipment>(data, { expand: 'customer' })
+
+export const getEquipmentServiceOrders = (equipmentId: string) =>
+  pb.collection('service_orders').getFullList<ServiceOrder>({
+    filter: `equipment_ref = "${equipmentId}"`,
+    sort: '-created',
+    expand: 'customer,technician',
+  })

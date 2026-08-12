@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react'
-import { Search, Monitor, Laptop, Smartphone, Printer } from 'lucide-react'
+import { Search, Monitor, Laptop, Smartphone, Printer, Plus } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Equipment } from '@/types'
 import { getEquipment } from '@/services/equipment'
+import { getFileUrl } from '@/lib/pocketbase/files'
 import { useRealtime } from '@/hooks/use-realtime'
+import { NewEquipmentModal } from '@/components/NewEquipmentModal'
+import { EquipmentHistoryDialog } from '@/components/EquipmentHistoryDialog'
 
 const typeIcons: Record<string, typeof Monitor> = {
   notebook: Laptop,
@@ -21,13 +25,15 @@ const typeIcons: Record<string, typeof Monitor> = {
 export default function Equipamentos() {
   const [equipment, setEquipment] = useState<Equipment[]>([])
   const [search, setSearch] = useState('')
+  const [modalOpen, setModalOpen] = useState(false)
+  const [selectedEquip, setSelectedEquip] = useState<Equipment | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   const loadData = async () => {
     try {
-      const data = await getEquipment()
-      setEquipment(data)
+      setEquipment(await getEquipment())
     } catch {
-      /* ignored */
+      /* */
     }
   }
 
@@ -47,13 +53,27 @@ export default function Equipamentos() {
     )
   })
 
+  const openHistory = (e: Equipment) => {
+    setSelectedEquip(e)
+    setHistoryOpen(true)
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Equipamentos</h1>
-        <p className="text-xs sm:text-sm text-slate-500">
-          Base de equipamentos cadastrados dos clientes.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Equipamentos</h1>
+          <p className="text-xs sm:text-sm text-slate-500">
+            Base de equipamentos cadastrados dos clientes.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          onClick={() => setModalOpen(true)}
+          className="bg-indigo-600 hover:bg-indigo-700"
+        >
+          <Plus className="h-4 w-4 mr-1" /> Novo Equipamento
+        </Button>
       </div>
 
       <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
@@ -71,14 +91,27 @@ export default function Equipamentos() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map((e) => {
           const Icon = typeIcons[e.type || 'other'] || Monitor
+          const photos = e.photos || []
           return (
-            <Card key={e.id} className="border-slate-200 shadow-xs">
+            <Card
+              key={e.id}
+              className="border-slate-200 shadow-xs cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => openHistory(e)}
+            >
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
-                      <Icon className="h-4 w-4" />
-                    </div>
+                    {photos[0] ? (
+                      <img
+                        src={getFileUrl(e.id, photos[0], 'equipment', '64x64')}
+                        alt=""
+                        className="h-8 w-8 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                    )}
                     <h3 className="text-xs font-bold text-slate-900">{e.name}</h3>
                   </div>
                   <Badge variant="outline" className="text-[10px] uppercase">
@@ -111,6 +144,13 @@ export default function Equipamentos() {
           Nenhum equipamento encontrado.
         </div>
       )}
+
+      <NewEquipmentModal open={modalOpen} onOpenChange={setModalOpen} onCreated={loadData} />
+      <EquipmentHistoryDialog
+        equipment={selectedEquip}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+      />
     </div>
   )
 }

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-12T12:19:01.553Z",
+  "generatedAt": "2026-08-12T16:08:36.344Z",
   "collections": [
     {
       "name": "users",
@@ -704,6 +704,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "photos",
+          "type": "file",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [

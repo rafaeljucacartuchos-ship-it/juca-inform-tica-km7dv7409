@@ -1,19 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import {
-  Wrench,
-  Plus,
-  Trash2,
-  CheckCircle,
-  Clock,
-  User,
-  FileText,
-  ArrowLeft,
-  DollarSign,
-} from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, DollarSign, Play, CheckCircle, MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -41,12 +32,18 @@ import {
 import { getCatalogServices } from '@/services/services_catalog'
 import { getOrderPayments } from '@/services/payments'
 import { PaymentModal } from '@/components/PaymentModal'
+import { OrderPhotos } from '@/components/OrderPhotos'
+import { OrderSignatures } from '@/components/OrderSignatures'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
+import { useRealtime } from '@/hooks/use-realtime'
+import { openWhatsApp, triggerWhatsAppEvaluation, buildServiceMessage } from '@/lib/whatsapp'
 
 export default function OrdemDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const { toast } = useToast()
   const [order, setOrder] = useState<ServiceOrder | null>(null)
   const [items, setItems] = useState<ServiceOrderItem[]>([])
   const [history, setHistory] = useState<StatusHistory[]>([])
@@ -54,8 +51,8 @@ export default function OrdemDetail() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [selectedCatalogId, setSelectedCatalogId] = useState('')
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
-  const { user } = useAuth()
-  const { toast } = useToast()
+  const [serviceReport, setServiceReport] = useState('')
+  const canEdit = user?.role === 'technician' || user?.role === 'admin'
 
   const loadAll = async () => {
     if (!id) return
@@ -72,6 +69,7 @@ export default function OrdemDetail() {
       setHistory(h)
       setCatalog(cat)
       setPayments(p)
+      setServiceReport(o.service_report || '')
     } catch {
       /* intentionally ignored */
     }
@@ -80,6 +78,14 @@ export default function OrdemDetail() {
   useEffect(() => {
     loadAll()
   }, [id])
+
+  useRealtime('service_orders', () => loadAll())
+  useRealtime('status_history', () => {
+    if (id)
+      getStatusHistory(id)
+        .then(setHistory)
+        .catch(() => {})
+  })
 
   if (!order) {
     return <div className="p-8 text-center text-slate-500">Carregando detalhes da ordem...</div>
@@ -96,16 +102,81 @@ export default function OrdemDetail() {
       })
       toast({ title: 'Status alterado com sucesso!' })
       loadAll()
-    } catch (_) {
+    } catch {
       toast({ title: 'Erro ao alterar status', variant: 'destructive' })
     }
+  }
+
+  const handleStartService = async () => {
+    try {
+      await updateServiceOrder(order.id, { status: 'in_progress' })
+      await addStatusHistory({
+        service_order: order.id,
+        status: 'in_progress',
+        note: 'Atendimento iniciado pelo técnico',
+        changed_by: user?.id,
+      })
+      toast({ title: 'Atendimento iniciado!' })
+      loadAll()
+    } catch {
+      toast({ title: 'Erro ao iniciar atendimento', variant: 'destructive' })
+    }
+  }
+
+  const handleFinishService = async () => {
+    if (!serviceReport.trim()) {
+      toast({
+        title: 'Descreva o serviço executado antes de concluir',
+        variant: 'destructive',
+      })
+      return
+    }
+    try {
+      await updateServiceOrder(order.id, {
+        status: 'completed',
+        service_report: serviceReport,
+      })
+      await addStatusHistory({
+        service_order: order.id,
+        status: 'completed',
+        note: 'Serviço concluído',
+        changed_by: user?.id,
+      })
+      toast({ title: 'Serviço concluído com sucesso!' })
+      const phone = order.expand?.customer?.phone || ''
+      const name = order.expand?.customer?.name || 'Cliente'
+      if (phone) triggerWhatsAppEvaluation(phone, name, order.number)
+      loadAll()
+    } catch {
+      toast({ title: 'Erro ao concluir serviço', variant: 'destructive' })
+    }
+  }
+
+  const handleSaveReport = async () => {
+    if (!order || serviceReport === (order.service_report || '')) return
+    try {
+      await updateServiceOrder(order.id, { service_report: serviceReport })
+    } catch {
+      /* ignored */
+    }
+  }
+
+  const handleWhatsApp = () => {
+    const phone = order.expand?.customer?.phone || ''
+    if (!phone) {
+      toast({ title: 'Cliente sem telefone cadastrado', variant: 'destructive' })
+      return
+    }
+    openWhatsApp(
+      phone,
+      buildServiceMessage(order.expand?.customer?.name || 'Cliente', order.number, order.status),
+    )
   }
 
   const handleAddItem = async () => {
     if (!selectedCatalogId) return
     const catItem = catalog.find((c) => c.id === selectedCatalogId)
     if (!catItem) return
-
     try {
       await createOrderItem({
         service_order: order.id,
@@ -115,14 +186,12 @@ export default function OrdemDetail() {
         unit_price: catItem.price,
         total: catItem.price,
       })
-
-      const newTotal = items.reduce((sum, i) => sum + i.total, 0) + catItem.price
+      const newTotal = items.reduce((s, i) => s + i.total, 0) + catItem.price
       await updateServiceOrder(order.id, { total: newTotal })
-
       toast({ title: 'Item adicionado à OS' })
       setSelectedCatalogId('')
       loadAll()
-    } catch (_) {
+    } catch {
       toast({ title: 'Erro ao adicionar item', variant: 'destructive' })
     }
   }
@@ -134,7 +203,7 @@ export default function OrdemDetail() {
       await updateServiceOrder(order.id, { total: newTotal })
       toast({ title: 'Item removido' })
       loadAll()
-    } catch (_) {
+    } catch {
       toast({ title: 'Erro ao remover item', variant: 'destructive' })
     }
   }
@@ -154,6 +223,9 @@ export default function OrdemDetail() {
           </div>
           <p className="text-xs text-slate-500">{order.title}</p>
         </div>
+        <Button variant="outline" size="sm" onClick={handleWhatsApp} className="text-xs gap-1.5">
+          <MessageCircle className="h-4 w-4" /> WhatsApp
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -183,10 +255,32 @@ export default function OrdemDetail() {
           </Card>
 
           <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardHeader className="pb-3">
               <CardTitle className="text-sm font-bold text-slate-900">
-                Itens e Serviços Prestados
+                Relatório de Serviço
               </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                value={serviceReport}
+                onChange={(e) => setServiceReport(e.target.value)}
+                onBlur={handleSaveReport}
+                disabled={!canEdit}
+                placeholder="Descreva o serviço executado..."
+                rows={4}
+                className="text-xs"
+              />
+              {order.status === 'in_progress' && !serviceReport.trim() && (
+                <p className="text-[11px] text-amber-600 mt-1">
+                  Preencha o relatório para concluir o serviço.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-sm font-bold text-slate-900">Itens e Serviços</CardTitle>
               <div className="flex items-center gap-2">
                 <Select value={selectedCatalogId} onValueChange={setSelectedCatalogId}>
                   <SelectTrigger className="h-8 text-xs w-48">
@@ -211,7 +305,7 @@ export default function OrdemDetail() {
                   <tr>
                     <th className="py-2.5 px-4">Descrição</th>
                     <th className="py-2.5 px-4 text-center">Qtd</th>
-                    <th className="py-2.5 px-4 text-right">Preço Un.</th>
+                    <th className="py-2.5 px-4 text-right">Un.</th>
                     <th className="py-2.5 px-4 text-right">Total</th>
                     <th className="py-2.5 px-4"></th>
                   </tr>
@@ -249,6 +343,9 @@ export default function OrdemDetail() {
               </div>
             </CardContent>
           </Card>
+
+          <OrderPhotos orderId={order.id} canEdit={canEdit} />
+          <OrderSignatures order={order} canEdit={canEdit} onSaved={loadAll} />
         </div>
 
         <div className="space-y-6">
@@ -257,12 +354,23 @@ export default function OrdemDetail() {
               <CardTitle className="text-sm font-bold text-slate-900">Ações Rápidas</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Button
-                onClick={() => handleStatusChange('in_progress')}
-                className="w-full justify-start text-xs h-9 bg-purple-600 hover:bg-purple-700"
-              >
-                Iniciar Atendimento
-              </Button>
+              {order.status === 'open' && (
+                <Button
+                  onClick={handleStartService}
+                  className="w-full justify-start text-xs h-9 bg-purple-600 hover:bg-purple-700"
+                >
+                  <Play className="h-4 w-4 mr-1" /> Iniciar Atendimento
+                </Button>
+              )}
+              {order.status === 'in_progress' && (
+                <Button
+                  onClick={handleFinishService}
+                  disabled={!serviceReport.trim()}
+                  className="w-full justify-start text-xs h-9 bg-emerald-600 hover:bg-emerald-700"
+                >
+                  <CheckCircle className="h-4 w-4 mr-1" /> Concluir Serviço
+                </Button>
+              )}
               <Button
                 onClick={() => handleStatusChange('waiting_parts')}
                 variant="outline"
