@@ -30,32 +30,9 @@ migrate(
       try {
         record = app.findAuthRecordByEmail('users', acc.email)
       } catch (e) {
-        try {
-          record = app.findFirstRecordByData('users', 'username', acc.username)
-        } catch (e2) {
-          // Record not found by email or username — will create new below
-        }
+        // Record not found — will create new below
       }
 
-      // If a DIFFERENT record holds the target username, clear it via raw SQL
-      // so the unique constraint won't fail when we set it on the target record.
-      if (record) {
-        try {
-          var holder = app.findFirstRecordByData('users', 'username', acc.username)
-          if (holder && holder.id !== record.id) {
-            app
-              .db()
-              .newQuery("UPDATE users SET username = '' WHERE id = {:id}")
-              .bind({ id: holder.id })
-              .execute()
-          }
-        } catch (e) {
-          // No other record holds this username — nothing to clear
-        }
-      }
-
-      // Save the record WITHOUT setting username — validation/hooks may
-      // strip it. Password hashing requires app.save (not saveNoValidate).
       if (record) {
         record.set('name', acc.name)
         record.set('role', acc.role)
@@ -73,23 +50,8 @@ migrate(
         app.save(record)
       }
 
-      // Set username via raw SQL — bypasses validation hooks that may
-      // clear the field during the normal save cycle.
-      app
-        .db()
-        .newQuery('UPDATE users SET username = {:u} WHERE id = {:id}')
-        .bind({ u: acc.username, id: record.id })
-        .execute()
-
       console.log(
-        'Quick-access account ensured: ' +
-          acc.email +
-          ' | username=' +
-          acc.username +
-          ' | role=' +
-          acc.role +
-          ' | id=' +
-          record.id,
+        'Quick-access account ensured: ' + acc.email + ' | role=' + acc.role + ' | id=' + record.id,
       )
     }
 
@@ -98,17 +60,6 @@ migrate(
       var acc2 = accounts[j]
       var user = app.findAuthRecordByEmail('users', acc2.email)
 
-      if (user.getString('username') !== acc2.username) {
-        throw new Error(
-          'Verification failed for ' +
-            acc2.email +
-            ': username expected "' +
-            acc2.username +
-            '", got "' +
-            user.getString('username') +
-            '"',
-        )
-      }
       if (user.getString('role') !== acc2.role) {
         throw new Error(
           'Verification failed for ' +
