@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
   Plus,
   Trash2,
@@ -100,6 +100,10 @@ export default function OrdemDetail() {
 
   if (!order) {
     return <div className="p-8 text-center text-slate-500">Carregando detalhes da ordem...</div>
+  }
+
+  if (user?.role === 'technician' && order.technician !== user.id) {
+    return <Navigate to="/ordens" replace />
   }
 
   const handleStatusChange = async (newStatus: OrderStatus) => {

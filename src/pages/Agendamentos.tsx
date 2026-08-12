@@ -17,6 +17,7 @@ import { getTechnicians } from '@/services/users'
 import { NewAppointmentModal } from '@/components/NewAppointmentModal'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
+import { useAuth } from '@/hooks/use-auth'
 
 export default function Agendamentos() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
@@ -24,10 +25,15 @@ export default function Agendamentos() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().substring(0, 10))
   const [newModalOpen, setNewModalOpen] = useState(false)
   const { toast } = useToast()
+  const { user } = useAuth()
 
   const loadData = async () => {
     try {
-      const [appts, techs] = await Promise.all([getAppointments(), getTechnicians()])
+      const techId = user?.role === 'technician' ? user?.id : undefined
+      const [appts, techs] = await Promise.all([
+        getAppointments(undefined, techId),
+        getTechnicians(),
+      ])
       setAppointments(appts)
       setTechnicians(techs)
     } catch {

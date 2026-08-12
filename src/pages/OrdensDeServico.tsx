@@ -30,7 +30,8 @@ export default function OrdensDeServico() {
 
   const loadData = async () => {
     try {
-      const data = await getServiceOrders()
+      const filterStr = user?.role === 'technician' && user?.id ? `technician = "${user.id}"` : ''
+      const data = await getServiceOrders(filterStr)
       setOrders(data)
     } catch {
       /* intentionally ignored */

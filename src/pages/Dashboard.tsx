@@ -25,6 +25,7 @@ import { getTechnicians } from '@/services/users'
 import { getAllPayments } from '@/services/payments'
 import { getAllStatusHistory } from '@/services/status_history'
 import { useRealtime } from '@/hooks/use-realtime'
+import { useAuth } from '@/hooks/use-auth'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
 import {
   STATUS_CONFIG,
@@ -48,13 +49,16 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const [exportOrdersOpen, setExportOrdersOpen] = useState(false)
+  const { user } = useAuth()
 
   const loadData = async () => {
     try {
       setError(null)
+      const isTech = user?.role === 'technician'
+      const techFilter = isTech && user?.id ? `technician = "${user.id}"` : ''
       const [so, appt, tech, pay, hist] = await Promise.all([
-        getServiceOrders(),
-        getAppointments(),
+        getServiceOrders(techFilter),
+        getAppointments(undefined, isTech ? user?.id : undefined),
         getTechnicians(),
         getAllPayments(),
         getAllStatusHistory(),
@@ -62,8 +66,14 @@ export default function Dashboard() {
       setOrders(so)
       setAppointments(appt)
       setTechnicians(tech)
-      setPayments(pay)
-      setHistory(hist)
+      if (isTech) {
+        const orderIds = new Set(so.map((o) => o.id))
+        setPayments(pay.filter((p) => orderIds.has(p.service_order)))
+        setHistory(hist.filter((h) => orderIds.has(h.service_order)))
+      } else {
+        setPayments(pay)
+        setHistory(hist)
+      }
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
