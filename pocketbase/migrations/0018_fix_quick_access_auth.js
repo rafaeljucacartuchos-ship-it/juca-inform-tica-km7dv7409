@@ -27,9 +27,6 @@ migrate(
       var acc = accounts[i]
       var record = null
 
-      // Lookup: find existing record by email (preferred) or by username.
-      // try/catch is used ONLY for existence checking — not for swallowing
-      // errors during the corrective save below.
       try {
         record = app.findAuthRecordByEmail('users', acc.email)
       } catch (e) {
@@ -40,23 +37,26 @@ migrate(
         }
       }
 
-      // If a DIFFERENT record holds the target username, clear it so the
-      // save on the target record does not fail the unique constraint.
+      // If a DIFFERENT record holds the target username, clear it via raw SQL
+      // so the unique constraint won't fail when we set it on the target record.
       if (record) {
         try {
           var holder = app.findFirstRecordByData('users', 'username', acc.username)
           if (holder && holder.id !== record.id) {
-            holder.set('username', '')
-            app.save(holder)
+            app
+              .db()
+              .newQuery("UPDATE users SET username = '' WHERE id = {:id}")
+              .bind({ id: holder.id })
+              .execute()
           }
         } catch (e) {
           // No other record holds this username — nothing to clear
         }
       }
 
-      // Corrective logic — NO try/catch. Any error here must surface.
+      // Save the record WITHOUT setting username — validation/hooks may
+      // strip it. Password hashing requires app.save (not saveNoValidate).
       if (record) {
-        record.set('username', acc.username)
         record.set('name', acc.name)
         record.set('role', acc.role)
         record.setEmail(acc.email)
@@ -65,7 +65,6 @@ migrate(
         app.save(record)
       } else {
         record = new Record(usersCol)
-        record.set('username', acc.username)
         record.set('name', acc.name)
         record.set('role', acc.role)
         record.setEmail(acc.email)
@@ -73,6 +72,14 @@ migrate(
         record.setVerified(true)
         app.save(record)
       }
+
+      // Set username via raw SQL — bypasses validation hooks that may
+      // clear the field during the normal save cycle.
+      app
+        .db()
+        .newQuery('UPDATE users SET username = {:u} WHERE id = {:id}')
+        .bind({ u: acc.username, id: record.id })
+        .execute()
 
       console.log(
         'Quick-access account ensured: ' +
@@ -86,8 +93,7 @@ migrate(
       )
     }
 
-    // Verification — fail loudly if any account is missing or incorrect.
-    // No try/catch: findAuthRecordByEmail throws if not found.
+    // Verification — re-read each record fresh from the database.
     for (var j = 0; j < accounts.length; j++) {
       var acc2 = accounts[j]
       var user = app.findAuthRecordByEmail('users', acc2.email)
