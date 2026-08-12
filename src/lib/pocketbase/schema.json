@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-12T16:08:36.344Z",
+  "generatedAt": "2026-08-12T16:50:11.262Z",
   "collections": [
     {
       "name": "users",
@@ -558,7 +558,10 @@
           "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
-      "indexes": ["CREATE INDEX idx_sh_so ON status_history (service_order)"]
+      "indexes": [
+        "CREATE INDEX idx_sh_so ON status_history (service_order)",
+        "CREATE INDEX `idx_sh_status` ON `status_history` (status)"
+      ]
     },
     {
       "name": "payments",
@@ -625,7 +628,10 @@
           "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
-      "indexes": ["CREATE INDEX idx_pay_so ON payments (service_order)"]
+      "indexes": [
+        "CREATE INDEX idx_pay_so ON payments (service_order)",
+        "CREATE INDEX `idx_pay_paid_at` ON `payments` (paid_at)"
+      ]
     },
     {
       "name": "equipment",

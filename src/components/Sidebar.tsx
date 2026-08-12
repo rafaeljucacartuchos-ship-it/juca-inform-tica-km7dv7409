@@ -47,7 +47,7 @@ export function Sidebar({ onNavClick }: SidebarProps) {
   }, [isCadastroActive])
 
   const mainNavItems = [
-    { label: 'Dashboard', path: '/', icon: LayoutDashboard },
+    { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Agendamentos', path: '/agendamentos', icon: Calendar },
     { label: 'Ordens de Serviço', path: '/ordens', icon: Wrench },
     { label: 'Relatórios', path: '/relatorios', icon: BarChart3 },
