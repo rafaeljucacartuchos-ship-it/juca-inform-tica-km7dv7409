@@ -7,6 +7,7 @@ export interface User {
   role: UserRole
   phone?: string
   avatar?: string
+  permissions?: Record<string, boolean> | null
   created?: string
   updated?: string
 }

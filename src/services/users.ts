@@ -27,6 +27,7 @@ export const updateUser = (
     phone: string
     role: string
     email: string
+    permissions: Record<string, boolean>
   }>,
 ) => pb.collection('users').update<User>(id, data)
 

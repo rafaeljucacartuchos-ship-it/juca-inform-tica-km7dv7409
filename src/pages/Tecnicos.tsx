@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Plus, Search, Pencil, Trash2, KeyRound } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, KeyRound, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
@@ -17,7 +17,9 @@ import { getUsers, deleteUser, updateUser } from '@/services/users'
 import { NewTechnicianModal } from '@/components/NewTechnicianModal'
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
 import { ResetPasswordModal } from '@/components/ResetPasswordModal'
+import { PermissionsModal } from '@/components/PermissionsModal'
 import { useAuth } from '@/hooks/use-auth'
+import { usePermissions } from '@/hooks/use-permissions'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 
@@ -36,8 +38,10 @@ export default function Tecnicos() {
   const [editUser, setEditUser] = useState<User | null>(null)
   const [deleteUserTarget, setDeleteUserTarget] = useState<User | null>(null)
   const [resetPwdUser, setResetPwdUser] = useState<User | null>(null)
+  const [permissionsUser, setPermissionsUser] = useState<User | null>(null)
 
   const isAdmin = user?.role === 'admin'
+  const { hasPermission } = usePermissions()
 
   const loadData = async () => {
     try {
@@ -184,6 +188,17 @@ export default function Tecnicos() {
                           <Pencil className="h-3.5 w-3.5" />
                           <span className="hidden lg:inline">Editar</span>
                         </Button>
+                        {hasPermission('permissoes') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs text-violet-600 gap-1"
+                            onClick={() => setPermissionsUser(u)}
+                          >
+                            <Shield className="h-3.5 w-3.5" />
+                            <span className="hidden lg:inline">Permissões</span>
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -237,6 +252,12 @@ export default function Tecnicos() {
         open={!!resetPwdUser}
         onOpenChange={(o) => !o && setResetPwdUser(null)}
         user={resetPwdUser}
+      />
+      <PermissionsModal
+        open={!!permissionsUser}
+        onOpenChange={(o) => !o && setPermissionsUser(null)}
+        user={permissionsUser}
+        onSaved={loadData}
       />
     </div>
   )

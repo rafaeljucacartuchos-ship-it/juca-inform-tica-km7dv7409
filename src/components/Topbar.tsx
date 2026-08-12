@@ -7,6 +7,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Sidebar } from '@/components/Sidebar'
 import { NewOrderModal } from '@/components/NewOrderModal'
+import { usePermissions } from '@/hooks/use-permissions'
 import { useNotifications } from '@/hooks/use-notifications'
 import { NotificationsPanel } from '@/components/NotificationsPanel'
 
@@ -23,6 +24,7 @@ export function Topbar() {
     requestBrowserPermission,
     browserPermission,
   } = useNotifications()
+  const { hasPermission } = usePermissions()
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -93,17 +95,21 @@ export function Topbar() {
             </PopoverContent>
           </Popover>
 
-          <Button
-            onClick={() => setNewOrderOpen(true)}
-            className="gap-1.5 h-9 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm shadow-indigo-600/20 px-3 sm:px-4 text-xs sm:text-sm rounded-lg"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Nova Ordem</span>
-          </Button>
+          {hasPermission('os_create') && (
+            <Button
+              onClick={() => setNewOrderOpen(true)}
+              className="gap-1.5 h-9 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm shadow-indigo-600/20 px-3 sm:px-4 text-xs sm:text-sm rounded-lg"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Nova Ordem</span>
+            </Button>
+          )}
         </div>
       </header>
 
-      <NewOrderModal open={newOrderOpen} onOpenChange={setNewOrderOpen} />
+      {hasPermission('os_create') && (
+        <NewOrderModal open={newOrderOpen} onOpenChange={setNewOrderOpen} />
+      )}
     </>
   )
 }

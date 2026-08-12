@@ -240,32 +240,50 @@ export default function OrdemDetail() {
     <div className="space-y-6">
       <CompanyHeader />
 
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/ordens')} className="h-8 w-8">
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-mono">
-              {order.number}
-            </h1>
-            <Badge className="capitalize">{order.status}</Badge>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/ordens')}
+            className="h-9 w-9 shrink-0"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 font-mono">
+                {order.number}
+              </h1>
+              <Badge className="capitalize">{order.status}</Badge>
+            </div>
+            <p className="text-xs text-slate-500 truncate">{order.title}</p>
           </div>
-          <p className="text-xs text-slate-500">{order.title}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => navigate(`/ordens/${order.id}/imprimir`)}
-            className="text-xs gap-1.5"
+            className="text-xs gap-1.5 h-9 flex-1 sm:flex-initial justify-center"
           >
-            <Printer className="h-4 w-4" /> Imprimir / PDF
+            <Printer className="h-4 w-4" /> <span className="hidden sm:inline">Imprimir / PDF</span>
+            <span className="sm:hidden">Imprimir</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={handleShare} className="text-xs gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleShare}
+            className="text-xs gap-1.5 h-9 flex-1 sm:flex-initial justify-center"
+          >
             <Share2 className="h-4 w-4" /> Compartilhar
           </Button>
-          <Button variant="outline" size="sm" onClick={handleWhatsApp} className="text-xs gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleWhatsApp}
+            className="text-xs gap-1.5 h-9 flex-1 sm:flex-initial justify-center"
+          >
             <MessageCircle className="h-4 w-4" /> WhatsApp
           </Button>
         </div>
@@ -280,7 +298,7 @@ export default function OrdemDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <span className="font-semibold text-slate-500">Cliente:</span>
                   <p className="font-medium text-slate-900">{order.expand?.customer?.name}</p>
@@ -322,11 +340,11 @@ export default function OrdemDetail() {
           </Card>
 
           <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3">
               <CardTitle className="text-sm font-bold text-slate-900">Itens e Serviços</CardTitle>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <Select value={selectedCatalogId} onValueChange={setSelectedCatalogId}>
-                  <SelectTrigger className="h-8 text-xs w-48">
+                  <SelectTrigger className="h-8 text-xs flex-1 sm:w-48">
                     <SelectValue placeholder="Adicionar serviço..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -343,7 +361,37 @@ export default function OrdemDetail() {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <table className="w-full text-left text-xs">
+              <div className="sm:hidden divide-y divide-slate-100">
+                {items.map((item) => (
+                  <div key={item.id} className="p-3 space-y-1.5">
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="font-medium text-xs text-slate-900 flex-1">
+                        {item.description}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteItem(item.id, item.total)}
+                        className="h-7 w-7 shrink-0 text-red-500 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <div className="flex justify-between text-[11px] text-slate-500">
+                      <span>
+                        Qtd: {item.quantity} × R$ {item.unit_price.toFixed(2)}
+                      </span>
+                      <span className="font-bold text-slate-900 text-xs">
+                        R$ {item.total.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {items.length === 0 && (
+                  <p className="py-6 text-center text-slate-400 text-xs">Nenhum item adicionado.</p>
+                )}
+              </div>
+              <table className="hidden sm:table w-full text-left text-xs">
                 <thead className="bg-slate-50 border-y border-slate-200 text-slate-500">
                   <tr>
                     <th className="py-2.5 px-4">Descrição</th>
@@ -369,7 +417,7 @@ export default function OrdemDetail() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleDeleteItem(item.id, item.total)}
-                          className="h-6 w-6 text-red-500 hover:bg-red-50"
+                          className="h-7 w-7 text-red-500 hover:bg-red-50"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>

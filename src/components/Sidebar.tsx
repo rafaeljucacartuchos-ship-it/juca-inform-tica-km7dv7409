@@ -18,9 +18,11 @@ import {
   ChevronDown,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
+import { usePermissions } from '@/hooks/use-permissions'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
+import type { PermissionModule } from '@/lib/permissions'
 
 interface SidebarProps {
   onNavClick?: () => void
@@ -29,13 +31,35 @@ interface SidebarProps {
 export function Sidebar({ onNavClick }: SidebarProps) {
   const location = useLocation()
   const { user, signOut } = useAuth()
+  const { hasPermission } = usePermissions()
 
-  const cadastroChildren = [
-    { label: 'Clientes', path: '/clientes', icon: Users },
-    { label: 'Equipamentos', path: '/equipamentos', icon: Monitor },
-    { label: 'Produtos', path: '/produtos', icon: Package },
-    { label: 'Serviços', path: '/servicos', icon: Briefcase },
+  const allCadastroChildren = [
+    {
+      label: 'Clientes',
+      path: '/clientes',
+      icon: Users,
+      permission: 'clientes' as PermissionModule,
+    },
+    {
+      label: 'Equipamentos',
+      path: '/equipamentos',
+      icon: Monitor,
+      permission: 'equipamentos' as PermissionModule,
+    },
+    {
+      label: 'Produtos',
+      path: '/produtos',
+      icon: Package,
+      permission: 'produtos' as PermissionModule,
+    },
+    {
+      label: 'Serviços',
+      path: '/servicos',
+      icon: Briefcase,
+      permission: 'servicos' as PermissionModule,
+    },
   ]
+  const cadastroChildren = allCadastroChildren.filter((c) => hasPermission(c.permission))
 
   const isCadastroActive = cadastroChildren.some(
     (c) => location.pathname === c.path || location.pathname.startsWith(c.path + '/'),
@@ -46,16 +70,26 @@ export function Sidebar({ onNavClick }: SidebarProps) {
     if (isCadastroActive) setCadastroOpen(true)
   }, [isCadastroActive])
 
-  const isTechnician = user?.role === 'technician'
-
   const mainNavItems = [
-    { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { label: 'Agendamentos', path: '/agendamentos', icon: Calendar },
-    { label: 'Ordens de Serviço', path: '/ordens', icon: Wrench },
-    ...(isTechnician ? [] : [{ label: 'Relatórios', path: '/relatorios', icon: BarChart3 }]),
-  ]
+    { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, show: true },
+    {
+      label: 'Agendamentos',
+      path: '/agendamentos',
+      icon: Calendar,
+      show: hasPermission('agendamentos'),
+    },
+    { label: 'Ordens de Serviço', path: '/ordens', icon: Wrench, show: hasPermission('ordens') },
+    {
+      label: 'Relatórios',
+      path: '/relatorios',
+      icon: BarChart3,
+      show: hasPermission('relatorios'),
+    },
+  ].filter((item) => item.show)
 
-  const isAdmin = user?.role === 'admin'
+  const showTecnicos = hasPermission('tecnicos')
+  const showCadastro = cadastroChildren.length > 0
+
   const isPathActive = (path: string) =>
     location.pathname === path || (path !== '/' && location.pathname.startsWith(path))
 
@@ -129,7 +163,7 @@ export function Sidebar({ onNavClick }: SidebarProps) {
           )
         })}
 
-        {!isTechnician && (
+        {showCadastro && (
           <Collapsible open={cadastroOpen} onOpenChange={setCadastroOpen}>
             <CollapsibleTrigger className="w-full group flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 transition-all duration-200">
               <Database
@@ -171,7 +205,7 @@ export function Sidebar({ onNavClick }: SidebarProps) {
           </Collapsible>
         )}
 
-        {isAdmin && (
+        {showTecnicos && (
           <Link
             to="/tecnicos"
             onClick={onNavClick}

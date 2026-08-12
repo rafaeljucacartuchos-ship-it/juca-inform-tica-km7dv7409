@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-12T20:02:00.796Z",
+  "generatedAt": "2026-08-12T20:32:38.826Z",
   "collections": [
     {
       "name": "users",
@@ -48,6 +48,12 @@
         {
           "name": "phone",
           "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "permissions",
+          "type": "json",
           "required": false,
           "system": false
         }
