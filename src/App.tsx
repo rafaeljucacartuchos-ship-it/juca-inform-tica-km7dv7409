@@ -1,28 +1,45 @@
-/* Main App Component - Handles routing (using react-router-dom), query client and other providers - use this file to add all routes */
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import Index from './pages/Index'
-import NotFound from './pages/NotFound'
-import Layout from './components/Layout'
-
-// ONLY IMPORT AND RENDER WORKING PAGES, NEVER ADD PLACEHOLDER COMPONENTS OR PAGES IN THIS FILE
-// AVOID REMOVING ANY CONTEXT PROVIDERS FROM THIS FILE (e.g. TooltipProvider, Toaster, Sonner)
+import { AuthProvider } from '@/hooks/use-auth'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
+import Layout from '@/components/Layout'
+import Login from '@/pages/Login'
+import Dashboard from '@/pages/Dashboard'
+import Agendamentos from '@/pages/Agendamentos'
+import OrdensDeServico from '@/pages/OrdensDeServico'
+import OrdemDetail from '@/pages/OrdemDetail'
+import Clientes from '@/pages/Clientes'
+import ClienteDetail from '@/pages/ClienteDetail'
+import Servicos from '@/pages/Servicos'
+import Relatorios from '@/pages/Relatorios'
+import NotFound from '@/pages/NotFound'
 
 const App = () => (
   <BrowserRouter>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES MUST BE ADDED HERE */}
-        </Route>
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </TooltipProvider>
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route element={<ProtectedRoute />}>
+            <Route element={<Layout />}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/agendamentos" element={<Agendamentos />} />
+              <Route path="/ordens" element={<OrdensDeServico />} />
+              <Route path="/ordens/:id" element={<OrdemDetail />} />
+              <Route path="/clientes" element={<Clientes />} />
+              <Route path="/clientes/:id" element={<ClienteDetail />} />
+              <Route path="/servicos" element={<Servicos />} />
+              <Route path="/relatorios" element={<Relatorios />} />
+            </Route>
+          </Route>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </TooltipProvider>
+    </AuthProvider>
   </BrowserRouter>
 )
 
