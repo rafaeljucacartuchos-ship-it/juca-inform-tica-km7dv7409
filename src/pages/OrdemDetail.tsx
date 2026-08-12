@@ -1,33 +1,64 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react;
-import { Wrench, Plus, Trash2, CheckCircle, Clock, User, FileText, ArrowLeft, DollarSign } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ServiceOrder, ServiceOrderItem, StatusHistory, CatalogService, Payment, OrderStatus } from '@/types';
-import { getServiceOrder, updateServiceOrder, getOrderItems, createOrderItem, deleteOrderItem, getStatusHistory, addStatusHistory } from '@/services/service_orders';
-import { getCatalogServices } from '@/services/services_catalog';
-import { getOrderPayments } from '@/services/payments';
-import { PaymentModal } from '@/components/PaymentModal';
-import { useAuth } from '@/hooks/use-auth';
-import { useToast } from '@/hooks/use-toast';
+import { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import {
+  Wrench,
+  Plus,
+  Trash2,
+  CheckCircle,
+  Clock,
+  User,
+  FileText,
+  ArrowLeft,
+  DollarSign,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  ServiceOrder,
+  ServiceOrderItem,
+  StatusHistory,
+  CatalogService,
+  Payment,
+  OrderStatus,
+} from '@/types'
+import {
+  getServiceOrder,
+  updateServiceOrder,
+  getOrderItems,
+  createOrderItem,
+  deleteOrderItem,
+  getStatusHistory,
+  addStatusHistory,
+} from '@/services/service_orders'
+import { getCatalogServices } from '@/services/services_catalog'
+import { getOrderPayments } from '@/services/payments'
+import { PaymentModal } from '@/components/PaymentModal'
+import { useAuth } from '@/hooks/use-auth'
+import { useToast } from '@/hooks/use-toast'
 
 export default function OrdemDetail() {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const [order, setOrder] = useState<ServiceOrder | null>(null);
-  const [items, setItems] = useState<ServiceOrderItem[]>([]);
-  const [history, setHistory] = useState<StatusHistory[]>([]);
-  const [catalog, setCatalog] = useState<CatalogService[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [selectedCatalogId, setSelectedCatalogId] = useState('');
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const { user } = useAuth();
-  const { toast } = useToast();
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const [order, setOrder] = useState<ServiceOrder | null>(null)
+  const [items, setItems] = useState<ServiceOrderItem[]>([])
+  const [history, setHistory] = useState<StatusHistory[]>([])
+  const [catalog, setCatalog] = useState<CatalogService[]>([])
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [selectedCatalogId, setSelectedCatalogId] = useState('')
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false)
+  const { user } = useAuth()
+  const { toast } = useToast()
 
   const loadAll = async () => {
-    if (!id) return;
+    if (!id) return
     try {
       const [o, it, h, cat, p] = await Promise.all([
         getServiceOrder(id),
@@ -35,43 +66,45 @@ export default function OrdemDetail() {
         getStatusHistory(id),
         getCatalogServices(),
         getOrderPayments(id),
-      ]);
-      setOrder(o);
-      setItems(it);
-      setHistory(h);
-      setCatalog(cat);
-      setPayments(p);
-    } catch { /* intentionally ignored */ }
-  };
+      ])
+      setOrder(o)
+      setItems(it)
+      setHistory(h)
+      setCatalog(cat)
+      setPayments(p)
+    } catch {
+      /* intentionally ignored */
+    }
+  }
 
   useEffect(() => {
-    loadAll();
-  }, [id]);
+    loadAll()
+  }, [id])
 
   if (!order) {
-    return <div className="p-8 text-center text-slate-500">Carregando detalhes da ordem...</div>;
+    return <div className="p-8 text-center text-slate-500">Carregando detalhes da ordem...</div>
   }
 
   const handleStatusChange = async (newStatus: OrderStatus) => {
     try {
-      await updateServiceOrder(order.id, { status: newStatus });
+      await updateServiceOrder(order.id, { status: newStatus })
       await addStatusHistory({
         service_order: order.id,
         status: newStatus,
         note: `Status alterado para ${newStatus}`,
         changed_by: user?.id,
-      });
-      toast({ title: 'Status alterado com sucesso!' });
-      loadAll();
+      })
+      toast({ title: 'Status alterado com sucesso!' })
+      loadAll()
     } catch (_) {
-      toast({ title: 'Erro ao alterar status', variant: 'destructive' });
+      toast({ title: 'Erro ao alterar status', variant: 'destructive' })
     }
-  };
+  }
 
   const handleAddItem = async () => {
-    if (!selectedCatalogId) return;
-    const catItem = catalog.find((c) => c.id === selectedCatalogId);
-    if (!catItem) return;
+    if (!selectedCatalogId) return
+    const catItem = catalog.find((c) => c.id === selectedCatalogId)
+    if (!catItem) return
 
     try {
       await createOrderItem({
@@ -81,30 +114,30 @@ export default function OrdemDetail() {
         quantity: 1,
         unit_price: catItem.price,
         total: catItem.price,
-      });
+      })
 
-      const newTotal = items.reduce((sum, i) => sum + i.total, 0) + catItem.price;
-      await updateServiceOrder(order.id, { total: newTotal });
+      const newTotal = items.reduce((sum, i) => sum + i.total, 0) + catItem.price
+      await updateServiceOrder(order.id, { total: newTotal })
 
-      toast({ title: 'Item adicionado à OS' });
-      setSelectedCatalogId('');
-      loadAll();
+      toast({ title: 'Item adicionado à OS' })
+      setSelectedCatalogId('')
+      loadAll()
     } catch (_) {
-      toast({ title: 'Erro ao adicionar item', variant: 'destructive' });
+      toast({ title: 'Erro ao adicionar item', variant: 'destructive' })
     }
-  };
+  }
 
   const handleDeleteItem = async (itemId: string, itemPrice: number) => {
     try {
-      await deleteOrderItem(itemId);
-      const newTotal = Math.max(0, (order.total || 0) - itemPrice);
-      await updateServiceOrder(order.id, { total: newTotal });
-      toast({ title: 'Item removido' });
-      loadAll();
+      await deleteOrderItem(itemId)
+      const newTotal = Math.max(0, (order.total || 0) - itemPrice)
+      await updateServiceOrder(order.id, { total: newTotal })
+      toast({ title: 'Item removido' })
+      loadAll()
     } catch (_) {
-      toast({ title: 'Erro ao remover item', variant: 'destructive' });
+      toast({ title: 'Erro ao remover item', variant: 'destructive' })
     }
-  };
+  }
 
   return (
     <div className="space-y-6">
@@ -114,7 +147,9 @@ export default function OrdemDetail() {
         </Button>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-mono">{order.number}</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-mono">
+              {order.number}
+            </h1>
             <Badge className="capitalize">{order.status}</Badge>
           </div>
           <p className="text-xs text-slate-500">{order.title}</p>
@@ -125,7 +160,9 @@ export default function OrdemDetail() {
         <div className="lg:col-span-2 space-y-6">
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-bold text-slate-900">Informações da Ordem</CardTitle>
+              <CardTitle className="text-sm font-bold text-slate-900">
+                Informações da Ordem
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-4">
@@ -147,7 +184,9 @@ export default function OrdemDetail() {
 
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-sm font-bold text-slate-900">Itens e Serviços Prestados</CardTitle>
+              <CardTitle className="text-sm font-bold text-slate-900">
+                Itens e Serviços Prestados
+              </CardTitle>
               <div className="flex items-center gap-2">
                 <Select value={selectedCatalogId} onValueChange={setSelectedCatalogId}>
                   <SelectTrigger className="h-8 text-xs w-48">
@@ -182,8 +221,12 @@ export default function OrdemDetail() {
                     <tr key={item.id}>
                       <td className="py-2.5 px-4 font-medium">{item.description}</td>
                       <td className="py-2.5 px-4 text-center">{item.quantity}</td>
-                      <td className="py-2.5 px-4 text-right font-mono">R$ {item.unit_price.toFixed(2)}</td>
-                      <td className="py-2.5 px-4 text-right font-mono font-bold">R$ {item.total.toFixed(2)}</td>
+                      <td className="py-2.5 px-4 text-right font-mono">
+                        R$ {item.unit_price.toFixed(2)}
+                      </td>
+                      <td className="py-2.5 px-4 text-right font-mono font-bold">
+                        R$ {item.total.toFixed(2)}
+                      </td>
                       <td className="py-2.5 px-4 text-right">
                         <Button
                           variant="ghost"
@@ -200,7 +243,9 @@ export default function OrdemDetail() {
               </table>
               <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center font-bold text-sm">
                 <span>Total da Ordem:</span>
-                <span className="font-mono text-indigo-600">R$ {(order.total || 0).toFixed(2)}</span>
+                <span className="font-mono text-indigo-600">
+                  R$ {(order.total || 0).toFixed(2)}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -236,7 +281,9 @@ export default function OrdemDetail() {
 
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-bold text-slate-900">Histórico de Alterações</CardTitle>
+              <CardTitle className="text-sm font-bold text-slate-900">
+                Histórico de Alterações
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {history.map((h) => (
@@ -261,5 +308,5 @@ export default function OrdemDetail() {
         onSaved={loadAll}
       />
     </div>
-  );
+  )
 }
