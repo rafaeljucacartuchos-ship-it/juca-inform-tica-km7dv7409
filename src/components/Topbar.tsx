@@ -10,6 +10,7 @@ import { NewOrderModal } from '@/components/NewOrderModal'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useNotifications } from '@/hooks/use-notifications'
 import { NotificationsPanel } from '@/components/NotificationsPanel'
+import { SoundSettings } from '@/components/SoundSettings'
 
 export function Topbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -62,6 +63,8 @@ export function Topbar() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          <SoundSettings />
+
           <Popover
             onOpenChange={(open) => {
               if (open) markAllAsRead()

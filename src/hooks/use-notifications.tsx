@@ -1,7 +1,16 @@
-import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  ReactNode,
+} from 'react'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/use-auth'
 import { useRealtime } from '@/hooks/use-realtime'
+import { useSoundPreferences } from '@/hooks/use-sound-preferences'
 import { getNotifications, markAllNotificationsAsRead } from '@/services/notifications'
 import { playNotificationSound, showBrowserNotification } from '@/lib/notification-sound'
 import { AppNotification } from '@/types'
@@ -24,10 +33,16 @@ export function useNotifications() {
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
+  const { soundEnabled } = useSoundPreferences()
+  const soundEnabledRef = useRef(soundEnabled)
+  soundEnabledRef.current = soundEnabled
+
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [browserPermission, setBrowserPermission] = useState<
     NotificationPermission | 'unsupported'
   >(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported')
+
+  const playedSoundIds = useRef<Set<string>>(new Set())
 
   const loadNotifications = useCallback(async () => {
     if (!user) {
@@ -36,6 +51,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
     try {
       const data = await getNotifications()
+      data.forEach((n) => playedSoundIds.current.add(n.id))
       setNotifications(data)
     } catch {
       /* collection might not exist yet */
@@ -54,9 +70,17 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       if (e.action === 'create') {
         if (record.user === user.id) {
           setNotifications((prev) => [record, ...prev].slice(0, 50))
-          playNotificationSound()
           toast.info(record.title, { description: record.message })
-          showBrowserNotification(record.title, record.message || '')
+          showBrowserNotification(record.title, record.message || '', record.id)
+
+          if (
+            record.type === 'service_order' &&
+            soundEnabledRef.current &&
+            !playedSoundIds.current.has(record.id)
+          ) {
+            playedSoundIds.current.add(record.id)
+            playNotificationSound()
+          }
         }
       } else if (e.action === 'update') {
         setNotifications((prev) => prev.map((n) => (n.id === record.id ? record : n)))

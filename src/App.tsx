@@ -5,6 +5,7 @@ import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider } from '@/hooks/use-auth'
 import { NotificationsProvider } from '@/hooks/use-notifications'
+import { SoundPreferencesProvider } from '@/hooks/use-sound-preferences'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { PermissionRoute } from '@/components/PermissionRoute'
 import Layout from '@/components/Layout'
@@ -36,59 +37,61 @@ const App = () => {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <NotificationsProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <PwaInstallHint />
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route element={<ProtectedRoute />}>
-                <Route element={<PermissionRoute module="ordens" />}>
-                  <Route path="/ordens/:id/imprimir" element={<OrdemPrint />} />
-                </Route>
-                <Route element={<PermissionRoute module="relatorios" />}>
-                  <Route
-                    path="/relatorios/categorias/imprimir"
-                    element={<RelatorioCategoriasPrint />}
-                  />
-                </Route>
-                <Route element={<Layout />}>
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route element={<PermissionRoute module="agendamentos" />}>
-                    <Route path="/agendamentos" element={<Agendamentos />} />
-                  </Route>
+        <SoundPreferencesProvider>
+          <NotificationsProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <PwaInstallHint />
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route element={<ProtectedRoute />}>
                   <Route element={<PermissionRoute module="ordens" />}>
-                    <Route path="/ordens" element={<OrdensDeServico />} />
-                    <Route path="/ordens/:id" element={<OrdemDetail />} />
-                  </Route>
-                  <Route element={<PermissionRoute module="clientes" />}>
-                    <Route path="/clientes" element={<Clientes />} />
-                    <Route path="/clientes/:id" element={<ClienteDetail />} />
-                  </Route>
-                  <Route element={<PermissionRoute module="servicos" />}>
-                    <Route path="/servicos" element={<Servicos />} />
-                  </Route>
-                  <Route element={<PermissionRoute module="produtos" />}>
-                    <Route path="/produtos" element={<Produtos />} />
-                  </Route>
-                  <Route element={<PermissionRoute module="equipamentos" />}>
-                    <Route path="/equipamentos" element={<Equipamentos />} />
+                    <Route path="/ordens/:id/imprimir" element={<OrdemPrint />} />
                   </Route>
                   <Route element={<PermissionRoute module="relatorios" />}>
-                    <Route path="/relatorios" element={<Relatorios />} />
+                    <Route
+                      path="/relatorios/categorias/imprimir"
+                      element={<RelatorioCategoriasPrint />}
+                    />
                   </Route>
-                  <Route element={<PermissionRoute module="tecnicos" />}>
-                    <Route path="/tecnicos" element={<Tecnicos />} />
+                  <Route element={<Layout />}>
+                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route element={<PermissionRoute module="agendamentos" />}>
+                      <Route path="/agendamentos" element={<Agendamentos />} />
+                    </Route>
+                    <Route element={<PermissionRoute module="ordens" />}>
+                      <Route path="/ordens" element={<OrdensDeServico />} />
+                      <Route path="/ordens/:id" element={<OrdemDetail />} />
+                    </Route>
+                    <Route element={<PermissionRoute module="clientes" />}>
+                      <Route path="/clientes" element={<Clientes />} />
+                      <Route path="/clientes/:id" element={<ClienteDetail />} />
+                    </Route>
+                    <Route element={<PermissionRoute module="servicos" />}>
+                      <Route path="/servicos" element={<Servicos />} />
+                    </Route>
+                    <Route element={<PermissionRoute module="produtos" />}>
+                      <Route path="/produtos" element={<Produtos />} />
+                    </Route>
+                    <Route element={<PermissionRoute module="equipamentos" />}>
+                      <Route path="/equipamentos" element={<Equipamentos />} />
+                    </Route>
+                    <Route element={<PermissionRoute module="relatorios" />}>
+                      <Route path="/relatorios" element={<Relatorios />} />
+                    </Route>
+                    <Route element={<PermissionRoute module="tecnicos" />}>
+                      <Route path="/tecnicos" element={<Tecnicos />} />
+                    </Route>
                   </Route>
                 </Route>
-              </Route>
-              <Route path="/share/:id" element={<OrdemShare />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </TooltipProvider>
-        </NotificationsProvider>
+                <Route path="/share/:id" element={<OrdemShare />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </TooltipProvider>
+          </NotificationsProvider>
+        </SoundPreferencesProvider>
       </AuthProvider>
     </BrowserRouter>
   )

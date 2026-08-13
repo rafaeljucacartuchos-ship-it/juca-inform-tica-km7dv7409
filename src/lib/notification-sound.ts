@@ -1,10 +1,53 @@
-export function playNotificationSound() {
+let sharedCtx: AudioContext | null = null
+let audioReady = false
+
+export function unlockAudio() {
   try {
-    const AudioContext =
+    const AudioContextClass =
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-    if (!AudioContext) return
-    const ctx = new AudioContext()
+    if (!AudioContextClass) return
+    if (!sharedCtx) {
+      sharedCtx = new AudioContextClass()
+    }
+    if (sharedCtx.state === 'suspended') {
+      sharedCtx.resume()
+    }
+    audioReady = true
+  } catch {
+    /* audio not available */
+  }
+}
+
+export function isAudioReady() {
+  return audioReady
+}
+
+export function initAudioUnlock(onUnlock?: () => void) {
+  if (typeof document === 'undefined') return
+  const handler = () => {
+    unlockAudio()
+    onUnlock?.()
+  }
+  const opts: AddEventListenerOptions = { once: true }
+  document.addEventListener('click', handler, opts)
+  document.addEventListener('touchstart', handler, opts)
+  document.addEventListener('keydown', handler, opts)
+}
+
+export function playNotificationSound() {
+  try {
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    if (!AudioContextClass) return
+    if (!sharedCtx) {
+      sharedCtx = new AudioContextClass()
+    }
+    if (sharedCtx.state === 'suspended') {
+      sharedCtx.resume()
+    }
+    const ctx = sharedCtx
     const playTone = (freq: number, startOffset: number, duration: number) => {
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
@@ -19,15 +62,18 @@ export function playNotificationSound() {
     }
     playTone(880, 0, 0.4)
     playTone(1100, 0.15, 0.3)
+    audioReady = true
   } catch {
     /* audio not available */
   }
 }
 
-export function showBrowserNotification(title: string, body: string) {
+export function showBrowserNotification(title: string, body: string, tag?: string) {
   if ('Notification' in window && Notification.permission === 'granted') {
     try {
-      new Notification(title, { body, icon: '/favicon.ico' })
+      const opts: NotificationOptions = { body, icon: '/favicon.ico' }
+      if (tag) opts.tag = tag
+      new Notification(title, opts)
     } catch {
       /* notification blocked */
     }
