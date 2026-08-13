@@ -2,6 +2,12 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import pb from '@/lib/pocketbase/client'
 import { User } from '@/types'
 
+const QUICK_ACCESS_EMAILS: Record<string, string> = {
+  administrador: 'rafaeljucacartuchos@gmail.com',
+  atendente: 'atendimento.ana@assistencia.com',
+  tecnico: 'tecnico.carlos@assistencia.com',
+}
+
 interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
@@ -48,11 +54,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signIn = async (registrationCode: string, pass: string) => {
+    const identity = registrationCode.trim()
     try {
-      const res = await pb.collection('users').authWithPassword(registrationCode.trim(), pass)
+      const res = await pb.collection('users').authWithPassword(identity, pass)
       setUser(res.record as unknown as User)
       return { error: null }
     } catch (error) {
+      const fallbackEmail = QUICK_ACCESS_EMAILS[identity.toLowerCase()]
+      if (fallbackEmail) {
+        try {
+          const res = await pb.collection('users').authWithPassword(fallbackEmail, pass)
+          setUser(res.record as unknown as User)
+          return { error: null }
+        } catch (fallbackError) {
+          return { error: fallbackError }
+        }
+      }
       return { error }
     }
   }
