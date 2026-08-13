@@ -1,13 +1,11 @@
-import { Volume2, VolumeX, BellRing, BellOff } from 'lucide-react'
+import { Volume2, BellRing, BellOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
-import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useSoundPreferences } from '@/hooks/use-sound-preferences'
 import { useNotifications } from '@/hooks/use-notifications'
 
 export function SoundSettings() {
-  const { soundEnabled, toggleSound, testSound, audioUnlocked } = useSoundPreferences()
+  const { testSound, audioUnlocked } = useSoundPreferences()
   const { browserPermission, requestBrowserPermission } = useNotifications()
 
   return (
@@ -19,11 +17,7 @@ export function SoundSettings() {
           className="relative text-slate-600 hover:bg-slate-100 rounded-full h-9 w-9"
           aria-label="Configurações de som"
         >
-          {soundEnabled ? (
-            <Volume2 className="h-5 w-5" />
-          ) : (
-            <VolumeX className="h-5 w-5 text-slate-400" />
-          )}
+          <Volume2 className="h-5 w-5" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 p-4 shadow-lg border-slate-200">
@@ -31,15 +25,8 @@ export function SoundSettings() {
           <div>
             <h3 className="text-sm font-semibold text-slate-800">Alertas Sonoros</h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Receba um aviso sonoro ao chegar nova ordem de serviço.
+              O aviso sonoro está sempre ativo para novas ordens de serviço.
             </p>
-          </div>
-
-          <div className="flex items-center justify-between rounded-lg border border-slate-200 p-3">
-            <Label className="text-xs font-medium text-slate-700 cursor-pointer">
-              Som de nova O.S.
-            </Label>
-            <Switch checked={soundEnabled} onCheckedChange={toggleSound} />
           </div>
 
           <Button variant="outline" size="sm" onClick={testSound} className="w-full text-xs gap-2">

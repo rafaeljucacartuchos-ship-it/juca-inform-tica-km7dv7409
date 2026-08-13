@@ -10,7 +10,6 @@ import {
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/use-auth'
 import { useRealtime } from '@/hooks/use-realtime'
-import { useSoundPreferences } from '@/hooks/use-sound-preferences'
 import { getNotifications, markAllNotificationsAsRead } from '@/services/notifications'
 import { playNotificationSound, showBrowserNotification } from '@/lib/notification-sound'
 import { AppNotification } from '@/types'
@@ -33,9 +32,6 @@ export function useNotifications() {
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
-  const { soundEnabled } = useSoundPreferences()
-  const soundEnabledRef = useRef(soundEnabled)
-  soundEnabledRef.current = soundEnabled
 
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [browserPermission, setBrowserPermission] = useState<
@@ -73,11 +69,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           toast.info(record.title, { description: record.message })
           showBrowserNotification(record.title, record.message || '', record.id)
 
-          if (
-            record.type === 'service_order' &&
-            soundEnabledRef.current &&
-            !playedSoundIds.current.has(record.id)
-          ) {
+          if (record.type === 'service_order' && !playedSoundIds.current.has(record.id)) {
             playedSoundIds.current.add(record.id)
             playNotificationSound()
           }
