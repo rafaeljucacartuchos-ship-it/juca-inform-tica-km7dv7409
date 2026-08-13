@@ -53,6 +53,7 @@ export default function Dashboard() {
   const [exportOpen, setExportOpen] = useState(false)
   const [exportOrdersOpen, setExportOrdersOpen] = useState(false)
   const { user } = useAuth()
+  const isTech = user?.role === 'technician'
 
   const loadData = async () => {
     try {
@@ -224,7 +225,12 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <EvolutionCharts data={evolutionData} totalOrders={periodOrderCount} totalRevenue={billing} />
+      <EvolutionCharts
+        data={evolutionData}
+        totalOrders={periodOrderCount}
+        totalRevenue={billing}
+        showRevenue={!isTech}
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2 border-slate-200 shadow-sm">
@@ -323,36 +329,38 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <Card className="border-slate-200 shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-bold text-slate-900">Carga dos Técnicos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {technicians.map((t) => {
-              const count = orders.filter(
-                (o) => o.technician === t.id && o.status !== 'closed' && o.status !== 'cancelled',
-              ).length
-              return (
-                <div
-                  key={t.id}
-                  className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 bg-white shadow-xs"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 border border-slate-200">
-                    <UserCheck className="h-5 w-5 text-indigo-600" />
+      {!isTech && (
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-bold text-slate-900">Carga dos Técnicos</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {technicians.map((t) => {
+                const count = orders.filter(
+                  (o) => o.technician === t.id && o.status !== 'closed' && o.status !== 'cancelled',
+                ).length
+                return (
+                  <div
+                    key={t.id}
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 bg-white shadow-xs"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 border border-slate-200">
+                      <UserCheck className="h-5 w-5 text-indigo-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-xs font-bold text-slate-900 truncate">{t.name}</h3>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        {count} {count === 1 ? 'ordem ativa' : 'ordens ativas'}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-xs font-bold text-slate-900 truncate">{t.name}</h3>
-                    <p className="text-[11px] text-slate-500 font-medium">
-                      {count} {count === 1 ? 'ordem ativa' : 'ordens ativas'}
-                    </p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <ExportReportsModal
         open={exportOpen}
