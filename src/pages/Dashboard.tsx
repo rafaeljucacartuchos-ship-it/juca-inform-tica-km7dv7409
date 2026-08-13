@@ -124,7 +124,7 @@ export default function Dashboard() {
               key={p}
               size="sm"
               variant={period === p ? 'default' : 'outline'}
-              className={period === p ? 'bg-indigo-600 hover:bg-indigo-700' : ''}
+              className={period === p ? 'bg-indigo-600 hover:bg-indigo-700 h-9' : 'h-9'}
               onClick={() => setPeriod(p)}
             >
               {{ today: 'Hoje', week: 'Semana', month: 'Mês', custom: 'Personalizado' }[p]}
@@ -136,13 +136,13 @@ export default function Dashboard() {
                 type="date"
                 value={customStart}
                 onChange={(e) => setCustomStart(e.target.value)}
-                className="w-auto h-8 text-xs"
+                className="w-auto h-9 text-xs"
               />
               <Input
                 type="date"
                 value={customEnd}
                 onChange={(e) => setCustomEnd(e.target.value)}
-                className="w-auto h-8 text-xs"
+                className="w-auto h-9 text-xs"
               />
             </div>
           )}
@@ -150,17 +150,21 @@ export default function Dashboard() {
             variant="outline"
             size="sm"
             onClick={() => setExportOpen(true)}
-            className="ml-2 gap-1.5"
+            className="ml-2 gap-1.5 h-9"
           >
-            <FileDown className="h-4 w-4" /> Exportar Relatórios
+            <FileDown className="h-4 w-4" />{' '}
+            <span className="hidden sm:inline">Exportar Relatórios</span>
+            <span className="sm:hidden">Relatórios</span>
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setExportOrdersOpen(true)}
-            className="gap-1.5"
+            className="gap-1.5 h-9"
           >
-            <FileDown className="h-4 w-4" /> Exportar Lista de OSs
+            <FileDown className="h-4 w-4" />{' '}
+            <span className="hidden sm:inline">Exportar Lista de OSs</span>
+            <span className="sm:hidden">Lista</span>
           </Button>
         </div>
       </div>

@@ -16,6 +16,7 @@ import Clientes from '@/pages/Clientes'
 import ClienteDetail from '@/pages/ClienteDetail'
 import Servicos from '@/pages/Servicos'
 import Relatorios from '@/pages/Relatorios'
+import RelatorioCategoriasPrint from '@/pages/RelatorioCategoriasPrint'
 import Tecnicos from '@/pages/Tecnicos'
 import Produtos from '@/pages/Produtos'
 import Equipamentos from '@/pages/Equipamentos'
@@ -35,6 +36,12 @@ const App = () => (
             <Route element={<ProtectedRoute />}>
               <Route element={<PermissionRoute module="ordens" />}>
                 <Route path="/ordens/:id/imprimir" element={<OrdemPrint />} />
+              </Route>
+              <Route element={<PermissionRoute module="relatorios" />}>
+                <Route
+                  path="/relatorios/categorias/imprimir"
+                  element={<RelatorioCategoriasPrint />}
+                />
               </Route>
               <Route element={<Layout />}>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />

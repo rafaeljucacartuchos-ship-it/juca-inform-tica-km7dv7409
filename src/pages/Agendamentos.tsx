@@ -63,9 +63,9 @@ export default function Agendamentos() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
             Agenda de Visitas Técnicas
-          </h1>
+          </h1>{' '}
           <p className="text-xs sm:text-sm text-slate-500">
             Gerencie o calendário de atendimento presencial e deslocamento dos técnicos.
           </p>
@@ -73,7 +73,7 @@ export default function Agendamentos() {
         {user?.role !== 'technician' && (
           <Button
             onClick={() => setNewModalOpen(true)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 h-9 text-xs sm:text-sm"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 h-10 sm:h-9 text-xs sm:text-sm w-full sm:w-auto"
           >
             <Plus className="h-4 w-4" />
             <span>Novo Agendamento</span>
@@ -105,7 +105,7 @@ export default function Agendamentos() {
                 {selectedDayAppts.map((a) => (
                   <div
                     key={a.id}
-                    className="flex flex-col justify-between rounded-xl border border-slate-200 p-3.5 bg-white shadow-xs hover:border-indigo-200 transition-all"
+                    className="flex flex-col justify-between rounded-xl border border-slate-200 p-4 bg-white shadow-xs hover:border-indigo-200 transition-all"
                   >
                     <div>
                       <div className="flex items-center justify-between mb-2">

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Plus, LayoutGrid, List, Search, Filter, Wrench, X } from 'lucide-react'
+import { Plus, LayoutGrid, List, Search, Filter, Wrench, X, MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -19,6 +19,7 @@ import { NewOrderModal } from '@/components/NewOrderModal'
 import { useAuth } from '@/hooks/use-auth'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
+import { openWhatsApp, buildServiceMessage } from '@/lib/whatsapp'
 
 export default function OrdensDeServico() {
   const [orders, setOrders] = useState<ServiceOrder[]>([])
@@ -101,10 +102,44 @@ export default function OrdensDeServico() {
         changed_by: user?.id,
       })
       toast({ title: 'Status da OS atualizado com sucesso!' })
+      const changedOrder = orders.find((o) => o.id === orderId)
+      if (changedOrder && user?.role !== 'technician') {
+        const phone = changedOrder.expand?.customer?.phone || ''
+        if (phone) {
+          const shareUrl = `${window.location.origin}/share/${changedOrder.id}`
+          openWhatsApp(
+            phone,
+            buildServiceMessage(
+              changedOrder.expand?.customer?.name || 'Cliente',
+              changedOrder.number,
+              newStatus,
+              shareUrl,
+            ),
+          )
+        }
+      }
       loadData()
     } catch (_) {
       toast({ title: 'Erro ao alterar status', variant: 'destructive' })
     }
+  }
+
+  const handleNotifyClient = (order: ServiceOrder) => {
+    const phone = order.expand?.customer?.phone || ''
+    if (!phone) {
+      toast({ title: 'Cliente sem telefone cadastrado', variant: 'destructive' })
+      return
+    }
+    const shareUrl = `${window.location.origin}/share/${order.id}`
+    openWhatsApp(
+      phone,
+      buildServiceMessage(
+        order.expand?.customer?.name || 'Cliente',
+        order.number,
+        order.status,
+        shareUrl,
+      ),
+    )
   }
 
   const clearFilters = () => {
@@ -122,13 +157,15 @@ export default function OrdensDeServico() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Ordens de Serviço</h1>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+            Ordens de Serviço
+          </h1>
           <p className="text-xs sm:text-sm text-slate-500">
             Acompanhe o fluxo de trabalho e status dos chamados técnicos.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center rounded-lg border border-slate-200 bg-white p-1 shadow-2xs">
             <Button
               variant={viewMode === 'kanban' ? 'secondary' : 'ghost'}
@@ -303,31 +340,43 @@ export default function OrdensDeServico() {
                           <span className="font-mono font-semibold text-slate-900">
                             R$ {(o.total || 0).toFixed(2)}
                           </span>
-                          <Select
-                            value={o.status}
-                            onValueChange={(val: OrderStatus) => handleMoveStatus(o.id, val)}
-                          >
-                            <SelectTrigger className="h-6 text-[10px] w-24 px-1">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="open" className="text-[10px]">
-                                Aberto
-                              </SelectItem>
-                              <SelectItem value="in_progress" className="text-[10px]">
-                                Em Andam.
-                              </SelectItem>
-                              <SelectItem value="waiting_parts" className="text-[10px]">
-                                Peças
-                              </SelectItem>
-                              <SelectItem value="completed" className="text-[10px]">
-                                Concluído
-                              </SelectItem>
-                              <SelectItem value="closed" className="text-[10px]">
-                                Fechado
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <div className="flex items-center gap-1">
+                            {user?.role !== 'technician' && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleNotifyClient(o)}
+                                className="h-7 w-7 text-emerald-600 hover:bg-emerald-50"
+                              >
+                                <MessageCircle className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            <Select
+                              value={o.status}
+                              onValueChange={(val: OrderStatus) => handleMoveStatus(o.id, val)}
+                            >
+                              <SelectTrigger className="h-6 text-[10px] w-20 px-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="open" className="text-[10px]">
+                                  Aberto
+                                </SelectItem>
+                                <SelectItem value="in_progress" className="text-[10px]">
+                                  Em Andam.
+                                </SelectItem>
+                                <SelectItem value="waiting_parts" className="text-[10px]">
+                                  Peças
+                                </SelectItem>
+                                <SelectItem value="completed" className="text-[10px]">
+                                  Concluído
+                                </SelectItem>
+                                <SelectItem value="closed" className="text-[10px]">
+                                  Fechado
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -350,6 +399,9 @@ export default function OrdensDeServico() {
                     <th className="py-3 px-4">Técnico</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Total</th>
+                    {user?.role !== 'technician' && (
+                      <th className="py-3 px-4 text-center">Ações</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -367,6 +419,18 @@ export default function OrdensDeServico() {
                       <td className="py-3 px-4 text-right font-mono font-bold">
                         R$ {(o.total || 0).toFixed(2)}
                       </td>
+                      {user?.role !== 'technician' && (
+                        <td className="py-3 px-4 text-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleNotifyClient(o)}
+                            className="h-8 w-8 text-emerald-600 hover:bg-emerald-50"
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

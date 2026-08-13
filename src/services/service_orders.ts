@@ -30,6 +30,12 @@ export const getOrderItems = (orderId: string) =>
     sort: 'created',
   })
 
+export const getAllOrderItems = () =>
+  pb.collection('service_order_items').getFullList<ServiceOrderItem>({
+    expand: 'service',
+    sort: 'created',
+  })
+
 export const createOrderItem = (data: Partial<ServiceOrderItem>) =>
   pb.collection('service_order_items').create<ServiceOrderItem>(data)
 

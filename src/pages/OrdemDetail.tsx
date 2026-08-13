@@ -116,6 +116,19 @@ export default function OrdemDetail() {
         changed_by: user?.id,
       })
       toast({ title: 'Status alterado com sucesso!' })
+      const phone = order.expand?.customer?.phone || ''
+      if (phone && canEdit) {
+        const shareUrl = `${window.location.origin}/share/${order.id}`
+        openWhatsApp(
+          phone,
+          buildServiceMessage(
+            order.expand?.customer?.name || 'Cliente',
+            order.number,
+            newStatus,
+            shareUrl,
+          ),
+        )
+      }
       loadAll()
     } catch {
       toast({ title: 'Erro ao alterar status', variant: 'destructive' })
@@ -260,12 +273,12 @@ export default function OrdemDetail() {
             <p className="text-xs text-slate-500 truncate">{order.title}</p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-3 sm:flex sm:flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => navigate(`/ordens/${order.id}/imprimir`)}
-            className="text-xs gap-1.5 h-9 flex-1 sm:flex-initial justify-center"
+            className="text-xs gap-1.5 h-10 sm:h-9 justify-center"
           >
             <Printer className="h-4 w-4" /> <span className="hidden sm:inline">Imprimir / PDF</span>
             <span className="sm:hidden">Imprimir</span>
@@ -274,7 +287,7 @@ export default function OrdemDetail() {
             variant="outline"
             size="sm"
             onClick={handleShare}
-            className="text-xs gap-1.5 h-9 flex-1 sm:flex-initial justify-center"
+            className="text-xs gap-1.5 h-10 sm:h-9 justify-center"
           >
             <Share2 className="h-4 w-4" /> Compartilhar
           </Button>
@@ -282,7 +295,7 @@ export default function OrdemDetail() {
             variant="outline"
             size="sm"
             onClick={handleWhatsApp}
-            className="text-xs gap-1.5 h-9 flex-1 sm:flex-initial justify-center"
+            className="text-xs gap-1.5 h-10 sm:h-9 justify-center"
           >
             <MessageCircle className="h-4 w-4" /> WhatsApp
           </Button>

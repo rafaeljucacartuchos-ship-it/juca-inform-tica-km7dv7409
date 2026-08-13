@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FileText, FileSpreadsheet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,8 +10,10 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { ServiceOrder, Payment } from '@/types'
+import { ServiceOrder, Payment, ServiceOrderItem } from '@/types'
 import { exportToCSV, exportToExcel, type ExportSection } from '@/lib/export-utils'
+import { getAllOrderItems } from '@/services/service_orders'
+import { buildCategoryReport, buildOrderCategoryMap } from '@/lib/category-report'
 
 interface ExportOrdersListModalProps {
   open: boolean
@@ -63,6 +65,15 @@ export function ExportOrdersListModal({
   const [startDate, setStartDate] = useState(firstOfMonth)
   const [endDate, setEndDate] = useState(today)
   const [format, setFormat] = useState<'csv' | 'excel'>('csv')
+  const [allItems, setAllItems] = useState<ServiceOrderItem[]>([])
+
+  useEffect(() => {
+    if (open) {
+      getAllOrderItems()
+        .then(setAllItems)
+        .catch(() => {})
+    }
+  }, [open])
 
   const inRange = (dateStr?: string) => {
     if (!dateStr) return false
@@ -117,10 +128,26 @@ export function ExportOrdersListModal({
     o.notes || '',
   ])
 
+  const categoryReport = buildCategoryReport(periodOrders, allItems)
+  const orderCategoryMap = buildOrderCategoryMap(categoryReport)
+
+  const categoryHeaders = [...headers, 'Categorias']
+  const categoryRows: (string | number)[][] = periodOrders.map((o, i) => [
+    ...rows[i],
+    orderCategoryMap.get(o.id) || 'Sem categoria',
+  ])
+
   const buildSections = (): ExportSection[] => [
     { title: `Lista de Ordens de Serviço - Período: ${dateRange}` },
     { title: `Total de registros: ${periodOrders.length}` },
-    { headers, rows },
+    {
+      title: 'Resumo por Categoria de Serviço',
+      headers: ['Categoria', 'Qtd. OS', 'Receita (R$)'],
+      rows: categoryReport
+        .filter((c) => c.count > 0)
+        .map((c) => [c.label, c.count, c.revenue.toFixed(2)]),
+    },
+    { headers: categoryHeaders, rows: categoryRows },
   ]
 
   const handleExport = () => {
