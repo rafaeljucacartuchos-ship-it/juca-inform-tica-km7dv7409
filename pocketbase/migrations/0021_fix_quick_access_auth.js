@@ -27,11 +27,22 @@ migrate(
     // setting the target username won't violate the unique constraint.
     for (var i = 0; i < accounts.length; i++) {
       var acc = accounts[i]
-      app
-        .db()
-        .newQuery("UPDATE users SET username = '' WHERE username = {:uname} AND email != {:email}")
-        .bind({ uname: acc.username, email: acc.email })
-        .execute()
+      try {
+        var dups = app.findRecordsByFilter(
+          'users',
+          'username = {:uname} && email != {:email}',
+          '',
+          100,
+          0,
+          { uname: acc.username, email: acc.email },
+        )
+        for (var d = 0; d < dups.length; d++) {
+          dups[d].set('username', '')
+          app.save(dups[d])
+        }
+      } catch (e) {
+        // No duplicates found — continue
+      }
     }
 
     // Step 2: Ensure each account exists with the correct username,
