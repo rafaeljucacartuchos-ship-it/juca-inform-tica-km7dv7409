@@ -70,13 +70,15 @@ export default function Agendamentos() {
             Gerencie o calendário de atendimento presencial e deslocamento dos técnicos.
           </p>
         </div>
-        <Button
-          onClick={() => setNewModalOpen(true)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 h-9 text-xs sm:text-sm"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Novo Agendamento</span>
-        </Button>
+        {user?.role !== 'technician' && (
+          <Button
+            onClick={() => setNewModalOpen(true)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 h-9 text-xs sm:text-sm"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Novo Agendamento</span>
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

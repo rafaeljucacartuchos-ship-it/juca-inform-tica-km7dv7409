@@ -109,13 +109,15 @@ export default function OrdensDeServico() {
             </Button>
           </div>
 
-          <Button
-            onClick={() => setNewModalOpen(true)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 h-9 text-xs sm:text-sm"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Nova Ordem</span>
-          </Button>
+          {user?.role !== 'technician' && (
+            <Button
+              onClick={() => setNewModalOpen(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 h-9 text-xs sm:text-sm"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Nova Ordem</span>
+            </Button>
+          )}
         </div>
       </div>
 
