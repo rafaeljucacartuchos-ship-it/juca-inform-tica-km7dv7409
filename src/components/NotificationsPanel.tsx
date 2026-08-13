@@ -1,15 +1,22 @@
-import { Wrench, Check, BellOff, BellRing } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Wrench, Calendar, DollarSign, Settings, BellOff, BellRing } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { AppNotification } from '@/hooks/use-notifications'
+import { AppNotification, NotificationType } from '@/types'
 
 interface NotificationsPanelProps {
   notifications: AppNotification[]
   unreadCount: number
-  onMarkAsRead: (id: string) => void
   onMarkAllAsRead: () => void
   onRequestPermission: () => void
   browserPermission: NotificationPermission | 'unsupported'
+}
+
+const TYPE_ICONS: Record<NotificationType, typeof Wrench> = {
+  service_order: Wrench,
+  appointment: Calendar,
+  payment: DollarSign,
+  system: Settings,
 }
 
 function formatRelativeTime(iso: string) {
@@ -25,11 +32,18 @@ function formatRelativeTime(iso: string) {
 export function NotificationsPanel({
   notifications,
   unreadCount,
-  onMarkAsRead,
   onMarkAllAsRead,
   onRequestPermission,
   browserPermission,
 }: NotificationsPanelProps) {
+  const navigate = useNavigate()
+
+  const handleNotificationClick = (n: AppNotification) => {
+    if (n.link) {
+      navigate(n.link)
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 bg-slate-50/50">
@@ -44,34 +58,33 @@ export function NotificationsPanel({
         {notifications.length === 0 ? (
           <p className="text-xs text-slate-400 text-center py-8">Nenhuma notificação recebida.</p>
         ) : (
-          notifications.slice(0, 20).map((n) => (
-            <div
-              key={n.id}
-              className={cn(
-                'flex gap-3 p-3 hover:bg-slate-50 transition-colors',
-                !n.read && 'bg-indigo-50/40',
-              )}
-            >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                <Wrench className="h-4 w-4" />
-              </div>
-              <div className="flex-1 min-w-0 text-xs space-y-0.5">
-                <p className="font-medium text-slate-800 truncate">Nova OS: {n.orderNumber}</p>
-                <p className="text-slate-500 text-[11px] truncate">
-                  {n.title} — {n.customerName}
-                </p>
-                <p className="text-[10px] text-slate-400">{formatRelativeTime(n.createdAt)}</p>
-              </div>
-              {!n.read && (
-                <button
-                  onClick={() => onMarkAsRead(n.id)}
-                  className="self-center text-slate-400 hover:text-emerald-600 transition-colors"
-                >
-                  <Check className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          ))
+          notifications.slice(0, 20).map((n) => {
+            const Icon = TYPE_ICONS[n.type] || Wrench
+            return (
+              <button
+                key={n.id}
+                onClick={() => handleNotificationClick(n)}
+                className={cn(
+                  'flex gap-3 p-3 hover:bg-slate-50 transition-colors w-full text-left',
+                  !n.read && 'bg-indigo-50/40',
+                )}
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                  <Icon className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0 text-xs space-y-0.5">
+                  <p className="font-medium text-slate-800 truncate">{n.title}</p>
+                  {n.message && <p className="text-slate-500 text-[11px] truncate">{n.message}</p>}
+                  <p className="text-[10px] text-slate-400">
+                    {n.created ? formatRelativeTime(n.created) : ''}
+                  </p>
+                </div>
+                {!n.read && (
+                  <span className="self-center h-2 w-2 rounded-full bg-indigo-500 shrink-0" />
+                )}
+              </button>
+            )
+          })
         )}
       </div>
       <div className="border-t border-slate-100 px-3 py-2 flex items-center justify-between gap-2">

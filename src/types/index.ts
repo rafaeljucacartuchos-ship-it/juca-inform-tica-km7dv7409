@@ -1,5 +1,36 @@
 export type UserRole = 'admin' | 'attendant' | 'technician'
 
+export type NotificationType = 'service_order' | 'appointment' | 'payment' | 'system'
+
+export interface AppNotification {
+  id: string
+  user: string
+  title: string
+  message: string
+  type: NotificationType
+  read: boolean
+  link?: string
+  created?: string
+  updated?: string
+}
+
+export type ServiceCategory =
+  | 'hardware'
+  | 'software'
+  | 'rede'
+  | 'manutencao_preventiva'
+  | 'instalacao'
+  | 'outros'
+
+export const SERVICE_CATEGORY_LABELS: Record<ServiceCategory, string> = {
+  hardware: 'Hardware',
+  software: 'Software',
+  rede: 'Rede',
+  manutencao_preventiva: 'Manutenção Preventiva',
+  instalacao: 'Instalação',
+  outros: 'Outros',
+}
+
 export interface User {
   id: string
   email: string
@@ -95,6 +126,7 @@ export interface CatalogService {
   price: number
   estimated_duration: number
   active: boolean
+  category: ServiceCategory
   created?: string
   updated?: string
 }

@@ -11,10 +11,17 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { createCatalogService, updateCatalogService } from '@/services/services_catalog'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
-import { CatalogService } from '@/types'
+import { CatalogService, SERVICE_CATEGORY_LABELS, ServiceCategory } from '@/types'
 
 interface NewServiceModalProps {
   open: boolean
@@ -34,6 +41,7 @@ export function NewServiceModal({
   const [price, setPrice] = useState('')
   const [duration, setDuration] = useState('60')
   const [active, setActive] = useState(true)
+  const [category, setCategory] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const { toast } = useToast()
@@ -44,6 +52,7 @@ export function NewServiceModal({
       setErrors({})
       if (editService) {
         setName(editService.name || '')
+        setCategory(editService.category || '')
         setDesc(editService.description || '')
         setPrice(editService.price != null ? String(editService.price) : '')
         setDuration(
@@ -52,6 +61,7 @@ export function NewServiceModal({
         setActive(editService.active ?? true)
       } else {
         setName('')
+        setCategory('')
         setDesc('')
         setPrice('')
         setDuration('60')
@@ -67,6 +77,10 @@ export function NewServiceModal({
       setErrors({ name: 'Nome é obrigatório' })
       return
     }
+    if (!category) {
+      setErrors({ category: 'Categoria é obrigatória' })
+      return
+    }
     setLoading(true)
     try {
       const payload = {
@@ -75,6 +89,7 @@ export function NewServiceModal({
         price: Number(price) || 0,
         estimated_duration: Number(duration) || 0,
         active,
+        category: category as ServiceCategory,
       }
       if (isEdit && editService) {
         await updateCatalogService(editService.id, payload)
@@ -111,6 +126,22 @@ export function NewServiceModal({
               className="h-9 text-xs"
             />
             {errors.name && <p className="text-[11px] text-red-500">{errors.name}</p>}
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-slate-700">Categoria *</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue placeholder="Selecione uma categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(SERVICE_CATEGORY_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value} className="text-xs">
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.category && <p className="text-[11px] text-red-500">{errors.category}</p>}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

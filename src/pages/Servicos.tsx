@@ -1,9 +1,16 @@
 import { useState, useEffect } from 'react'
-import { Plus, Briefcase, Clock, Pencil, Trash2, Power } from 'lucide-react'
+import { Plus, Briefcase, Clock, Pencil, Trash2, Power, Filter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { CatalogService } from '@/types'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { CatalogService, SERVICE_CATEGORY_LABELS } from '@/types'
 import {
   getCatalogServices,
   updateCatalogService,
@@ -19,7 +26,13 @@ export default function Servicos() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editService, setEditService] = useState<CatalogService | null>(null)
   const [deleteService, setDeleteService] = useState<CatalogService | null>(null)
+  const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const { toast } = useToast()
+
+  const filteredServices = services.filter((s) => {
+    if (categoryFilter === 'all') return true
+    return s.category === categoryFilter
+  })
 
   const loadData = async () => {
     try {
@@ -75,8 +88,27 @@ export default function Servicos() {
         </Button>
       </div>
 
+      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+        <Filter className="h-4 w-4 text-slate-400" />
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="h-8 text-xs w-48">
+            <SelectValue placeholder="Todas as categorias" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all" className="text-xs">
+              Todas as categorias
+            </SelectItem>
+            {Object.entries(SERVICE_CATEGORY_LABELS).map(([value, label]) => (
+              <SelectItem key={value} value={value} className="text-xs">
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {services.map((s) => (
+        {filteredServices.map((s) => (
           <Card key={s.id} className="border-slate-200 shadow-xs hover:shadow-md transition-shadow">
             <CardContent className="p-4 space-y-3">
               <div className="flex items-start justify-between">
@@ -93,6 +125,13 @@ export default function Servicos() {
               <p className="text-xs text-slate-500 line-clamp-2">
                 {s.description || 'Sem descrição.'}
               </p>
+              <div>
+                <Badge variant="outline" className="text-[10px] text-slate-600">
+                  {SERVICE_CATEGORY_LABELS[s.category as keyof typeof SERVICE_CATEGORY_LABELS] ||
+                    s.category ||
+                    '—'}
+                </Badge>
+              </div>
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1 text-slate-500 font-mono text-[11px]">
                   <Clock className="h-3.5 w-3.5" /> {s.estimated_duration} min
@@ -131,7 +170,7 @@ export default function Servicos() {
           </Card>
         ))}
       </div>
-      {services.length === 0 && (
+      {filteredServices.length === 0 && (
         <div className="py-12 text-center text-slate-400 text-sm">Nenhum serviço cadastrado.</div>
       )}
 

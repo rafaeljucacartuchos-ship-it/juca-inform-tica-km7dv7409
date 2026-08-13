@@ -16,14 +16,8 @@ export function Topbar() {
   const [newOrderOpen, setNewOrderOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const navigate = useNavigate()
-  const {
-    notifications,
-    unreadCount,
-    markAsRead,
-    markAllAsRead,
-    requestBrowserPermission,
-    browserPermission,
-  } = useNotifications()
+  const { notifications, unreadCount, markAllAsRead, requestBrowserPermission, browserPermission } =
+    useNotifications()
   const { hasPermission } = usePermissions()
 
   const handleSearch = (e: React.FormEvent) => {
@@ -68,7 +62,11 @@ export function Topbar() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <Popover>
+          <Popover
+            onOpenChange={(open) => {
+              if (open) markAllAsRead()
+            }}
+          >
             <PopoverTrigger asChild>
               <Button
                 variant="ghost"
@@ -87,7 +85,6 @@ export function Topbar() {
               <NotificationsPanel
                 notifications={notifications}
                 unreadCount={unreadCount}
-                onMarkAsRead={markAsRead}
                 onMarkAllAsRead={markAllAsRead}
                 onRequestPermission={requestBrowserPermission}
                 browserPermission={browserPermission}

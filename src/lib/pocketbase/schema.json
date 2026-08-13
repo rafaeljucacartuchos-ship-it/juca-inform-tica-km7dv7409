@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-13T02:28:57.133Z",
+  "generatedAt": "2026-08-13T02:44:55.382Z",
   "collections": [
     {
       "name": "users",
@@ -389,7 +389,8 @@
         "CREATE INDEX idx_so_status ON service_orders (status)",
         "CREATE INDEX idx_so_customer ON service_orders (customer)",
         "CREATE INDEX idx_so_technician ON service_orders (technician)",
-        "CREATE INDEX `idx_so_equipment_ref` ON `service_orders` (equipment_ref)"
+        "CREATE INDEX `idx_so_equipment_ref` ON `service_orders` (equipment_ref)",
+        "CREATE INDEX `idx_so_created` ON `service_orders` (created)"
       ]
     },
     {
@@ -446,6 +447,20 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "category",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "hardware",
+            "software",
+            "rede",
+            "manutencao_preventiva",
+            "instalacao",
+            "outros"
+          ]
         }
       ],
       "indexes": []
@@ -854,6 +869,76 @@
         }
       ],
       "indexes": ["CREATE INDEX idx_sa_so ON service_attachments (service_order)"]
+    },
+    {
+      "name": "notifications",
+      "type": "base",
+      "apiRules": {
+        "list": "user = @request.auth.id",
+        "view": "user = @request.auth.id",
+        "create": null,
+        "update": "user = @request.auth.id",
+        "delete": null
+      },
+      "fields": [
+        {
+          "name": "user",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "message",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "type",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["service_order", "appointment", "payment", "system"]
+        },
+        {
+          "name": "read",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "link",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_notifications_user ON notifications (user)",
+        "CREATE INDEX idx_notifications_read ON notifications (read)",
+        "CREATE INDEX idx_notifications_created ON notifications (created)"
+      ]
     }
   ]
 }

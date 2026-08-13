@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Plus, LayoutGrid, List, Search, Filter, Wrench } from 'lucide-react'
+import { Plus, LayoutGrid, List, Search, Filter, Wrench, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -12,8 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ServiceOrder, OrderStatus } from '@/types'
+import { ServiceOrder, OrderStatus, Customer } from '@/types'
 import { getServiceOrders, updateServiceOrder, addStatusHistory } from '@/services/service_orders'
+import { getCustomers } from '@/services/customers'
 import { NewOrderModal } from '@/components/NewOrderModal'
 import { useAuth } from '@/hooks/use-auth'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -25,12 +26,33 @@ export default function OrdensDeServico() {
   const [searchParams] = useSearchParams()
   const [filterText, setFilterText] = useState(searchParams.get('search') || '')
   const [newModalOpen, setNewModalOpen] = useState(false)
+  const [dateStart, setDateStart] = useState('')
+  const [dateEnd, setDateEnd] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [customerFilter, setCustomerFilter] = useState<string>('all')
+  const [customers, setCustomers] = useState<Customer[]>([])
   const { user } = useAuth()
   const { toast } = useToast()
 
   const loadData = async () => {
     try {
-      const filterStr = user?.role === 'technician' && user?.id ? `technician = "${user.id}"` : ''
+      const filters: string[] = []
+      if (user?.role === 'technician' && user?.id) {
+        filters.push(`technician = "${user.id}"`)
+      }
+      if (dateStart) {
+        filters.push(`created >= "${dateStart} 00:00:00.000Z"`)
+      }
+      if (dateEnd) {
+        filters.push(`created <= "${dateEnd} 23:59:59.999Z"`)
+      }
+      if (statusFilter !== 'all') {
+        filters.push(`status = "${statusFilter}"`)
+      }
+      if (customerFilter !== 'all') {
+        filters.push(`customer = "${customerFilter}"`)
+      }
+      const filterStr = filters.join(' && ')
       const data = await getServiceOrders(filterStr)
       setOrders(data)
     } catch {
@@ -39,8 +61,14 @@ export default function OrdensDeServico() {
   }
 
   useEffect(() => {
-    loadData()
+    getCustomers()
+      .then(setCustomers)
+      .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    loadData()
+  }, [dateStart, dateEnd, statusFilter, customerFilter])
 
   useRealtime('service_orders', loadData)
 
@@ -78,6 +106,17 @@ export default function OrdensDeServico() {
       toast({ title: 'Erro ao alterar status', variant: 'destructive' })
     }
   }
+
+  const clearFilters = () => {
+    setDateStart('')
+    setDateEnd('')
+    setStatusFilter('all')
+    setCustomerFilter('all')
+    setFilterText('')
+  }
+
+  const hasActiveFilters =
+    dateStart || dateEnd || statusFilter !== 'all' || customerFilter !== 'all'
 
   return (
     <div className="space-y-6">
@@ -133,6 +172,91 @@ export default function OrdensDeServico() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+        <Filter className="h-4 w-4 text-slate-400" />
+        <div className="flex items-center gap-2">
+          <label className="text-[11px] font-semibold text-slate-600 whitespace-nowrap">
+            Período:
+          </label>
+          <input
+            type="date"
+            value={dateStart}
+            onChange={(e) => setDateStart(e.target.value)}
+            className="h-8 px-2 text-xs border border-slate-200 rounded-md bg-slate-50 font-mono"
+          />
+          <span className="text-slate-400 text-xs">—</span>
+          <input
+            type="date"
+            value={dateEnd}
+            onChange={(e) => setDateEnd(e.target.value)}
+            className="h-8 px-2 text-xs border border-slate-200 rounded-md bg-slate-50 font-mono"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-[11px] font-semibold text-slate-600 whitespace-nowrap">
+            Status:
+          </label>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-8 text-xs w-36">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="text-xs">
+                Todos
+              </SelectItem>
+              <SelectItem value="open" className="text-xs">
+                Aberto
+              </SelectItem>
+              <SelectItem value="in_progress" className="text-xs">
+                Em Andamento
+              </SelectItem>
+              <SelectItem value="waiting_parts" className="text-xs">
+                Aguardando Peças
+              </SelectItem>
+              <SelectItem value="completed" className="text-xs">
+                Concluído
+              </SelectItem>
+              <SelectItem value="closed" className="text-xs">
+                Fechado
+              </SelectItem>
+              <SelectItem value="cancelled" className="text-xs">
+                Cancelado
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-[11px] font-semibold text-slate-600 whitespace-nowrap">
+            Cliente:
+          </label>
+          <Select value={customerFilter} onValueChange={setCustomerFilter}>
+            <SelectTrigger className="h-8 text-xs w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="text-xs">
+                Todos
+              </SelectItem>
+              {customers.map((c) => (
+                <SelectItem key={c.id} value={c.id} className="text-xs">
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {hasActiveFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearFilters}
+            className="h-8 text-xs text-slate-500 gap-1 ml-auto"
+          >
+            <X className="h-3 w-3" /> Limpar filtros
+          </Button>
+        )}
+      </div>
+
       {viewMode === 'kanban' ? (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto pb-4">
           {columns.map((col) => {
@@ -151,7 +275,7 @@ export default function OrdensDeServico() {
                   </span>
                 </div>
 
-                <div className="space-y-3 flex-1 overflow-y-auto max-h-[calc(100vh-280px)] pr-1">
+                <div className="space-y-3 flex-1 overflow-y-auto max-h-[calc(100vh-340px)] pr-1">
                   {colOrders.map((o) => (
                     <Card
                       key={o.id}
