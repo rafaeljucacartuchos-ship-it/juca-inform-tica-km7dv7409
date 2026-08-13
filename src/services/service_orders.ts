@@ -5,7 +5,7 @@ export const getServiceOrders = (filterStr = '') =>
   pb.collection('service_orders').getFullList<ServiceOrder>({
     filter: filterStr,
     expand: 'customer,technician,appointment,equipment_ref',
-    sort: '-created',
+    sort: 'title',
   })
 
 export const getServiceOrder = (id: string) =>

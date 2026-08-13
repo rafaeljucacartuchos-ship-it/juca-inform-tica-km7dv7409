@@ -310,15 +310,31 @@ export default function OrdemDetail() {
                 Informações da Ordem
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-xs">
+            <CardContent className="space-y-4 text-xs">
+              <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+                <span className="font-semibold text-slate-500">Título da Ordem:</span>
+                <p className="font-bold text-slate-900 text-sm mt-0.5">{order.title}</p>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <span className="font-semibold text-slate-500">Cliente:</span>
-                  <p className="font-medium text-slate-900">{order.expand?.customer?.name}</p>
+                  <p className="font-medium text-slate-900">
+                    {order.expand?.customer?.name || 'Não informado'}
+                  </p>
+                </div>
+                <div>
+                  <span className="font-semibold text-slate-500">Técnico:</span>
+                  <p className="font-medium text-slate-900">
+                    {order.expand?.technician?.name || 'Não atribuído'}
+                  </p>
                 </div>
                 <div>
                   <span className="font-semibold text-slate-500">Equipamento:</span>
                   <p className="font-medium text-slate-900">{order.equipment || 'Não informado'}</p>
+                </div>
+                <div>
+                  <span className="font-semibold text-slate-500">Prioridade:</span>
+                  <p className="font-medium text-slate-900 capitalize">{order.priority}</p>
                 </div>
               </div>
               <div>

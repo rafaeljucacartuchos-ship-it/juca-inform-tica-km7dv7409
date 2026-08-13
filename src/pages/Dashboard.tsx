@@ -103,7 +103,12 @@ export default function Dashboard() {
     ['open', 'in_progress', 'waiting_parts'].includes(o.status),
   ).length
   const todayStr = new Date().toISOString().substring(0, 10)
-  const todayAppts = appointments.filter((a) => a.date?.substring(0, 10) === todayStr)
+  const todayAppts = appointments
+    .filter((a) => a.date?.substring(0, 10) === todayStr)
+    .sort((a, b) => (a.expand?.customer?.name || '').localeCompare(b.expand?.customer?.name || ''))
+  const sortedTechnicians = [...technicians].sort((a, b) =>
+    (a.name || '').localeCompare(b.name || ''),
+  )
 
   if (loading) {
     return (
@@ -249,6 +254,7 @@ export default function Dashboard() {
                 <thead className="bg-slate-50 border-y border-slate-100 text-slate-500 font-semibold uppercase tracking-wider">
                   <tr>
                     <th className="py-2.5 px-4">Número</th>
+                    <th className="py-2.5 px-4">Título</th>
                     <th className="py-2.5 px-4">Cliente</th>
                     <th className="py-2.5 px-4">Técnico</th>
                     <th className="py-2.5 px-4">Status</th>
@@ -261,6 +267,7 @@ export default function Dashboard() {
                       <td className="py-3 px-4 font-mono font-semibold text-indigo-600">
                         <Link to={`/ordens/${o.id}`}>{o.number}</Link>
                       </td>
+                      <td className="py-3 px-4 font-medium text-slate-800">{o.title}</td>
                       <td className="py-3 px-4 font-medium text-slate-800">
                         {o.expand?.customer?.name || 'Cliente'}
                       </td>
@@ -277,7 +284,7 @@ export default function Dashboard() {
                   ))}
                   {orders.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-6 text-center text-slate-400">
+                      <td colSpan={6} className="py-6 text-center text-slate-400">
                         Nenhuma ordem cadastrada.
                       </td>
                     </tr>
@@ -336,7 +343,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {technicians.map((t) => {
+              {sortedTechnicians.map((t) => {
                 const count = orders.filter(
                   (o) => o.technician === t.id && o.status !== 'closed' && o.status !== 'cancelled',
                 ).length

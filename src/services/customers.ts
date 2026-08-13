@@ -8,7 +8,7 @@ export const getCustomers = async (search = '') => {
   }
   return pb.collection('customers').getFullList<Customer>({
     filter,
-    sort: '-created',
+    sort: 'name',
   })
 }
 

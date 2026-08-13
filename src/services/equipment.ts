@@ -4,13 +4,13 @@ import { Equipment, ServiceOrder } from '@/types'
 export const getEquipment = () =>
   pb.collection('equipment').getFullList<Equipment>({
     expand: 'customer',
-    sort: '-created',
+    sort: 'name',
   })
 
 export const getEquipmentByCustomer = (customerId: string) =>
   pb.collection('equipment').getFullList<Equipment>({
     filter: `customer = "${customerId}"`,
-    sort: '-created',
+    sort: 'name',
   })
 
 export const getEquipmentItem = (id: string) =>
@@ -30,6 +30,6 @@ export const createEquipmentWithPhotos = (data: FormData) =>
 export const getEquipmentServiceOrders = (equipmentId: string) =>
   pb.collection('service_orders').getFullList<ServiceOrder>({
     filter: `equipment_ref = "${equipmentId}"`,
-    sort: '-created',
+    sort: 'title',
     expand: 'customer,technician',
   })
