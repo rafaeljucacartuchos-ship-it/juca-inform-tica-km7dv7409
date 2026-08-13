@@ -1,9 +1,14 @@
 import { Download, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { usePwaInstall } from '@/hooks/use-pwa-install'
+import { IosInstallGuide } from '@/components/IosInstallGuide'
 
 export function PwaInstallHint() {
-  const { canInstall, promptInstall, dismiss } = usePwaInstall()
+  const { canInstall, promptInstall, dismiss, canShowIosGuide, dismissIosGuide } = usePwaInstall()
+
+  if (canShowIosGuide) {
+    return <IosInstallGuide onDismiss={dismissIosGuide} />
+  }
 
   if (!canInstall) return null
 
