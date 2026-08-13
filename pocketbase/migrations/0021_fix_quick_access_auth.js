@@ -56,24 +56,38 @@ migrate(
       if (record) {
         record.set('name', acc2.name)
         record.set('role', acc2.role)
+        record.set('username', acc2.username)
         record.setEmail(acc2.email)
         record.setVerified(true)
-        app.saveNoValidate(record)
-        record.set('username', acc2.username)
-        app.saveNoValidate(record)
+        try {
+          app.save(record)
+        } catch (e) {
+          app.saveNoValidate(record)
+        }
         record.setPassword('12345678')
-        app.saveNoValidate(record)
+        try {
+          app.save(record)
+        } catch (e) {
+          app.saveNoValidate(record)
+        }
       } else {
         record = new Record(usersCol)
         record.set('name', acc2.name)
         record.set('role', acc2.role)
+        record.set('username', acc2.username)
         record.setEmail(acc2.email)
         record.setVerified(true)
-        app.saveNoValidate(record)
-        record.set('username', acc2.username)
-        app.saveNoValidate(record)
+        try {
+          app.save(record)
+        } catch (e) {
+          app.saveNoValidate(record)
+        }
         record.setPassword('12345678')
-        app.saveNoValidate(record)
+        try {
+          app.save(record)
+        } catch (e) {
+          app.saveNoValidate(record)
+        }
       }
     }
 
