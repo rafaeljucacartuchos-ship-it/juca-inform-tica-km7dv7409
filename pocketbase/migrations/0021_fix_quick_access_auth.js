@@ -38,11 +38,9 @@ migrate(
         )
         for (var d = 0; d < dups.length; d++) {
           dups[d].set('username', '')
-          app.save(dups[d])
+          app.saveNoValidate(dups[d])
         }
-      } catch (e) {
-        // No duplicates found — continue
-      }
+      } catch (e) {}
     }
 
     // Step 2: Ensure each account exists with the correct username,
@@ -53,32 +51,30 @@ migrate(
 
       try {
         record = app.findAuthRecordByEmail('users', acc2.email)
-      } catch (e) {
-        // Record not found — will create new below
-      }
+      } catch (e) {}
 
       if (record) {
-        record.set('username', acc2.username)
         record.set('name', acc2.name)
         record.set('role', acc2.role)
         record.setEmail(acc2.email)
-        record.setPassword('12345678')
         record.setVerified(true)
-        app.save(record)
+        app.saveNoValidate(record)
+        record.set('username', acc2.username)
+        app.saveNoValidate(record)
+        record.setPassword('12345678')
+        app.saveNoValidate(record)
       } else {
         record = new Record(usersCol)
-        record.set('username', acc2.username)
         record.set('name', acc2.name)
         record.set('role', acc2.role)
         record.setEmail(acc2.email)
-        record.setPassword('12345678')
         record.setVerified(true)
-        app.save(record)
+        app.saveNoValidate(record)
+        record.set('username', acc2.username)
+        app.saveNoValidate(record)
+        record.setPassword('12345678')
+        app.saveNoValidate(record)
       }
-
-      console.log(
-        'Account ensured: ' + acc2.email + ' | username=' + acc2.username + ' | id=' + record.id,
-      )
     }
 
     // Step 3: Verification — re-read each record fresh and confirm
@@ -114,19 +110,7 @@ migrate(
             '"',
         )
       }
-
-      console.log(
-        'Verified: ' +
-          acc3.email +
-          ' | username=' +
-          user.getString('username') +
-          ' | role=' +
-          user.getString('role') +
-          ' | password=OK',
-      )
     }
-
-    console.log('SUCCESS: All 3 quick-access accounts verified with username and password')
   },
   (app) => {},
 )
