@@ -137,5 +137,52 @@ onRecordAfterUpdateSuccess((e) => {
     $app.logger().error('Failed to create SO update notification', 'error', String(err))
   }
 
+  if (statusChanged) {
+    try {
+      var statusLabels2 = {
+        open: 'Aberta',
+        in_progress: 'Em Andamento',
+        waiting_parts: 'Aguardando Peças',
+        completed: 'Concluída',
+        closed: 'Fechada',
+        cancelled: 'Cancelada',
+      }
+      var statusText2 = statusLabels2[currStatus] || currStatus
+
+      var techName = 'Técnico'
+      if (technician) {
+        try {
+          var techRec = $app.findRecordById('users', technician)
+          techName = techRec.getString('name') || 'Técnico'
+        } catch (_) {}
+      }
+
+      var admins = $app.findRecordsByFilter('users', "role = 'admin'", '', 0, 0)
+      var adminNotifCol = $app.findCollectionByNameOrId('notifications')
+      for (var ai = 0; ai < admins.length; ai++) {
+        var adminId = admins[ai].id
+        if (adminId === technician) continue
+        var adminNotif = new Record(adminNotifCol)
+        adminNotif.set('user', adminId)
+        adminNotif.set(
+          'title',
+          'Técnico ' + techName + ' alterou a O.S. ' + number + ' para: ' + statusText2,
+        )
+        adminNotif.set(
+          'message',
+          'O status da O.S. ' + number + ' foi alterado para ' + statusText2 + ' por ' + techName,
+        )
+        adminNotif.set('type', 'service_order')
+        adminNotif.set('read', false)
+        adminNotif.set('link', '/ordens/' + e.record.id)
+        $app.save(adminNotif)
+      }
+    } catch (err2) {
+      $app
+        .logger()
+        .error('Failed to create admin status change notifications', 'error', String(err2))
+    }
+  }
+
   return e.next()
 }, 'service_orders')

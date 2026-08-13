@@ -105,3 +105,84 @@ export function computeAverageServiceTime(
   if (count === 0) return null
   return formatDuration(totalDuration / count)
 }
+
+export function countOrdersInPeriod(orders: ServiceOrder[], start: string, end: string) {
+  return orders.filter((o) => isDateInRange(o.created, start, end)).length
+}
+
+export interface EvolutionDataPoint {
+  label: string
+  orders: number
+  revenue: number
+}
+
+export function computeEvolutionData(
+  orders: ServiceOrder[],
+  payments: Payment[],
+  start: string,
+  end: string,
+): EvolutionDataPoint[] {
+  const startDate = new Date(start + 'T00:00:00')
+  const endDate = new Date(end + 'T23:59:59')
+  const totalDays = Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1
+  const useWeeks = totalDays > 31
+
+  const buckets = new Map<string, { orders: number; revenue: number }>()
+
+  const resolveBucket = (dateStr: string | undefined): string | null => {
+    if (!dateStr) return null
+    const d = new Date(dateStr.substring(0, 10) + 'T00:00:00')
+    if (d < startDate || d > endDate) return null
+    if (useWeeks) {
+      const dayOfWeek = d.getDay() || 7
+      const monday = new Date(d)
+      monday.setDate(d.getDate() - dayOfWeek + 1)
+      return monday.toISOString().substring(0, 10)
+    }
+    return d.toISOString().substring(0, 10)
+  }
+
+  for (const order of orders) {
+    const key = resolveBucket(order.created)
+    if (!key) continue
+    const b = buckets.get(key) || { orders: 0, revenue: 0 }
+    b.orders++
+    buckets.set(key, b)
+  }
+
+  for (const payment of payments) {
+    if (payment.status !== 'paid') continue
+    const key = resolveBucket(payment.paid_at)
+    if (!key) continue
+    const b = buckets.get(key) || { orders: 0, revenue: 0 }
+    b.revenue += payment.amount || 0
+    buckets.set(key, b)
+  }
+
+  const result: EvolutionDataPoint[] = []
+  const cursor = new Date(startDate)
+  while (cursor <= endDate) {
+    let key: string
+    let label: string
+    if (useWeeks) {
+      const dayOfWeek = cursor.getDay() || 7
+      const monday = new Date(cursor)
+      monday.setDate(cursor.getDate() - dayOfWeek + 1)
+      key = monday.toISOString().substring(0, 10)
+      label = monday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+      cursor.setDate(cursor.getDate() + 7)
+    } else {
+      key = cursor.toISOString().substring(0, 10)
+      label = cursor.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+      cursor.setDate(cursor.getDate() + 1)
+    }
+    const b = buckets.get(key)
+    result.push({
+      label,
+      orders: b?.orders || 0,
+      revenue: b?.revenue || 0,
+    })
+  }
+
+  return result
+}

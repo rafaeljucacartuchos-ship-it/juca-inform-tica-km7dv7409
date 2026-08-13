@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-13T02:51:29.381Z",
+  "generatedAt": "2026-08-13T03:27:09.588Z",
   "collections": [
     {
       "name": "users",
@@ -663,7 +663,8 @@
       ],
       "indexes": [
         "CREATE INDEX idx_pay_so ON payments (service_order)",
-        "CREATE INDEX `idx_pay_paid_at` ON `payments` (paid_at)"
+        "CREATE INDEX `idx_pay_paid_at` ON `payments` (paid_at)",
+        "CREATE INDEX `idx_pay_status` ON `payments` (status)"
       ]
     },
     {

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { ExportReportsModal } from '@/components/ExportReportsModal'
 import { ExportOrdersListModal } from '@/components/ExportOrdersListModal'
+import { EvolutionCharts } from '@/components/EvolutionCharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,6 +34,8 @@ import {
   computeBilling,
   countCompletedInPeriod,
   computeAverageServiceTime,
+  countOrdersInPeriod,
+  computeEvolutionData,
   type Period,
 } from '@/lib/dashboard-utils'
 
@@ -93,6 +96,8 @@ export default function Dashboard() {
   const billing = computeBilling(payments, range.start, range.end)
   const completedCount = countCompletedInPeriod(orders, history, range.start, range.end)
   const avgTime = computeAverageServiceTime(orders, history, range.start, range.end)
+  const evolutionData = computeEvolutionData(orders, payments, range.start, range.end)
+  const periodOrderCount = countOrdersInPeriod(orders, range.start, range.end)
   const openCount = orders.filter((o) =>
     ['open', 'in_progress', 'waiting_parts'].includes(o.status),
   ).length
@@ -218,6 +223,8 @@ export default function Dashboard() {
           </Card>
         ))}
       </div>
+
+      <EvolutionCharts data={evolutionData} totalOrders={periodOrderCount} totalRevenue={billing} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2 border-slate-200 shadow-sm">
