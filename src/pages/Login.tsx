@@ -103,11 +103,15 @@ export default function Login() {
 
       <Card className="w-full max-w-md border-slate-800 bg-slate-900/90 text-slate-100 shadow-2xl backdrop-blur-xl z-10">
         <CardHeader className="space-y-2 text-center pb-4">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30">
-            <Wrench className="h-7 w-7" />
+          <div className="mx-auto flex items-center justify-center">
+            <img
+              src="/logo.png"
+              alt="Juca Cartuchos e Informática"
+              className="h-20 object-contain"
+            />
           </div>
           <CardTitle className="text-2xl font-bold tracking-tight text-white pt-2">
-            Assistência Técnica Móvel
+            Juca Cartuchos e Informática
           </CardTitle>
           <CardDescription className="text-xs text-slate-400">
             Acesse o sistema de gerenciamento de ordens e visitas

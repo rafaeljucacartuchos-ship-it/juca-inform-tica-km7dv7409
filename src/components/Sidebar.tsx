@@ -132,15 +132,17 @@ export function Sidebar({ onNavClick }: SidebarProps) {
 
   return (
     <aside className="flex h-full w-64 flex-col bg-slate-900 text-slate-100 shadow-xl border-r border-slate-800">
-      <div className="flex h-16 items-center gap-3 px-6 border-b border-slate-800/80 bg-slate-950/40">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30">
-          <Wrench className="h-5 w-5" />
-        </div>
-        <div>
-          <h1 className="text-base font-bold leading-tight tracking-tight text-white">
-            Assistência Técnica
+      <div className="flex h-16 items-center gap-3 px-4 border-b border-slate-800/80 bg-slate-950/40">
+        <img
+          src="/logo.png"
+          alt="Juca Logo"
+          className="h-10 w-10 object-contain rounded-lg bg-black"
+        />
+        <div className="min-w-0">
+          <h1 className="text-sm font-bold leading-tight tracking-tight text-white truncate">
+            Juca Cartuchos
           </h1>
-          <p className="text-xs text-indigo-400 font-medium">Field Service</p>
+          <p className="text-[11px] text-indigo-400 font-medium truncate">e Informática</p>
         </div>
       </div>
 

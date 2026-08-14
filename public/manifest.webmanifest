@@ -1,6 +1,6 @@
 {
-  "name": "Assistência Técnica Móvel",
-  "short_name": "Assistência",
+  "name": "Juca Cartuchos e Informática",
+  "short_name": "Juca Cartuchos",
   "description": "Sistema para centralizar e automatizar a operação de técnicos externos, do agendamento de visitas ao fechamento da ordem de serviço.",
   "start_url": "/",
   "scope": "/",

@@ -6,6 +6,7 @@ const QUICK_ACCESS_EMAILS: Record<string, string> = {
   administrador: 'rafaeljucacartuchos@gmail.com',
   atendente: 'atendimento.ana@assistencia.com',
   tecnico: 'tecnico.carlos@assistencia.com',
+  tecnico2: 'ASSISTENCIATECNICAJUCACARTUCHO@GMAIL.COM',
 }
 
 interface AuthContextType {

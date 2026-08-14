@@ -17,7 +17,7 @@ export default function Layout() {
           </div>
         </main>
         <footer className="border-t border-slate-200 bg-white py-2.5 px-6 text-center text-xs text-slate-400">
-          Assistência Técnica Móvel &copy; {new Date().getFullYear()} — Field Service Management
+          Juca Cartuchos e Informática &copy; {new Date().getFullYear()} — Field Service Management
           System
         </footer>
       </div>
