@@ -144,25 +144,51 @@ export default function OrdemShare() {
     setSaving(true)
     setError('')
     try {
-      // Garante o tipo MIME image/png explicitamente — alguns navegadores
-      // móveis geram blobs sem tipo, o que faz o backend rejeitar o upload.
-      const file = new File([blob], 'signature.png', { type: 'image/png' })
+      // O SignaturePad já entrega um File com MIME image/png. Não embrulhar
+      // de novo em outro new File() — a camada dupla faz alguns navegadores
+      // móveis perderem o tipo MIME, e o backend rejeita o upload com
+      // "unsupported file type". Se por acaso chegar um Blob puro, cria o
+      // File uma única vez.
+      const signatureFile =
+        blob instanceof File
+          ? blob
+          : new File([blob], 'signature.png', { type: blob.type || 'image/png' })
+
       const formData = new FormData()
-      formData.append('signature', file)
-      // Usa o cliente PocketBase (pb.send) em vez de fetch bruto para que
-      // CORS, preflight e headers sejam gerenciados corretamente em qualquer
-      // dispositivo — inclusive o celular do cliente que recebe o link pelo
-      // WhatsApp e nunca acessou o sistema.
-      await pb.send(`/backend/v1/os/${id}/sign`, { method: 'POST', body: formData })
+      formData.append('signature', signatureFile)
+
+      // Usa fetch() direto (sem header Content-Type explícito) para o endpoint
+      // público de assinatura. O navegador monta o multipart/form-data com o
+      // boundary correto sozinho; o pb.send() do PocketBase pode interferir
+      // nos headers e corromper o MIME em alguns celulares. A rota /sign é
+      // pública (sem autenticação), então fetch puro é suficiente e seguro
+      // mesmo para o cliente que abre o link pelo WhatsApp sem sessão.
+      const baseUrl = import.meta.env.VITE_POCKETBASE_URL
+      const res = await fetch(`${baseUrl}/backend/v1/os/${id}/sign`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!res.ok) {
+        let msg = 'Erro ao salvar assinatura. Tente novamente.'
+        try {
+          const data = await res.json()
+          if (data?.error) msg = data.error
+          else if (data?.message) msg = data.message
+        } catch (_) {
+          // resposta sem corpo JSON — mantém a mensagem padrão
+        }
+        throw new Error(msg)
+      }
+
       setSigned(true)
       const fresh: ShareData = await pb.send(`/backend/v1/os/${id}/share`, { method: 'GET' })
       setData(fresh)
     } catch (err) {
-      const respErr = err as { response?: { error?: string }; message?: string }
       setError(
-        respErr?.response?.error ||
-          respErr?.message ||
-          'Erro ao salvar assinatura. Tente novamente.',
+        err instanceof Error && err.message
+          ? err.message
+          : 'Erro ao salvar assinatura. Tente novamente.',
       )
     } finally {
       setSaving(false)
