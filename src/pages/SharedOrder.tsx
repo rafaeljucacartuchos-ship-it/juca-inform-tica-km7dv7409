@@ -37,11 +37,11 @@ export default function SharedOrder() {
       .finally(() => setLoading(false))
   }, [id])
 
-  const handleSign = async (blob: Blob) => {
+  const handleSign = async (dataUrl: string) => {
     if (!id) return
     setSigning(true)
     try {
-      await saveCustomerSignaturePublic(id, blob)
+      await saveCustomerSignaturePublic(id, dataUrl)
       setSigned(true)
     } catch {
       /* ignored */

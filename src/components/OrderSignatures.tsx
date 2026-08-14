@@ -19,9 +19,12 @@ export function OrderSignatures({ order, canEdit, onSaved }: OrderSignaturesProp
   const [showCustPad, setShowCustPad] = useState(false)
   const { toast } = useToast()
 
-  const handleSave = async (field: 'technician_signature' | 'customer_signature', blob: Blob) => {
+  const handleSave = async (
+    field: 'technician_signature' | 'customer_signature',
+    dataUrl: string,
+  ) => {
     try {
-      await uploadSignature(order.id, field, blob)
+      await uploadSignature(order.id, field, dataUrl)
       toast({ title: 'Assinatura salva com sucesso!' })
       setShowTechPad(false)
       setShowCustPad(false)

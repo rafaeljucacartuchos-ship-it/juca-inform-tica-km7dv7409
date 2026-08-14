@@ -40,12 +40,13 @@ export const getSharedOrder = async (id: string): Promise<SharedOrderData> => {
   return res.json()
 }
 
-export const saveCustomerSignaturePublic = async (id: string, blob: Blob) => {
-  const formData = new FormData()
-  formData.append('signature', blob, 'signature.png')
+export const saveCustomerSignaturePublic = async (id: string, dataUrl: string) => {
+  // Envia a assinatura como JSON com a string base64 (data URL) — evita os
+  // problemas de MIME do multipart em navegadores móveis.
   const res = await fetch(`${PB_URL}/backend/v1/shared-order/${id}/sign`, {
     method: 'POST',
-    body: formData,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ signature: dataUrl }),
   })
   if (!res.ok) throw new Error('Falha ao salvar assinatura')
   return res.json()

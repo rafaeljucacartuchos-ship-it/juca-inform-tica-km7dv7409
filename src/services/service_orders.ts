@@ -51,17 +51,19 @@ export const getStatusHistory = (orderId: string) =>
 export const addStatusHistory = (data: Partial<StatusHistory>) =>
   pb.collection('status_history').create<StatusHistory>(data)
 
-export const uploadSignature = (
+export const uploadSignature = async (
   id: string,
   field: 'technician_signature' | 'customer_signature',
-  blob: Blob,
+  // O SignaturePad agora entrega um data URL base64 ("data:image/png;base64,...").
+  signature: string,
 ) => {
+  // Fluxo autenticado (técnico): continua usando multipart/form-data via SDK
+  // do PocketBase, que funciona normalmente no app logado. Convertemos o
+  // data URL de volta para um File PNG com MIME definido explicitamente.
+  const res = await fetch(signature)
+  const blob = await res.blob()
+  const file = new File([blob], 'signature.png', { type: 'image/png' })
   const formData = new FormData()
-  // Garante o tipo MIME correto para o blob PNG vindo do SignaturePad.
-  const file =
-    blob instanceof File
-      ? blob
-      : new File([blob], 'signature.png', { type: blob.type || 'image/png' })
   formData.append(field, file, 'signature.png')
   return pb.collection('service_orders').update<ServiceOrder>(id, formData, {
     expand: 'customer,technician',

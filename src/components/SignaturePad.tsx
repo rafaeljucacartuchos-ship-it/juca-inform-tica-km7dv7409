@@ -3,7 +3,13 @@ import { Button } from '@/components/ui/button'
 import { Eraser, Check, X } from 'lucide-react'
 
 interface SignaturePadProps {
-  onConfirm: (blob: Blob) => void
+  // Retorna uma string base64 (data URL) — ex.: "data:image/png;base64,...".
+  // O uso de canvas.toDataURL() em vez de canvas.toBlob() garante
+  // compatibilidade com TODOS os navegadores móveis (Samsung Internet,
+  // Chrome antigo, Safari iOS), que em alguns casos perdem o MIME do Blob
+  // gerado por toBlob(). A string base64 pode ser usada diretamente como
+  // src de <img> para preview ou enviada como JSON ao backend.
+  onConfirm: (dataUrl: string) => void
   onCancel?: () => void
 }
 
@@ -75,14 +81,11 @@ export function SignaturePad({ onConfirm, onCancel }: SignaturePadProps) {
   const handleConfirm = () => {
     const canvas = canvasRef.current
     if (!canvas || !hasContent) return
-    canvas.toBlob((blob) => {
-      if (!blob) return
-      // Garante o tipo MIME image/png explicitamente no FormData — alguns
-      // navegadores móveis geram blobs sem tipo, o que faz o backend
-      // rejeitar o upload ("unsupported file type").
-      const pngFile = new File([blob], 'signature.png', { type: 'image/png' })
-      onConfirm(pngFile)
-    }, 'image/png')
+    // toDataURL retorna uma string base64 ("data:image/png;base64,...")
+    // de forma síncrona e compatível com todos os navegadores — sem
+    // depender de Blob/File/FormData, que perdem o MIME em alguns celulares.
+    const dataUrl = canvas.toDataURL('image/png')
+    onConfirm(dataUrl)
   }
 
   return (

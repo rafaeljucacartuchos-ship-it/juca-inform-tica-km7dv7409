@@ -139,34 +139,27 @@ export default function OrdemShare() {
       .finally(() => setLoading(false))
   }, [id])
 
-  const handleSign = async (blob: Blob) => {
+  const handleSign = async (dataUrl: string) => {
     if (!id) return
     setSaving(true)
     setError('')
     try {
-      // O SignaturePad já entrega um File com MIME image/png. Não embrulhar
-      // de novo em outro new File() — a camada dupla faz alguns navegadores
-      // móveis perderem o tipo MIME, e o backend rejeita o upload com
-      // "unsupported file type". Se por acaso chegar um Blob puro, cria o
-      // File uma única vez.
-      const signatureFile =
-        blob instanceof File
-          ? blob
-          : new File([blob], 'signature.png', { type: blob.type || 'image/png' })
-
-      const formData = new FormData()
-      formData.append('signature', signatureFile)
-
-      // Usa fetch() direto (sem header Content-Type explícito) para o endpoint
-      // público de assinatura. O navegador monta o multipart/form-data com o
-      // boundary correto sozinho; o pb.send() do PocketBase pode interferir
-      // nos headers e corromper o MIME em alguns celulares. A rota /sign é
-      // pública (sem autenticação), então fetch puro é suficiente e seguro
-      // mesmo para o cliente que abre o link pelo WhatsApp sem sessão.
+      // O SignaturePad agora entrega uma string base64 (data URL) via
+      // canvas.toDataURL('image/png'). Enviamos a assinatura como JSON
+      // (Content-Type: application/json) em vez de multipart/form-data.
+      //
+      // Motivo: o fluxo anterior (canvas.toBlob -> new File -> FormData ->
+      // multipart) perdia o tipo MIME image/png em alguns navegadores móveis
+      // (Samsung Internet, Chrome antigo, Safari iOS), e o backend recebia o
+      // arquivo com MIME vazio ("") e o rejeitava. Base64 é uma string pura e
+      // funciona de forma idêntica em TODOS os navegadores, sem exceção. O
+      // backend decodifica a string e cria o arquivo com MIME definido no
+      // servidor, onde temos controle total.
       const baseUrl = import.meta.env.VITE_POCKETBASE_URL
       const res = await fetch(`${baseUrl}/backend/v1/os/${id}/sign`, {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signature: dataUrl }),
       })
 
       if (!res.ok) {
