@@ -144,21 +144,26 @@ export default function OrdemShare() {
     setSaving(true)
     setError('')
     try {
+      // Garante o tipo MIME image/png explicitamente — alguns navegadores
+      // móveis geram blobs sem tipo, o que faz o backend rejeitar o upload.
+      const file = new File([blob], 'signature.png', { type: 'image/png' })
       const formData = new FormData()
-      formData.append('signature', blob, 'signature.png')
-      const res = await fetch(`${import.meta.env.VITE_POCKETBASE_URL}/backend/v1/os/${id}/sign`, {
-        method: 'POST',
-        body: formData,
-      })
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null)
-        throw new Error(errData?.error || 'Failed to save signature')
-      }
+      formData.append('signature', file)
+      // Usa o cliente PocketBase (pb.send) em vez de fetch bruto para que
+      // CORS, preflight e headers sejam gerenciados corretamente em qualquer
+      // dispositivo — inclusive o celular do cliente que recebe o link pelo
+      // WhatsApp e nunca acessou o sistema.
+      await pb.send(`/backend/v1/os/${id}/sign`, { method: 'POST', body: formData })
       setSigned(true)
       const fresh: ShareData = await pb.send(`/backend/v1/os/${id}/share`, { method: 'GET' })
       setData(fresh)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao salvar assinatura. Tente novamente.')
+      const respErr = err as { response?: { error?: string }; message?: string }
+      setError(
+        respErr?.response?.error ||
+          respErr?.message ||
+          'Erro ao salvar assinatura. Tente novamente.',
+      )
     } finally {
       setSaving(false)
     }

@@ -76,7 +76,12 @@ export function SignaturePad({ onConfirm, onCancel }: SignaturePadProps) {
     const canvas = canvasRef.current
     if (!canvas || !hasContent) return
     canvas.toBlob((blob) => {
-      if (blob) onConfirm(blob)
+      if (!blob) return
+      // Garante o tipo MIME image/png explicitamente no FormData — alguns
+      // navegadores móveis geram blobs sem tipo, o que faz o backend
+      // rejeitar o upload ("unsupported file type").
+      const pngFile = new File([blob], 'signature.png', { type: 'image/png' })
+      onConfirm(pngFile)
     }, 'image/png')
   }
 
