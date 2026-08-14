@@ -134,7 +134,7 @@ export function Sidebar({ onNavClick }: SidebarProps) {
     <aside className="flex h-full w-64 flex-col bg-slate-900 text-slate-100 shadow-xl border-r border-slate-800">
       <div className="flex h-16 items-center gap-3 px-4 border-b border-slate-800/80 bg-slate-950/40">
         <img
-          src="/logo.png"
+          src="/logo.svg"
           alt="Juca Logo"
           className="h-10 w-10 object-contain rounded-lg bg-black"
         />

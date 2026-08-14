@@ -1,3 +1,11 @@
+// Cabeçalho padrão exibido no topo de TODAS as mensagens WhatsApp.
+const WHATSAPP_HEADER = '🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n'
+// Rodapé padrão com a assinatura da empresa.
+const WHATSAPP_FOOTER =
+  '\n\nJuca Cartuchos e Informática Ltda\n(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981'
+// Link de avaliação no Google (fixo conforme solicitado).
+export const GOOGLE_REVIEW_URL = 'https://g.page/r/CfKb0UxVRFNsEAI/review'
+
 export function sanitizePhone(phone: string): string {
   return phone.replace(/\D/g, '')
 }
@@ -11,6 +19,12 @@ export function openWhatsApp(phone: string, message: string) {
   window.open(buildWhatsAppUrl(phone, message), '_blank')
 }
 
+/**
+ * Mensagem de ENVIO INICIAL / atualização de status da O.S. (status != "Concluída").
+ * Contém apenas o link de compartilhamento/assinatura — SEM avaliação.
+ * A avaliação é disparada separadamente por `triggerWhatsAppEvaluation`
+ * quando a O.S. muda para "Concluída".
+ */
 export function buildServiceMessage(
   customerName: string,
   orderNumber: string,
@@ -26,27 +40,58 @@ export function buildServiceMessage(
     cancelled: 'Cancelada',
   }
   const statusText = statusLabels[status] || status
-  return `Olá ${customerName}! Tudo bem?
+  return (
+    WHATSAPP_HEADER +
+    `Olá ${customerName}! Tudo bem?
 
 Sua Ordem de Serviço *${orderNumber}* foi atualizada e está com status: *${statusText}*.
 
 Acompanhe os detalhes e assine digitalmente sua OS através do link:
 ${shareUrl}
 
-Qualquer dúvida, estamos à disposição!
-
-Juca Cartuchos e Informática Ltda
-(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981`
+Qualquer dúvida, estamos à disposição!` +
+    WHATSAPP_FOOTER
+  )
 }
 
+/**
+ * Mensagem enviada APENAS quando a O.S. muda para "Concluída".
+ * Segunda mensagem separada, contendo agradecimento + link de avaliação
+ * do técnico (shareUrl) + link de avaliação no Google.
+ */
+export function buildCompletionEvaluationMessage(
+  customerName: string,
+  orderNumber: string,
+  shareUrl: string,
+): string {
+  return (
+    WHATSAPP_HEADER +
+    `Olá ${customerName}! Sua Ordem de Serviço *${orderNumber}* foi *CONCLUÍDA*! 🎉
+
+Muito obrigado pela confiança em nosso serviço! 🙏
+
+Por favor, avalie o atendimento do nosso técnico e o serviço prestado:
+${shareUrl}
+
+Gostou do serviço? Deixe também sua avaliação no Google — é rapidinho e ajuda muito:
+${GOOGLE_REVIEW_URL}
+
+Qualquer dúvida, estamos à disposição!` +
+    WHATSAPP_FOOTER
+  )
+}
+
+/**
+ * Abre o WhatsApp com a mensagem de avaliação de conclusão.
+ * Usada quando o status da O.S. muda para "Concluída".
+ */
 export function triggerWhatsAppEvaluation(
   phone: string,
   customerName: string,
   orderNumber: string,
   shareUrl?: string,
 ) {
-  const googleReviewUrl = 'https://g.page/r/CfKb0UxVRFNsEAI/review'
-  const linkText = shareUrl ? `\n\nAcesse sua OS e faça sua avaliação: ${shareUrl}` : ''
-  const techEval = `Olá ${customerName}! Sua Ordem de Serviço ${orderNumber} foi concluída. Por favor, avalie o atendimento do nosso técnico e o serviço prestado.${linkText}\n\nVocê também pode nos avaliar no Google: ${googleReviewUrl}`
-  openWhatsApp(phone, techEval)
+  const link = shareUrl || ''
+  const msg = buildCompletionEvaluationMessage(customerName, orderNumber, link)
+  openWhatsApp(phone, msg)
 }

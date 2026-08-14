@@ -14,14 +14,19 @@ onRecordAfterCreateSuccess((e) => {
           if (phone) {
             var siteUrl = ($secrets.get('SITE_URL') || '').replace(/\/$/, '')
             var shareUrl = siteUrl + '/share/' + e.record.id
+            // ENVIO INICIAL: apenas o link de compartilhamento/assinatura, SEM avaliação.
+            // Cabeçalho JUCA no topo de todas as mensagens WhatsApp.
             var msg =
+              '🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n' +
               'Olá ' +
               cust.getString('name') +
-              '! Sua Ordem de Serviço ' +
+              '! Sua Ordem de Serviço *' +
               number +
-              ' foi criada com status: Aberta.\n\nAcompanhe os detalhes e assine digitalmente: ' +
+              '* foi criada com status: *Aberta*.\n\n' +
+              'Acompanhe os detalhes e assine digitalmente sua OS através do link:\n' +
               shareUrl +
-              '\n\nJuca Cartuchos e Informática Ltda\n(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981'
+              '\n\nQualquer dúvida, estamos à disposição!\n\n' +
+              'Juca Cartuchos e Informática Ltda\n(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981'
             var waUrl =
               'https://wa.me/' + phone.replace(/\D/g, '') + '?text=' + encodeURIComponent(msg)
             $http.send({ url: waUrl, method: 'GET', timeout: 10 })
@@ -90,29 +95,39 @@ onRecordAfterUpdateSuccess((e) => {
 
             var msg = ''
             if (currStatus === 'completed') {
+              // SEGUNDA MENSAGEM SEPARADA: agradecimento + link de avaliação do técnico
+              // + link Google Review. Cabeçalho JUCA no topo.
               msg =
+                '🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n' +
                 'Olá ' +
                 cust.getString('name') +
                 '! Sua Ordem de Serviço *' +
                 number +
-                '* foi *CONCLUÍDA*!\n\n' +
-                'Acesse e avalie nosso atendimento: ' +
+                '* foi *CONCLUÍDA*! 🎉\n\n' +
+                'Muito obrigado pela confiança em nosso serviço! 🙏\n\n' +
+                'Por favor, avalie o atendimento do nosso técnico e o serviço prestado:\n' +
                 shareUrl +
                 '\n\n' +
-                'Gostou do serviço? Deixe também sua avaliação no Google: ' +
+                'Gostou do serviço? Deixe também sua avaliação no Google — é rapidinho e ajuda muito:\n' +
                 googleReviewUrl +
-                '\n\nJuca Cartuchos e Informática Ltda\n(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981'
+                '\n\nQualquer dúvida, estamos à disposição!\n\n' +
+                'Juca Cartuchos e Informática Ltda\n(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981'
             } else {
+              // Atualização de status (não concluída): apenas link de compartilhamento/assinatura.
+              // Cabeçalho JUCA no topo de todas as mensagens WhatsApp.
               msg =
+                '🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n' +
                 'Olá ' +
                 cust.getString('name') +
                 '! Sua Ordem de Serviço *' +
                 number +
                 '* foi atualizada para: *' +
                 statusText +
-                '*.\n\nAcompanhe os detalhes: ' +
+                '*.\n\n' +
+                'Acompanhe os detalhes e assine digitalmente sua OS através do link:\n' +
                 shareUrl +
-                '\n\nJuca Cartuchos e Informática Ltda\n(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981'
+                '\n\nQualquer dúvida, estamos à disposição!\n\n' +
+                'Juca Cartuchos e Informática Ltda\n(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981'
             }
 
             var waUrl =

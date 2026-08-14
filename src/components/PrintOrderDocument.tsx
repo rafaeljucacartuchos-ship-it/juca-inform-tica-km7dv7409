@@ -45,7 +45,7 @@ export function PrintOrderDocument({
     <div className="print-document mx-auto max-w-4xl text-slate-900">
       <div className="mb-6 flex items-center gap-4 border-b-2 border-slate-800 pb-4">
         <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-black p-1">
-          <img src="/logo.png" alt="Juca Logo" className="h-full w-full object-contain" />
+          <img src="/logo.svg" alt="Juca Logo" className="h-full w-full object-contain" />
         </div>
         <div className="flex-1">
           <h1 className="text-xl font-bold">{COMPANY_DATA.razaoSocial}</h1>

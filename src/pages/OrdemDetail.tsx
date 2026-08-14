@@ -197,15 +197,13 @@ export default function OrdemDetail() {
       return
     }
     const shareUrl = `${window.location.origin}/share/${order.id}`
-    openWhatsApp(
-      phone,
-      buildServiceMessage(
-        order.expand?.customer?.name || 'Cliente',
-        order.number,
-        order.status,
-        shareUrl,
-      ),
-    )
+    const name = order.expand?.customer?.name || 'Cliente'
+    // O.S. concluída: envia a mensagem de avaliação. Caso contrário, mensagem padrão.
+    if (order.status === 'completed') {
+      triggerWhatsAppEvaluation(phone, name, order.number, shareUrl)
+    } else {
+      openWhatsApp(phone, buildServiceMessage(name, order.number, order.status, shareUrl))
+    }
   }
 
   const handleShare = () => {

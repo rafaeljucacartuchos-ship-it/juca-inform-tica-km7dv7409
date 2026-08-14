@@ -105,7 +105,7 @@ export default function Login() {
         <CardHeader className="space-y-2 text-center pb-4">
           <div className="mx-auto flex items-center justify-center">
             <img
-              src="/logo.png"
+              src="/logo.svg"
               alt="Juca Cartuchos e Informática"
               className="h-20 object-contain"
             />

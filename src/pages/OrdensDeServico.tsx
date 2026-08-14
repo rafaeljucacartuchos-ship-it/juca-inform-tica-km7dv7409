@@ -19,7 +19,7 @@ import { NewOrderModal } from '@/components/NewOrderModal'
 import { useAuth } from '@/hooks/use-auth'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
-import { openWhatsApp, buildServiceMessage } from '@/lib/whatsapp'
+import { openWhatsApp, triggerWhatsAppEvaluation, buildServiceMessage } from '@/lib/whatsapp'
 
 export default function OrdensDeServico() {
   const [orders, setOrders] = useState<ServiceOrder[]>([])
@@ -107,15 +107,12 @@ export default function OrdensDeServico() {
         const phone = changedOrder.expand?.customer?.phone || ''
         if (phone) {
           const shareUrl = `${window.location.origin}/share/${changedOrder.id}`
-          openWhatsApp(
-            phone,
-            buildServiceMessage(
-              changedOrder.expand?.customer?.name || 'Cliente',
-              changedOrder.number,
-              newStatus,
-              shareUrl,
-            ),
-          )
+          const name = changedOrder.expand?.customer?.name || 'Cliente'
+          if (newStatus === 'completed') {
+            triggerWhatsAppEvaluation(phone, name, changedOrder.number, shareUrl)
+          } else {
+            openWhatsApp(phone, buildServiceMessage(name, changedOrder.number, newStatus, shareUrl))
+          }
         }
       }
       loadData()

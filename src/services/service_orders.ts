@@ -57,7 +57,12 @@ export const uploadSignature = (
   blob: Blob,
 ) => {
   const formData = new FormData()
-  formData.append(field, blob, 'signature.png')
+  // Garante o tipo MIME correto para o blob PNG vindo do SignaturePad.
+  const file =
+    blob instanceof File
+      ? blob
+      : new File([blob], 'signature.png', { type: blob.type || 'image/png' })
+  formData.append(field, file, 'signature.png')
   return pb.collection('service_orders').update<ServiceOrder>(id, formData, {
     expand: 'customer,technician',
   })
