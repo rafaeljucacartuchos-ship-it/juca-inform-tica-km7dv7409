@@ -36,5 +36,5 @@ export default function OrdemPrint() {
     return <Navigate to="/ordens" replace />
   }
 
-  return <PrintOrderDocument order={order} />
+  return <PrintOrderDocument order={order} items={[]} history={[]} attachments={[]} />
 }

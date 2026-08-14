@@ -19,6 +19,7 @@ import ClienteDetail from '@/pages/ClienteDetail'
 import Servicos from '@/pages/Servicos'
 import Relatorios from '@/pages/Relatorios'
 import RelatorioCategoriasPrint from '@/pages/RelatorioCategoriasPrint'
+import RelatoriosAvaliacoes from '@/pages/RelatoriosAvaliacoes'
 import Tecnicos from '@/pages/Tecnicos'
 import Produtos from '@/pages/Produtos'
 import Equipamentos from '@/pages/Equipamentos'
@@ -80,6 +81,7 @@ const App = () => {
                     </Route>
                     <Route element={<PermissionRoute module="relatorios" />}>
                       <Route path="/relatorios" element={<Relatorios />} />
+                      <Route path="/relatorios/avaliacoes" element={<RelatoriosAvaliacoes />} />
                     </Route>
                     <Route element={<PermissionRoute module="tecnicos" />}>
                       <Route path="/tecnicos" element={<Tecnicos />} />

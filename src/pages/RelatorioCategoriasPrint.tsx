@@ -58,7 +58,7 @@ export default function RelatorioCategoriasPrint() {
 
       <div className="print-document mx-auto max-w-4xl">
         <div className="mb-6 text-center border-b-2 border-slate-800 pb-4">
-          <h1 className="text-xl font-bold text-slate-900">{COMPANY_DATA.name}</h1>
+          <h1 className="text-xl font-bold text-slate-900">{COMPANY_DATA.razaoSocial}</h1>
           <p className="text-sm text-slate-600">Relatório de Ordens de Serviço por Categoria</p>
           <p className="text-xs text-slate-500 mt-1">
             Emitido em: {fmtDate(new Date().toISOString())}
@@ -111,7 +111,7 @@ export default function RelatorioCategoriasPrint() {
         )}
 
         <div className="mt-8 text-center text-xs text-slate-400 border-t border-slate-200 pt-4">
-          {COMPANY_DATA.name} — {COMPANY_DATA.phone}
+          {COMPANY_DATA.razaoSocial} — {COMPANY_DATA.telefones}
         </div>
       </div>
     </div>

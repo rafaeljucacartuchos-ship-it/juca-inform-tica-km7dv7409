@@ -99,6 +99,13 @@ export default function Relatorios() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
+            size="sm"
+            onClick={() => navigate('/relatorios/avaliacoes')}
+            className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+          >
+            ★ Avaliações dos Técnicos
+          </Button>
+          <Button
             variant="outline"
             size="sm"
             onClick={() => handleExport('csv')}

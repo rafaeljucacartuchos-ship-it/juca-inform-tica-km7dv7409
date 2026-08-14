@@ -8,8 +8,35 @@ routerAdd('GET', '/backend/v1/os/{id}/share', (e) => {
     return e.json(404, { error: 'Ordem de serviço não encontrada' })
   }
 
+  let customer = null
   try {
-    $app.expandRecord(record, ['customer', 'technician'])
+    const custId = record.getString('customer')
+    if (custId) {
+      const cust = $app.findRecordById('customers', custId)
+      customer = {
+        name: cust.getString('name'),
+        phone: cust.getString('phone'),
+        email: cust.getString('email'),
+        street: cust.getString('street'),
+        number: cust.getString('number'),
+        city: cust.getString('city'),
+        state: cust.getString('state'),
+        zip: cust.getString('zip'),
+      }
+    }
+  } catch (_) {}
+
+  let technician = null
+  try {
+    const techId = record.getString('technician')
+    if (techId) {
+      const tech = $app.findRecordById('users', techId)
+      technician = {
+        id: tech.id,
+        name: tech.getString('name'),
+        phone: tech.getString('phone'),
+      }
+    }
   } catch (_) {}
 
   let items = []
@@ -36,17 +63,29 @@ routerAdd('GET', '/backend/v1/os/{id}/share', (e) => {
 
   let statusHistory = []
   try {
-    statusHistory = $app.findRecordsByFilter(
+    const shList = $app.findRecordsByFilter(
       'status_history',
       'service_order = "' + id + '"',
       'created',
       200,
       0,
     )
-    for (var i = 0; i < statusHistory.length; i++) {
+    for (var i = 0; i < shList.length; i++) {
+      var h = shList[i]
+      var cbName = ''
       try {
-        $app.expandRecord(statusHistory[i], ['changed_by'])
+        var cbId = h.getString('changed_by')
+        if (cbId) {
+          var u = $app.findRecordById('users', cbId)
+          cbName = u.getString('name')
+        }
       } catch (_) {}
+      statusHistory.push({
+        status: h.getString('status'),
+        note: h.getString('note'),
+        changed_by: cbName,
+        created: h.getString('created'),
+      })
     }
   } catch (_) {}
 
@@ -61,8 +100,26 @@ routerAdd('GET', '/backend/v1/os/{id}/share', (e) => {
     )
   } catch (_) {}
 
-  const customer = record.expanded('customer')
-  const technician = record.expanded('technician')
+  let evaluation = null
+  try {
+    const evals = $app.findRecordsByFilter(
+      'evaluations',
+      'service_order = "' + id + '"',
+      '-created',
+      1,
+      0,
+    )
+    if (evals && evals.length > 0) {
+      const ev = evals[0]
+      evaluation = {
+        id: ev.id,
+        rating: ev.get('rating'),
+        satisfaction: ev.getString('satisfaction'),
+        feedback: ev.getString('feedback'),
+        created: ev.getString('created'),
+      }
+    }
+  } catch (_) {}
 
   const response = {
     id: record.id,
@@ -77,24 +134,9 @@ routerAdd('GET', '/backend/v1/os/{id}/share', (e) => {
     total: record.get('total') || 0,
     created: record.getString('created'),
     customer_signature: record.getString('customer_signature'),
-    customer: customer
-      ? {
-          name: customer.getString('name'),
-          phone: customer.getString('phone'),
-          email: customer.getString('email'),
-          street: customer.getString('street'),
-          number: customer.getString('number'),
-          city: customer.getString('city'),
-          state: customer.getString('state'),
-          zip: customer.getString('zip'),
-        }
-      : null,
-    technician: technician
-      ? {
-          name: technician.getString('name'),
-          phone: technician.getString('phone'),
-        }
-      : null,
+    technician_signature: record.getString('technician_signature'),
+    customer: customer,
+    technician: technician,
     items: items.map(function (item) {
       return {
         description: item.getString('description'),
@@ -110,16 +152,7 @@ routerAdd('GET', '/backend/v1/os/{id}/share', (e) => {
         status: p.getString('status'),
       }
     }),
-    technician_signature: record.getString('technician_signature'),
-    status_history: statusHistory.map(function (h) {
-      var cb = h.expanded('changed_by')
-      return {
-        status: h.getString('status'),
-        note: h.getString('note'),
-        changed_by: cb ? cb.getString('name') : '',
-        created: h.getString('created'),
-      }
-    }),
+    status_history: statusHistory,
     attachments: attachments.map(function (a) {
       return {
         id: a.id,
@@ -127,6 +160,7 @@ routerAdd('GET', '/backend/v1/os/{id}/share', (e) => {
         caption: a.getString('caption'),
       }
     }),
+    evaluation: evaluation,
   }
 
   return e.json(200, response)

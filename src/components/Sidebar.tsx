@@ -80,18 +80,24 @@ export function Sidebar({ onNavClick }: SidebarProps) {
     },
     { label: 'Ordens de Serviço', path: '/ordens', icon: Wrench, show: hasPermission('ordens') },
     {
-      label: 'Relatórios',
+      label: 'Relatórios OS',
       path: '/relatorios',
       icon: BarChart3,
       show: hasPermission('relatorios'),
     },
+    {
+      label: 'Avaliações',
+      path: '/relatorios/avaliacoes',
+      icon: BarChart3,
+      show: hasPermission('relatorios'),
+    },
   ].filter((item) => item.show)
-
   const showTecnicos = hasPermission('tecnicos')
   const showCadastro = cadastroChildren.length > 0
 
   const isPathActive = (path: string) =>
-    location.pathname === path || (path !== '/' && location.pathname.startsWith(path))
+    location.pathname === path ||
+    (path !== '/' && path !== '/relatorios' && location.pathname.startsWith(path))
 
   const getRoleLabel = (role?: string) => {
     switch (role) {

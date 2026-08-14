@@ -45,9 +45,8 @@ export function triggerWhatsAppEvaluation(
   orderNumber: string,
   shareUrl?: string,
 ) {
-  const linkText = shareUrl ? `\n\nAcesse sua OS e assine digitalmente: ${shareUrl}` : ''
-  const techEval = `Olá ${customerName}! O serviço da sua Ordem de Serviço ${orderNumber} foi concluído. Por favor, avalie o atendimento do nosso técnico. De 1 a 5, como você avalia o serviço prestado? Sua opinião é muito importante para nós!${linkText}`
-  const googleReview = `Olá ${customerName}! Sua ordem de serviço ${orderNumber} foi finalizada. Que tal deixar um review sobre nossa empresa no Google? Sua avaliação nos ajuda a melhorar continuamente! Acesse: https://search.google.com/local/writereview?place_id=CHANGEME`
-  window.open(buildWhatsAppUrl(phone, techEval), '_blank')
-  setTimeout(() => window.open(buildWhatsAppUrl(phone, googleReview), '_blank'), 1000)
+  const googleReviewUrl = 'https://g.page/r/CfKb0UxVRFNsEAI/review'
+  const linkText = shareUrl ? `\n\nAcesse sua OS e faça sua avaliação: ${shareUrl}` : ''
+  const techEval = `Olá ${customerName}! Sua Ordem de Serviço ${orderNumber} foi concluída. Por favor, avalie o atendimento do nosso técnico e o serviço prestado.${linkText}\n\nVocê também pode nos avaliar no Google: ${googleReviewUrl}`
+  openWhatsApp(phone, techEval)
 }
