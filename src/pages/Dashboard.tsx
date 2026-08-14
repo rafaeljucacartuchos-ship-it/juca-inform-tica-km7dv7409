@@ -195,7 +195,7 @@ export default function Dashboard() {
           bgClass="bg-blue-100"
         />
         <KpiCard
-          title="OSs Concluídas"
+          title="O.S CONCLUÍDAS"
           value={completedCount}
           icon={CheckCircle2}
           colorClass="text-emerald-600"
