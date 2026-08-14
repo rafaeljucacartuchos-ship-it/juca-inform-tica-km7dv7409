@@ -45,7 +45,7 @@ export function EvolutionCharts({
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                OSs no Período
+                O.S no Período
               </p>
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
                 <Wrench className="h-5 w-5" />
