@@ -92,8 +92,8 @@ export function NewTechnicianModal({
           setLoading(false)
           return
         }
-        if (formData.password.length < 4 || formData.password.length > 8) {
-          setErrors({ password: 'A senha deve ter entre 4 e 8 dígitos' })
+        if (formData.password.length < 8 || formData.password.length > 20) {
+          setErrors({ password: 'A senha deve ter entre 8 e 20 dígitos' })
           setLoading(false)
           return
         }
@@ -102,12 +102,20 @@ export function NewTechnicianModal({
           setLoading(false)
           return
         }
+        const normalized = formData.name
+          .trim()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .replace(/\s+/g, '.')
+        const email = `${normalized}@juca.local`
         const result = await createUser({
           password: formData.password,
           passwordConfirm: formData.passwordConfirm,
           name: formData.name,
           role: 'technician',
           phone: formData.phone,
+          email,
         })
         setCreatedCode(result.username || '')
         toast({ title: 'Técnico cadastrado!', description: formData.name })
@@ -234,7 +242,7 @@ export function NewTechnicianModal({
                 <Input
                   type="password"
                   inputMode="numeric"
-                  placeholder="4 a 8 dígitos"
+                  placeholder="8 a 20 dígitos"
                   value={formData.password}
                   onChange={handlePasswordChange}
                   className="h-9 text-xs"

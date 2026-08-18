@@ -17,6 +17,7 @@ export const createUser = (data: {
   name: string
   role: string
   phone?: string
+  email?: string
 }) => pb.collection('users').create<User>(data)
 
 export const updateUser = (
