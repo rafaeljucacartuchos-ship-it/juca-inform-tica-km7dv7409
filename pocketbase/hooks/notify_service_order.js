@@ -44,6 +44,16 @@ onRecordAfterCreateSuccess((e) => {
   var technician = e.record.getString('technician')
   if (!technician) return e.next()
 
+  // Nome do cliente para o corpo do push.
+  var customerName = ''
+  try {
+    var custId0 = e.record.getString('customer')
+    if (custId0) {
+      var cust0 = $app.findRecordById('customers', custId0)
+      customerName = cust0.getString('name') || ''
+    }
+  } catch (_) {}
+
   try {
     var notifCol = $app.findCollectionByNameOrId('notifications')
     var notif = new Record(notifCol)
@@ -56,6 +66,20 @@ onRecordAfterCreateSuccess((e) => {
     $app.save(notif)
   } catch (err) {
     $app.logger().error('Failed to create SO notification', 'error', String(err))
+  }
+
+  // Push notification (Web Push) para o técnico — chega no celular mesmo
+  // com o app fechado.
+  try {
+    $sendPushToUser($app, technician, {
+      title: '🔔 Nova Ordem de Serviço #' + number,
+      body: customerName ? 'Cliente: ' + customerName : title || 'Nova OS atribuída',
+      icon: '/icon-maskable.svg',
+      url: '/ordens/' + e.record.id,
+      tag: 'os-' + e.record.id,
+    })
+  } catch (pushErr) {
+    $app.logger().error('Push notification failed (non-blocking)', 'error', String(pushErr))
   }
 
   return e.next()
@@ -214,6 +238,36 @@ onRecordAfterUpdateSuccess((e) => {
         adminNotif.set('read', false)
         adminNotif.set('link', '/ordens/' + e.record.id)
         $app.save(adminNotif)
+
+        // Push para admins quando a OS é concluída.
+        if (currStatus === 'completed') {
+          try {
+            $sendPushToUser($app, adminId, {
+              title: '✅ OS #' + number + ' concluída',
+              body: 'Técnico ' + techName + ' concluiu a O.S.',
+              icon: '/icon-maskable.svg',
+              url: '/ordens/' + e.record.id,
+              tag: 'os-' + e.record.id,
+            })
+          } catch (pushErr) {
+            $app.logger().error('Admin push failed (non-blocking)', 'error', String(pushErr))
+          }
+        }
+      }
+
+      // Push para o próprio técnico quando a OS é concluída.
+      if (currStatus === 'completed' && technician) {
+        try {
+          $sendPushToUser($app, technician, {
+            title: '✅ OS #' + number + ' concluída',
+            body: 'A ordem de serviço foi marcada como concluída',
+            icon: '/icon-maskable.svg',
+            url: '/ordens/' + e.record.id,
+            tag: 'os-' + e.record.id,
+          })
+        } catch (pushErr2) {
+          $app.logger().error('Tech push failed (non-blocking)', 'error', String(pushErr2))
+        }
       }
     } catch (err2) {
       $app

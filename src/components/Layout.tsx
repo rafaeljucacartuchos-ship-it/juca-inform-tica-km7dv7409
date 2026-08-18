@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom'
 import { Sidebar } from '@/components/Sidebar'
 import { Topbar } from '@/components/Topbar'
 import { OfflineBanner } from '@/components/OfflineBanner'
+import { PushNotificationPrompt } from '@/components/PushNotificationPrompt'
 
 export default function Layout() {
   return (
@@ -12,6 +13,7 @@ export default function Layout() {
 
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
         <Topbar />
+        <PushNotificationPrompt />
         <OfflineBanner />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-7xl">

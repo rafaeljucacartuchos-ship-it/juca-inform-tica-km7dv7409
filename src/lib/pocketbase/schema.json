@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-18T21:28:45.541Z",
+  "generatedAt": "2026-08-18T21:38:22.701Z",
   "collections": [
     {
       "name": "users",
@@ -1101,6 +1101,68 @@
       "indexes": [
         "CREATE INDEX idx_eval_so ON evaluations (service_order)",
         "CREATE INDEX idx_eval_tech ON evaluations (technician)"
+      ]
+    },
+    {
+      "name": "push_subscriptions",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && user = @request.auth.id",
+        "view": "@request.auth.id != '' && user = @request.auth.id",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != '' && user = @request.auth.id",
+        "delete": "@request.auth.id != '' && user = @request.auth.id"
+      },
+      "fields": [
+        {
+          "name": "user",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "endpoint",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "p256dh",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "auth",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "active",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_push_subs_endpoint ON push_subscriptions (endpoint)",
+        "CREATE INDEX idx_push_subs_user_active ON push_subscriptions (user, active)"
       ]
     }
   ]

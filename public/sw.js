@@ -150,3 +150,89 @@ self.addEventListener('fetch', (event) => {
     )
   }
 })
+
+// --- Push notifications ------------------------------------------------------
+// Recebe a payload JSON enviada pelo servidor (title, body, icon, url, tag) e
+// exibe uma notificação nativa. Funciona mesmo com o app fechado — essa é a
+// principal vantagem sobre notificações in-app.
+self.addEventListener('push', (event) => {
+  let payload = {}
+  try {
+    payload = event.data ? event.data.json() : {}
+  } catch (e) {
+    try {
+      payload = event.data ? { body: event.data.text() } : {}
+    } catch (e2) {
+      payload = {}
+    }
+  }
+
+  const title = payload.title || 'JUCA Informática'
+  const tag = payload.tag || 'juca-os'
+  const targetUrl = payload.url || '/'
+
+  const options = {
+    body: payload.body || '',
+    icon: payload.icon || '/icon-maskable.svg',
+    badge: '/icon.svg',
+    tag: tag,
+    // renotify mantém o contador de notificações da mesma tag; data leva a URL
+    // para o handler de clique saber qual OS abrir.
+    renotify: true,
+    data: {
+      url: targetUrl,
+      tag: tag,
+    },
+    // Vibração no Android: [vibra, pausa, vibra].
+    vibrate: [200, 100, 200],
+    requireInteraction: false,
+  }
+
+  event.waitUntil(self.registration.showNotification(title, options))
+})
+
+// --- Notification click: abre/foca o app na OS específica --------------------
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+
+  const data = event.notification.data || {}
+  const targetUrl = data.url || '/'
+
+  // Garante URL absoluta relativa à origem do SW.
+  const fullPath = new URL(targetUrl, self.location.origin).href
+
+  event.waitUntil(
+    (async () => {
+      const allClients = await self.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      })
+
+      // Procura uma aba/janela já aberta no mesmo app.
+      for (const client of allClients) {
+        const clientUrl = new URL(client.url, self.location.origin)
+        // Mesma origem: foca e navega para a OS.
+        if (clientUrl.origin === self.location.origin) {
+          if ('focus' in client) {
+            try {
+              await client.focus()
+            } catch (e) {}
+          }
+          if ('navigate' in client) {
+            try {
+              await client.navigate(fullPath)
+            } catch (e) {}
+          }
+          return
+        }
+      }
+
+      // Nenhuma janela aberta: abre uma nova.
+      if (self.clients.openWindow) {
+        try {
+          await self.clients.openWindow(fullPath)
+        } catch (e) {}
+      }
+    })(),
+  )
+})

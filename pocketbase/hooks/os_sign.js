@@ -120,5 +120,23 @@ routerAdd('POST', '/backend/v1/os/{id}/sign', (e) => {
 
   $app.save(record)
 
+  // Notifica o técnico via push: "Cliente assinou a OS #XXXX".
+  // Esta rota (/backend/v1/os/{id}/sign) também é pública (link do WhatsApp).
+  try {
+    var techId = record.getString('technician')
+    var osNumber = record.getString('number')
+    if (techId && osNumber && typeof $sendPushToUser === 'function') {
+      $sendPushToUser($app, techId, {
+        title: '✍️ Cliente assinou a OS #' + osNumber,
+        body: 'A assinatura do cliente foi registrada.',
+        icon: '/icon-maskable.svg',
+        url: '/ordens/' + record.id,
+        tag: 'os-' + record.id,
+      })
+    }
+  } catch (pushErr) {
+    $app.logger().error('Push on os sign failed (non-blocking)', 'error', String(pushErr))
+  }
+
   return e.json(200, { success: true })
 })

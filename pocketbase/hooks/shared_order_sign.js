@@ -95,5 +95,24 @@ routerAdd('POST', '/backend/v1/shared-order/{id}/sign', (e) => {
 
   $app.save(record)
 
+  // Notifica o técnico via push: "Cliente assinou a OS #XXXX".
+  // A rota de assinatura pública (/backend/v1/shared-order/{id}/sign) é
+  // chamada pelo cliente, sem auth — usamos o técnico da própria OS.
+  try {
+    var techId = record.getString('technician')
+    var osNumber = record.getString('number')
+    if (techId && osNumber && typeof $sendPushToUser === 'function') {
+      $sendPushToUser($app, techId, {
+        title: '✍️ Cliente assinou a OS #' + osNumber,
+        body: 'A assinatura do cliente foi registrada.',
+        icon: '/icon-maskable.svg',
+        url: '/ordens/' + record.id,
+        tag: 'os-' + record.id,
+      })
+    }
+  } catch (pushErr) {
+    $app.logger().error('Push on shared-order sign failed (non-blocking)', 'error', String(pushErr))
+  }
+
   return e.json(200, { success: true })
 })
