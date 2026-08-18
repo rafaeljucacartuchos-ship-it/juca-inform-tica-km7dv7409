@@ -11,8 +11,10 @@ import {
   Share2,
   Printer,
   ScanLine,
+  Search,
 } from 'lucide-react'
 import { BarcodeScanner } from '@/components/BarcodeScanner'
+import { AddOrderItemModal } from '@/components/AddOrderItemModal'
 import { getProduct } from '@/services/products'
 import { Product } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -71,6 +73,7 @@ export default function OrdemDetail() {
   const [starting, setStarting] = useState(false)
   const [scannerOpen, setScannerOpen] = useState(false)
   const [addingByCode, setAddingByCode] = useState(false)
+  const [searchItemOpen, setSearchItemOpen] = useState(false)
   const canEdit = user?.role === 'technician' || user?.role === 'admin'
   // Antes de iniciar o atendimento (started_at vazio), os campos editáveis
   // ficam bloqueados para o técnico. Após iniciar, ficam liberados.
@@ -479,6 +482,17 @@ export default function OrdemDetail() {
                 <Button
                   size="sm"
                   variant="outline"
+                  onClick={() => setSearchItemOpen(true)}
+                  disabled={fieldsLocked}
+                  className="h-8 text-xs gap-1.5"
+                  title="Buscar produto ou serviço por nome"
+                >
+                  <Search className="h-3.5 w-3.5 text-indigo-600" />
+                  <span className="hidden sm:inline">Buscar Item</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
                   onClick={() => setScannerOpen(true)}
                   disabled={fieldsLocked || addingByCode}
                   className="h-8 text-xs gap-1.5"
@@ -645,6 +659,14 @@ export default function OrdemDetail() {
         open={scannerOpen}
         onOpenChange={setScannerOpen}
         onDetected={handleScanProduct}
+      />
+
+      <AddOrderItemModal
+        open={searchItemOpen}
+        onOpenChange={setSearchItemOpen}
+        orderId={order.id}
+        currentTotal={order.total || 0}
+        onAdded={loadAll}
       />
     </div>
   )
