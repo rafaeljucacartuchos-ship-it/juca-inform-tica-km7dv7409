@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { RecordModel, RecordSubscription } from 'pocketbase'
 
 import pb from '@/lib/pocketbase/client'
@@ -12,12 +12,6 @@ import pb from '@/lib/pocketbase/client'
  * Generic over the record type: pass your collection's interface as
  * `useRealtime<MyRecord>(...)` to get a typed subscription payload
  * instead of `unknown`.
- *
- * Realtime (SSE) requires a valid auth token in the EventSource query —
- * without it PocketBase rejects the follow-up subscription POST with
- * `400: Invalid realtime client`. This hook therefore waits until the
- * auth store is valid and re-subscribes whenever the auth state changes
- * (login / logout / token refresh).
  */
 export function useRealtime<TRecord extends RecordModel = RecordModel>(
   collectionName: string,
@@ -27,20 +21,8 @@ export function useRealtime<TRecord extends RecordModel = RecordModel>(
   const callbackRef = useRef(callback)
   callbackRef.current = callback
 
-  // Re-subscribe whenever the auth store validity flips (login/logout/refresh).
-  const [authReady, setAuthReady] = useState(pb.authStore.isValid)
-
   useEffect(() => {
-    const unsubscribe = pb.authStore.onChange(() => {
-      setAuthReady(pb.authStore.isValid)
-    })
-    return () => {
-      unsubscribe()
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!enabled || !authReady || !pb.authStore.isValid) return
+    if (!enabled) return
 
     let unsubscribeFn: (() => Promise<void>) | undefined
     let cancelled = false
@@ -64,7 +46,7 @@ export function useRealtime<TRecord extends RecordModel = RecordModel>(
         unsubscribeFn().catch(() => {})
       }
     }
-  }, [collectionName, enabled, authReady])
+  }, [collectionName, enabled])
 }
 
 export default useRealtime

@@ -131,7 +131,7 @@ export function NewProductModal({
     const t = setTimeout(async () => {
       try {
         const res = await fetch(
-          `${pb.baseUrl}/api/pexels/search?query=${encodeURIComponent(pexelsQuery.trim())}`,
+          `${pb.baseUrl}/backend/v1/pexels/search?query=${encodeURIComponent(pexelsQuery.trim())}`,
           { headers: { Authorization: pb.authStore.token || '' } },
         )
         if (!res.ok) throw new Error('pexels')
