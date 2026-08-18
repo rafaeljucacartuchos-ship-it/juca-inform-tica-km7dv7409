@@ -1,0 +1,130 @@
+/*
+ * Service worker for JUCA Informática (manual implementation).
+ *
+ * The production build (when VitePWA can be wired into vite.config.ts) will
+ * replace this with a Workbox-generated SW. Until then this file provides:
+ *   - precache of the app shell
+ *   - NetworkFirst for API calls (PocketBase /api/*), 10s timeout
+ *   - CacheFirst for static image/font/style assets
+ *   - network-first navigation fallback to /index.html
+ *
+ * Served from /public so /sw.js is available in dev and preview.
+ */
+
+const APP_SHELL_CACHE = 'juca-app-shell-v1'
+const API_CACHE = 'juca-api-v1'
+const ASSET_CACHE = 'juca-assets-v1'
+
+const PRECACHE_URLS = [
+  '/',
+  '/index.html',
+  '/manifest.webmanifest',
+  '/icon.svg',
+  '/icon-maskable.svg',
+]
+
+const ASSET_EXTENSIONS = /\.(?:png|jpe?g|gif|webp|avif|ico|svg|woff2?|ttf|eot|css|js)$/
+
+// --- Install: precache the app shell ----------------------------------------
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches
+      .open(APP_SHELL_CACHE)
+      .then((cache) => cache.addAll(PRECACHE_URLS).catch(() => undefined))
+      .then(() => self.skipWaiting()),
+  )
+})
+
+// --- Activate: clean old caches ---------------------------------------------
+self.addEventListener('activate', (event) => {
+  const keep = new Set([APP_SHELL_CACHE, API_CACHE, ASSET_CACHE])
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(keys.filter((key) => !keep.has(key)).map((key) => caches.delete(key))),
+      )
+      .then(() => self.clients.claim()),
+  )
+})
+
+// --- Helpers ----------------------------------------------------------------
+async function networkFirst(request, cacheName, timeoutMs = 10000) {
+  const cache = await caches.open(cacheName)
+  const timeout = new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs))
+  try {
+    const network = await Promise.race([fetch(request), timeout])
+    if (network) {
+      cache.put(request, network.clone()).catch(() => {})
+      return network
+    }
+    throw new Error('network timeout')
+  } catch {
+    const cached = await cache.match(request)
+    if (cached) return cached
+    throw new Error('no cached response')
+  }
+}
+
+async function cacheFirst(request, cacheName) {
+  const cache = await caches.open(cacheName)
+  const cached = await cache.match(request)
+  if (cached) return cached
+  const response = await fetch(request)
+  if (response && response.status === 200) {
+    cache.put(request, response.clone()).catch(() => {})
+  }
+  return response
+}
+
+// --- Fetch ------------------------------------------------------------------
+self.addEventListener('fetch', (event) => {
+  const { request } = event
+  if (request.method !== 'GET') return
+
+  const url = new URL(request.url)
+
+  // NetworkFirst for API calls (any origin, /api/* path).
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(networkFirst(request, API_CACHE).catch(() => fetch(request)))
+    return
+  }
+
+  // CacheFirst for static assets (images, fonts, css, js).
+  if (ASSET_EXTENSIONS.test(url.pathname)) {
+    event.respondWith(cacheFirst(request, ASSET_CACHE).catch(() => fetch(request)))
+    return
+  }
+
+  // Network-first for navigations, fallback to cached index.html (offline SPA).
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          caches.open(APP_SHELL_CACHE).then((cache) => cache.put('/index.html', response.clone()))
+          return response
+        })
+        .catch(() => caches.match('/index.html').then((r) => r || caches.match('/'))),
+    )
+    return
+  }
+
+  // Same-origin GET: stale-while-revalidate.
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      caches.open(APP_SHELL_CACHE).then((cache) =>
+        cache.match(request).then((cached) => {
+          const fetchPromise = fetch(request)
+            .then((response) => {
+              if (response && response.status === 200) {
+                cache.put(request, response.clone()).catch(() => {})
+              }
+              return response
+            })
+            .catch(() => cached)
+          return cached || fetchPromise
+        }),
+      ),
+    )
+  }
+})
