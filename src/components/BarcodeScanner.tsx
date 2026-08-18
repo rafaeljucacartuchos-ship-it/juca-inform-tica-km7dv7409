@@ -57,16 +57,20 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
     setScanning(false)
   }, [])
 
+  const isProcessingRef = useRef(false)
+
   const detectLoop = useCallback(() => {
-    if (!detectorRef.current || !videoRef.current) return
+    if (!detectorRef.current || !videoRef.current || isProcessingRef.current) return
     const video = videoRef.current
     if (video.readyState >= 2) {
       detectorRef.current
         .detect(video)
         .then((codes: BarcodeDetectorResult[]) => {
+          if (isProcessingRef.current) return
           if (codes && codes.length > 0) {
             const value = codes[0].rawValue || codes[0].stringValue || ''
             if (value) {
+              isProcessingRef.current = true
               stop()
               onDetected(value)
               onOpenChange(false)
@@ -76,7 +80,9 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
         })
         .catch(() => {})
     }
-    rafRef.current = requestAnimationFrame(detectLoop)
+    if (!isProcessingRef.current) {
+      rafRef.current = requestAnimationFrame(detectLoop)
+    }
   }, [onDetected, onOpenChange, stop])
 
   const start = useCallback(async () => {
@@ -176,15 +182,19 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
   // Reseta estados quando o modal é reaberto ou fechado
   useEffect(() => {
     if (open) {
+      isProcessingRef.current = false
       setManualCode('')
       setIsRetrying(false)
+    } else {
+      isProcessingRef.current = false
     }
   }, [open])
 
   const handleManualSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault()
     const trimmed = manualCode.trim()
-    if (!trimmed) return
+    if (!trimmed || isProcessingRef.current) return
+    isProcessingRef.current = true
     stop()
     onDetected(trimmed)
     onOpenChange(false)

@@ -94,6 +94,12 @@ export default function OrdemDetail() {
         getCatalogServices(),
         getOrderPayments(id),
       ])
+      // Recalcula o total a partir da soma real dos itens e atualiza o backend se houver divergência
+      const calculatedTotal = it.reduce((sum, item) => sum + (item.total || 0), 0)
+      if (Math.abs((o.total || 0) - calculatedTotal) > 0.001) {
+        o.total = calculatedTotal
+        updateServiceOrder(id, { total: calculatedTotal }).catch(() => {})
+      }
       setOrder(o)
       setItems(it)
       setHistory(h)
@@ -238,9 +244,10 @@ export default function OrdemDetail() {
   }
 
   const handleAddItem = async () => {
-    if (!selectedCatalogId) return
+    if (!selectedCatalogId || addingByCode) return
     const catItem = catalog.find((c) => c.id === selectedCatalogId)
     if (!catItem) return
+    setAddingByCode(true)
     try {
       const itemPrice = catItem.price || 0
       const itemTitle = catItem.title || catItem.name || 'Serviço'
@@ -252,21 +259,25 @@ export default function OrdemDetail() {
         unit_price: itemPrice,
         total: itemPrice,
       })
-      const newTotal = items.reduce((s, i) => s + (i.total || 0), 0) + itemPrice
+      // Busca a lista atualizada de itens diretamente para calcular o total preciso
+      const freshItems = await getOrderItems(order.id)
+      const newTotal = freshItems.reduce((s, i) => s + (i.total || 0), 0)
       await updateServiceOrder(order.id, { total: newTotal })
       toast({ title: 'Item adicionado à OS' })
       setSelectedCatalogId('')
       loadAll()
     } catch {
       toast({ title: 'Erro ao adicionar item', variant: 'destructive' })
+    } finally {
+      setAddingByCode(false)
     }
   }
 
-  const handleDeleteItem = async (itemId: string, itemPrice: number) => {
+  const handleDeleteItem = async (itemId: string) => {
     try {
       await deleteOrderItem(itemId)
-      const priceToDeduct = itemPrice || 0
-      const newTotal = Math.max(0, (order.total || 0) - priceToDeduct)
+      const freshItems = await getOrderItems(order.id)
+      const newTotal = freshItems.reduce((s, i) => s + (i.total || 0), 0)
       await updateServiceOrder(order.id, { total: newTotal })
       toast({ title: 'Item removido' })
       loadAll()
@@ -276,7 +287,7 @@ export default function OrdemDetail() {
   }
 
   const handleScanProduct = async (code: string) => {
-    if (!order) return
+    if (!order || addingByCode) return
     setAddingByCode(true)
     try {
       // Busca produto pelo SKU. Tenta busca exata e depois filtro textual.
@@ -304,7 +315,8 @@ export default function OrdemDetail() {
         unit_price: unitPrice,
         total: unitPrice,
       })
-      const newTotal = items.reduce((s, i) => s + i.total, 0) + unitPrice
+      const freshItems = await getOrderItems(order.id)
+      const newTotal = freshItems.reduce((s, i) => s + (i.total || 0), 0)
       await updateServiceOrder(order.id, { total: newTotal })
       toast({ title: 'Produto adicionado à OS', description: found.name })
       loadAll()
@@ -514,7 +526,7 @@ export default function OrdemDetail() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDeleteItem(item.id, item.total || 0)}
+                        onClick={() => handleDeleteItem(item.id)}
                         disabled={fieldsLocked}
                         className="h-7 w-7 shrink-0 text-red-500 hover:bg-red-50"
                       >
@@ -562,7 +574,7 @@ export default function OrdemDetail() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDeleteItem(item.id, item.total || 0)}
+                          onClick={() => handleDeleteItem(item.id)}
                           disabled={fieldsLocked}
                           className="h-7 w-7 text-red-500 hover:bg-red-50"
                         >

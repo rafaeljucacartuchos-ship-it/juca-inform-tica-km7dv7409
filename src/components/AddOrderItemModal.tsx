@@ -109,10 +109,14 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
         unit_price: unitPrice,
         total: unitPrice,
       })
-      // Atualiza o total da OS.
+      // Recalcula o total buscando todos os itens atualizados
       try {
+        const freshItems = await pb.collection('service_order_items').getFullList({
+          filter: `service_order = "${orderId}"`,
+        })
+        const newTotal = freshItems.reduce((sum, it) => sum + (Number(it.total) || 0), 0)
         await pb.collection('service_orders').update(orderId, {
-          total: currentTotal + unitPrice,
+          total: newTotal,
         })
       } catch {
         /* total update best-effort */
