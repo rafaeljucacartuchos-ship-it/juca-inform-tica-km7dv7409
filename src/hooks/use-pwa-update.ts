@@ -27,6 +27,13 @@ export function usePwaUpdate() {
       }
     }
 
+    // Verifica ativamente se há um novo SW disponível chamando update().
+    const checkForUpdate = () => {
+      registration?.update().catch(() => {
+        /* falha de rede ao checar update — ignora. */
+      })
+    }
+
     navigator.serviceWorker
       .getRegistration()
       .then((reg) => {
@@ -63,10 +70,29 @@ export function usePwaUpdate() {
             }
           })
         })
+
+        // Verificação ao trazer o app para primeiro plano.
+        const onVisibilityChange = () => {
+          if (document.visibilityState === 'visible') {
+            checkForUpdate()
+          }
+        }
+        document.addEventListener('visibilitychange', onVisibilityChange)
+
+        // Verificação periódica a cada 2 minutos enquanto a página está ativa.
+        const intervalId = window.setInterval(checkForUpdate, 2 * 60 * 1000)
+
+        cleanup = () => {
+          document.removeEventListener('visibilitychange', onVisibilityChange)
+          window.clearInterval(intervalId)
+        }
       })
       .catch(() => {
         /* SW indisponível neste contexto — ignora silenciosamente. */
       })
+
+    let cleanup: () => void = () => {}
+    return () => cleanup()
   }, [])
 
   const updateApp = useCallback(() => {

@@ -27,11 +27,15 @@ const ASSET_EXTENSIONS = /\.(?:png|jpe?g|gif|webp|avif|ico|svg|woff2?|ttf|eot|cs
 
 // --- Install: precache the app shell ----------------------------------------
 self.addEventListener('install', (event) => {
+  // NOTA: não chamamos self.skipWaiting() aqui. O novo SW deve entrar no
+  // estado "waiting" naturalmente, para que o hook usePwaUpdate consiga
+  // detectá-lo e exibir o banner de atualização. A ativação imediata só
+  // acontece quando o usuário clica no banner, que envia
+  // postMessage({ type: 'SKIP_WAITING' }) — tratado no listener de message.
   event.waitUntil(
     caches
       .open(APP_SHELL_CACHE)
-      .then((cache) => cache.addAll(PRECACHE_URLS).catch(() => undefined))
-      .then(() => self.skipWaiting()),
+      .then((cache) => cache.addAll(PRECACHE_URLS).catch(() => undefined)),
   )
 })
 
