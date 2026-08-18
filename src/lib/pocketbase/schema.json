@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-18T15:10:41.323Z",
+  "generatedAt": "2026-08-18T15:45:47.676Z",
   "collections": [
     {
       "name": "users",
@@ -480,6 +480,48 @@
             "instalacao",
             "outros"
           ]
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "external_code",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "obs",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "obs_template",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "obs_editable",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cnae",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []
@@ -852,6 +894,12 @@
         {
           "name": "photo",
           "type": "url",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "photo_file",
+          "type": "file",
           "required": false,
           "system": false
         }

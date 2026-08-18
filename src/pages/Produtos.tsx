@@ -8,6 +8,7 @@ import { Product } from '@/types'
 import { getProducts, deleteProduct } from '@/services/products'
 import { NewProductModal } from '@/components/NewProductModal'
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
+import { getFileUrl } from '@/lib/pocketbase/files'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 
@@ -96,7 +97,13 @@ export default function Produtos() {
                 {products.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                     <td className="py-3 px-4">
-                      {p.photo ? (
+                      {p.photo_file ? (
+                        <img
+                          src={getFileUrl(p.id, p.photo_file, 'products', '100x100')}
+                          alt={p.name}
+                          className="h-10 w-10 rounded-md object-cover border border-slate-200"
+                        />
+                      ) : p.photo ? (
                         <img
                           src={p.photo}
                           alt={p.name}

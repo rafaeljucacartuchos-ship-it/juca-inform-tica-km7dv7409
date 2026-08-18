@@ -10,7 +10,11 @@ import {
   MessageCircle,
   Share2,
   Printer,
+  ScanLine,
 } from 'lucide-react'
+import { BarcodeScanner } from '@/components/BarcodeScanner'
+import { getProduct } from '@/services/products'
+import { Product } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CompanyHeader } from '@/components/CompanyHeader'
@@ -42,6 +46,7 @@ import {
 } from '@/services/service_orders'
 import { getCatalogServices } from '@/services/services_catalog'
 import { getOrderPayments } from '@/services/payments'
+import pb from '@/lib/pocketbase/client'
 import { PaymentModal } from '@/components/PaymentModal'
 import { OrderPhotos } from '@/components/OrderPhotos'
 import { OrderSignatures } from '@/components/OrderSignatures'
@@ -64,6 +69,8 @@ export default function OrdemDetail() {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [serviceReport, setServiceReport] = useState('')
   const [starting, setStarting] = useState(false)
+  const [scannerOpen, setScannerOpen] = useState(false)
+  const [addingByCode, setAddingByCode] = useState(false)
   const canEdit = user?.role === 'technician' || user?.role === 'admin'
   // Antes de iniciar o atendimento (started_at vazio), os campos editáveis
   // ficam bloqueados para o técnico. Após iniciar, ficam liberados.
@@ -262,6 +269,46 @@ export default function OrdemDetail() {
     }
   }
 
+  const handleScanProduct = async (code: string) => {
+    if (!order) return
+    setAddingByCode(true)
+    try {
+      // Busca produto pelo SKU. Tenta busca exata e depois filtro textual.
+      let found: Product | null = null
+      try {
+        found = await getProduct(code)
+      } catch {
+        /* não encontrou por id — tenta por sku abaixo */
+      }
+      if (!found) {
+        const results = await pb.collection('products').getFullList<Product>({
+          filter: `sku = "${code.trim()}"`,
+        })
+        found = results[0] || null
+      }
+      if (!found) {
+        toast({ title: 'Produto não cadastrado', variant: 'destructive' })
+        return
+      }
+      const unitPrice = found.price || 0
+      await createOrderItem({
+        service_order: order.id,
+        description: found.name,
+        quantity: 1,
+        unit_price: unitPrice,
+        total: unitPrice,
+      })
+      const newTotal = items.reduce((s, i) => s + i.total, 0) + unitPrice
+      await updateServiceOrder(order.id, { total: newTotal })
+      toast({ title: 'Produto adicionado à OS', description: found.name })
+      loadAll()
+    } catch {
+      toast({ title: 'Erro ao adicionar produto escaneado', variant: 'destructive' })
+    } finally {
+      setAddingByCode(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <CompanyHeader />
@@ -426,6 +473,17 @@ export default function OrdemDetail() {
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setScannerOpen(true)}
+                  disabled={fieldsLocked || addingByCode}
+                  className="h-8 text-xs gap-1.5"
+                  title="Escanear produto por código de barras"
+                >
+                  <ScanLine className="h-3.5 w-3.5 text-indigo-600" />
+                  <span className="hidden sm:inline">Escanear Produto</span>
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -576,6 +634,12 @@ export default function OrdemDetail() {
         orderId={order.id}
         defaultAmount={order.total}
         onSaved={loadAll}
+      />
+
+      <BarcodeScanner
+        open={scannerOpen}
+        onOpenChange={setScannerOpen}
+        onDetected={handleScanProduct}
       />
     </div>
   )

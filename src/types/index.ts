@@ -133,6 +133,30 @@ export interface CatalogService {
   updated?: string
 }
 
+/**
+ * Serviço importado da planilha (tabela `services` estendida).
+ * Inclui os campos da planilha: title, description, price, external_code,
+ * status, obs, obs_template, obs_editable, cnae — além dos campos de catálogo.
+ */
+export interface Service {
+  id: string
+  name?: string
+  title?: string
+  description?: string
+  price?: number
+  external_code?: string
+  status?: string
+  obs?: string
+  obs_template?: string
+  obs_editable?: boolean
+  cnae?: string
+  active?: boolean
+  category?: ServiceCategory
+  estimated_duration?: number
+  created?: string
+  updated?: string
+}
+
 export interface ServiceOrderItem {
   id: string
   service_order: string
@@ -184,7 +208,10 @@ export interface Product {
   price?: number
   cost?: number
   category?: string
+  /** URL externa da foto (ex: Pexels). */
   photo?: string
+  /** Foto enviada como arquivo (câmera/galeria) — exibida via getFileUrl. */
+  photo_file?: string
   stock_quantity?: number
   active?: boolean
   created?: string

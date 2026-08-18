@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Plus, Briefcase, Clock, Pencil, Trash2, Power, Filter } from 'lucide-react'
+import { Plus, Briefcase, Pencil, Trash2, Power, Filter, Search, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -10,33 +11,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { CatalogService, SERVICE_CATEGORY_LABELS } from '@/types'
-import {
-  getCatalogServices,
-  updateCatalogService,
-  deleteCatalogService,
-} from '@/services/services_catalog'
+import { Service, SERVICE_CATEGORY_LABELS } from '@/types'
+import { getServices, updateService, deleteService } from '@/services/services_catalog'
 import { NewServiceModal } from '@/components/NewServiceModal'
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 
 export default function Servicos() {
-  const [services, setServices] = useState<CatalogService[]>([])
+  const [services, setServices] = useState<Service[]>([])
+  const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
-  const [editService, setEditService] = useState<CatalogService | null>(null)
-  const [deleteService, setDeleteService] = useState<CatalogService | null>(null)
+  const [editService, setEditService] = useState<Service | null>(null)
+  const [deleteServiceItem, setDeleteServiceItem] = useState<Service | null>(null)
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const { toast } = useToast()
 
-  const filteredServices = services.filter((s) => {
-    if (categoryFilter === 'all') return true
-    return s.category === categoryFilter
-  })
-
   const loadData = async () => {
     try {
-      const data = await getCatalogServices()
+      const data = await getServices(search)
       setServices(data)
     } catch {
       /* intentionally ignored */
@@ -45,12 +38,18 @@ export default function Servicos() {
 
   useEffect(() => {
     loadData()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search])
   useRealtime('services', loadData)
 
-  const toggleActive = async (s: CatalogService) => {
+  const filteredServices = services.filter((s) => {
+    if (categoryFilter === 'all') return true
+    return s.category === categoryFilter
+  })
+
+  const toggleActive = async (s: Service) => {
     try {
-      await updateCatalogService(s.id, { active: !s.active })
+      await updateService(s.id, { active: !s.active })
       toast({ title: s.active ? 'Serviço desativado' : 'Serviço ativado' })
       loadData()
     } catch {
@@ -59,24 +58,28 @@ export default function Servicos() {
   }
 
   const handleDelete = async () => {
-    if (!deleteService) return
+    if (!deleteServiceItem) return
     try {
-      await deleteCatalogService(deleteService.id)
+      await deleteService(deleteServiceItem.id)
       toast({ title: 'Serviço excluído com sucesso!' })
-      setDeleteService(null)
+      setDeleteServiceItem(null)
       loadData()
     } catch {
       toast({ title: 'Erro ao excluir serviço', variant: 'destructive' })
     }
   }
 
+  const displayName = (s: Service) => s.title || s.name || '—'
+  const isActive = (s: Service) =>
+    s.active ?? (s.status ? s.status.toLowerCase() === 'ativo' : true)
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Catálogo de Serviços</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Serviços</h1>
           <p className="text-xs sm:text-sm text-slate-500">
-            Tabela de preços e tempo estimado para orçamentos rápidos.
+            Tabela de serviços importada da planilha ({services.length} serviços).
           </p>
         </div>
         <Button
@@ -88,105 +91,145 @@ export default function Servicos() {
         </Button>
       </div>
 
-      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
-        <Filter className="h-4 w-4 text-slate-400" />
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="h-8 text-xs w-48">
-            <SelectValue placeholder="Todas as categorias" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all" className="text-xs">
-              Todas as categorias
-            </SelectItem>
-            {Object.entries(SERVICE_CATEGORY_LABELS).map(([value, label]) => (
-              <SelectItem key={value} value={value} className="text-xs">
-                {label}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+          <Input
+            placeholder="Buscar por título, código ou CNAE..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-9 text-xs bg-slate-50 border-slate-200"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-slate-400" />
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="h-8 text-xs w-48">
+              <SelectValue placeholder="Todas as categorias" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="text-xs">
+                Todas as categorias
               </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              {Object.entries(SERVICE_CATEGORY_LABELS).map(([value, label]) => (
+                <SelectItem key={value} value={value} className="text-xs">
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredServices.map((s) => (
-          <Card key={s.id} className="border-slate-200 shadow-xs hover:shadow-md transition-shadow">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
-                    <Briefcase className="h-4 w-4" />
-                  </div>
-                  <h3 className="text-xs font-bold text-slate-900">{s.name}</h3>
-                </div>
-                <Badge variant={s.active ? 'default' : 'secondary'} className="text-[10px]">
-                  {s.active ? 'Ativo' : 'Inativo'}
-                </Badge>
-              </div>
-              <p className="text-xs text-slate-500 line-clamp-2">
-                {s.description || 'Sem descrição.'}
-              </p>
-              <div>
-                <Badge variant="outline" className="text-[10px] text-slate-600">
-                  {SERVICE_CATEGORY_LABELS[s.category as keyof typeof SERVICE_CATEGORY_LABELS] ||
-                    s.category ||
-                    '—'}
-                </Badge>
-              </div>
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1 text-slate-500 font-mono text-[11px]">
-                  <Clock className="h-3.5 w-3.5" /> {s.estimated_duration} min
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono font-bold text-slate-900 text-sm">
-                    R$ {(s.price || 0).toFixed(2)}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 text-slate-400 hover:text-emerald-600"
-                    onClick={() => toggleActive(s)}
-                  >
-                    <Power className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 text-amber-600"
-                    onClick={() => setEditService(s)}
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 text-red-600"
-                    onClick={() => setDeleteService(s)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-      {filteredServices.length === 0 && (
-        <div className="py-12 text-center text-slate-400 text-sm">Nenhum serviço cadastrado.</div>
-      )}
+      <Card className="border-slate-200 shadow-sm">
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+                <tr>
+                  <th className="py-3 px-4">Título</th>
+                  <th className="py-3 px-4">Código</th>
+                  <th className="py-3 px-4">CNAE</th>
+                  <th className="py-3 px-4">Categoria</th>
+                  <th className="py-3 px-4">Preço</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredServices.map((s) => {
+                  const active = isActive(s)
+                  return (
+                    <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="font-bold text-slate-900">{displayName(s)}</div>
+                        {s.description && (
+                          <div className="text-[11px] text-slate-500 line-clamp-1">
+                            {s.description}
+                          </div>
+                        )}
+                        {s.obs && (
+                          <div className="flex items-center gap-1 text-[10px] text-amber-600 mt-0.5">
+                            <FileText className="h-3 w-3" /> {s.obs}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-slate-600">
+                        {s.external_code || '-'}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-slate-600">{s.cnae || '-'}</td>
+                      <td className="py-3 px-4 text-slate-600">
+                        {s.category
+                          ? SERVICE_CATEGORY_LABELS[
+                              s.category as keyof typeof SERVICE_CATEGORY_LABELS
+                            ] || s.category
+                          : '-'}
+                      </td>
+                      <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                        R$ {(s.price || 0).toFixed(2)}
+                      </td>
+                      <td className="py-3 px-4">
+                        <Badge variant={active ? 'default' : 'secondary'} className="text-[10px]">
+                          {active ? 'Ativo' : 'Inativo'}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-slate-400 hover:text-emerald-600"
+                            onClick={() => toggleActive(s)}
+                          >
+                            <Power className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-amber-600"
+                            onClick={() => setEditService(s)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-red-600"
+                            onClick={() => setDeleteServiceItem(s)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          {filteredServices.length === 0 && (
+            <div className="py-12 text-center text-slate-400 text-sm">
+              Nenhum serviço encontrado.
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <NewServiceModal open={modalOpen} onOpenChange={setModalOpen} onCreated={loadData} />
       <NewServiceModal
         open={!!editService}
         onOpenChange={(o) => !o && setEditService(null)}
         onCreated={loadData}
-        editService={editService}
+        editService={editService as any}
       />
       <ConfirmDeleteDialog
-        open={!!deleteService}
-        onOpenChange={(o) => !o && setDeleteService(null)}
+        open={!!deleteServiceItem}
+        onOpenChange={(o) => !o && setDeleteServiceItem(null)}
         onConfirm={handleDelete}
         title="Excluir Serviço"
-        description={`Tem certeza que deseja excluir ${deleteService?.name}? Esta ação não pode ser desfeita.`}
+        description={`Tem certeza que deseja excluir ${
+          deleteServiceItem ? displayName(deleteServiceItem) : ''
+        }? Esta ação não pode ser desfeita.`}
       />
     </div>
   )
