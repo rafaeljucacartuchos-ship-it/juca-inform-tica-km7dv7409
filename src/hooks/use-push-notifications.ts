@@ -3,18 +3,18 @@ import pb from '@/lib/pocketbase/client'
 
 /**
  * Chave pública VAPID usada pelo navegador para inscrever o dispositivo no
- * push service. A chave PRIVADA correspondente fica no backend (secret
- * `VAPID_PRIVATE_KEY`) e é usada pelos hooks para assinar/criptografar as
- * mensagens enviadas.
+ * push service. A chave PRIVADA correspondente fica no backend (secrets
+ * `VAPID_PRIVATE_KEY` / `VAPID_PUBLIC_KEY` / `VAPID_SUBJECT`) e é usada pelo
+ * proxy web-push (`PUSH_PROXY_URL`) para assinar/criptografar as mensagens.
  *
- * IMPORTANTE: este par de chaves é um EXEMPLO. O time DEVE gerar um par real
- * (ex.: `npx web-push generate-vapid-keys`) e atualizar tanto esta constante
- * quanto o secret `VAPID_PRIVATE_KEY` / `VAPID_PUBLIC_KEY` no backend. Enquanto
- * não forem iguais, o envio de push pelo backend não funcionará — mas a
- * inscrição no navegador segue funcionando.
+ * Este par ECDSA P-256 DEVE ser o mesmo usado no proxy e nos secrets do
+ * backend — caso contrário o envio de push não funcionará. Para rotacionar as
+ * chaves, rode `npx web-push generate-vapid-keys` e atualize esta constante,
+ * os secrets do backend e as variáveis de ambiente do proxy simultaneamente
+ * (atenção: trocar as chaves invalida todas as subscriptions existentes).
  */
 export const VAPID_PUBLIC_KEY =
-  'BPcBV8SWxUHk60pL3jPmMhRyP_x6H5KJqN2f0FhZ4Fg2D_CqKdVY7mTlRnWpXsJwMzQbLvNcPhOyVtBkA'
+  'BGtkbcjrO12YMoDuq2sCQeHlu47uPx3SHTgFKZFYiBW8Qr0D9vgyZSZPdw6_4ZFEI9Snk1VEAj2qTYI1I1YxBXE'
 
 export type PushPermission = 'default' | 'granted' | 'denied'
 

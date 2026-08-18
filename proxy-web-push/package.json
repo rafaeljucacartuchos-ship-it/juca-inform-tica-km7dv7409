@@ -1,0 +1,16 @@
+{
+  "name": "juca-push-proxy",
+  "version": "1.0.0",
+  "description": "Proxy web-push para o JUCA Informática. Recebe {subscription, payload} do PocketBase e envia a notificação via Web Push API usando as VAPID keys.",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
