@@ -5,11 +5,14 @@
  * replace this with a Workbox-generated SW. Until then this file provides:
  *   - precache of the app shell
  *   - NetworkFirst for API calls (PocketBase /api/*), 10s timeout
- *   - CacheFirst for static image/font/style assets
+ *   - NetworkFirst for JS/CSS assets (sempre busca a versão nova com internet)
+ *   - CacheFirst for static image/font assets
  *   - network-first navigation fallback to /index.html
  *
  * Served from /public so /sw.js is available in dev and preview.
  */
+
+// BUILD: 2026-08-18T18:30:00Z
 
 const APP_SHELL_CACHE = 'juca-app-shell-v1'
 const API_CACHE = 'juca-api-v1'
@@ -116,9 +119,12 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // CacheFirst for static assets (images, fonts, css, js).
+  // NetworkFirst for static assets (images, fonts, css, js) — garante que o
+  // app sempre busque a versão nova quando há internet, em vez de servir o
+  // cache antigo para sempre. Com CacheFirst os técnicos ficavam presos na
+  // versão antiga dos JS/CSS indefinidamente.
   if (ASSET_EXTENSIONS.test(url.pathname)) {
-    event.respondWith(cacheFirst(request, ASSET_CACHE).catch(() => fetch(request)))
+    event.respondWith(networkFirst(request, ASSET_CACHE).catch(() => fetch(request)))
     return
   }
 
