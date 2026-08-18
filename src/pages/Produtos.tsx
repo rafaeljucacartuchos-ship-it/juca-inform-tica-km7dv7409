@@ -81,8 +81,11 @@ export default function Produtos() {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
                 <tr>
+                  <th className="py-3 px-4">Foto</th>
                   <th className="py-3 px-4">Nome</th>
                   <th className="py-3 px-4">SKU</th>
+                  <th className="py-3 px-4">Categoria</th>
+                  <th className="py-3 px-4">Custo</th>
                   <th className="py-3 px-4">Preço</th>
                   <th className="py-3 px-4">Estoque</th>
                   <th className="py-3 px-4">Status</th>
@@ -92,8 +95,25 @@ export default function Produtos() {
               <tbody className="divide-y divide-slate-100">
                 {products.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="py-3 px-4">
+                      {p.photo ? (
+                        <img
+                          src={p.photo}
+                          alt={p.name}
+                          className="h-10 w-10 rounded-md object-cover border border-slate-200"
+                        />
+                      ) : (
+                        <div className="h-10 w-10 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center">
+                          <Package className="h-4 w-4 text-slate-400" />
+                        </div>
+                      )}
+                    </td>
                     <td className="py-3 px-4 font-bold text-slate-900">{p.name}</td>
                     <td className="py-3 px-4 font-mono text-slate-600">{p.sku || '-'}</td>
+                    <td className="py-3 px-4 text-slate-600">{p.category || '-'}</td>
+                    <td className="py-3 px-4 font-mono text-slate-600">
+                      R$ {(p.cost || 0).toFixed(2)}
+                    </td>
                     <td className="py-3 px-4 font-mono font-bold text-slate-900">
                       R$ {(p.price || 0).toFixed(2)}
                     </td>
@@ -127,7 +147,7 @@ export default function Produtos() {
                 ))}
                 {products.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-400">
+                    <td colSpan={9} className="py-8 text-center text-slate-400">
                       Nenhum produto encontrado.
                     </td>
                   </tr>

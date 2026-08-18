@@ -4,7 +4,7 @@ import { Product } from '@/types'
 export const getProducts = (search = '') => {
   let filter = ''
   if (search.trim()) {
-    filter = `name ~ "${search.trim()}" || sku ~ "${search.trim()}"`
+    filter = `name ~ "${search.trim()}" || sku ~ "${search.trim()}" || category ~ "${search.trim()}"`
   }
   return pb.collection('products').getFullList<Product>({
     filter,

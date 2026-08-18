@@ -109,6 +109,8 @@ export interface ServiceOrder {
   equipment_ref?: string
   attendance_date?: string
   attendance_time?: string
+  started_at?: string
+  signed_at?: string
   created?: string
   updated?: string
   expand?: {
@@ -180,6 +182,9 @@ export interface Product {
   description?: string
   sku?: string
   price?: number
+  cost?: number
+  category?: string
+  photo?: string
   stock_quantity?: number
   active?: boolean
   created?: string

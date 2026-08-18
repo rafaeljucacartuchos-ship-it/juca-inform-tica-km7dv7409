@@ -12,7 +12,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useRealtime } from '@/hooks/use-realtime'
 import { getNotifications, markAllNotificationsAsRead } from '@/services/notifications'
 import { playNotificationSound, showBrowserNotification } from '@/lib/notification-sound'
-import { AppNotification } from '@/types'
+import { AppNotification, ServiceOrder } from '@/types'
 
 interface NotificationContextType {
   notifications: AppNotification[]
@@ -39,6 +39,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   >(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported')
 
   const playedSoundIds = useRef<Set<string>>(new Set())
+  // Track which service orders already had a customer signature, so we only
+  // fire the alert on the transition (empty -> signed).
+  const signedOrderIds = useRef<Set<string>>(new Set())
 
   const loadNotifications = useCallback(async () => {
     if (!user) {
@@ -78,6 +81,41 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         setNotifications((prev) => prev.map((n) => (n.id === record.id ? record : n)))
       } else if (e.action === 'delete') {
         setNotifications((prev) => prev.filter((n) => n.id !== record.id))
+      }
+    },
+    !!user,
+  )
+
+  // Realtime: dispara alerta sonoro + toast + badge quando o cliente assina
+  // uma O.S. (campo customer_signature passa de vazio para preenchido).
+  useRealtime(
+    'service_orders',
+    (e) => {
+      if (!user) return
+      const record = e.record as unknown as ServiceOrder
+      const sig = record.customer_signature
+      const hasSig = Array.isArray(sig) ? sig.length > 0 : !!sig
+      const orderId = record.id
+      const wasSigned = signedOrderIds.current.has(orderId)
+      if (hasSig) {
+        if (!wasSigned) {
+          signedOrderIds.current.add(orderId)
+          // Som de alerta (mesmo mecanismo de nova O.S.)
+          playNotificationSound()
+          // Notificação do navegador
+          showBrowserNotification(
+            'Cliente assinou a O.S.',
+            `O.S. #${record.number} foi assinada pelo cliente`,
+            `signature-${orderId}`,
+          )
+          // Toast na tela
+          toast.success('Cliente assinou a O.S.', {
+            description: `O.S. #${record.number} foi assinada pelo cliente`,
+          })
+        }
+      } else if (e.action === 'create') {
+        // Nova O.S. ainda sem assinatura — apenas registra o estado inicial
+        signedOrderIds.current.delete(orderId)
       }
     },
     !!user,

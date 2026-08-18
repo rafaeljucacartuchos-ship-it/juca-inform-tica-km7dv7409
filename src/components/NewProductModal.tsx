@@ -38,7 +38,10 @@ export function NewProductModal({
     name: '',
     description: '',
     sku: '',
+    category: '',
+    cost: '',
     price: '',
+    photo: '',
     stock_quantity: '0',
     active: true,
   })
@@ -51,7 +54,10 @@ export function NewProductModal({
           name: editProduct.name || '',
           description: editProduct.description || '',
           sku: editProduct.sku || '',
+          category: editProduct.category || '',
+          cost: editProduct.cost != null ? String(editProduct.cost) : '',
           price: editProduct.price != null ? String(editProduct.price) : '',
+          photo: editProduct.photo || '',
           stock_quantity:
             editProduct.stock_quantity != null ? String(editProduct.stock_quantity) : '0',
           active: editProduct.active ?? true,
@@ -61,7 +67,10 @@ export function NewProductModal({
           name: '',
           description: '',
           sku: '',
+          category: '',
+          cost: '',
           price: '',
+          photo: '',
           stock_quantity: '0',
           active: true,
         })
@@ -82,7 +91,10 @@ export function NewProductModal({
         name: formData.name,
         description: formData.description,
         sku: formData.sku,
+        category: formData.category,
+        cost: Number(formData.cost) || 0,
         price: Number(formData.price) || 0,
+        photo: formData.photo,
         stock_quantity: Number(formData.stock_quantity) || 0,
         active: formData.active,
       }
@@ -134,6 +146,29 @@ export function NewProductModal({
               {errors.sku && <p className="text-[11px] text-red-500">{errors.sku}</p>}
             </div>
             <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">Categoria</Label>
+              <Input
+                placeholder="Ex: Armazenamento"
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                className="h-9 text-xs"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">Custo (R$)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={formData.cost}
+                onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
+                className="h-9 text-xs font-mono"
+              />
+              {errors.cost && <p className="text-[11px] text-red-500">{errors.cost}</p>}
+            </div>
+            <div className="space-y-1">
               <Label className="text-xs font-semibold text-slate-700">Estoque</Label>
               <Input
                 type="number"
@@ -154,6 +189,16 @@ export function NewProductModal({
               className="h-9 text-xs font-mono"
             />
             {errors.price && <p className="text-[11px] text-red-500">{errors.price}</p>}
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold text-slate-700">Foto (URL)</Label>
+            <Input
+              type="url"
+              placeholder="https://..."
+              value={formData.photo}
+              onChange={(e) => setFormData({ ...formData, photo: e.target.value })}
+              className="h-9 text-xs"
+            />
           </div>
           <div className="space-y-1">
             <Label className="text-xs font-semibold text-slate-700">Descrição</Label>

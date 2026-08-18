@@ -92,6 +92,7 @@ export default function Dashboard() {
   useRealtime('service_orders', loadData)
   useRealtime('payments', loadData)
   useRealtime('status_history', loadData)
+  useRealtime('products', loadData)
 
   const range = getPeriodRange(period, customStart, customEnd)
   const billing = computeBilling(payments, range.start, range.end)

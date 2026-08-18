@@ -63,7 +63,16 @@ export default function OrdemDetail() {
   const [selectedCatalogId, setSelectedCatalogId] = useState('')
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [serviceReport, setServiceReport] = useState('')
+  const [starting, setStarting] = useState(false)
   const canEdit = user?.role === 'technician' || user?.role === 'admin'
+  // Antes de iniciar o atendimento (started_at vazio), os campos editáveis
+  // ficam bloqueados para o técnico. Após iniciar, ficam liberados.
+  const isTechnician = user?.role === 'technician'
+  const notStarted = !order?.started_at
+  const fieldsLocked = isTechnician && notStarted && canEdit
+  const canStartService =
+    isTechnician && canEdit && !!order && order.technician === user?.id && notStarted
+  const serviceInProgress = !!order?.started_at && order?.status === 'in_progress'
 
   const loadAll = async () => {
     if (!id) return
@@ -136,8 +145,12 @@ export default function OrdemDetail() {
   }
 
   const handleStartService = async () => {
+    setStarting(true)
     try {
-      await updateServiceOrder(order.id, { status: 'in_progress' })
+      await updateServiceOrder(order.id, {
+        status: 'in_progress',
+        started_at: new Date().toISOString(),
+      })
       await addStatusHistory({
         service_order: order.id,
         status: 'in_progress',
@@ -148,6 +161,8 @@ export default function OrdemDetail() {
       loadAll()
     } catch {
       toast({ title: 'Erro ao iniciar atendimento', variant: 'destructive' })
+    } finally {
+      setStarting(false)
     }
   }
 
@@ -267,10 +282,27 @@ export default function OrdemDetail() {
                 {order.number}
               </h1>
               <Badge className="capitalize">{order.status}</Badge>
+              {serviceInProgress && (
+                <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-[10px] gap-1">
+                  <Play className="h-3 w-3" /> Atendimento em andamento
+                </Badge>
+              )}
             </div>
             <p className="text-xs text-slate-500 truncate">{order.title}</p>
           </div>
         </div>
+
+        {canStartService && (
+          <Button
+            onClick={handleStartService}
+            disabled={starting}
+            className="w-full sm:w-auto sm:self-start h-11 text-sm font-bold gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-600/20"
+          >
+            <Play className="h-5 w-5" />
+            {starting ? 'Iniciando...' : 'Iniciar Atendimento'}
+          </Button>
+        )}
+
         <div className="grid grid-cols-3 sm:flex sm:flex-wrap items-center gap-2">
           <Button
             variant="outline"
@@ -353,7 +385,7 @@ export default function OrdemDetail() {
                 value={serviceReport}
                 onChange={(e) => setServiceReport(e.target.value)}
                 onBlur={handleSaveReport}
-                disabled={!canEdit}
+                disabled={!canEdit || fieldsLocked}
                 placeholder="Descreva o serviço executado..."
                 rows={4}
                 className="text-xs"
@@ -370,7 +402,11 @@ export default function OrdemDetail() {
             <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3">
               <CardTitle className="text-sm font-bold text-slate-900">Itens e Serviços</CardTitle>
               <div className="flex items-center gap-2 w-full sm:w-auto">
-                <Select value={selectedCatalogId} onValueChange={setSelectedCatalogId}>
+                <Select
+                  value={selectedCatalogId}
+                  onValueChange={setSelectedCatalogId}
+                  disabled={fieldsLocked}
+                >
                   <SelectTrigger className="h-8 text-xs flex-1 sm:w-48">
                     <SelectValue placeholder="Adicionar serviço..." />
                   </SelectTrigger>
@@ -382,7 +418,12 @@ export default function OrdemDetail() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button size="sm" onClick={handleAddItem} className="h-8 text-xs bg-indigo-600">
+                <Button
+                  size="sm"
+                  onClick={handleAddItem}
+                  disabled={fieldsLocked}
+                  className="h-8 text-xs bg-indigo-600"
+                >
                   <Plus className="h-3.5 w-3.5" />
                 </Button>
               </div>
@@ -399,6 +440,7 @@ export default function OrdemDetail() {
                         variant="ghost"
                         size="icon"
                         onClick={() => handleDeleteItem(item.id, item.total)}
+                        disabled={fieldsLocked}
                         className="h-7 w-7 shrink-0 text-red-500 hover:bg-red-50"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -444,6 +486,7 @@ export default function OrdemDetail() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleDeleteItem(item.id, item.total)}
+                          disabled={fieldsLocked}
                           className="h-7 w-7 text-red-500 hover:bg-red-50"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -462,8 +505,8 @@ export default function OrdemDetail() {
             </CardContent>
           </Card>
 
-          <OrderPhotos orderId={order.id} canEdit={canEdit} />
-          <OrderSignatures order={order} canEdit={canEdit} onSaved={loadAll} />
+          <OrderPhotos orderId={order.id} canEdit={canEdit && !fieldsLocked} />
+          <OrderSignatures order={order} canEdit={canEdit && !fieldsLocked} onSaved={loadAll} />
         </div>
 
         <div className="space-y-6">
@@ -475,6 +518,7 @@ export default function OrdemDetail() {
               {order.status === 'open' && (
                 <Button
                   onClick={handleStartService}
+                  disabled={starting || fieldsLocked}
                   className="w-full justify-start text-xs h-9 bg-purple-600 hover:bg-purple-700"
                 >
                   <Play className="h-4 w-4 mr-1" /> Iniciar Atendimento
