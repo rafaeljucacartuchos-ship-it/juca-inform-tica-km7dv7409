@@ -242,7 +242,7 @@ export default function OrdemDetail() {
       await createOrderItem({
         service_order: order.id,
         service: catItem.id,
-        description: catItem.name,
+        description: catItem.title || catItem.name || '',
         quantity: 1,
         unit_price: catItem.price,
         total: catItem.price,
@@ -460,7 +460,7 @@ export default function OrdemDetail() {
                   <SelectContent>
                     {catalog.map((c) => (
                       <SelectItem key={c.id} value={c.id} className="text-xs">
-                        {c.name} (R$ {c.price})
+                        {c.title || c.name || 'Serviço'} (R$ {c.price})
                       </SelectItem>
                     ))}
                   </SelectContent>

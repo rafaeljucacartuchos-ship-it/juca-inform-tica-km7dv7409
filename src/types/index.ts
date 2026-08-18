@@ -123,7 +123,8 @@ export interface ServiceOrder {
 
 export interface CatalogService {
   id: string
-  name: string
+  name?: string
+  title?: string
   description?: string
   price: number
   estimated_duration: number
