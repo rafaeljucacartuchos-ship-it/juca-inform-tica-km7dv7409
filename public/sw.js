@@ -151,6 +151,15 @@ self.addEventListener('fetch', (event) => {
   }
 })
 
+// --- Message: SKIP_WAITING ---------------------------------------------------
+// Permite que a página peça ao SW waiting que assuma o controle imediatamente,
+// para então recarregar com a versão nova.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting()
+  }
+})
+
 // --- Push notifications ------------------------------------------------------
 // Recebe a payload JSON enviada pelo servidor (title, body, icon, url, tag) e
 // exibe uma notificação nativa. Funciona mesmo com o app fechado — essa é a

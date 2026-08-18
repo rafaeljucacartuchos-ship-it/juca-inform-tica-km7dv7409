@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from '@/components/Sidebar'
 import { Topbar } from '@/components/Topbar'
+import { PwaUpdateBanner } from '@/components/PwaUpdateBanner'
 import { OfflineBanner } from '@/components/OfflineBanner'
 import { PushNotificationPrompt } from '@/components/PushNotificationPrompt'
 
@@ -12,6 +13,7 @@ export default function Layout() {
       </div>
 
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
+        <PwaUpdateBanner />
         <Topbar />
         <PushNotificationPrompt />
         <OfflineBanner />
