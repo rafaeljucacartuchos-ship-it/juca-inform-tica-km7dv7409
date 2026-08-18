@@ -140,7 +140,20 @@ export default function OrdemDetail() {
         note: `Status alterado para ${newStatus}`,
         changed_by: user?.id,
       })
-      toast({ title: 'Status alterado com sucesso!' })
+      if (newStatus === 'completed') {
+        const productItems = items.filter((it) => !!it.product)
+        toast({
+          title: 'Status alterado com sucesso!',
+          description:
+            productItems.length > 0
+              ? `Estoque atualizado: ${productItems.length} ${
+                  productItems.length === 1 ? 'produto teve' : 'produtos tiveram'
+                } a quantidade descontada.`
+              : 'O.S. concluída — nenhum produto para baixar do estoque.',
+        })
+      } else {
+        toast({ title: 'Status alterado com sucesso!' })
+      }
       const phone = order.expand?.customer?.phone || ''
       if (phone && canEdit) {
         const shareUrl = `${window.location.origin}/share/${order.id}`
@@ -310,6 +323,7 @@ export default function OrdemDetail() {
       const unitPrice = found.price || 0
       await createOrderItem({
         service_order: order.id,
+        product: found.id,
         description: found.name,
         quantity: 1,
         unit_price: unitPrice,

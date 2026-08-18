@@ -111,6 +111,8 @@ export interface ServiceOrder {
   attendance_time?: string
   started_at?: string
   signed_at?: string
+  /** Indica se o estoque dos produtos da O.S. já foi descontado (uma única vez). */
+  stock_deducted?: boolean
   created?: string
   updated?: string
   expand?: {
@@ -162,6 +164,8 @@ export interface ServiceOrderItem {
   id: string
   service_order: string
   service?: string
+  /** Produto vinculado (peça/produto, não serviço) — usado para baixa de estoque. */
+  product?: string
   description: string
   quantity: number
   unit_price: number
@@ -170,6 +174,7 @@ export interface ServiceOrderItem {
   updated?: string
   expand?: {
     service?: CatalogService
+    product?: Product
   }
 }
 

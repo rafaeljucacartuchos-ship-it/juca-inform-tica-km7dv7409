@@ -104,6 +104,7 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
       await createOrderItem({
         service_order: orderId,
         service: item.kind === 'service' ? item.id : undefined,
+        product: item.kind === 'product' ? item.id : undefined,
         description: item.name,
         quantity: 1,
         unit_price: unitPrice,
