@@ -70,10 +70,11 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
           if (codes && codes.length > 0) {
             const value = codes[0].rawValue || codes[0].stringValue || ''
             if (value) {
+              // Trava de leitura ABSOLUTA: bloqueia execuções paralelas antes de desligar e callback
               isProcessingRef.current = true
               stop()
-              onDetected(value)
               onOpenChange(false)
+              onDetected(value)
               return
             }
           }

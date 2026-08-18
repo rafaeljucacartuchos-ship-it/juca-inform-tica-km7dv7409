@@ -94,18 +94,20 @@ export default function OrdemDetail() {
         getCatalogServices(),
         getOrderPayments(id),
       ])
-      // Recalcula o total a partir da soma real dos itens e atualiza o backend se houver divergência
+      // Recalcula o total a partir da soma real dos itens carregados do banco de dados
       const calculatedTotal = it.reduce((sum, item) => sum + (item.total || 0), 0)
-      if (Math.abs((o.total || 0) - calculatedTotal) > 0.001) {
-        o.total = calculatedTotal
-        updateServiceOrder(id, { total: calculatedTotal }).catch(() => {})
-      }
+      // Força o total da ordem a refletir a soma real dos itens no objeto da ordem
+      o.total = calculatedTotal
+
       setOrder(o)
       setItems(it)
       setHistory(h)
       setCatalog(cat)
       setPayments(p)
       setServiceReport(o.service_report || '')
+
+      // Se houver divergência no banco de dados (ex: total estava zerado ou desatualizado), persiste no backend
+      updateServiceOrder(id, { total: calculatedTotal }).catch(() => {})
     } catch {
       /* intentionally ignored */
     }
@@ -115,7 +117,24 @@ export default function OrdemDetail() {
     loadAll()
   }, [id])
 
-  useRealtime('service_orders', () => loadAll())
+  useRealtime('service_orders', (e) => {
+    // Evita sobrescrever o estado local quando a notificação em tempo real for a atualização da própria ordem que estamos editando
+    if (e.record?.id === id && e.action === 'update') {
+      const remoteTotal = Number(e.record?.total) || 0
+      setOrder((prev) => {
+        if (!prev) return prev
+        // Preserva o total calculado localmente dos itens se o evento remoto contiver total zerado ou divergente enquanto houver itens
+        return {
+          ...prev,
+          ...e.record,
+          total: remoteTotal > 0 || prev.total === 0 ? remoteTotal : prev.total,
+        }
+      })
+    } else {
+      loadAll()
+    }
+  })
+  useRealtime('service_order_items', () => loadAll())
   useRealtime('status_history', () => {
     if (id)
       getStatusHistory(id)
@@ -272,13 +291,9 @@ export default function OrdemDetail() {
         unit_price: itemPrice,
         total: itemPrice,
       })
-      // Busca a lista atualizada de itens diretamente para calcular o total preciso
-      const freshItems = await getOrderItems(order.id)
-      const newTotal = freshItems.reduce((s, i) => s + (i.total || 0), 0)
-      await updateServiceOrder(order.id, { total: newTotal })
       toast({ title: 'Item adicionado à OS' })
       setSelectedCatalogId('')
-      loadAll()
+      await loadAll()
     } catch {
       toast({ title: 'Erro ao adicionar item', variant: 'destructive' })
     } finally {
@@ -289,11 +304,8 @@ export default function OrdemDetail() {
   const handleDeleteItem = async (itemId: string) => {
     try {
       await deleteOrderItem(itemId)
-      const freshItems = await getOrderItems(order.id)
-      const newTotal = freshItems.reduce((s, i) => s + (i.total || 0), 0)
-      await updateServiceOrder(order.id, { total: newTotal })
       toast({ title: 'Item removido' })
-      loadAll()
+      await loadAll()
     } catch {
       toast({ title: 'Erro ao remover item', variant: 'destructive' })
     }
@@ -303,7 +315,7 @@ export default function OrdemDetail() {
     if (!order || addingByCode) return
     setAddingByCode(true)
     try {
-      // Busca produto pelo SKU. Tenta busca exata e depois filtro textual.
+      // Busca produto pelo ID ou SKU (busca exata ou por filtro de SKU)
       let found: Product | null = null
       try {
         found = await getProduct(code)
@@ -311,8 +323,9 @@ export default function OrdemDetail() {
         /* não encontrou por id — tenta por sku abaixo */
       }
       if (!found) {
+        const trimmed = code.trim().replace(/"/g, '')
         const results = await pb.collection('products').getFullList<Product>({
-          filter: `sku = "${code.trim()}"`,
+          filter: `sku = "${trimmed}"`,
         })
         found = results[0] || null
       }
@@ -329,11 +342,8 @@ export default function OrdemDetail() {
         unit_price: unitPrice,
         total: unitPrice,
       })
-      const freshItems = await getOrderItems(order.id)
-      const newTotal = freshItems.reduce((s, i) => s + (i.total || 0), 0)
-      await updateServiceOrder(order.id, { total: newTotal })
       toast({ title: 'Produto adicionado à OS', description: found.name })
-      loadAll()
+      await loadAll()
     } catch {
       toast({ title: 'Erro ao adicionar produto escaneado', variant: 'destructive' })
     } finally {
