@@ -7,7 +7,7 @@ routerAdd('GET', '/backend/v1/pexels/search', (e) => {
     return e.json(200, { photos: [] })
   }
 
-  const apiKey = $secrets.get('PEXELS_API_KEY') || ''
+  const apiKey = $os.getenv('PEXELS_API_KEY') || $secrets.get('PEXELS_API_KEY') || ''
   if (!apiKey) {
     return e.json(500, { error: 'Chave do Pexels não configurada no backend.' })
   }
