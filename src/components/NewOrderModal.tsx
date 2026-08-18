@@ -22,12 +22,12 @@ import { Customer, User, OrderPriority, Equipment } from '@/types'
 import { getCustomers } from '@/services/customers'
 import { getTechnicians } from '@/services/users'
 import { getEquipmentByCustomer } from '@/services/equipment'
-import { createServiceOrder, addStatusHistory } from '@/services/service_orders'
 import { createAppointment } from '@/services/appointments'
 import { NewEquipmentModal } from '@/components/NewEquipmentModal'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
+import { offlinePb } from '@/lib/offline-pb'
 
 interface NewOrderModalProps {
   open: boolean
@@ -116,7 +116,7 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
       })
 
       const eqItem = equipment.find((eq) => eq.id === formData.equipment_ref)
-      const created = await createServiceOrder({
+      const created = await offlinePb.create('service_orders', {
         customer: formData.customer,
         technician: formData.technician || undefined,
         appointment: appointment.id,
@@ -131,17 +131,24 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
         total: 0,
       })
 
-      await addStatusHistory({
+      const hist = await offlinePb.create('status_history', {
         service_order: created.id,
         status: 'open',
         note: 'Ordem de serviço criada no sistema',
         changed_by: user?.id,
       })
 
-      toast({
-        title: 'Ordem criada com sucesso!',
-        description: `Ordem ${created.number || ''} aberta no sistema.`,
-      })
+      if (created.queued || hist.queued) {
+        toast({
+          title: 'Ordem salva localmente',
+          description: 'Será sincronizada quando houver conexão.',
+        })
+      } else {
+        toast({
+          title: 'Ordem criada com sucesso!',
+          description: `Ordem aberta no sistema.`,
+        })
+      }
 
       setFormData({
         customer: '',

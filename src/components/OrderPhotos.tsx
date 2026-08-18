@@ -14,6 +14,7 @@ import {
 import { getFileUrl } from '@/lib/pocketbase/files'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
+import { offlinePb } from '@/lib/offline-pb'
 
 interface OrderPhotosProps {
   orderId: string
@@ -68,8 +69,20 @@ export function OrderPhotos({ orderId, canEdit }: OrderPhotosProps) {
         continue
       }
       try {
-        await createAttachment(orderId, file)
-        toast({ title: 'Foto enviada!' })
+        if (navigator.onLine) {
+          await createAttachment(orderId, file)
+          toast({ title: 'Foto enviada!' })
+        } else {
+          // Offline: armazena a foto como base64 na fila para sincronização.
+          const dataUrl = await fileToDataUrl(file)
+          await offlinePb.create('service_attachments', {
+            service_order: orderId,
+            file: dataUrl,
+          })
+          toast({
+            title: 'Foto salva localmente. Será sincronizada quando houver conexão.',
+          })
+        }
       } catch {
         toast({ title: 'Erro ao enviar foto', variant: 'destructive' })
       }
@@ -81,8 +94,12 @@ export function OrderPhotos({ orderId, canEdit }: OrderPhotosProps) {
 
   const handleDelete = async (id: string) => {
     try {
-      await deleteAttachment(id)
-      toast({ title: 'Foto removida' })
+      const res = await offlinePb.delete('service_attachments', id)
+      if (res.queued) {
+        toast({ title: 'Foto removida localmente. Será sincronizada quando houver conexão.' })
+      } else {
+        toast({ title: 'Foto removida' })
+      }
       loadData()
     } catch {
       toast({ title: 'Erro ao remover', variant: 'destructive' })
@@ -91,10 +108,23 @@ export function OrderPhotos({ orderId, canEdit }: OrderPhotosProps) {
 
   const handleCaptionBlur = async (id: string, caption: string) => {
     try {
-      await updateAttachment(id, caption)
+      const res = await offlinePb.update('service_attachments', id, { caption })
+      if (res.queued) {
+        toast({ title: 'Legenda salva localmente. Será sincronizada quando houver conexão.' })
+      }
     } catch {
       /* */
     }
+  }
+
+  /** Converte um File em data URL base64 (para armazenar offline). */
+  function fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(file)
+    })
   }
 
   return (

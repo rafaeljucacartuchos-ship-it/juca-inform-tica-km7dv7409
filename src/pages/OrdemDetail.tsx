@@ -37,18 +37,11 @@ import {
   Payment,
   OrderStatus,
 } from '@/types'
-import {
-  getServiceOrder,
-  updateServiceOrder,
-  getOrderItems,
-  createOrderItem,
-  deleteOrderItem,
-  getStatusHistory,
-  addStatusHistory,
-} from '@/services/service_orders'
+import { getServiceOrder, getOrderItems, getStatusHistory } from '@/services/service_orders'
 import { getCatalogServices } from '@/services/services_catalog'
 import { getOrderPayments } from '@/services/payments'
 import pb from '@/lib/pocketbase/client'
+import { offlinePb } from '@/lib/offline-pb'
 import { PaymentModal } from '@/components/PaymentModal'
 import { OrderPhotos } from '@/components/OrderPhotos'
 import { OrderSignatures } from '@/components/OrderSignatures'
@@ -107,7 +100,7 @@ export default function OrdemDetail() {
       setServiceReport(o.service_report || '')
 
       // Se houver divergência no banco de dados (ex: total estava zerado ou desatualizado), persiste no backend
-      updateServiceOrder(id, { total: calculatedTotal }).catch(() => {})
+      offlinePb.update('service_orders', id, { total: calculatedTotal }).catch(() => {})
     } catch {
       /* intentionally ignored */
     }
@@ -152,13 +145,19 @@ export default function OrdemDetail() {
 
   const handleStatusChange = async (newStatus: OrderStatus) => {
     try {
-      await updateServiceOrder(order.id, { status: newStatus })
-      await addStatusHistory({
+      const upd = await offlinePb.update('service_orders', order.id, { status: newStatus })
+      if (upd.queued) {
+        toast({ title: 'Status salvo localmente. Será sincronizado quando houver conexão.' })
+      }
+      const hist = await offlinePb.create('status_history', {
         service_order: order.id,
         status: newStatus,
         note: `Status alterado para ${newStatus}`,
         changed_by: user?.id,
       })
+      if (hist.queued) {
+        toast({ title: 'Histórico salvo localmente. Será sincronizado quando houver conexão.' })
+      }
       if (newStatus === 'completed') {
         const productItems = items.filter((it) => !!it.product)
         toast({
@@ -195,17 +194,23 @@ export default function OrdemDetail() {
   const handleStartService = async () => {
     setStarting(true)
     try {
-      await updateServiceOrder(order.id, {
+      const upd = await offlinePb.update('service_orders', order.id, {
         status: 'in_progress',
         started_at: new Date().toISOString(),
       })
-      await addStatusHistory({
+      if (upd.queued) {
+        toast({ title: 'Salvo localmente. Será sincronizado quando houver conexão.' })
+      }
+      const hist = await offlinePb.create('status_history', {
         service_order: order.id,
         status: 'in_progress',
         note: 'Atendimento iniciado pelo técnico',
         changed_by: user?.id,
       })
-      toast({ title: 'Atendimento iniciado!' })
+      if (hist.queued && !upd.queued) {
+        toast({ title: 'Histórico salvo localmente. Será sincronizado quando houver conexão.' })
+      }
+      if (!upd.queued && !hist.queued) toast({ title: 'Atendimento iniciado!' })
       loadAll()
     } catch {
       toast({ title: 'Erro ao iniciar atendimento', variant: 'destructive' })
@@ -223,17 +228,23 @@ export default function OrdemDetail() {
       return
     }
     try {
-      await updateServiceOrder(order.id, {
+      const upd = await offlinePb.update('service_orders', order.id, {
         status: 'completed',
         service_report: serviceReport,
       })
-      await addStatusHistory({
+      if (upd.queued) {
+        toast({ title: 'Salvo localmente. Será sincronizado quando houver conexão.' })
+      }
+      const hist = await offlinePb.create('status_history', {
         service_order: order.id,
         status: 'completed',
         note: 'Serviço concluído',
         changed_by: user?.id,
       })
-      toast({ title: 'Serviço concluído com sucesso!' })
+      if (hist.queued && !upd.queued) {
+        toast({ title: 'Histórico salvo localmente. Será sincronizado quando houver conexão.' })
+      }
+      if (!upd.queued && !hist.queued) toast({ title: 'Serviço concluído com sucesso!' })
       const phone = order.expand?.customer?.phone || ''
       const name = order.expand?.customer?.name || 'Cliente'
       const shareUrl = `${window.location.origin}/share/${order.id}`
@@ -247,7 +258,12 @@ export default function OrdemDetail() {
   const handleSaveReport = async () => {
     if (!order || serviceReport === (order.service_report || '')) return
     try {
-      await updateServiceOrder(order.id, { service_report: serviceReport })
+      const upd = await offlinePb.update('service_orders', order.id, {
+        service_report: serviceReport,
+      })
+      if (upd.queued) {
+        toast({ title: 'Relatório salvo localmente. Será sincronizado quando houver conexão.' })
+      }
     } catch {
       /* ignored */
     }
@@ -283,7 +299,7 @@ export default function OrdemDetail() {
     try {
       const itemPrice = catItem.price || 0
       const itemTitle = catItem.title || catItem.name || 'Serviço'
-      await createOrderItem({
+      const res = await offlinePb.create('service_order_items', {
         service_order: order.id,
         service: catItem.id,
         description: itemTitle,
@@ -291,7 +307,25 @@ export default function OrdemDetail() {
         unit_price: itemPrice,
         total: itemPrice,
       })
-      toast({ title: 'Item adicionado à OS' })
+      if (res.queued) {
+        toast({ title: 'Item salvo localmente. Será sincronizado quando houver conexão.' })
+      } else {
+        toast({ title: 'Item adicionado à OS' })
+      }
+      // Otimiza a UI inserindo o item local imediatamente (online ou offline).
+      setItems((prev) => [
+        ...prev,
+        {
+          id: res.id,
+          service_order: order.id,
+          service: catItem.id,
+          description: itemTitle,
+          quantity: 1,
+          unit_price: itemPrice,
+          total: itemPrice,
+          created: new Date().toISOString(),
+        },
+      ])
       setSelectedCatalogId('')
       await loadAll()
     } catch {
@@ -303,8 +337,14 @@ export default function OrdemDetail() {
 
   const handleDeleteItem = async (itemId: string) => {
     try {
-      await deleteOrderItem(itemId)
-      toast({ title: 'Item removido' })
+      const res = await offlinePb.delete('service_order_items', itemId)
+      if (res.queued) {
+        toast({ title: 'Item removido localmente. Será sincronizado quando houver conexão.' })
+      } else {
+        toast({ title: 'Item removido' })
+      }
+      // Remove localmente imediatamente para feedback de UI.
+      setItems((prev) => prev.filter((it) => it.id !== itemId))
       await loadAll()
     } catch {
       toast({ title: 'Erro ao remover item', variant: 'destructive' })
@@ -334,7 +374,7 @@ export default function OrdemDetail() {
         return
       }
       const unitPrice = found.price || 0
-      await createOrderItem({
+      const res = await offlinePb.create('service_order_items', {
         service_order: order.id,
         product: found.id,
         description: found.name,
@@ -342,7 +382,11 @@ export default function OrdemDetail() {
         unit_price: unitPrice,
         total: unitPrice,
       })
-      toast({ title: 'Produto adicionado à OS', description: found.name })
+      if (res.queued) {
+        toast({ title: 'Produto salvo localmente. Será sincronizado quando houver conexão.' })
+      } else {
+        toast({ title: 'Produto adicionado à OS', description: found.name })
+      }
       await loadAll()
     } catch {
       toast({ title: 'Erro ao adicionar produto escaneado', variant: 'destructive' })

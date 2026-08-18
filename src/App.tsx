@@ -27,6 +27,31 @@ import OrdemShare from '@/pages/OrdemShare'
 import OrdemPrint from '@/pages/OrdemPrint'
 import NotFound from '@/pages/NotFound'
 import { PwaInstallHint } from '@/components/PwaInstallHint'
+import { offlinePb } from '@/lib/offline-pb'
+import { toast } from '@/hooks/use-toast'
+
+function OfflineSyncToasts() {
+  useEffect(() => {
+    // Quando voltar online e a fila for processada, exibe toast de sucesso/erro.
+    const off = offlinePb.onSyncComplete((e) => {
+      const detail = (e.detail || {}) as { processed?: number; failed?: unknown }
+      if (detail.failed) {
+        toast({
+          title: 'Falha ao sincronizar algumas alterações',
+          description: 'As operações pendentes permanecerão na fila.',
+          variant: 'destructive',
+        })
+      } else if (detail.processed && detail.processed > 0) {
+        toast({
+          title: 'Sincronização concluída',
+          description: `${detail.processed} alteração(ões) sincronizada(s) com sucesso!`,
+        })
+      }
+    })
+    return off
+  }, [])
+  return null
+}
 
 const App = () => {
   useEffect(() => {
@@ -44,6 +69,7 @@ const App = () => {
               <Toaster />
               <Sonner />
               <PwaInstallHint />
+              <OfflineSyncToasts />
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route element={<ProtectedRoute />}>

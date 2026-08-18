@@ -7,6 +7,7 @@ import { SignaturePad } from '@/components/SignaturePad'
 import { uploadSignature } from '@/services/service_orders'
 import { getFileUrl } from '@/lib/pocketbase/files'
 import { useToast } from '@/hooks/use-toast'
+import { offlinePb } from '@/lib/offline-pb'
 
 interface OrderSignaturesProps {
   order: ServiceOrder
@@ -24,8 +25,17 @@ export function OrderSignatures({ order, canEdit, onSaved }: OrderSignaturesProp
     dataUrl: string,
   ) => {
     try {
-      await uploadSignature(order.id, field, dataUrl)
-      toast({ title: 'Assinatura salva com sucesso!' })
+      if (navigator.onLine) {
+        await uploadSignature(order.id, field, dataUrl)
+        toast({ title: 'Assinatura salva com sucesso!' })
+      } else {
+        // Offline: enfileira a atualização (sem upload de arquivo, que
+        // exige rede). Armazena o data URL para sincronização posterior.
+        await offlinePb.update('service_orders', order.id, { [field]: dataUrl })
+        toast({
+          title: 'Assinatura salva localmente. Será sincronizada quando houver conexão.',
+        })
+      }
       setShowTechPad(false)
       setShowCustPad(false)
       onSaved()
