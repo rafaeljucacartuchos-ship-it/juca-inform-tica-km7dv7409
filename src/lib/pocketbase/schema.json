@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-14T22:54:50.322Z",
+  "generatedAt": "2026-08-18T15:10:41.323Z",
   "collections": [
     {
       "name": "users",
@@ -387,6 +387,18 @@
         {
           "name": "technician_signature",
           "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "started_at",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "signed_at",
+          "type": "date",
           "required": false,
           "system": false
         }
@@ -824,6 +836,24 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "cost",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "category",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "photo",
+          "type": "url",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
