@@ -78,20 +78,49 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
 
   const start = useCallback(async () => {
     setError('')
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setError(
+        'Acesso à câmera não suportado neste navegador ou ambiente (requer HTTPS ou localhost).',
+      )
+      return
+    }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-        audio: false,
-      })
+      let stream: MediaStream
+      try {
+        // Tenta câmera traseira em dispositivos móveis
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false,
+        })
+      } catch {
+        // Fallback para qualquer câmera disponível
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        })
+      }
       streamRef.current = stream
       if (videoRef.current) {
         videoRef.current.srcObject = stream
-        await videoRef.current.play()
+        await videoRef.current.play().catch(() => {})
       }
       setScanning(true)
       rafRef.current = requestAnimationFrame(detectLoop)
-    } catch {
-      setError('Não foi possível acessar a câmera do dispositivo.')
+    } catch (err: unknown) {
+      const errName = err instanceof Error ? err.name : ''
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+        setError(
+          'Permissão de acesso à câmera foi negada. Permita o acesso à câmera nas configurações do seu navegador.',
+        )
+      } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
+        setError('Nenhuma câmera foi encontrada no dispositivo.')
+      } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
+        setError('A câmera já está sendo usada por outro aplicativo.')
+      } else {
+        setError(
+          'Não foi possível acessar a câmera do dispositivo. Verifique as permissões de vídeo ou se a conexão é segura (HTTPS).',
+        )
+      }
     }
   }, [detectLoop])
 
@@ -99,27 +128,42 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
     if (!open) return
     const hasDetector = typeof window !== 'undefined' && 'BarcodeDetector' in window
     setSupported(hasDetector)
+
     if (hasDetector) {
-      // Constrói o detector com os formatos suportados.
       const Ctor = window.BarcodeDetector
       if (Ctor) {
         try {
           const formatsPromise = Ctor.getSupportedFormats
             ? Ctor.getSupportedFormats()
             : Promise.resolve([])
-          Promise.resolve(formatsPromise).then((f: string[]) => {
-            if (!window.BarcodeDetector) return
-            detectorRef.current = new window.BarcodeDetector({
-              formats: f && f.length ? f : undefined,
+          Promise.resolve(formatsPromise)
+            .then((f: string[]) => {
+              if (!window.BarcodeDetector) return
+              try {
+                detectorRef.current = new window.BarcodeDetector({
+                  formats: f && f.length ? f : undefined,
+                })
+              } catch {
+                detectorRef.current = new Ctor()
+              }
+              start()
             })
-            start()
-          })
+            .catch(() => {
+              detectorRef.current = new Ctor()
+              start()
+            })
         } catch {
           detectorRef.current = new Ctor()
           start()
         }
+      } else {
+        start()
       }
+    } else {
+      // Mesmo se BarcodeDetector não existir, chama start() para tentar exibir o vídeo com mensagem informativa
+      start()
     }
+
     return () => {
       stop()
     }

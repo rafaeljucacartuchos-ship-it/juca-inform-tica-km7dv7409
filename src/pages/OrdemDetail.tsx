@@ -239,15 +239,17 @@ export default function OrdemDetail() {
     const catItem = catalog.find((c) => c.id === selectedCatalogId)
     if (!catItem) return
     try {
+      const itemPrice = catItem.price || 0
+      const itemTitle = catItem.title || catItem.name || 'Serviço'
       await createOrderItem({
         service_order: order.id,
         service: catItem.id,
-        description: catItem.title || catItem.name || '',
+        description: itemTitle,
         quantity: 1,
-        unit_price: catItem.price,
-        total: catItem.price,
+        unit_price: itemPrice,
+        total: itemPrice,
       })
-      const newTotal = items.reduce((s, i) => s + i.total, 0) + catItem.price
+      const newTotal = items.reduce((s, i) => s + (i.total || 0), 0) + itemPrice
       await updateServiceOrder(order.id, { total: newTotal })
       toast({ title: 'Item adicionado à OS' })
       setSelectedCatalogId('')
@@ -260,7 +262,8 @@ export default function OrdemDetail() {
   const handleDeleteItem = async (itemId: string, itemPrice: number) => {
     try {
       await deleteOrderItem(itemId)
-      const newTotal = Math.max(0, (order.total || 0) - itemPrice)
+      const priceToDeduct = itemPrice || 0
+      const newTotal = Math.max(0, (order.total || 0) - priceToDeduct)
       await updateServiceOrder(order.id, { total: newTotal })
       toast({ title: 'Item removido' })
       loadAll()
@@ -460,7 +463,7 @@ export default function OrdemDetail() {
                   <SelectContent>
                     {catalog.map((c) => (
                       <SelectItem key={c.id} value={c.id} className="text-xs">
-                        {c.title || c.name || 'Serviço'} (R$ {c.price})
+                        {c.title || c.name || 'Serviço'} (R$ {(c.price || 0).toFixed(2)})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -497,7 +500,7 @@ export default function OrdemDetail() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDeleteItem(item.id, item.total)}
+                        onClick={() => handleDeleteItem(item.id, item.total || 0)}
                         disabled={fieldsLocked}
                         className="h-7 w-7 shrink-0 text-red-500 hover:bg-red-50"
                       >
@@ -506,10 +509,10 @@ export default function OrdemDetail() {
                     </div>
                     <div className="flex justify-between text-[11px] text-slate-500">
                       <span>
-                        Qtd: {item.quantity} × R$ {item.unit_price.toFixed(2)}
+                        Qtd: {item.quantity || 1} × R$ {(item.unit_price || 0).toFixed(2)}
                       </span>
                       <span className="font-bold text-slate-900 text-xs">
-                        R$ {item.total.toFixed(2)}
+                        R$ {(item.total || 0).toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -531,19 +534,21 @@ export default function OrdemDetail() {
                 <tbody className="divide-y divide-slate-100">
                   {items.map((item) => (
                     <tr key={item.id}>
-                      <td className="py-2.5 px-4 font-medium">{item.description}</td>
-                      <td className="py-2.5 px-4 text-center">{item.quantity}</td>
+                      <td className="py-2.5 px-4 font-medium">
+                        {item.description || 'Item sem descrição'}
+                      </td>
+                      <td className="py-2.5 px-4 text-center">{item.quantity || 1}</td>
                       <td className="py-2.5 px-4 text-right font-mono">
-                        R$ {item.unit_price.toFixed(2)}
+                        R$ {(item.unit_price || 0).toFixed(2)}
                       </td>
                       <td className="py-2.5 px-4 text-right font-mono font-bold">
-                        R$ {item.total.toFixed(2)}
+                        R$ {(item.total || 0).toFixed(2)}
                       </td>
                       <td className="py-2.5 px-4 text-right">
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDeleteItem(item.id, item.total)}
+                          onClick={() => handleDeleteItem(item.id, item.total || 0)}
                           disabled={fieldsLocked}
                           className="h-7 w-7 text-red-500 hover:bg-red-50"
                         >
