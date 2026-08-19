@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { registerServiceWorker } from '@/lib/register-sw'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -59,9 +60,8 @@ export function usePwaInstall() {
     }
     window.addEventListener('appinstalled', installedHandler)
 
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {})
-    }
+    // Register with updateViaCache:'none' so deployed SW updates are detected.
+    void registerServiceWorker()
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handler)

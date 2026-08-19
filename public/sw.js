@@ -12,7 +12,7 @@
  * Served from /public so /sw.js is available in dev and preview.
  */
 
-// BUILD: 2026-08-18T18:30:00Z
+// BUILD: __TIMESTAMP__
 
 const APP_SHELL_CACHE = 'juca-app-shell-v1'
 const API_CACHE = 'juca-api-v1'

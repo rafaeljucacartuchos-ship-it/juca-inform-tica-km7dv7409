@@ -29,6 +29,7 @@ import NotFound from '@/pages/NotFound'
 import { PwaInstallHint } from '@/components/PwaInstallHint'
 import { offlinePb } from '@/lib/offline-pb'
 import { toast } from '@/hooks/use-toast'
+import { registerServiceWorker } from '@/lib/register-sw'
 
 function OfflineSyncToasts() {
   useEffect(() => {
@@ -55,9 +56,9 @@ function OfflineSyncToasts() {
 
 const App = () => {
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {})
-    }
+    // Registers /sw.js with updateViaCache:'none' so deployed updates reach
+    // installed PWAs. See src/lib/register-sw.ts for the full rationale.
+    void registerServiceWorker()
   }, [])
 
   return (
