@@ -1,6 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Wrench, Lock, ArrowRight, ShieldCheck, User, ChevronDown, UserCircle } from 'lucide-react'
+import {
+  Wrench,
+  Lock,
+  ArrowRight,
+  ShieldCheck,
+  User as UserIcon,
+  ChevronDown,
+  UserCircle,
+  Loader2,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,6 +24,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
+import { getUsers } from '@/services/users'
+import { User } from '@/types'
 
 type QuickAccount = {
   username: string
@@ -29,7 +40,8 @@ type ProfileGroup = {
   accounts: QuickAccount[]
 }
 
-const QUICK_PROFILES: ProfileGroup[] = [
+// Fallback accounts used while loading or in case of error
+const DEFAULT_PROFILES: ProfileGroup[] = [
   {
     id: 'admin',
     label: 'Administrador',
@@ -40,19 +52,16 @@ const QUICK_PROFILES: ProfileGroup[] = [
   {
     id: 'atendente',
     label: 'Atendente',
-    icon: <User className="h-4 w-4" />,
+    icon: <UserIcon className="h-4 w-4" />,
     iconColor: 'text-sky-400',
-    accounts: [{ username: 'atendente', name: 'ANA ATENDIMENTO' }],
+    accounts: [{ username: 'atendente', name: 'Atendente' }],
   },
   {
     id: 'tecnico',
     label: 'Técnico',
     icon: <Wrench className="h-4 w-4" />,
     iconColor: 'text-emerald-400',
-    accounts: [
-      { username: 'tecnico', name: 'ROBERT MATIAS SENA' },
-      { username: 'tecnico2', name: 'JOÃO VICTOR SIMÕES DA SILVA' },
-    ],
+    accounts: [{ username: 'tecnico', name: 'Técnico' }],
   },
 ]
 
@@ -60,9 +69,79 @@ export default function Login() {
   const [cadastro, setCadastro] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [profiles, setProfiles] = useState<ProfileGroup[]>(DEFAULT_PROFILES)
+  const [fetchingProfiles, setFetchingProfiles] = useState(true)
   const { signIn } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    let isMounted = true
+    async function loadUsers() {
+      try {
+        const userList = await getUsers()
+        if (!isMounted) return
+
+        const admins: QuickAccount[] = []
+        const attendants: QuickAccount[] = []
+        const technicians: QuickAccount[] = []
+
+        userList.forEach((u: User) => {
+          const username = u.username || u.name?.toLowerCase().replace(/\s+/g, '') || ''
+          if (!username) return
+          const account = { username, name: u.name || username }
+
+          if (u.role === 'admin') {
+            admins.push(account)
+          } else if (u.role === 'attendant') {
+            attendants.push(account)
+          } else if (u.role === 'technician') {
+            technicians.push(account)
+          }
+        })
+
+        const updatedProfiles: ProfileGroup[] = [
+          {
+            id: 'admin',
+            label: 'Administrador',
+            icon: <ShieldCheck className="h-4 w-4" />,
+            iconColor: 'text-amber-400',
+            accounts:
+              admins.length > 0 ? admins : [{ username: 'administrador', name: 'Administrador' }],
+          },
+          {
+            id: 'atendente',
+            label: 'Atendente',
+            icon: <UserIcon className="h-4 w-4" />,
+            iconColor: 'text-sky-400',
+            accounts:
+              attendants.length > 0 ? attendants : [{ username: 'atendente', name: 'Atendente' }],
+          },
+          {
+            id: 'tecnico',
+            label: 'Técnico',
+            icon: <Wrench className="h-4 w-4" />,
+            iconColor: 'text-emerald-400',
+            accounts:
+              technicians.length > 0 ? technicians : [{ username: 'tecnico', name: 'Técnico' }],
+          },
+        ]
+
+        setProfiles(updatedProfiles)
+      } catch (err) {
+        console.error('Failed to load users for login quick access', err)
+      } finally {
+        if (isMounted) {
+          setFetchingProfiles(false)
+        }
+      }
+    }
+
+    loadUsers()
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -123,7 +202,7 @@ export default function Login() {
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-300">Cadastro</Label>
               <div className="relative">
-                <User className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                <UserIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
                 <Input
                   type="text"
                   placeholder="Nome de usuário"
@@ -174,66 +253,73 @@ export default function Login() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            {QUICK_PROFILES.map((profile) =>
-              profile.accounts.length === 1 ? (
-                <button
-                  key={profile.id}
-                  type="button"
-                  onClick={() => fillTestAccount(profile.accounts[0].username)}
-                  className="flex flex-col items-center justify-center rounded-lg border border-slate-800 bg-slate-800/40 p-2 text-center transition-all hover:bg-slate-800 hover:border-indigo-500/50"
-                >
-                  <span className={`mb-1 ${profile.iconColor}`}>{profile.icon}</span>
-                  <span className="text-[10px] font-mono font-bold text-slate-200 truncate w-full">
-                    {profile.accounts[0].username}
-                  </span>
-                  <span className="text-[9px] text-slate-400">{profile.label}</span>
-                </button>
-              ) : (
-                <DropdownMenu key={profile.id}>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="flex flex-col items-center justify-center rounded-lg border border-slate-800 bg-slate-800/40 p-2 text-center transition-all hover:bg-slate-800 hover:border-indigo-500/50 focus:outline-none"
-                    >
-                      <span className={`mb-1 ${profile.iconColor} relative`}>
-                        {profile.icon}
-                        <ChevronDown className="absolute -right-2 -top-1 h-2.5 w-2.5 text-slate-400" />
-                      </span>
-                      <span className="text-[10px] font-mono font-bold text-slate-200 truncate w-full">
-                        {profile.accounts.length} contas
-                      </span>
-                      <span className="text-[9px] text-slate-400">{profile.label}</span>
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="center"
-                    className="min-w-[220px] border-slate-700 bg-slate-900 text-slate-100"
+          {fetchingProfiles ? (
+            <div className="flex items-center justify-center py-4 text-slate-400 gap-2 text-xs">
+              <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
+              <span>Carregando usuários...</span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              {profiles.map((profile) =>
+                profile.accounts.length === 1 ? (
+                  <button
+                    key={profile.id}
+                    type="button"
+                    onClick={() => fillTestAccount(profile.accounts[0].username)}
+                    className="flex flex-col items-center justify-center rounded-lg border border-slate-800 bg-slate-800/40 p-2 text-center transition-all hover:bg-slate-800 hover:border-indigo-500/50"
                   >
-                    <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-slate-400">
-                      Selecionar {profile.label.toLowerCase()}
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator className="bg-slate-800" />
-                    {profile.accounts.map((acc) => (
-                      <DropdownMenuItem
-                        key={acc.username}
-                        onClick={() => fillTestAccount(acc.username)}
-                        className="flex flex-col items-start gap-0.5 py-2 focus:bg-slate-800 focus:text-white cursor-pointer"
+                    <span className={`mb-1 ${profile.iconColor}`}>{profile.icon}</span>
+                    <span className="text-[10px] font-mono font-bold text-slate-200 truncate w-full">
+                      {profile.accounts[0].username}
+                    </span>
+                    <span className="text-[9px] text-slate-400">{profile.label}</span>
+                  </button>
+                ) : (
+                  <DropdownMenu key={profile.id}>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex flex-col items-center justify-center rounded-lg border border-slate-800 bg-slate-800/40 p-2 text-center transition-all hover:bg-slate-800 hover:border-indigo-500/50 focus:outline-none"
                       >
-                        <span className="flex items-center gap-2">
-                          <UserCircle className={`h-3.5 w-3.5 ${profile.iconColor}`} />
-                          <span className="text-xs font-semibold text-slate-100">{acc.name}</span>
+                        <span className={`mb-1 ${profile.iconColor} relative`}>
+                          {profile.icon}
+                          <ChevronDown className="absolute -right-2 -top-1 h-2.5 w-2.5 text-slate-400" />
                         </span>
-                        <span className="pl-5 text-[10px] font-mono text-slate-400">
-                          @{acc.username}
+                        <span className="text-[10px] font-mono font-bold text-slate-200 truncate w-full">
+                          {profile.accounts.length} contas
                         </span>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ),
-            )}
-          </div>
+                        <span className="text-[9px] text-slate-400">{profile.label}</span>
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="center"
+                      className="min-w-[220px] border-slate-700 bg-slate-900 text-slate-100"
+                    >
+                      <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-slate-400">
+                        Selecionar {profile.label.toLowerCase()}
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator className="bg-slate-800" />
+                      {profile.accounts.map((acc) => (
+                        <DropdownMenuItem
+                          key={acc.username}
+                          onClick={() => fillTestAccount(acc.username)}
+                          className="flex flex-col items-start gap-0.5 py-2 focus:bg-slate-800 focus:text-white cursor-pointer"
+                        >
+                          <span className="flex items-center gap-2">
+                            <UserCircle className={`h-3.5 w-3.5 ${profile.iconColor}`} />
+                            <span className="text-xs font-semibold text-slate-100">{acc.name}</span>
+                          </span>
+                          <span className="pl-5 text-[10px] font-mono text-slate-400">
+                            @{acc.username}
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ),
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
