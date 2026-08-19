@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
-import { User } from '@/types'
+import { getQuickAccounts } from '@/services/quick_accounts'
 
 type QuickAccount = {
   username: string
@@ -78,9 +78,7 @@ export default function Login() {
     let isMounted = true
     async function loadUsers() {
       try {
-        const response = await fetch('/backend/v1/users/quick-accounts')
-        if (!response.ok) throw new Error('Falha ao buscar contas rápidas')
-        const userList: Pick<User, 'id' | 'username' | 'name' | 'role'>[] = await response.json()
+        const userList = await getQuickAccounts()
         if (!isMounted) return
 
         const admins: QuickAccount[] = []

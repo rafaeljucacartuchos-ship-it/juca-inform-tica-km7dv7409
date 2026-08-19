@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-19T15:20:12.380Z",
+  "generatedAt": "2026-08-19T16:01:10.239Z",
   "collections": [
     {
       "name": "users",
@@ -1164,6 +1164,39 @@
         "CREATE UNIQUE INDEX idx_push_subs_endpoint ON push_subscriptions (endpoint)",
         "CREATE INDEX idx_push_subs_user_active ON push_subscriptions (user, active)"
       ]
+    },
+    {
+      "name": "quick_accounts",
+      "type": "view",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": null,
+        "update": null,
+        "delete": null
+      },
+      "fields": [
+        {
+          "name": "username",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "role",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["admin", "attendant", "technician"]
+        }
+      ],
+      "indexes": []
     }
   ]
 }
