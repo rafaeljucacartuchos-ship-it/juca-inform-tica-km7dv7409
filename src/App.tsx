@@ -30,6 +30,7 @@ import { PwaInstallHint } from '@/components/PwaInstallHint'
 import { offlinePb } from '@/lib/offline-pb'
 import { toast } from '@/hooks/use-toast'
 import { registerServiceWorker } from '@/lib/register-sw'
+import { StaleAppBanner } from '@/components/StaleAppBanner'
 
 function OfflineSyncToasts() {
   useEffect(() => {
@@ -69,6 +70,7 @@ const App = () => {
             <TooltipProvider>
               <Toaster />
               <Sonner />
+              <StaleAppBanner />
               <PwaInstallHint />
               <OfflineSyncToasts />
               <Routes>

@@ -73,3 +73,37 @@ const distSw = path.join(root, outDir, 'sw.js')
 if (!injectTimestamp(distSw)) {
   console.warn('[sw-timestamp] no sw.js was updated.')
 }
+
+// --- index.html: data-app-version ------------------------------------------
+// Injeta o MESMO timestamp do sw.js no atributo data-app-version do <html>. O
+// app lê esse atributo em runtime (src/hooks/use-app-version.ts) e compara com
+// a versão reportada pelo sw.js deployado (// BUILD:). Se divergirem, o
+// index.html servido está stale (cacheado pelo SW antigo) e o app exibe o
+// banner "App desatualizado — feche e abra novamente para atualizar".
+const distIndex = path.join(root, outDir, 'index.html')
+
+/** Replace the `data-app-version="__APP_VERSION__"` placeholder. No-op if absent. */
+function injectAppVersion(filePath) {
+  if (!fs.existsSync(filePath)) {
+    console.warn(`[sw-timestamp] not found, skipping: ${filePath}`)
+    return false
+  }
+  const source = fs.readFileSync(filePath, 'utf8')
+  const updated = source.replace(
+    /data-app-version="__APP_VERSION__"/,
+    `data-app-version="${BUILD_TIMESTAMP}"`,
+  )
+  if (updated === source) {
+    console.warn(`[sw-timestamp] no __APP_VERSION__ marker in ${filePath}`)
+    return false
+  }
+  fs.writeFileSync(filePath, updated, 'utf8')
+  console.log(
+    `[sw-timestamp] ${path.relative(root, filePath)} -> data-app-version="${BUILD_TIMESTAMP}"`,
+  )
+  return true
+}
+
+if (!injectAppVersion(distIndex)) {
+  console.warn('[sw-timestamp] no index.html was updated.')
+}

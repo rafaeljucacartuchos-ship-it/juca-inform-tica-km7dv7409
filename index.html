@@ -1,6 +1,6 @@
 <!-- HTML template for the frontend react app: https://developer.mozilla.org/en-US/docs/Web/HTML -->
 <!doctype html>
-<html lang="en">
+<html lang="en" data-app-version="__APP_VERSION__">
   <head>
     <script>
       // SW killer: remove Service Workers antigos registrados sem updateViaCache:'none'.
@@ -28,6 +28,14 @@
         } catch (e) {}
       })();
     </script>
+    <!--
+      SW killer externo: carregado ANTES dos demais scripts (logo após o killer
+      inline). Por ser um asset .js, o SW ativo o busca pela rede primeiro
+      (NetworkFirst), então a versão nova chega ao dispositivo mesmo quando o
+      index.html está cacheado. A chave sw_cleanup_v2 força reexecução em
+      dispositivos que rodaram o v1 sem sucesso. Veja public/skip.js.
+    -->
+    <script src="/skip.js"></script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Assistência Técnica Móvel</title>
