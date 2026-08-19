@@ -2,6 +2,32 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <script>
+      // SW killer: remove Service Workers antigos registrados sem updateViaCache:'none'.
+      // Roda UMA vez por dispositivo (localStorage) e recarrega a página para o novo
+      // SW ser registrado do zero com updateViaCache:'none' (via src/lib/register-sw.ts).
+      (function () {
+        try {
+          if (localStorage.getItem('sw_cleanup_v1')) return;
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function (regs) {
+              if (!regs.length) {
+                localStorage.setItem('sw_cleanup_v1', '1');
+                return;
+              }
+              Promise.all(regs.map(function (r) { return r.unregister(); })).then(function () {
+                localStorage.setItem('sw_cleanup_v1', '1');
+                window.location.reload();
+              });
+            }).catch(function () {
+              localStorage.setItem('sw_cleanup_v1', '1');
+            });
+          } else {
+            localStorage.setItem('sw_cleanup_v1', '1');
+          }
+        } catch (e) {}
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Assistência Técnica Móvel</title>
