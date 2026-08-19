@@ -24,7 +24,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
-import { getUsers } from '@/services/users'
 import { User } from '@/types'
 
 type QuickAccount = {
@@ -79,14 +78,16 @@ export default function Login() {
     let isMounted = true
     async function loadUsers() {
       try {
-        const userList = await getUsers()
+        const response = await fetch('/backend/v1/users/quick-accounts')
+        if (!response.ok) throw new Error('Falha ao buscar contas rápidas')
+        const userList: Pick<User, 'id' | 'username' | 'name' | 'role'>[] = await response.json()
         if (!isMounted) return
 
         const admins: QuickAccount[] = []
         const attendants: QuickAccount[] = []
         const technicians: QuickAccount[] = []
 
-        userList.forEach((u: User) => {
+        userList.forEach((u) => {
           const username = u.username || u.name?.toLowerCase().replace(/\s+/g, '') || ''
           if (!username) return
           const account = { username, name: u.name || username }
