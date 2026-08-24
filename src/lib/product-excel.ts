@@ -6,7 +6,6 @@ export interface ParsedProductRow {
   codigo?: string // SKU
   nome: string
   quantidadeEstoque: number
-  precoCusto: number
   precoVenda: number
   categoria?: string
   descricao?: string
@@ -206,7 +205,6 @@ export async function parseProductsFile(file: File): Promise<ParsedProductRow[]>
     codigo: -1,
     nome: -1,
     quantidade: -1,
-    precoCusto: -1,
     precoVenda: -1,
     categoria: -1,
     descricao: -1,
@@ -257,15 +255,6 @@ export async function parseProductsFile(file: File): Promise<ParsedProductRow[]>
       ) {
         colIndices.quantidade = colIdx
       } else if (
-        norm === 'precocusto' ||
-        norm === 'custo' ||
-        norm === 'valordecusto' ||
-        norm === 'custounitario' ||
-        norm === 'precodecusto'
-      ) {
-        colIndices.precoCusto = colIdx
-        hasPreco = true
-      } else if (
         norm === 'precovenda' ||
         norm === 'preco' ||
         norm === 'valor' ||
@@ -293,25 +282,21 @@ export async function parseProductsFile(file: File): Promise<ParsedProductRow[]>
   }
 
   // Fallback se não encontrou cabeçalho padrão: assume as primeiras colunas
-  // Ordem comum: [0] Código, [1] Nome, [2] Quantidade, [3] Preço Custo, [4] Preço Venda
+  // Ordem comum: [0] Código, [1] Nome, [2] Quantidade, [3] Preço Venda, [4] Categoria
   if (headerRowIndex === -1) {
     headerRowIndex = 0
     colIndices = {
       codigo: 0,
       nome: 1,
       quantidade: 2,
-      precoCusto: 3,
-      precoVenda: 4,
-      categoria: 5,
-      descricao: 6,
+      precoVenda: 3,
+      categoria: 4,
+      descricao: 5,
     }
   } else {
     // Se achou cabeçalho mas faltou algum mapeamento básico
     if (colIndices.nome === -1) {
       colIndices.nome = colIndices.codigo === 0 ? 1 : 0
-    }
-    if (colIndices.precoVenda === -1 && colIndices.precoCusto !== -1) {
-      colIndices.precoVenda = colIndices.precoCusto
     }
   }
 
@@ -324,7 +309,6 @@ export async function parseProductsFile(file: File): Promise<ParsedProductRow[]>
     const codigo = colIndices.codigo >= 0 ? (row[colIndices.codigo] || '').trim() : ''
     const nome = colIndices.nome >= 0 ? (row[colIndices.nome] || '').trim() : ''
     const rawQtd = colIndices.quantidade >= 0 ? row[colIndices.quantidade] : '0'
-    const rawCusto = colIndices.precoCusto >= 0 ? row[colIndices.precoCusto] : '0'
     const rawVenda = colIndices.precoVenda >= 0 ? row[colIndices.precoVenda] : '0'
     const categoria = colIndices.categoria >= 0 ? (row[colIndices.categoria] || '').trim() : ''
     const descricao = colIndices.descricao >= 0 ? (row[colIndices.descricao] || '').trim() : ''
@@ -341,14 +325,10 @@ export async function parseProductsFile(file: File): Promise<ParsedProductRow[]>
     }
 
     const quantidadeEstoque = Math.round(parseBrazilianNumber(rawQtd))
-    const precoCusto = parseBrazilianNumber(rawCusto)
     const precoVenda = parseBrazilianNumber(rawVenda)
 
     if (quantidadeEstoque < 0) {
       erros.push('Quantidade em estoque não pode ser negativa.')
-    }
-    if (precoCusto < 0) {
-      erros.push('Preço de custo não pode ser negativo.')
     }
     if (precoVenda < 0) {
       erros.push('Preço de venda não pode ser negativo.')
@@ -358,7 +338,6 @@ export async function parseProductsFile(file: File): Promise<ParsedProductRow[]>
       codigo: codigo || undefined,
       nome: nome || (codigo ? `Produto ${codigo}` : 'Sem Nome'),
       quantidadeEstoque,
-      precoCusto,
       precoVenda,
       categoria: categoria || undefined,
       descricao: descricao || undefined,
@@ -438,7 +417,6 @@ export async function importProductsData(
         name: r.nome,
         sku: r.codigo || undefined,
         stock_quantity: r.quantidadeEstoque,
-        cost: r.precoCusto,
         price: r.precoVenda,
         active: true,
       }
@@ -471,37 +449,26 @@ export async function importProductsData(
 
 /**
  * Exporta os produtos para planilha Excel (.xlsx / .xls)
- * Colunas: Código, Nome, Quantidade em Estoque, Preço de Custo, Preço de Venda, Valor Total em Estoque
+ * Colunas: Código, Nome, Quantidade em Estoque, Preço de Venda
  */
 export function exportProductsToExcel(products: Product[], fileName = 'produtos_estoque') {
   let totalItens = 0
-  let totalCusto = 0
-  let totalVenda = 0
-  let totalValorEstoque = 0
 
   const tableRows = products
     .map((p) => {
       const sku = p.sku || '-'
       const name = p.name || ''
       const qty = p.stock_quantity ?? 0
-      const cost = p.cost || 0
       const price = p.price || 0
-      const valorTotalItem = qty * price
-      const valorTotalCustoItem = qty * cost
 
       totalItens += qty
-      totalCusto += valorTotalCustoItem
-      totalVenda += price
-      totalValorEstoque += valorTotalItem
 
       return `
       <tr>
         <td style="mso-number-format:'\\@'; text-align:left;">${sku}</td>
         <td style="text-align:left; font-weight:500;">${escapeHtml(name)}</td>
         <td style="text-align:center; mso-number-format:'#,##0';">${qty}</td>
-        <td style="text-align:right; mso-number-format:'R$ #,##0.00';">R$ ${cost.toFixed(2).replace('.', ',')}</td>
         <td style="text-align:right; font-weight:bold; mso-number-format:'R$ #,##0.00';">R$ ${price.toFixed(2).replace('.', ',')}</td>
-        <td style="text-align:right; font-weight:bold; color:#059669; mso-number-format:'R$ #,##0.00';">R$ ${valorTotalItem.toFixed(2).replace('.', ',')}</td>
       </tr>`
     })
     .join('')
@@ -548,9 +515,7 @@ export function exportProductsToExcel(products: Product[], fileName = 'produtos_
           <th style="width: 120px;">Código</th>
           <th style="width: 320px;">Nome</th>
           <th style="width: 100px; text-align: center;">Quantidade em Estoque</th>
-          <th style="width: 130px; text-align: right;">Preço de Custo</th>
           <th style="width: 130px; text-align: right;">Preço de Venda</th>
-          <th style="width: 150px; text-align: right;">Valor Total em Estoque</th>
         </tr>
       </thead>
       <tbody>
@@ -561,8 +526,6 @@ export function exportProductsToExcel(products: Product[], fileName = 'produtos_
           <td colspan="2" style="text-align: right; font-weight: bold; font-size: 11pt;">TOTALIZADORES:</td>
           <td style="text-align: center; font-weight: bold; font-size: 11pt;">${totalItens}</td>
           <td style="text-align: right; font-weight: bold; font-size: 11pt;">—</td>
-          <td style="text-align: right; font-weight: bold; font-size: 11pt;">—</td>
-          <td style="text-align: right; font-weight: bold; font-size: 11pt; color: #047857;">R$ ${totalValorEstoque.toFixed(2).replace('.', ',')}</td>
         </tr>
       </tfoot>
     </table>
@@ -703,7 +666,6 @@ export function downloadProductsTemplate() {
       codigo: 'SSD-480GB',
       nome: 'SSD Kingston A400 480GB SATA 3',
       quantidade: 15,
-      preco_custo: 135.0,
       preco_venda: 220.0,
       categoria: 'Armazenamento',
     },
@@ -711,7 +673,6 @@ export function downloadProductsTemplate() {
       codigo: 'MEM-8GB-DDR4',
       nome: 'Memória RAM 8GB DDR4 2666MHz Kingston Fury',
       quantidade: 20,
-      preco_custo: 110.0,
       preco_venda: 189.9,
       categoria: 'Memória',
     },
@@ -719,7 +680,6 @@ export function downloadProductsTemplate() {
       codigo: 'FONTE-500W',
       nome: 'Fonte ATX 500W 80 Plus Bronze PFC Ativo',
       quantidade: 8,
-      preco_custo: 180.0,
       preco_venda: 289.0,
       categoria: 'Fontes',
     },
@@ -727,7 +687,6 @@ export function downloadProductsTemplate() {
       codigo: 'CABO-HDMI-2M',
       nome: 'Cabo HDMI 2.0 4K Ultra HD 2 Metros',
       quantidade: 35,
-      preco_custo: 12.5,
       preco_venda: 35.0,
       categoria: 'Cabos e Adaptadores',
     },
@@ -740,7 +699,6 @@ export function downloadProductsTemplate() {
       <td style="mso-number-format:'\\@';">${p.codigo}</td>
       <td>${p.nome}</td>
       <td style="text-align:center;">${p.quantidade}</td>
-      <td style="text-align:right;">${p.preco_custo.toFixed(2).replace('.', ',')}</td>
       <td style="text-align:right;">${p.preco_venda.toFixed(2).replace('.', ',')}</td>
       <td>${p.categoria}</td>
     </tr>`,
@@ -763,7 +721,6 @@ export function downloadProductsTemplate() {
           <th>código</th>
           <th>nome</th>
           <th>quantidade</th>
-          <th>preço_custo</th>
           <th>preço_venda</th>
           <th>categoria</th>
         </tr>

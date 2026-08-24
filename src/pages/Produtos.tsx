@@ -126,7 +126,7 @@ export default function Produtos() {
       exportProductsToExcel(all)
       toast({
         title: 'Planilha exportada com sucesso!',
-        description: `${all.length} produtos exportados para Excel com valores totais.`,
+        description: `${all.length} produtos exportados para Excel com sucesso.`,
       })
     } catch {
       toast({
@@ -183,7 +183,7 @@ export default function Produtos() {
             onClick={handleExportAll}
             disabled={exportingProducts}
             className="bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 gap-1.5 h-9 text-xs font-medium shadow-2xs"
-            title="Exportar todos os produtos para planilha Excel (.xlsx) com valor total em estoque"
+            title="Exportar todos os produtos para planilha Excel (.xlsx)"
           >
             <Download className="h-4 w-4 text-emerald-600 shrink-0" />
             <span>{exportingProducts ? 'Exportando...' : 'Exportar Planilha'}</span>
