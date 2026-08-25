@@ -59,7 +59,7 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
         const safe = term.replace(/"/g, '')
         const [products, services] = await Promise.all([
           pb.collection('products').getFullList<Product>({
-            filter: `name ~ "${safe}" || sku ~ "${safe}" || category ~ "${safe}"`,
+            filter: `name ~ "${safe}" || sku ~ "${safe}" || barcode ~ "${safe}" || codigo_barras ~ "${safe}" || category ~ "${safe}"`,
             sort: 'name',
             perPage: 50,
           }),

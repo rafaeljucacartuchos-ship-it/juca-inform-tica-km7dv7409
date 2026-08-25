@@ -97,17 +97,29 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
     try {
       let stream: MediaStream
       try {
-        // Tenta câmera traseira em dispositivos móveis
+        // Tenta câmera traseira em dispositivos móveis (com resolução ideal compatível com iOS/Safari)
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } },
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
           audio: false,
         })
       } catch {
-        // Fallback para qualquer câmera disponível
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: false,
-        })
+        try {
+          // Segunda tentativa: apenas facingMode traseiro
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: 'environment' } },
+            audio: false,
+          })
+        } catch {
+          // Fallback final: qualquer câmera disponível
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          })
+        }
       }
       streamRef.current = stream
       if (videoRef.current) {
@@ -120,15 +132,21 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
       const errName = err instanceof Error ? err.name : ''
       if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
         setError(
-          'Permissão de acesso à câmera foi negada. Permita o acesso à câmera nas configurações do seu navegador.',
+          'Permissão de acesso à câmera negada. No iOS/Safari ou Chrome, permita o acesso à câmera nos Ajustes do dispositivo ou na barra de endereços do navegador.',
         )
       } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
         setError('Nenhuma câmera foi encontrada no dispositivo.')
       } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
-        setError('A câmera já está sendo usada por outro aplicativo.')
+        setError(
+          'A câmera já está em uso por outro aplicativo ou aba. Feche outros apps e tente novamente.',
+        )
+      } else if (errName === 'OverconstrainedError') {
+        setError(
+          'A resolução solicitada não é suportada pela câmera deste dispositivo. Tente novamente.',
+        )
       } else {
         setError(
-          'Não foi possível acessar a câmera do dispositivo. Verifique as permissões de vídeo ou se a conexão é segura (HTTPS).',
+          'Não foi possível acessar a câmera. Verifique se a página está em conexão segura (HTTPS) e se as permissões de câmera estão autorizadas.',
         )
       }
     }

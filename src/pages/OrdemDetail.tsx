@@ -365,7 +365,7 @@ export default function OrdemDetail() {
       if (!found) {
         const trimmed = code.trim().replace(/"/g, '')
         const results = await pb.collection('products').getFullList<Product>({
-          filter: `sku = "${trimmed}"`,
+          filter: `barcode = "${trimmed}" || codigo_barras = "${trimmed}" || sku = "${trimmed}"`,
         })
         found = results[0] || null
       }

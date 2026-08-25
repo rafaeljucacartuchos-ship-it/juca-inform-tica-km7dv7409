@@ -276,39 +276,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 4 Cards de Destaque / KPIs */}
-      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          title="Ordens Abertas"
-          value={openCount}
-          icon={Wrench}
-          colorClass="text-blue-600"
-          bgClass="bg-blue-100"
-        />
-        <KpiCard
-          title="O.S Concluídas"
-          value={completedCount}
-          icon={CheckCircle2}
-          colorClass="text-emerald-600"
-          bgClass="bg-emerald-100"
-        />
-        <KpiCard
-          title="Tempo Médio de Reparo"
-          value={avgTime || '—'}
-          icon={Timer}
-          colorClass="text-purple-600"
-          bgClass="bg-purple-100"
-        />
-        <KpiCard
-          title="Faturamento do Período"
-          value={`R$ ${billing.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-          icon={DollarSign}
-          colorClass="text-amber-600"
-          bgClass="bg-amber-100"
-        />
-      </div>
-
-      {/* Seção Clara de Agendamentos: Dia, Semana e Mês */}
+      {/* 1. Agendamentos e Visitas */}
       <Card className="border-indigo-100 bg-gradient-to-br from-indigo-50/40 via-white to-slate-50/30 shadow-xs">
         <CardHeader className="pb-3 border-b border-slate-100">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -487,102 +455,81 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Mini-Cards dos Status de O.S */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {STATUS_CONFIG.map((s) => (
-          <Card key={s.value} className={`border-slate-200/80 shadow-2xs ${s.bg}`}>
-            <CardContent className="p-3.5">
-              <p className={`text-2xl font-bold ${s.color}`}>
-                {orders.filter((o) => o.status === s.value).length}
-              </p>
-              <p className="text-xs text-slate-700 font-bold mt-0.5">{s.label}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <EvolutionCharts
-        data={evolutionData}
-        totalOrders={periodOrderCount}
-        totalRevenue={billing}
-        showRevenue={!isTech}
-      />
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Ordens Recentes */}
-        <Card className="lg:col-span-2 border-slate-200 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-slate-100">
-            <div>
-              <CardTitle className="text-sm font-bold text-slate-900">
-                Ordens de Serviço Recentes
-              </CardTitle>
-              <p className="text-[11px] text-slate-500 font-medium">
-                Últimos atendimentos em andamento ou finalizados
-              </p>
-            </div>
-            <Link
-              to="/ordens"
-              className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700"
-            >
-              Ver todas <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 border-b border-slate-100 text-slate-600 font-bold uppercase tracking-wider">
-                  <tr>
-                    <th className="py-2.5 px-4">Número</th>
-                    <th className="py-2.5 px-4">Título</th>
-                    <th className="py-2.5 px-4">Cliente</th>
-                    <th className="py-2.5 px-4">Técnico</th>
-                    <th className="py-2.5 px-4">Status</th>
-                    <th className="py-2.5 px-4 text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {orders.slice(0, 5).map((o) => (
-                    <tr key={o.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-indigo-600">
-                        <Link to={`/ordens/${o.id}`}>{o.number}</Link>
-                      </td>
-                      <td className="py-3 px-4 font-bold text-slate-800">{o.title}</td>
-                      <td className="py-3 px-4 font-medium text-slate-800">
-                        {o.expand?.customer?.name || 'Cliente'}
-                      </td>
-                      <td className="py-3 px-4 text-slate-600 font-medium">
-                        {o.expand?.technician?.name || '—'}
-                      </td>
-                      <td className="py-3 px-4">
-                        <StatusBadge status={o.status} />
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
-                        R$ {(o.total || 0).toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                  {orders.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">
-                        Nenhuma ordem cadastrada no momento.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Carga dos Técnicos */}
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="pb-3 border-b border-slate-100">
-            <CardTitle className="text-sm font-bold text-slate-900">Carga dos Técnicos</CardTitle>
+      {/* 2. Ordens de Serviço Recentes (Full Width) */}
+      <Card className="border-slate-200 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-slate-100">
+          <div>
+            <CardTitle className="text-sm font-bold text-slate-900">
+              Ordens de Serviço Recentes
+            </CardTitle>
             <p className="text-[11px] text-slate-500 font-medium">
-              Distribuição de OS ativas por profissional
+              Últimos atendimentos em andamento ou finalizados
             </p>
-          </CardHeader>
-          <CardContent className="pt-3 space-y-2.5">
+          </div>
+          <Link
+            to="/ordens"
+            className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700"
+          >
+            Ver todas <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-100 text-slate-600 font-bold uppercase tracking-wider">
+                <tr>
+                  <th className="py-2.5 px-4">Número</th>
+                  <th className="py-2.5 px-4">Título</th>
+                  <th className="py-2.5 px-4">Cliente</th>
+                  <th className="py-2.5 px-4">Técnico</th>
+                  <th className="py-2.5 px-4">Status</th>
+                  <th className="py-2.5 px-4 text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {orders.slice(0, 5).map((o) => (
+                  <tr key={o.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-3 px-4 font-mono font-bold text-indigo-600">
+                      <Link to={`/ordens/${o.id}`}>{o.number}</Link>
+                    </td>
+                    <td className="py-3 px-4 font-bold text-slate-800">{o.title}</td>
+                    <td className="py-3 px-4 font-medium text-slate-800">
+                      {o.expand?.customer?.name || 'Cliente'}
+                    </td>
+                    <td className="py-3 px-4 text-slate-600 font-medium">
+                      {o.expand?.technician?.name || '—'}
+                    </td>
+                    <td className="py-3 px-4">
+                      <StatusBadge status={o.status} />
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
+                      R$ {(o.total || 0).toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+                {orders.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">
+                      Nenhuma ordem cadastrada no momento.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 3. Carga dos Técnicos (Única seção independente full-width) */}
+      <Card className="border-slate-200 shadow-sm">
+        <CardHeader className="pb-3 border-b border-slate-100">
+          <CardTitle className="text-sm font-bold text-slate-900">Carga dos Técnicos</CardTitle>
+          <p className="text-[11px] text-slate-500 font-medium">
+            Distribuição de OS ativas por profissional
+          </p>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {sortedTechnicians.map((t) => {
               const count = orders.filter(
                 (o) => o.technician === t.id && o.status !== 'closed' && o.status !== 'cancelled',
@@ -590,10 +537,10 @@ export default function Dashboard() {
               return (
                 <div
                   key={t.id}
-                  className="flex items-center gap-3 rounded-lg border border-slate-100 p-2.5 bg-slate-50/60 hover:bg-slate-50 transition-colors"
+                  className="flex items-center gap-3 rounded-xl border border-slate-200/90 p-3 bg-white shadow-2xs hover:border-indigo-200 transition-colors"
                 >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 border border-indigo-200">
-                    <UserCheck className="h-4 w-4 text-indigo-700" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 border border-indigo-200">
+                    <UserCheck className="h-4.5 w-4.5 text-indigo-700" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-xs font-bold text-slate-900 truncate">{t.name}</h3>
@@ -602,7 +549,7 @@ export default function Dashboard() {
                     </p>
                   </div>
                   <span
-                    className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${
+                    className={`text-xs font-mono font-bold px-2 py-0.5 rounded shrink-0 ${
                       count > 3
                         ? 'bg-amber-100 text-amber-800'
                         : count > 0
@@ -616,46 +563,70 @@ export default function Dashboard() {
               )
             })}
             {sortedTechnicians.length === 0 && (
-              <p className="text-xs text-slate-400 text-center py-6 font-medium">
+              <p className="text-xs text-slate-400 text-center py-6 font-medium col-span-full">
                 Nenhum técnico cadastrado.
               </p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 4. Resultados Resumidos (KPIs) */}
+      <div className="space-y-3">
+        {/* 4 Cards de Destaque / KPIs */}
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            title="Ordens Abertas"
+            value={openCount}
+            icon={Wrench}
+            colorClass="text-blue-600"
+            bgClass="bg-blue-100"
+          />
+          <KpiCard
+            title="O.S Concluídas"
+            value={completedCount}
+            icon={CheckCircle2}
+            colorClass="text-emerald-600"
+            bgClass="bg-emerald-100"
+          />
+          <KpiCard
+            title="Tempo Médio de Reparo"
+            value={avgTime || '—'}
+            icon={Timer}
+            colorClass="text-purple-600"
+            bgClass="bg-purple-100"
+          />
+          <KpiCard
+            title="Faturamento do Período"
+            value={`R$ ${billing.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+            icon={DollarSign}
+            colorClass="text-amber-600"
+            bgClass="bg-amber-100"
+          />
+        </div>
+
+        {/* 6 Mini-Cards dos Status de O.S */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {STATUS_CONFIG.map((s) => (
+            <Card key={s.value} className={`border-slate-200/80 shadow-2xs ${s.bg}`}>
+              <CardContent className="p-3.5">
+                <p className={`text-2xl font-bold ${s.color}`}>
+                  {orders.filter((o) => o.status === s.value).length}
+                </p>
+                <p className="text-xs text-slate-700 font-bold mt-0.5">{s.label}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
 
-      {!isTech && (
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-bold text-slate-900">Carga dos Técnicos</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {sortedTechnicians.map((t) => {
-                const count = orders.filter(
-                  (o) => o.technician === t.id && o.status !== 'closed' && o.status !== 'cancelled',
-                ).length
-                return (
-                  <div
-                    key={t.id}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 bg-white shadow-xs"
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 border border-slate-200">
-                      <UserCheck className="h-5 w-5 text-indigo-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-xs font-bold text-slate-900 truncate">{t.name}</h3>
-                      <p className="text-[11px] text-slate-500 font-medium">
-                        {count} {count === 1 ? 'ordem ativa' : 'ordens ativas'}
-                      </p>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* 5. Gráficos */}
+      <EvolutionCharts
+        data={evolutionData}
+        totalOrders={periodOrderCount}
+        totalRevenue={billing}
+        showRevenue={!isTech}
+      />
 
       <ExportReportsModal
         open={exportOpen}
