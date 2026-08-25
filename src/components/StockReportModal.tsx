@@ -225,6 +225,7 @@ export function StockReportModal({ open, onOpenChange, products }: StockReportMo
               <tr>
                 <th className="py-2.5 px-3 w-12 text-center">#</th>
                 <th className="py-2.5 px-3">Código (SKU)</th>
+                <th className="py-2.5 px-3">Código de Barras</th>
                 <th className="py-2.5 px-3">Nome do Produto</th>
                 <th className="py-2.5 px-3 text-center">Estoque Atual</th>
                 <th className="py-2.5 px-3 text-right">Preço Custo</th>
@@ -235,6 +236,7 @@ export function StockReportModal({ open, onOpenChange, products }: StockReportMo
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
               {filteredProducts.map((p, idx) => {
+                const barcode = p.barcode || p.codigo_barras || p.sku || '-'
                 const qty = p.stock_quantity ?? 0
                 const cost = p.cost || 0
                 const price = p.price || 0
@@ -245,6 +247,7 @@ export function StockReportModal({ open, onOpenChange, products }: StockReportMo
                   <tr key={p.id} className="hover:bg-slate-50/80">
                     <td className="py-2 px-3 text-center text-slate-400 font-mono">{idx + 1}</td>
                     <td className="py-2 px-3 font-mono text-slate-700">{p.sku || '-'}</td>
+                    <td className="py-2 px-3 font-mono text-slate-600 text-[11px]">{barcode}</td>
                     <td className="py-2 px-3 font-medium text-slate-900">
                       <div>{p.name}</div>
                       {p.category && (
@@ -278,7 +281,7 @@ export function StockReportModal({ open, onOpenChange, products }: StockReportMo
 
               {filteredProducts.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
+                  <td colSpan={9} className="py-8 text-center text-slate-400">
                     Nenhum produto corresponde aos filtros informados.
                   </td>
                 </tr>

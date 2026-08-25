@@ -550,6 +550,7 @@ export function generateProductsReport(
   const tableRows = products
     .map((p, idx) => {
       const sku = p.sku || '-'
+      const barcode = p.barcode || p.codigo_barras || p.sku || '-'
       const name = p.name || ''
       const qty = p.stock_quantity ?? 0
       const cost = p.cost || 0
@@ -565,6 +566,7 @@ export function generateProductsReport(
       <tr>
         <td style="text-align:center; color:#64748b;">${idx + 1}</td>
         <td style="mso-number-format:'\\@'; text-align:left; font-family:monospace;">${sku}</td>
+        <td style="mso-number-format:'\\@'; text-align:left; font-family:monospace;">${barcode}</td>
         <td style="text-align:left; font-weight:600;">${escapeHtml(name)}</td>
         <td style="text-align:center; font-weight:bold; background-color:#f8fafc; mso-number-format:'#,##0';">${qty}</td>
         <td style="text-align:center; color:#94a3b8;">[ &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ]</td>
@@ -620,14 +622,15 @@ export function generateProductsReport(
       <thead>
         <tr>
           <th style="width: 40px; text-align: center;">Item</th>
-          <th style="width: 110px;">Código (SKU)</th>
-          <th style="width: 280px;">Nome do Produto</th>
+          <th style="width: 100px;">Código (SKU)</th>
+          <th style="width: 120px;">Código de Barras</th>
+          <th style="width: 260px;">Nome do Produto</th>
           <th style="width: 90px; text-align: center;">Estoque Atual</th>
           <th style="width: 90px; text-align: center;">Contagem Física</th>
-          <th style="width: 110px; text-align: right;">Preço Custo</th>
-          <th style="width: 110px; text-align: right;">Preço Venda</th>
-          <th style="width: 130px; text-align: right;">Total Custo</th>
-          <th style="width: 140px; text-align: right;">Total Venda</th>
+          <th style="width: 100px; text-align: right;">Preço Custo</th>
+          <th style="width: 100px; text-align: right;">Preço Venda</th>
+          <th style="width: 120px; text-align: right;">Total Custo</th>
+          <th style="width: 130px; text-align: right;">Total Venda</th>
         </tr>
       </thead>
       <tbody>
@@ -635,7 +638,7 @@ export function generateProductsReport(
       </tbody>
       <tfoot>
         <tr class="totals">
-          <td colspan="3" style="text-align: right; font-weight: bold;">TOTALIZADORES:</td>
+          <td colspan="4" style="text-align: right; font-weight: bold;">TOTALIZADORES:</td>
           <td style="text-align: center; font-weight: bold;">${totalItens}</td>
           <td style="text-align: center;">—</td>
           <td style="text-align: right;">—</td>

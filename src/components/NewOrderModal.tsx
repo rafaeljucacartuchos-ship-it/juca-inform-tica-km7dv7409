@@ -24,6 +24,7 @@ import { getTechnicians } from '@/services/users'
 import { getEquipmentByCustomer } from '@/services/equipment'
 import { createAppointment } from '@/services/appointments'
 import { NewEquipmentModal } from '@/components/NewEquipmentModal'
+import { NewCustomerModal } from '@/components/NewCustomerModal'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
@@ -39,6 +40,7 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
   const [customers, setCustomers] = useState<Customer[]>([])
   const [technicians, setTechnicians] = useState<User[]>([])
   const [equipment, setEquipment] = useState<Equipment[]>([])
+  const [customerModalOpen, setCustomerModalOpen] = useState(false)
   const [equipmentModalOpen, setEquipmentModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -66,6 +68,18 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
         .catch(() => {})
     }
   }, [open])
+
+  const handleCustomerCreated = async (newCust?: Customer) => {
+    try {
+      const data = await getCustomers()
+      setCustomers(data)
+      if (newCust?.id) {
+        setFormData((prev) => ({ ...prev, customer: newCust.id, equipment_ref: '' }))
+      }
+    } catch {
+      /* ignored */
+    }
+  }
 
   useEffect(() => {
     if (formData.customer) {
@@ -186,24 +200,49 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
 
           <form onSubmit={handleSubmit} className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-700">Cliente *</Label>
-              <Select
-                value={formData.customer}
-                onValueChange={(val) =>
-                  setFormData({ ...formData, customer: val, equipment_ref: '' })
-                }
-              >
-                <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder="Selecione o cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((c) => (
-                    <SelectItem key={c.id} value={c.id} className="text-xs">
-                      {c.name} {c.phone ? `(${c.phone})` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-slate-700">Cliente *</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCustomerModalOpen(true)}
+                  className="h-6 text-[11px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-1.5 gap-1"
+                  title="Cadastrar novo cliente rapidamente"
+                >
+                  <Plus className="h-3 w-3" /> Novo Cliente
+                </Button>
+              </div>
+              <div className="flex gap-1.5">
+                <Select
+                  value={formData.customer}
+                  onValueChange={(val) =>
+                    setFormData({ ...formData, customer: val, equipment_ref: '' })
+                  }
+                >
+                  <SelectTrigger className="h-9 text-xs flex-1">
+                    <SelectValue placeholder="Selecione o cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((c) => (
+                      <SelectItem key={c.id} value={c.id} className="text-xs">
+                        {c.name} {c.phone ? `(${c.phone})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCustomerModalOpen(true)}
+                  className="h-9 px-2.5 shrink-0 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-medium"
+                  title="Cadastrar Novo Cliente"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Novo
+                </Button>
+              </div>
               {errors.customer && <p className="text-[11px] text-red-500">{errors.customer}</p>}
             </div>
 
@@ -376,6 +415,12 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
           </form>
         </DialogContent>
       </Dialog>
+
+      <NewCustomerModal
+        open={customerModalOpen}
+        onOpenChange={setCustomerModalOpen}
+        onCreated={handleCustomerCreated}
+      />
 
       <NewEquipmentModal
         open={equipmentModalOpen}

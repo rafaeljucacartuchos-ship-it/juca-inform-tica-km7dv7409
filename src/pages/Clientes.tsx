@@ -1,20 +1,24 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Search, Eye, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Search, Eye, Pencil, Trash2, Download, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Customer } from '@/types'
 import { getCustomers, deleteCustomer } from '@/services/customers'
 import { NewCustomerModal } from '@/components/NewCustomerModal'
+import { ImportClientsModal } from '@/components/ImportClientsModal'
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
+import { exportClientsToExcel } from '@/lib/client-excel'
 
 export default function Clientes() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
+  const [importModalOpen, setImportModalOpen] = useState(false)
+  const [exportingClients, setExportingClients] = useState(false)
   const [editCustomer, setEditCustomer] = useState<Customer | null>(null)
   const [deleteCustomerItem, setDeleteCustomerItem] = useState<Customer | null>(null)
   const { toast } = useToast()
@@ -45,22 +49,72 @@ export default function Clientes() {
     }
   }
 
+  const handleExportAll = async () => {
+    setExportingClients(true)
+    try {
+      const all = await getCustomers('')
+      exportClientsToExcel(all)
+      toast({
+        title: 'Planilha exportada com sucesso!',
+        description: `${all.length} clientes exportados para Excel com sucesso.`,
+      })
+    } catch {
+      toast({
+        title: 'Erro ao exportar clientes',
+        variant: 'destructive',
+      })
+    } finally {
+      setExportingClients(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-2 border-b border-slate-200">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Base de Clientes</h1>
           <p className="text-xs sm:text-sm text-slate-500">
-            Gerencie os dados de contato e histórico de chamados dos clientes.
+            Gerencie os dados de contato, importação, exportação e histórico de chamados dos
+            clientes.
           </p>
         </div>
-        <Button
-          onClick={() => setModalOpen(true)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 h-9 text-xs sm:text-sm"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Novo Cliente</span>
-        </Button>
+
+        {/* Grupo de Ações no Topo */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Botão: Importar Planilha */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setImportModalOpen(true)}
+            className="bg-white border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800 gap-1.5 h-9 text-xs font-medium shadow-2xs"
+            title="Importar e atualizar clientes em lote via arquivo .xlsx ou .csv"
+          >
+            <Upload className="h-4 w-4 text-amber-600 shrink-0" />
+            <span>Importar Planilha</span>
+          </Button>
+
+          {/* Botão: Exportar Planilha */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportAll}
+            disabled={exportingClients}
+            className="bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 gap-1.5 h-9 text-xs font-medium shadow-2xs"
+            title="Exportar todos os clientes para planilha Excel (.xlsx)"
+          >
+            <Download className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span>{exportingClients ? 'Exportando...' : 'Exportar Planilha'}</span>
+          </Button>
+
+          {/* Botão: Novo Cliente */}
+          <Button
+            onClick={() => setModalOpen(true)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 h-9 text-xs sm:text-sm font-medium shadow-xs"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Novo Cliente</span>
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
@@ -84,6 +138,7 @@ export default function Clientes() {
                   <th className="py-3 px-4">Nome</th>
                   <th className="py-3 px-4">Telefone</th>
                   <th className="py-3 px-4">E-mail</th>
+                  <th className="py-3 px-4">CPF / CNPJ</th>
                   <th className="py-3 px-4">Cidade / UF</th>
                   <th className="py-3 px-4 text-right">Ações</th>
                 </tr>
@@ -94,8 +149,9 @@ export default function Clientes() {
                     <td className="py-3 px-4 font-bold text-slate-900">{c.name}</td>
                     <td className="py-3 px-4 font-mono text-slate-600">{c.phone}</td>
                     <td className="py-3 px-4 text-slate-600">{c.email || '-'}</td>
+                    <td className="py-3 px-4 font-mono text-slate-600">{c.cpf_cnpj || '-'}</td>
                     <td className="py-3 px-4 text-slate-600">
-                      {c.city ? `${c.city} / ${c.state || ''}` : '-'}
+                      {c.city ? `${c.city}${c.state ? ' / ' + c.state : ''}` : '-'}
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -130,7 +186,7 @@ export default function Clientes() {
                 ))}
                 {customers.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-400">
+                    <td colSpan={6} className="py-8 text-center text-slate-400">
                       Nenhum cliente encontrado.
                     </td>
                   </tr>
@@ -147,6 +203,11 @@ export default function Clientes() {
         onOpenChange={(o) => !o && setEditCustomer(null)}
         onCreated={loadData}
         editCustomer={editCustomer}
+      />
+      <ImportClientsModal
+        open={importModalOpen}
+        onOpenChange={setImportModalOpen}
+        onSuccess={loadData}
       />
       <ConfirmDeleteDialog
         open={!!deleteCustomerItem}

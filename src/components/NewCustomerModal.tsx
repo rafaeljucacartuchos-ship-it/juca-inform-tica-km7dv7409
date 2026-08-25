@@ -18,7 +18,7 @@ import { Customer } from '@/types'
 interface NewCustomerModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreated?: () => void
+  onCreated?: (customer?: Customer) => void
   editCustomer?: Customer | null
 }
 
@@ -26,6 +26,7 @@ const emptyForm = {
   name: '',
   email: '',
   phone: '',
+  cpf_cnpj: '',
   street: '',
   number: '',
   city: '',
@@ -54,6 +55,7 @@ export function NewCustomerModal({
           name: editCustomer.name || '',
           email: editCustomer.email || '',
           phone: editCustomer.phone || '',
+          cpf_cnpj: editCustomer.cpf_cnpj || '',
           street: editCustomer.street || '',
           number: editCustomer.number || '',
           city: editCustomer.city || '',
@@ -79,15 +81,16 @@ export function NewCustomerModal({
     }
     setLoading(true)
     try {
+      let saved: Customer | undefined
       if (isEdit && editCustomer) {
-        await updateCustomer(editCustomer.id, formData)
+        saved = await updateCustomer(editCustomer.id, formData)
         toast({ title: 'Cliente atualizado!', description: formData.name })
       } else {
-        await createCustomer(formData)
+        saved = await createCustomer(formData)
         toast({ title: 'Cliente cadastrado!', description: formData.name })
       }
       onOpenChange(false)
-      if (onCreated) onCreated()
+      if (onCreated) onCreated(saved)
     } catch (err) {
       setErrors(extractFieldErrors(err))
       toast({
@@ -133,16 +136,25 @@ export function NewCustomerModal({
               {errors.phone && <p className="text-[11px] text-red-500">{errors.phone}</p>}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">E-mail</Label>
+              <Label className="text-xs font-semibold text-slate-700">CPF / CNPJ</Label>
               <Input
-                type="email"
-                placeholder="cliente@email.com"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="000.000.000-00 ou CNPJ"
+                value={formData.cpf_cnpj}
+                onChange={(e) => setFormData({ ...formData, cpf_cnpj: e.target.value })}
                 className="h-9 text-xs"
               />
-              {errors.email && <p className="text-[11px] text-red-500">{errors.email}</p>}
             </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold text-slate-700">E-mail</Label>
+            <Input
+              type="email"
+              placeholder="cliente@email.com"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="h-9 text-xs"
+            />
+            {errors.email && <p className="text-[11px] text-red-500">{errors.email}</p>}
           </div>
           <div className="grid grid-cols-3 gap-2">
             <div className="col-span-2 space-y-1">

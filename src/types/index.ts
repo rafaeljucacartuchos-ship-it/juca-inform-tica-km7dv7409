@@ -49,6 +49,7 @@ export interface Customer {
   name: string
   email?: string
   phone: string
+  cpf_cnpj?: string
   street?: string
   number?: string
   city?: string
@@ -211,6 +212,8 @@ export interface Product {
   name: string
   description?: string
   sku?: string
+  barcode?: string
+  codigo_barras?: string
   price?: number
   cost?: number
   category?: string
