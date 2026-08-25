@@ -12,6 +12,8 @@ import {
   CircleDollarSign,
   AlertCircle,
   Power,
+  PowerOff,
+  CheckCircle2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -440,43 +442,59 @@ export default function Produtos() {
                           {p.active !== false ? 'Ativo' : 'Inativo'}
                         </Badge>
                       </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {/* Botão de Ativar / Inativar */}
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* Botão de Inativar / Ativar */}
                           <Button
+                            type="button"
                             variant="outline"
                             size="sm"
-                            className={`h-7 px-2 text-xs font-bold gap-1 transition-colors ${
+                            className={`h-7 px-2 text-[11px] font-semibold gap-1 transition-colors border shadow-2xs ${
                               p.active !== false
-                                ? 'border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800'
-                                : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800'
+                                ? 'border-amber-200 bg-amber-50/60 text-amber-800 hover:bg-amber-100 hover:text-amber-900'
+                                : 'border-emerald-200 bg-emerald-50/60 text-emerald-800 hover:bg-emerald-100 hover:text-emerald-900'
                             }`}
                             onClick={() => handleToggleActive(p)}
                             title={
-                              p.active !== false ? 'Inativar este produto' : 'Ativar este produto'
+                              p.active !== false
+                                ? 'Inativar produto (pausar vendas/uso)'
+                                : 'Ativar produto'
                             }
                           >
-                            <Power className="h-3 w-3" />
-                            <span>{p.active !== false ? 'Inativar' : 'Ativar'}</span>
+                            {p.active !== false ? (
+                              <>
+                                <PowerOff className="h-3 w-3 text-amber-600" />
+                                <span>Inativar</span>
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                <span>Ativar</span>
+                              </>
+                            )}
                           </Button>
 
-                          {/* Botão de Editar */}
+                          {/* Botão de Editar (Ícone Lápis) */}
                           <Button
-                            variant="ghost"
+                            type="button"
+                            variant="outline"
                             size="sm"
-                            className="h-7 px-2 text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 gap-1"
+                            className="h-7 px-2 text-[11px] font-semibold text-slate-700 bg-white border-slate-200 hover:bg-slate-100 hover:text-slate-900 gap-1 shadow-2xs"
                             onClick={() => setEditProduct(p)}
+                            title="Editar informações do produto"
                           >
-                            <Pencil className="h-3.5 w-3.5" /> Editar
+                            <Pencil className="h-3 w-3 text-indigo-600" />
+                            <span>Editar</span>
                           </Button>
 
-                          {/* Botão de Excluir */}
+                          {/* Botão de Excluir (Ícone Lixeira com confirmação) */}
                           <Button
-                            variant="ghost"
+                            type="button"
+                            variant="outline"
                             size="sm"
-                            className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="h-7 w-7 p-0 border-rose-200 bg-white text-rose-600 hover:text-rose-700 hover:bg-rose-50 shadow-2xs"
                             onClick={() => setDeleteProductItem(p)}
-                            title="Excluir produto"
+                            title="Excluir produto definitivamente"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
