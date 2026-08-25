@@ -1,7 +1,7 @@
 import pb from '@/lib/pocketbase/client'
 import { Customer } from '@/types'
 import { downloadFile } from '@/lib/export-utils'
-import { parseCSVText, parseHTMLorXMLSpreadsheet } from '@/lib/product-excel'
+import { readSpreadsheetMatrix, normalizeHeader } from '@/lib/product-excel'
 
 export interface ParsedCustomerRow {
   nome: string
@@ -24,14 +24,6 @@ export interface ImportClientsSummary {
   totalProcessed: number
 }
 
-function normalizeHeader(str: string): string {
-  return str
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // remove acentos
-    .replace(/[^a-z0-9]/g, '') // remove pontuação e espaços
-}
-
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
@@ -46,34 +38,7 @@ function escapeHtml(str: string): string {
  * Colunas esperadas: nome, telefone, email, cpf/cnpj, endereco, cidade, estado
  */
 export async function parseClientsFile(file: File): Promise<ParsedCustomerRow[]> {
-  const fileName = file.name.toLowerCase()
-  const textContent = await file.text()
-  let rawMatrix: string[][] = []
-
-  if (
-    textContent.includes('<table') ||
-    textContent.includes('<html') ||
-    textContent.includes('<?xml') ||
-    textContent.includes('<Workbook')
-  ) {
-    rawMatrix = parseHTMLorXMLSpreadsheet(textContent)
-  } else if (fileName.endsWith('.csv') || fileName.endsWith('.txt') || fileName.endsWith('.tsv')) {
-    rawMatrix = parseCSVText(textContent)
-  } else {
-    const csvAttempt = parseCSVText(textContent)
-    if (csvAttempt.length > 1 && csvAttempt[0].length >= 2) {
-      rawMatrix = csvAttempt
-    } else {
-      rawMatrix = parseHTMLorXMLSpreadsheet(textContent)
-    }
-  }
-
-  if (rawMatrix.length === 0) {
-    const lines = textContent.split(/\r\n|\n/).filter((l) => l.trim().length > 0)
-    if (lines.length > 0) {
-      rawMatrix = parseCSVText(textContent)
-    }
-  }
+  const rawMatrix = await readSpreadsheetMatrix(file)
 
   if (rawMatrix.length === 0) {
     throw new Error(

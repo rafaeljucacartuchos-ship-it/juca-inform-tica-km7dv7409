@@ -1,6 +1,7 @@
 import pb from '@/lib/pocketbase/client'
 import { Product } from '@/types'
 import { downloadFile } from '@/lib/export-utils'
+import * as XLSX from 'xlsx'
 
 export interface ParsedProductRow {
   codigo?: string // SKU
@@ -144,8 +145,8 @@ export function parseHTMLorXMLSpreadsheet(content: string): string[][] {
 /**
  * Normaliza strings para comparação de cabeçalhos
  */
-function normalizeHeader(str: string): string {
-  return str
+export function normalizeHeader(str: string): string {
+  return String(str || '')
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '') // remove acentos
@@ -153,50 +154,78 @@ function normalizeHeader(str: string): string {
 }
 
 /**
+ * Lê qualquer arquivo de planilha (XLSX, XLS, CSV, TSV, XML) utilizando a biblioteca XLSX
+ * com fallback transparente para texto/CSV/HTML em caso de erro.
+ */
+export async function readSpreadsheetMatrix(file: File): Promise<string[][]> {
+  // 1. Tenta ler via SheetJS (XLSX / XLS / CSV / ODS)
+  try {
+    const arrayBuffer = await file.arrayBuffer()
+    const workbook = XLSX.read(arrayBuffer, {
+      type: 'array',
+      raw: false,
+      cellDates: false,
+    })
+
+    const firstSheetName = workbook.SheetNames[0]
+    if (firstSheetName) {
+      const worksheet = workbook.Sheets[firstSheetName]
+      if (worksheet) {
+        // Converte para matriz de strings 2D
+        const rows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
+          header: 1,
+          raw: false,
+          defval: '',
+        })
+
+        const matrix: string[][] = rows
+          .map((row) =>
+            Array.isArray(row)
+              ? row.map((cell) => (cell === null || cell === undefined ? '' : String(cell).trim()))
+              : [],
+          )
+          .filter((row) => row.some((cell) => cell.length > 0))
+
+        if (matrix.length > 0) {
+          return matrix
+        }
+      }
+    }
+  } catch (xlsxErr) {
+    console.warn('Tentativa com SheetJS falhou, tentando fallback por texto...', xlsxErr)
+  }
+
+  // 2. Fallback por leitura de texto (CSV, TSV, HTML/XML Spreadsheet)
+  try {
+    const textContent = await file.text()
+    if (
+      textContent.includes('<table') ||
+      textContent.includes('<html') ||
+      textContent.includes('<?xml') ||
+      textContent.includes('<Workbook')
+    ) {
+      const xmlRows = parseHTMLorXMLSpreadsheet(textContent)
+      if (xmlRows.length > 0) return xmlRows
+    }
+
+    const csvRows = parseCSVText(textContent)
+    if (csvRows.length > 0) return csvRows
+  } catch (textErr) {
+    console.warn('Tentativa com texto/CSV também falhou:', textErr)
+  }
+
+  return []
+}
+
+/**
  * Lê o arquivo (.xlsx, .xls ou .csv) e devolve as linhas estruturadas e validadas
  */
 export async function parseProductsFile(file: File): Promise<ParsedProductRow[]> {
-  const fileName = file.name.toLowerCase()
-
-  // Leitura como texto para CSV, TSV ou XML/HTML Spreadsheets (.xls / .csv)
-  // Para XLSX com PK zip header, se for arquivo binário puro e não tiver JSZip/xlsx embutido,
-  // tentamos ler como texto para casos XML ou emitimos erro amigável se binário compactado.
-  const textContent = await file.text()
-  let rawMatrix: string[][] = []
-
-  if (
-    textContent.includes('<table') ||
-    textContent.includes('<html') ||
-    textContent.includes('<?xml') ||
-    textContent.includes('<Workbook')
-  ) {
-    rawMatrix = parseHTMLorXMLSpreadsheet(textContent)
-  } else if (fileName.endsWith('.csv') || fileName.endsWith('.txt') || fileName.endsWith('.tsv')) {
-    rawMatrix = parseCSVText(textContent)
-  } else {
-    // Tenta primeiro como CSV/texto separado por delimitador
-    const csvAttempt = parseCSVText(textContent)
-    if (csvAttempt.length > 1 && csvAttempt[0].length >= 2) {
-      rawMatrix = csvAttempt
-    } else {
-      // Se for formato XML/HTML
-      rawMatrix = parseHTMLorXMLSpreadsheet(textContent)
-    }
-  }
-
-  // Se ainda não conseguiu (por exemplo, se for XLSX binário compactado zip puro),
-  // como não temos biblioteca pesada externa instalada, analisamos o stream procurando strings XML internas se presentes
-  if (rawMatrix.length === 0) {
-    // Tenta ler strings de texto extraíveis
-    const lines = textContent.split(/\r\n|\n/).filter((l) => l.trim().length > 0)
-    if (lines.length > 0) {
-      rawMatrix = parseCSVText(textContent)
-    }
-  }
+  const rawMatrix = await readSpreadsheetMatrix(file)
 
   if (rawMatrix.length === 0) {
     throw new Error(
-      'Não foi possível extrair dados da planilha. Certifique-se de salvar em formato .CSV ou .XLSX compatível com texto/tabela.',
+      'Não foi possível extrair dados da planilha. Certifique-se de salvar em formato .XLSX, .XLS ou .CSV válido.',
     )
   }
 
@@ -226,11 +255,17 @@ export async function parseProductsFile(file: File): Promise<ParsedProductRow[]>
         norm === 'codigodebarras' ||
         norm === 'codigobarras' ||
         norm === 'codbarras' ||
+        norm === 'codigobarra' ||
+        norm === 'codbarra' ||
         norm === 'barcode' ||
         norm === 'ean' ||
         norm === 'gtin' ||
         norm === 'ean13' ||
-        norm === 'barras'
+        norm === 'ean8' ||
+        norm === 'upc' ||
+        norm === 'barras' ||
+        norm === 'barcodenumber' ||
+        norm === 'codigoean'
       ) {
         colIndices.codigoBarras = colIdx
       } else if (
@@ -239,42 +274,51 @@ export async function parseProductsFile(file: File): Promise<ParsedProductRow[]>
         norm === 'sku' ||
         norm === 'code' ||
         norm === 'codigodoproduto' ||
-        norm === 'codproduto'
+        norm === 'codproduto' ||
+        norm === 'referencia' ||
+        norm === 'ref'
       ) {
         colIndices.codigo = colIdx
         hasCodigo = true
       } else if (
-        norm === 'nome' ||
         norm === 'produto' ||
-        norm === 'descricao' ||
+        norm === 'nome' ||
         norm === 'nomeproduto' ||
         norm === 'nomedoproduto' ||
         norm === 'item' ||
-        norm === 'titulo'
+        norm === 'titulo' ||
+        norm === 'descricao' ||
+        norm === 'descricaodoproduto' ||
+        norm === 'descricaoproduto'
       ) {
         // Se ainda não achou nome ou achou nome específico
-        if (colIndices.nome === -1 || norm.includes('nome') || norm === 'produto') {
+        if (colIndices.nome === -1 || norm === 'produto' || norm.includes('nome')) {
           colIndices.nome = colIdx
         }
         hasNome = true
       } else if (
+        norm === 'estoque' ||
         norm === 'quantidade' ||
         norm === 'qtd' ||
         norm === 'quant' ||
-        norm === 'estoque' ||
         norm === 'quantidadeemestoque' ||
         norm === 'qtdestoque' ||
-        norm === 'saldo'
+        norm === 'saldo' ||
+        norm === 'saldoestoque' ||
+        norm === 'estoqueatual'
       ) {
         colIndices.quantidade = colIdx
       } else if (
-        norm === 'precovenda' ||
         norm === 'preco' ||
+        norm === 'precodevenda' ||
+        norm === 'precovenda' ||
         norm === 'valor' ||
         norm === 'valordevenda' ||
+        norm === 'valorvenda' ||
         norm === 'precounitario' ||
-        norm === 'precodevenda' ||
-        norm === 'venda'
+        norm === 'unitario' ||
+        norm === 'venda' ||
+        norm === 'pvenda'
       ) {
         colIndices.precoVenda = colIdx
         hasPreco = true
@@ -282,7 +326,8 @@ export async function parseProductsFile(file: File): Promise<ParsedProductRow[]>
         norm === 'categoria' ||
         norm === 'grupo' ||
         norm === 'tipo' ||
-        norm === 'departamento'
+        norm === 'departamento' ||
+        norm === 'setor'
       ) {
         colIndices.categoria = colIdx
       }
@@ -323,23 +368,40 @@ export async function parseProductsFile(file: File): Promise<ParsedProductRow[]>
     const row = rawMatrix[i]
     if (!row || row.length === 0 || row.every((cell) => !cell.trim())) continue
 
-    const codigo = colIndices.codigo >= 0 ? (row[colIndices.codigo] || '').trim() : ''
-    const codigoBarras =
-      colIndices.codigoBarras >= 0 ? (row[colIndices.codigoBarras] || '').trim() : ''
-    const nome = colIndices.nome >= 0 ? (row[colIndices.nome] || '').trim() : ''
+    const rawCode = colIndices.codigo >= 0 ? String(row[colIndices.codigo] ?? '').trim() : ''
+    const rawBarcode =
+      colIndices.codigoBarras >= 0 ? String(row[colIndices.codigoBarras] ?? '').trim() : ''
+    const rawNome = colIndices.nome >= 0 ? String(row[colIndices.nome] ?? '').trim() : ''
     const rawQtd = colIndices.quantidade >= 0 ? row[colIndices.quantidade] : '0'
     const rawVenda = colIndices.precoVenda >= 0 ? row[colIndices.precoVenda] : '0'
-    const categoria = colIndices.categoria >= 0 ? (row[colIndices.categoria] || '').trim() : ''
-    const descricao = colIndices.descricao >= 0 ? (row[colIndices.descricao] || '').trim() : ''
+    const categoria =
+      colIndices.categoria >= 0 ? String(row[colIndices.categoria] ?? '').trim() : ''
+    // Descrição só se for diferente da coluna usada para o nome
+    const descricao =
+      colIndices.descricao >= 0 && colIndices.descricao !== colIndices.nome
+        ? String(row[colIndices.descricao] ?? '').trim()
+        : ''
 
     const erros: string[] = []
 
-    if (!nome && !codigo && !codigoBarras) {
+    if (!rawNome && !rawCode && !rawBarcode) {
       // Linha vazia ou irrelevante
       continue
     }
 
-    if (!nome) {
+    const codigo = rawCode
+    let codigoBarras = rawBarcode
+
+    // Se o código de barras veio vazio mas a coluna código tem 8 a 14 dígitos numéricos puros (ex: EAN / GTIN)
+    if (!codigoBarras && codigo && /^\d{8,14}$/.test(codigo)) {
+      codigoBarras = codigo
+    }
+
+    const nome =
+      rawNome ||
+      (codigo ? `Produto ${codigo}` : codigoBarras ? `Produto ${codigoBarras}` : 'Sem Nome')
+
+    if (!rawNome) {
       erros.push('Nome do produto é obrigatório.')
     }
 
@@ -356,9 +418,7 @@ export async function parseProductsFile(file: File): Promise<ParsedProductRow[]>
     parsedRows.push({
       codigo: codigo || undefined,
       codigoBarras: codigoBarras || undefined,
-      nome:
-        nome ||
-        (codigo ? `Produto ${codigo}` : codigoBarras ? `Produto ${codigoBarras}` : 'Sem Nome'),
+      nome,
       quantidadeEstoque,
       precoVenda,
       categoria: categoria || undefined,
