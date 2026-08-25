@@ -11,21 +11,18 @@ import {
   Layers,
   CircleDollarSign,
   AlertCircle,
-  Power,
   PowerOff,
   CheckCircle2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Product } from '@/types'
 import { getProducts, deleteProduct, toggleProductActive } from '@/services/products'
 import { NewProductModal } from '@/components/NewProductModal'
 import { ImportProductsModal } from '@/components/ImportProductsModal'
 import { StockReportModal } from '@/components/StockReportModal'
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
-import { getFileUrl } from '@/lib/pocketbase/files'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import { exportProductsToExcel } from '@/lib/product-excel'
@@ -354,15 +351,11 @@ export default function Produtos() {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-100/80 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider">
                 <tr>
-                  <th className="py-3 px-4">Foto</th>
+                  <th className="py-3 px-4">Código (SKU)</th>
                   <th className="py-3 px-4">Nome</th>
-                  <th className="py-3 px-4">SKU / Código</th>
-                  <th className="py-3 px-4">Cód. Barras</th>
-                  <th className="py-3 px-4">Categoria</th>
-                  <th className="py-3 px-4">Custo</th>
-                  <th className="py-3 px-4">Preço</th>
-                  <th className="py-3 px-4">Estoque</th>
-                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Quantidade (Estoque)</th>
+                  <th className="py-3 px-4">Preço de Venda</th>
+                  <th className="py-3 px-4">Código de Barras</th>
                   <th className="py-3 px-4 text-right">Ações</th>
                 </tr>
               </thead>
@@ -377,24 +370,8 @@ export default function Produtos() {
                         isInactive ? 'bg-slate-50/50 opacity-75' : ''
                       }`}
                     >
-                      <td className="py-3 px-4">
-                        {p.photo_file ? (
-                          <img
-                            src={getFileUrl(p.id, p.photo_file, 'products', '100x100')}
-                            alt={p.name}
-                            className="h-10 w-10 rounded-md object-cover border border-slate-200 shadow-2xs"
-                          />
-                        ) : p.photo ? (
-                          <img
-                            src={p.photo}
-                            alt={p.name}
-                            className="h-10 w-10 rounded-md object-cover border border-slate-200 shadow-2xs"
-                          />
-                        ) : (
-                          <div className="h-10 w-10 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center">
-                            <Package className="h-4 w-4 text-slate-400" />
-                          </div>
-                        )}
+                      <td className="py-3 px-4 font-mono font-bold text-slate-700">
+                        {p.sku || '-'}
                       </td>
                       <td className="py-3 px-4">
                         <span className="font-bold text-slate-900 block">{p.name}</span>
@@ -403,19 +380,11 @@ export default function Produtos() {
                             <AlertCircle className="h-2.5 w-2.5" /> Sem estoque
                           </span>
                         )}
-                      </td>
-                      <td className="py-3 px-4 font-mono font-bold text-slate-700">
-                        {p.sku || '-'}
-                      </td>
-                      <td className="py-3 px-4 font-mono text-slate-600 text-[11px] font-medium">
-                        {p.barcode || p.codigo_barras || '-'}
-                      </td>
-                      <td className="py-3 px-4 text-slate-700 font-medium">{p.category || '-'}</td>
-                      <td className="py-3 px-4 font-mono text-slate-600 font-medium">
-                        R$ {(p.cost || 0).toFixed(2)}
-                      </td>
-                      <td className="py-3 px-4 font-mono font-bold text-slate-900">
-                        R$ {(p.price || 0).toFixed(2)}
+                        {isInactive && (
+                          <span className="inline-flex items-center text-[10px] font-medium text-slate-500 mt-0.5">
+                            (Inativo)
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-4">
                         <span
@@ -430,20 +399,27 @@ export default function Produtos() {
                           {p.stock_quantity ?? 0}
                         </span>
                       </td>
-                      <td className="py-3 px-4">
-                        <Badge
-                          variant={p.active !== false ? 'default' : 'secondary'}
-                          className={`text-[10px] font-bold ${
-                            p.active !== false
-                              ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                              : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                          }`}
-                        >
-                          {p.active !== false ? 'Ativo' : 'Inativo'}
-                        </Badge>
+                      <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                        R$ {(p.price || 0).toFixed(2)}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-slate-600 text-[11px] font-medium">
+                        {p.barcode || p.codigo_barras || '-'}
                       </td>
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Botão de Editar */}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-[11px] font-semibold text-slate-700 bg-white border-slate-200 hover:bg-slate-100 hover:text-slate-900 gap-1 shadow-2xs"
+                            onClick={() => setEditProduct(p)}
+                            title="Editar informações do produto"
+                          >
+                            <Pencil className="h-3 w-3 text-indigo-600" />
+                            <span>Editar</span>
+                          </Button>
+
                           {/* Botão de Inativar / Ativar */}
                           <Button
                             type="button"
@@ -474,20 +450,7 @@ export default function Produtos() {
                             )}
                           </Button>
 
-                          {/* Botão de Editar (Ícone Lápis) */}
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-2 text-[11px] font-semibold text-slate-700 bg-white border-slate-200 hover:bg-slate-100 hover:text-slate-900 gap-1 shadow-2xs"
-                            onClick={() => setEditProduct(p)}
-                            title="Editar informações do produto"
-                          >
-                            <Pencil className="h-3 w-3 text-indigo-600" />
-                            <span>Editar</span>
-                          </Button>
-
-                          {/* Botão de Excluir (Ícone Lixeira com confirmação) */}
+                          {/* Botão de Excluir */}
                           <Button
                             type="button"
                             variant="outline"
@@ -505,7 +468,7 @@ export default function Produtos() {
                 })}
                 {filteredProducts.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="py-10 text-center text-slate-400 font-medium">
+                    <td colSpan={6} className="py-10 text-center text-slate-400 font-medium">
                       Nenhum produto encontrado com os filtros selecionados.
                     </td>
                   </tr>

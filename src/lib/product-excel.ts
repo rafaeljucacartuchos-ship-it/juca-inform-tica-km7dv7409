@@ -506,10 +506,10 @@ export function exportProductsToExcel(products: Product[], fileName = 'produtos_
       return `
       <tr>
         <td style="mso-number-format:'\\@'; text-align:left;">${sku}</td>
-        <td style="mso-number-format:'\\@'; text-align:left; font-family:monospace;">${barcode}</td>
         <td style="text-align:left; font-weight:500;">${escapeHtml(name)}</td>
         <td style="text-align:center; mso-number-format:'#,##0';">${qty}</td>
         <td style="text-align:right; font-weight:bold; mso-number-format:'R$ #,##0.00';">R$ ${price.toFixed(2).replace('.', ',')}</td>
+        <td style="mso-number-format:'\\@'; text-align:left; font-family:monospace;">${barcode}</td>
         <td style="text-align:right; font-weight:bold; color:#047857; mso-number-format:'R$ #,##0.00';">R$ ${totalVenda.toFixed(2).replace('.', ',')}</td>
       </tr>`
     })
@@ -555,10 +555,10 @@ export function exportProductsToExcel(products: Product[], fileName = 'produtos_
       <thead>
         <tr>
           <th style="width: 120px;">Código (SKU)</th>
-          <th style="width: 140px;">Código de Barras</th>
           <th style="width: 320px;">Nome</th>
-          <th style="width: 100px; text-align: center;">Quantidade em Estoque</th>
+          <th style="width: 120px; text-align: center;">Quantidade (Estoque)</th>
           <th style="width: 130px; text-align: right;">Preço de Venda</th>
+          <th style="width: 140px;">Código de Barras</th>
           <th style="width: 130px; text-align: right;">Total Venda</th>
         </tr>
       </thead>
@@ -567,10 +567,11 @@ export function exportProductsToExcel(products: Product[], fileName = 'produtos_
       </tbody>
       <tfoot>
         <tr class="totals">
-          <td colspan="3" style="text-align: right; font-weight: bold; font-size: 11pt;">TOTALIZADORES:</td>
+          <td colspan="2" style="text-align: right; font-weight: bold; font-size: 11pt;">TOTALIZADORES:</td>
           <td style="text-align: center; font-weight: bold; font-size: 11pt;">${totalItens}</td>
-          <td style="text-align: right; font-weight: bold; font-size: 11pt;">—</td>
-          <td style="text-align: right; font-weight: bold; font-size: 11pt; color: #047857;">R$ ${totalValorVenda.toFixed(2).replace('.', ',')}</td>
+          <td style="text-align: right; font-weight: bold; font-size: 11pt;">R$ ${totalValorVenda.toFixed(2).replace('.', ',')}</td>
+          <td style="text-align: center;">—</td>
+          <td style="text-align: right; font-weight: bold; color: #047857;">R$ ${totalValorVenda.toFixed(2).replace('.', ',')}</td>
         </tr>
       </tfoot>
     </table>
