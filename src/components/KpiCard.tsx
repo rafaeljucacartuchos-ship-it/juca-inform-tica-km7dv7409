@@ -22,10 +22,10 @@ export function KpiCard({
   bgClass,
 }: KpiCardProps) {
   return (
-    <Card className="overflow-hidden border-slate-200/80 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-      <CardContent className="p-5">
+    <Card className="overflow-hidden border-slate-200/80 shadow-xs transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+      <CardContent className="p-4 sm:p-5">
         <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{title}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{title}</p>
           <div
             className={cn(
               'flex h-10 w-10 items-center justify-center rounded-xl font-bold',
@@ -37,7 +37,7 @@ export function KpiCard({
           </div>
         </div>
 
-        <div className="mt-3 flex items-baseline justify-between">
+        <div className="mt-2.5 flex items-baseline justify-between">
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 font-mono">
             {value}
           </h2>

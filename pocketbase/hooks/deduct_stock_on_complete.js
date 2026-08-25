@@ -40,6 +40,60 @@ onRecordAfterUpdateSuccess((e) => {
         $app.save(prod)
         deductedCount++
 
+        // Notificação e log para administradores quando o estoque chegar a zero ou negativo
+        if (newStock <= 0) {
+          try {
+            var prodName = prod.getString('name') || 'Produto'
+            var prodSku = prod.getString('sku') || ''
+            var admins = $app.findRecordsByFilter('users', "role = 'admin'", '', 0, 0)
+            var notifCol = $app.findCollectionByNameOrId('notifications')
+            for (var aIdx = 0; aIdx < admins.length; aIdx++) {
+              var adminId = admins[aIdx].id
+              var adminNotif = new Record(notifCol)
+              adminNotif.set('user', adminId)
+              adminNotif.set(
+                'title',
+                '⚠️ Estoque Zerado: ' + prodName + (prodSku ? ' (' + prodSku + ')' : ''),
+              )
+              adminNotif.set(
+                'message',
+                'O produto "' +
+                  prodName +
+                  '" atingiu estoque ' +
+                  newStock +
+                  ' após conclusão da OS #' +
+                  number +
+                  '. Necessário reposição.',
+              )
+              adminNotif.set('type', 'system')
+              adminNotif.set('read', false)
+              adminNotif.set('link', '/produtos')
+              $app.save(adminNotif)
+
+              // Web Push para os administradores
+              try {
+                $sendPushToUser($app, adminId, {
+                  title: '⚠️ Estoque Zerado: ' + prodName,
+                  body: 'Estoque chegou a ' + newStock + ' unidades. Reposição necessária.',
+                  icon: '/icon-maskable.svg',
+                  url: '/produtos',
+                  tag: 'stock-zero-' + prod.id,
+                })
+              } catch (_) {}
+            }
+          } catch (notifErr) {
+            $app
+              .logger()
+              .error(
+                'Failed to notify admins about zero stock',
+                'product',
+                productId,
+                'error',
+                String(notifErr),
+              )
+          }
+        }
+
         if (newStock < 0) {
           $app
             .logger()

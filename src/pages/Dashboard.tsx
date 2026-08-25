@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Wrench,
@@ -10,7 +10,12 @@ import {
   Timer,
   Loader2,
   FileDown,
+  Calendar,
+  MapPin,
+  ChevronRight,
+  CalendarDays,
 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { ExportReportsModal } from '@/components/ExportReportsModal'
 import { ExportOrdersListModal } from '@/components/ExportOrdersListModal'
 import { EvolutionCharts } from '@/components/EvolutionCharts'
@@ -103,10 +108,77 @@ export default function Dashboard() {
   const openCount = orders.filter((o) =>
     ['open', 'in_progress', 'waiting_parts'].includes(o.status),
   ).length
-  const todayStr = new Date().toISOString().substring(0, 10)
-  const todayAppts = appointments
-    .filter((a) => a.date?.substring(0, 10) === todayStr)
-    .sort((a, b) => (a.expand?.customer?.name || '').localeCompare(b.expand?.customer?.name || ''))
+  const [apptViewTab, setApptViewTab] = useState<'day' | 'week' | 'month'>('day')
+
+  // Agrupamento claro de agendamentos por Dia, Semana e Mês
+  const apptStats = useMemo(() => {
+    const now = new Date()
+    const todayStr = now.toISOString().substring(0, 10)
+
+    // Início e fim da semana atual (Segunda a Domingo)
+    const currentDayOfWeek = now.getDay() // 0 = Domingo, 1 = Segunda...
+    const diffToMonday = currentDayOfWeek === 0 ? -6 : 1 - currentDayOfWeek
+    const monday = new Date(now)
+    monday.setDate(now.getDate() + diffToMonday)
+    monday.setHours(0, 0, 0, 0)
+
+    const sunday = new Date(monday)
+    sunday.setDate(monday.getDate() + 6)
+    sunday.setHours(23, 59, 59, 999)
+
+    const mondayStr = monday.toISOString().substring(0, 10)
+    const sundayStr = sunday.toISOString().substring(0, 10)
+
+    // Início e fim do mês atual
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth() // 0-indexed
+    const firstDayMonthStr = new Date(currentYear, currentMonth, 1).toISOString().substring(0, 10)
+    const lastDayMonthStr = new Date(currentYear, currentMonth + 1, 0)
+      .toISOString()
+      .substring(0, 10)
+
+    const dayList = appointments
+      .filter((a) => {
+        const d = a.date?.substring(0, 10) || ''
+        return d === todayStr
+      })
+      .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
+
+    const weekList = appointments
+      .filter((a) => {
+        const d = a.date?.substring(0, 10) || ''
+        return d >= mondayStr && d <= sundayStr
+      })
+      .sort((a, b) => {
+        const diff = (a.date || '').localeCompare(b.date || '')
+        if (diff !== 0) return diff
+        return (a.start_time || '').localeCompare(b.start_time || '')
+      })
+
+    const monthList = appointments
+      .filter((a) => {
+        const d = a.date?.substring(0, 10) || ''
+        return d >= firstDayMonthStr && d <= lastDayMonthStr
+      })
+      .sort((a, b) => {
+        const diff = (a.date || '').localeCompare(b.date || '')
+        if (diff !== 0) return diff
+        return (a.start_time || '').localeCompare(b.start_time || '')
+      })
+
+    return {
+      todayStr,
+      dayList,
+      weekList,
+      monthList,
+      counts: {
+        day: dayList.length,
+        week: weekList.length,
+        month: monthList.length,
+      },
+    }
+  }, [appointments])
+
   const sortedTechnicians = [...technicians].sort((a, b) =>
     (a.name || '').localeCompare(b.name || ''),
   )
@@ -119,75 +191,93 @@ export default function Dashboard() {
     )
   }
 
+  const currentApptList =
+    apptViewTab === 'day'
+      ? apptStats.dayList
+      : apptViewTab === 'week'
+        ? apptStats.weekList
+        : apptStats.monthList
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Topo do Dashboard */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-2 border-b border-slate-200">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Visão Geral da Operação
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500">
-            Indicadores financeiros e operacionais em tempo real.
+          <p className="text-xs sm:text-sm text-slate-500 font-medium">
+            Painel consolidado de atendimentos, ordens de serviço e faturamento.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {(['today', 'week', 'month', 'custom'] as Period[]).map((p) => (
-            <Button
-              key={p}
-              size="sm"
-              variant={period === p ? 'default' : 'outline'}
-              className={period === p ? 'bg-indigo-600 hover:bg-indigo-700 h-9' : 'h-9'}
-              onClick={() => setPeriod(p)}
-            >
-              {{ today: 'Hoje', week: 'Semana', month: 'Mês', custom: 'Personalizado' }[p]}
-            </Button>
-          ))}
+          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs">
+            {(['today', 'week', 'month', 'custom'] as Period[]).map((p) => (
+              <Button
+                key={p}
+                size="sm"
+                variant={period === p ? 'default' : 'ghost'}
+                className={`h-8 text-xs font-bold ${
+                  period === p
+                    ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                onClick={() => setPeriod(p)}
+              >
+                {{ today: 'Hoje', week: 'Semana', month: 'Mês', custom: 'Personalizado' }[p]}
+              </Button>
+            ))}
+          </div>
+
           {period === 'custom' && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5 bg-white p-1 rounded-lg border border-slate-200">
               <Input
                 type="date"
                 value={customStart}
                 onChange={(e) => setCustomStart(e.target.value)}
-                className="w-auto h-9 text-xs"
+                className="w-auto h-8 text-xs font-medium"
               />
+              <span className="text-xs text-slate-400 font-bold">até</span>
               <Input
                 type="date"
                 value={customEnd}
                 onChange={(e) => setCustomEnd(e.target.value)}
-                className="w-auto h-9 text-xs"
+                className="w-auto h-8 text-xs font-medium"
               />
             </div>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setExportOpen(true)}
-            className="ml-2 gap-1.5 h-9"
-          >
-            <FileDown className="h-4 w-4" />{' '}
-            <span className="hidden sm:inline">Exportar Relatórios</span>
-            <span className="sm:hidden">Relatórios</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setExportOrdersOpen(true)}
-            className="gap-1.5 h-9"
-          >
-            <FileDown className="h-4 w-4" />{' '}
-            <span className="hidden sm:inline">Exportar Lista de OSs</span>
-            <span className="sm:hidden">Lista</span>
-          </Button>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExportOpen(true)}
+              className="gap-1.5 h-8 text-xs font-bold border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+            >
+              <FileDown className="h-3.5 w-3.5 text-indigo-600" />
+              <span className="hidden sm:inline">Relatórios</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExportOrdersOpen(true)}
+              className="gap-1.5 h-8 text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-50"
+            >
+              <FileDown className="h-3.5 w-3.5 text-slate-600" />
+              <span className="hidden sm:inline">Lista OS</span>
+            </Button>
+          </div>
         </div>
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
           {error}
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* 4 Cards de Destaque / KPIs */}
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           title="Ordens Abertas"
           value={openCount}
@@ -196,21 +286,21 @@ export default function Dashboard() {
           bgClass="bg-blue-100"
         />
         <KpiCard
-          title="O.S CONCLUÍDAS"
+          title="O.S Concluídas"
           value={completedCount}
           icon={CheckCircle2}
           colorClass="text-emerald-600"
           bgClass="bg-emerald-100"
         />
         <KpiCard
-          title="Tempo Médio"
+          title="Tempo Médio de Reparo"
           value={avgTime || '—'}
           icon={Timer}
           colorClass="text-purple-600"
           bgClass="bg-purple-100"
         />
         <KpiCard
-          title="Faturamento"
+          title="Faturamento do Período"
           value={`R$ ${billing.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
           icon={DollarSign}
           colorClass="text-amber-600"
@@ -218,14 +308,194 @@ export default function Dashboard() {
         />
       </div>
 
+      {/* Seção Clara de Agendamentos: Dia, Semana e Mês */}
+      <Card className="border-indigo-100 bg-gradient-to-br from-indigo-50/40 via-white to-slate-50/30 shadow-xs">
+        <CardHeader className="pb-3 border-b border-slate-100">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-2xs">
+                <CalendarDays className="h-4 w-4" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-bold text-slate-900">
+                  Agendamentos e Visitas
+                </CardTitle>
+                <p className="text-xs text-slate-500 font-medium">
+                  Acompanhamento cronológico de visitas por período.
+                </p>
+              </div>
+            </div>
+
+            {/* Abas Rápidas do Módulo de Agendamentos: Dia / Semana / Mês */}
+            <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setApptViewTab('day')}
+                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                  apptViewTab === 'day'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>Dia (Hoje)</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    apptViewTab === 'day'
+                      ? 'bg-white/20 text-white'
+                      : 'bg-indigo-100 text-indigo-700'
+                  }`}
+                >
+                  {apptStats.counts.day}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setApptViewTab('week')}
+                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                  apptViewTab === 'week'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>Semana</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    apptViewTab === 'week'
+                      ? 'bg-white/20 text-white'
+                      : 'bg-indigo-100 text-indigo-700'
+                  }`}
+                >
+                  {apptStats.counts.week}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setApptViewTab('month')}
+                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                  apptViewTab === 'month'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>Mês</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    apptViewTab === 'month'
+                      ? 'bg-white/20 text-white'
+                      : 'bg-indigo-100 text-indigo-700'
+                  }`}
+                >
+                  {apptStats.counts.month}
+                </span>
+              </button>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="pt-4">
+          {currentApptList.length === 0 ? (
+            <div className="text-center py-8 bg-white/60 rounded-xl border border-dashed border-slate-200">
+              <Calendar className="h-8 w-8 mx-auto text-slate-300 mb-2" />
+              <p className="text-xs font-bold text-slate-600">
+                Nenhum agendamento programado para este período (
+                {apptViewTab === 'day'
+                  ? 'Hoje'
+                  : apptViewTab === 'week'
+                    ? 'Esta semana'
+                    : 'Este mês'}
+                ).
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Novos atendimentos marcados aparecerão automaticamente aqui.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {currentApptList.map((a) => {
+                const isToday = (a.date?.substring(0, 10) || '') === apptStats.todayStr
+                const formattedDate = a.date
+                  ? a.date.substring(0, 10).split('-').reverse().join('/')
+                  : 'Data não informada'
+
+                return (
+                  <div
+                    key={a.id}
+                    className="flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-2xs hover:border-indigo-300 transition-all"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-indigo-600 shrink-0" />
+                          {a.start_time} - {a.end_time || '18:00'}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {isToday && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800">
+                              HOJE
+                            </span>
+                          )}
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] font-bold uppercase tracking-wider capitalize"
+                          >
+                            {a.status === 'scheduled'
+                              ? 'Agendado'
+                              : a.status === 'in_progress'
+                                ? 'Em Andamento'
+                                : a.status === 'completed'
+                                  ? 'Concluído'
+                                  : a.status === 'cancelled'
+                                    ? 'Cancelado'
+                                    : a.status}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <h4 className="text-xs font-bold text-slate-900 truncate">
+                        {a.expand?.customer?.name || 'Cliente não identificado'}
+                      </h4>
+
+                      <div className="space-y-1 mt-1.5 text-[11px]">
+                        <p className="text-slate-500 font-medium flex items-center gap-1">
+                          <Calendar className="h-3 w-3 text-slate-400 shrink-0" />
+                          <span className="font-bold text-slate-700">{formattedDate}</span>
+                        </p>
+                        {a.address_note && (
+                          <p className="text-slate-600 flex items-center gap-1 truncate font-medium">
+                            <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
+                            <span className="truncate">{a.address_note}</span>
+                          </p>
+                        )}
+                        {a.expand?.technician && (
+                          <p className="text-slate-600 flex items-center gap-1 font-medium">
+                            <UserCheck className="h-3 w-3 text-indigo-500 shrink-0" />
+                            <span>
+                              Técnico:{' '}
+                              <strong className="text-slate-800">{a.expand.technician.name}</strong>
+                            </span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Mini-Cards dos Status de O.S */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {STATUS_CONFIG.map((s) => (
-          <Card key={s.value} className={`border-slate-200/80 shadow-sm ${s.bg}`}>
-            <CardContent className="p-4">
+          <Card key={s.value} className={`border-slate-200/80 shadow-2xs ${s.bg}`}>
+            <CardContent className="p-3.5">
               <p className={`text-2xl font-bold ${s.color}`}>
                 {orders.filter((o) => o.status === s.value).length}
               </p>
-              <p className="text-xs text-slate-600 font-medium">{s.label}</p>
+              <p className="text-xs text-slate-700 font-bold mt-0.5">{s.label}</p>
             </CardContent>
           </Card>
         ))}
@@ -239,12 +509,20 @@ export default function Dashboard() {
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Ordens Recentes */}
         <Card className="lg:col-span-2 border-slate-200 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-sm font-bold text-slate-900">Ordens Recentes</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+              <CardTitle className="text-sm font-bold text-slate-900">
+                Ordens de Serviço Recentes
+              </CardTitle>
+              <p className="text-[11px] text-slate-500 font-medium">
+                Últimos atendimentos em andamento ou finalizados
+              </p>
+            </div>
             <Link
               to="/ordens"
-              className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+              className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700"
             >
               Ver todas <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -252,7 +530,7 @@ export default function Dashboard() {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 border-y border-slate-100 text-slate-500 font-semibold uppercase tracking-wider">
+                <thead className="bg-slate-50 border-b border-slate-100 text-slate-600 font-bold uppercase tracking-wider">
                   <tr>
                     <th className="py-2.5 px-4">Número</th>
                     <th className="py-2.5 px-4">Título</th>
@@ -265,28 +543,28 @@ export default function Dashboard() {
                 <tbody className="divide-y divide-slate-100">
                   {orders.slice(0, 5).map((o) => (
                     <tr key={o.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3 px-4 font-mono font-semibold text-indigo-600">
+                      <td className="py-3 px-4 font-mono font-bold text-indigo-600">
                         <Link to={`/ordens/${o.id}`}>{o.number}</Link>
                       </td>
-                      <td className="py-3 px-4 font-medium text-slate-800">{o.title}</td>
+                      <td className="py-3 px-4 font-bold text-slate-800">{o.title}</td>
                       <td className="py-3 px-4 font-medium text-slate-800">
                         {o.expand?.customer?.name || 'Cliente'}
                       </td>
-                      <td className="py-3 px-4 text-slate-600">
+                      <td className="py-3 px-4 text-slate-600 font-medium">
                         {o.expand?.technician?.name || '—'}
                       </td>
                       <td className="py-3 px-4">
                         <StatusBadge status={o.status} />
                       </td>
-                      <td className="py-3 px-4 text-right font-mono font-semibold text-slate-900">
+                      <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
                         R$ {(o.total || 0).toFixed(2)}
                       </td>
                     </tr>
                   ))}
                   {orders.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="py-6 text-center text-slate-400">
-                        Nenhuma ordem cadastrada.
+                      <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">
+                        Nenhuma ordem cadastrada no momento.
                       </td>
                     </tr>
                   )}
@@ -296,41 +574,50 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
+        {/* Carga dos Técnicos */}
         <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-sm font-bold text-slate-900">Visitas de Hoje</CardTitle>
-            <Link
-              to="/agendamentos"
-              className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
-            >
-              Agenda
-            </Link>
+          <CardHeader className="pb-3 border-b border-slate-100">
+            <CardTitle className="text-sm font-bold text-slate-900">Carga dos Técnicos</CardTitle>
+            <p className="text-[11px] text-slate-500 font-medium">
+              Distribuição de OS ativas por profissional
+            </p>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {todayAppts.map((a) => (
-              <div
-                key={a.id}
-                className="flex items-start gap-3 rounded-lg border border-slate-100 p-3 bg-slate-50/50"
-              >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700">
-                  <Clock className="h-4 w-4" />
+          <CardContent className="pt-3 space-y-2.5">
+            {sortedTechnicians.map((t) => {
+              const count = orders.filter(
+                (o) => o.technician === t.id && o.status !== 'closed' && o.status !== 'cancelled',
+              ).length
+              return (
+                <div
+                  key={t.id}
+                  className="flex items-center gap-3 rounded-lg border border-slate-100 p-2.5 bg-slate-50/60 hover:bg-slate-50 transition-colors"
+                >
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 border border-indigo-200">
+                    <UserCheck className="h-4 w-4 text-indigo-700" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-xs font-bold text-slate-900 truncate">{t.name}</h3>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      {count} {count === 1 ? 'ordem ativa' : 'ordens ativas'}
+                    </p>
+                  </div>
+                  <span
+                    className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${
+                      count > 3
+                        ? 'bg-amber-100 text-amber-800'
+                        : count > 0
+                          ? 'bg-indigo-100 text-indigo-800'
+                          : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {count}
+                  </span>
                 </div>
-                <div className="flex-1 min-w-0 text-xs space-y-0.5">
-                  <p className="font-semibold text-slate-900 truncate">
-                    {a.expand?.customer?.name || 'Cliente'}
-                  </p>
-                  <p className="text-slate-500 font-mono text-[11px]">
-                    {a.start_time} - {a.end_time || '18:00'}
-                  </p>
-                  <p className="text-slate-600 text-[11px]">
-                    {a.expand?.technician?.name ? `Técnico: ${a.expand.technician.name}` : ''}
-                  </p>
-                </div>
-              </div>
-            ))}
-            {todayAppts.length === 0 && (
-              <p className="text-xs text-slate-400 text-center py-6">
-                Nenhum agendamento para hoje.
+              )
+            })}
+            {sortedTechnicians.length === 0 && (
+              <p className="text-xs text-slate-400 text-center py-6 font-medium">
+                Nenhum técnico cadastrado.
               </p>
             )}
           </CardContent>

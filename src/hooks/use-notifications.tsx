@@ -69,10 +69,17 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       if (e.action === 'create') {
         if (record.user === user.id) {
           setNotifications((prev) => [record, ...prev].slice(0, 50))
-          toast.info(record.title, { description: record.message })
+          if (record.title?.includes('Estoque Zerado')) {
+            toast.error(record.title, { description: record.message })
+          } else {
+            toast.info(record.title, { description: record.message })
+          }
           showBrowserNotification(record.title, record.message || '', record.id)
 
-          if (record.type === 'service_order' && !playedSoundIds.current.has(record.id)) {
+          if (
+            (record.type === 'service_order' || record.type === 'system') &&
+            !playedSoundIds.current.has(record.id)
+          ) {
             playedSoundIds.current.add(record.id)
             playNotificationSound()
           }

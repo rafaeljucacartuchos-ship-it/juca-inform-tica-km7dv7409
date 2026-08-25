@@ -11,13 +11,14 @@ import {
   Layers,
   CircleDollarSign,
   AlertCircle,
+  Power,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Product } from '@/types'
-import { getProducts, deleteProduct } from '@/services/products'
+import { getProducts, deleteProduct, toggleProductActive } from '@/services/products'
 import { NewProductModal } from '@/components/NewProductModal'
 import { ImportProductsModal } from '@/components/ImportProductsModal'
 import { StockReportModal } from '@/components/StockReportModal'
@@ -37,6 +38,9 @@ export default function Produtos() {
   const [editProduct, setEditProduct] = useState<Product | null>(null)
   const [deleteProductItem, setDeleteProductItem] = useState<Product | null>(null)
   const [exportingProducts, setExportingProducts] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'zero_stock'>(
+    'all',
+  )
   const { toast } = useToast()
 
   const loadData = async () => {
@@ -88,13 +92,44 @@ export default function Produtos() {
       if (qty <= 0) lowStock++
     })
 
+    const inactiveCount = list.filter((p) => p.active === false).length
+
     return {
       count: list.length,
       totalQty,
       totalStockValue,
       lowStock,
+      inactiveCount,
     }
   }, [products, allProductsForReport])
+
+  const filteredProducts = useMemo(() => {
+    return products.filter((p) => {
+      if (statusFilter === 'active') return p.active !== false
+      if (statusFilter === 'inactive') return p.active === false
+      if (statusFilter === 'zero_stock') return (p.stock_quantity ?? 0) <= 0
+      return true
+    })
+  }, [products, statusFilter])
+
+  const handleToggleActive = async (p: Product) => {
+    const nextState = !p.active
+    try {
+      await toggleProductActive(p.id, !!p.active)
+      toast({
+        title: nextState ? 'Produto ativado!' : 'Produto inativado!',
+        description: `O status de "${p.name}" foi alterado com sucesso.`,
+      })
+      loadData()
+      loadAllProducts()
+    } catch {
+      toast({
+        title: 'Erro ao alterar status',
+        description: 'Não foi possível atualizar o status do produto.',
+        variant: 'destructive',
+      })
+    }
+  }
 
   const handleDelete = async () => {
     if (!deleteProductItem) return
@@ -202,62 +237,120 @@ export default function Produtos() {
 
       {/* Mini-Cards de Estatísticas Rápidas */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="flex items-center gap-1.5 text-slate-500 text-xs mb-1">
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center gap-1.5 text-slate-500 text-xs mb-1 font-bold">
             <Package className="h-3.5 w-3.5 text-indigo-500" />
             <span>Total de Itens</span>
           </div>
-          <div className="text-lg font-bold text-slate-900">{metrics.count}</div>
-          <div className="text-[11px] text-slate-500">{metrics.totalQty} unidades cadastradas</div>
+          <div className="text-xl font-bold text-slate-900">{metrics.count}</div>
+          <div className="text-[11px] text-slate-500 font-medium">
+            {metrics.totalQty} unidades cadastradas
+          </div>
         </div>
 
-        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="flex items-center gap-1.5 text-slate-500 text-xs mb-1">
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center gap-1.5 text-slate-500 text-xs mb-1 font-bold">
             <CircleDollarSign className="h-3.5 w-3.5 text-emerald-500" />
             <span>Valor em Estoque</span>
           </div>
-          <div className="text-lg font-bold text-emerald-700 font-mono">
+          <div className="text-xl font-bold text-emerald-700 font-mono">
             R$ {metrics.totalStockValue.toFixed(2)}
           </div>
-          <div className="text-[11px] text-emerald-600">Preço de venda total</div>
+          <div className="text-[11px] text-emerald-600 font-medium">Preço de venda total</div>
         </div>
 
-        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="flex items-center gap-1.5 text-slate-500 text-xs mb-1">
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center gap-1.5 text-slate-500 text-xs mb-1 font-bold">
             <Layers className="h-3.5 w-3.5 text-blue-500" />
             <span>Estoque Disponível</span>
           </div>
-          <div className="text-lg font-bold text-blue-700">{metrics.totalQty}</div>
-          <div className="text-[11px] text-blue-600">Unidades físicas</div>
+          <div className="text-xl font-bold text-blue-700">{metrics.totalQty}</div>
+          <div className="text-[11px] text-blue-600 font-medium">Unidades físicas</div>
         </div>
 
-        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="flex items-center gap-1.5 text-slate-500 text-xs mb-1">
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center gap-1.5 text-slate-500 text-xs mb-1 font-bold">
             <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
             <span>Itens Zerados</span>
           </div>
-          <div className="text-lg font-bold text-amber-700">{metrics.lowStock}</div>
-          <div className="text-[11px] text-amber-600">Necessitam reposição</div>
+          <div className="text-xl font-bold text-amber-700">{metrics.lowStock}</div>
+          <div className="text-[11px] text-amber-600 font-medium">Necessitam reposição</div>
         </div>
       </div>
 
-      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+      {/* Barra de Busca + Filtros Rápidos de Status */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
           <Input
-            placeholder="Buscar por nome ou SKU..."
+            placeholder="Buscar por nome, SKU ou categoria..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9 h-9 text-xs bg-slate-50 border-slate-200"
           />
         </div>
+
+        <div className="flex items-center gap-1.5 overflow-x-auto">
+          <Button
+            type="button"
+            size="sm"
+            variant={statusFilter === 'all' ? 'default' : 'outline'}
+            onClick={() => setStatusFilter('all')}
+            className={`h-8 text-xs font-bold ${
+              statusFilter === 'all'
+                ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                : 'text-slate-700 bg-slate-50 hover:bg-slate-100'
+            }`}
+          >
+            Todos ({products.length})
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={statusFilter === 'active' ? 'default' : 'outline'}
+            onClick={() => setStatusFilter('active')}
+            className={`h-8 text-xs font-bold ${
+              statusFilter === 'active'
+                ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                : 'text-emerald-700 bg-emerald-50/50 border-emerald-200 hover:bg-emerald-100'
+            }`}
+          >
+            Ativos
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={statusFilter === 'inactive' ? 'default' : 'outline'}
+            onClick={() => setStatusFilter('inactive')}
+            className={`h-8 text-xs font-bold ${
+              statusFilter === 'inactive'
+                ? 'bg-slate-700 text-white hover:bg-slate-800'
+                : 'text-slate-600 bg-slate-100 border-slate-300 hover:bg-slate-200'
+            }`}
+          >
+            Inativos ({metrics.inactiveCount})
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={statusFilter === 'zero_stock' ? 'default' : 'outline'}
+            onClick={() => setStatusFilter('zero_stock')}
+            className={`h-8 text-xs font-bold ${
+              statusFilter === 'zero_stock'
+                ? 'bg-rose-600 text-white hover:bg-rose-700'
+                : 'text-rose-700 bg-rose-50 border-rose-200 hover:bg-rose-100'
+            }`}
+          >
+            Sem Estoque ({metrics.lowStock})
+          </Button>
+        </div>
       </div>
 
-      <Card className="border-slate-200 shadow-sm">
+      <Card className="border-slate-200 shadow-sm overflow-hidden">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+              <thead className="bg-slate-100/80 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider">
                 <tr>
                   <th className="py-3 px-4">Foto</th>
                   <th className="py-3 px-4">Nome</th>
@@ -272,71 +365,130 @@ export default function Produtos() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {products.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4">
-                      {p.photo_file ? (
-                        <img
-                          src={getFileUrl(p.id, p.photo_file, 'products', '100x100')}
-                          alt={p.name}
-                          className="h-10 w-10 rounded-md object-cover border border-slate-200"
-                        />
-                      ) : p.photo ? (
-                        <img
-                          src={p.photo}
-                          alt={p.name}
-                          className="h-10 w-10 rounded-md object-cover border border-slate-200"
-                        />
-                      ) : (
-                        <div className="h-10 w-10 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center">
-                          <Package className="h-4 w-4 text-slate-400" />
+                {filteredProducts.map((p) => {
+                  const isZeroStock = (p.stock_quantity ?? 0) <= 0
+                  const isInactive = p.active === false
+                  return (
+                    <tr
+                      key={p.id}
+                      className={`hover:bg-slate-50 transition-colors ${
+                        isInactive ? 'bg-slate-50/50 opacity-75' : ''
+                      }`}
+                    >
+                      <td className="py-3 px-4">
+                        {p.photo_file ? (
+                          <img
+                            src={getFileUrl(p.id, p.photo_file, 'products', '100x100')}
+                            alt={p.name}
+                            className="h-10 w-10 rounded-md object-cover border border-slate-200 shadow-2xs"
+                          />
+                        ) : p.photo ? (
+                          <img
+                            src={p.photo}
+                            alt={p.name}
+                            className="h-10 w-10 rounded-md object-cover border border-slate-200 shadow-2xs"
+                          />
+                        ) : (
+                          <div className="h-10 w-10 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center">
+                            <Package className="h-4 w-4 text-slate-400" />
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="font-bold text-slate-900 block">{p.name}</span>
+                        {isZeroStock && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 mt-0.5">
+                            <AlertCircle className="h-2.5 w-2.5" /> Sem estoque
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 font-mono font-bold text-slate-700">
+                        {p.sku || '-'}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-slate-600 text-[11px] font-medium">
+                        {p.barcode || p.codigo_barras || '-'}
+                      </td>
+                      <td className="py-3 px-4 text-slate-700 font-medium">{p.category || '-'}</td>
+                      <td className="py-3 px-4 font-mono text-slate-600 font-medium">
+                        R$ {(p.cost || 0).toFixed(2)}
+                      </td>
+                      <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                        R$ {(p.price || 0).toFixed(2)}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`font-mono font-bold px-2 py-0.5 rounded ${
+                            isZeroStock
+                              ? 'bg-rose-100 text-rose-700'
+                              : (p.stock_quantity ?? 0) < 5
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'text-slate-800'
+                          }`}
+                        >
+                          {p.stock_quantity ?? 0}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <Badge
+                          variant={p.active !== false ? 'default' : 'secondary'}
+                          className={`text-[10px] font-bold ${
+                            p.active !== false
+                              ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                              : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                          }`}
+                        >
+                          {p.active !== false ? 'Ativo' : 'Inativo'}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {/* Botão de Ativar / Inativar */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={`h-7 px-2 text-xs font-bold gap-1 transition-colors ${
+                              p.active !== false
+                                ? 'border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800'
+                                : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800'
+                            }`}
+                            onClick={() => handleToggleActive(p)}
+                            title={
+                              p.active !== false ? 'Inativar este produto' : 'Ativar este produto'
+                            }
+                          >
+                            <Power className="h-3 w-3" />
+                            <span>{p.active !== false ? 'Inativar' : 'Ativar'}</span>
+                          </Button>
+
+                          {/* Botão de Editar */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 gap-1"
+                            onClick={() => setEditProduct(p)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" /> Editar
+                          </Button>
+
+                          {/* Botão de Excluir */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => setDeleteProductItem(p)}
+                            title="Excluir produto"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 font-bold text-slate-900">{p.name}</td>
-                    <td className="py-3 px-4 font-mono text-slate-600">{p.sku || '-'}</td>
-                    <td className="py-3 px-4 font-mono text-slate-500 text-[11px]">
-                      {p.barcode || p.codigo_barras || '-'}
-                    </td>
-                    <td className="py-3 px-4 text-slate-600">{p.category || '-'}</td>
-                    <td className="py-3 px-4 font-mono text-slate-600">
-                      R$ {(p.cost || 0).toFixed(2)}
-                    </td>
-                    <td className="py-3 px-4 font-mono font-bold text-slate-900">
-                      R$ {(p.price || 0).toFixed(2)}
-                    </td>
-                    <td className="py-3 px-4 text-slate-600">{p.stock_quantity ?? 0}</td>
-                    <td className="py-3 px-4">
-                      <Badge variant={p.active ? 'default' : 'secondary'} className="text-[10px]">
-                        {p.active ? 'Ativo' : 'Inativo'}
-                      </Badge>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs text-amber-600 gap-1"
-                          onClick={() => setEditProduct(p)}
-                        >
-                          <Pencil className="h-3.5 w-3.5" /> Editar
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-red-600"
-                          onClick={() => setDeleteProductItem(p)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {products.length === 0 && (
+                      </td>
+                    </tr>
+                  )
+                })}
+                {filteredProducts.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="py-8 text-center text-slate-400">
-                      Nenhum produto encontrado.
+                    <td colSpan={10} className="py-10 text-center text-slate-400 font-medium">
+                      Nenhum produto encontrado com os filtros selecionados.
                     </td>
                   </tr>
                 )}

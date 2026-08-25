@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
-  Calendar,
   Wrench,
   Users,
   Briefcase,
@@ -72,12 +71,6 @@ export function Sidebar({ onNavClick }: SidebarProps) {
 
   const mainNavItems = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, show: true },
-    {
-      label: 'Agendamentos',
-      path: '/agendamentos',
-      icon: Calendar,
-      show: hasPermission('agendamentos'),
-    },
     { label: 'Ordens de Serviço', path: '/ordens', icon: Wrench, show: hasPermission('ordens') },
     {
       label: 'Relatórios OS',

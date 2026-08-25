@@ -32,6 +32,7 @@ interface StockReportModalProps {
 export function StockReportModal({ open, onOpenChange, products }: StockReportModalProps) {
   const [filterSearch, setFilterSearch] = useState('')
   const [filterCategory, setFilterCategory] = useState('all')
+  const [quickFilter, setQuickFilter] = useState<'all' | 'zero_stock' | 'inactive'>('all')
 
   // Categorias únicas
   const categories = useMemo(() => {
@@ -53,11 +54,30 @@ export function StockReportModal({ open, onOpenChange, products }: StockReportMo
         (p.sku && p.sku.toLowerCase().includes(filterSearch.toLowerCase()))
       const matchCategory =
         filterCategory === 'all' || (p.category && p.category === filterCategory)
-      return matchSearch && matchCategory
-    })
-  }, [products, filterSearch, filterCategory])
 
-  // Estatísticas e totalizadores
+      let matchQuick = true
+      if (quickFilter === 'zero_stock') {
+        matchQuick = (p.stock_quantity ?? 0) <= 0
+      } else if (quickFilter === 'inactive') {
+        matchQuick = p.active === false
+      }
+
+      return matchSearch && matchCategory && matchQuick
+    })
+  }, [products, filterSearch, filterCategory, quickFilter])
+
+  // Estatísticas e totalizadores globais de conferência
+  const globalStats = useMemo(() => {
+    let totalZeroStock = 0
+    let totalInactive = 0
+    products.forEach((p) => {
+      if ((p.stock_quantity ?? 0) <= 0) totalZeroStock++
+      if (p.active === false) totalInactive++
+    })
+    return { totalZeroStock, totalInactive }
+  }, [products])
+
+  // Estatísticas dos produtos visíveis
   const totals = useMemo(() => {
     let totalItens = 0
     let totalVendaEstoque = 0
@@ -180,42 +200,91 @@ export function StockReportModal({ open, onOpenChange, products }: StockReportMo
           </div>
         </div>
 
-        {/* Filtro Rápido */}
-        <div className="flex flex-col sm:flex-row gap-2 py-1">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-            <Input
-              placeholder="Buscar por nome ou SKU..."
-              value={filterSearch}
-              onChange={(e) => setFilterSearch(e.target.value)}
-              className="pl-8 h-8 text-xs bg-slate-50"
-            />
+        {/* Filtros Rápidos (Busca + Categorias + Filtros Rápidos de Estoque Zero e Inativos) */}
+        <div className="flex flex-col gap-2 py-1">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+              <Input
+                placeholder="Buscar por nome ou SKU..."
+                value={filterSearch}
+                onChange={(e) => setFilterSearch(e.target.value)}
+                className="pl-8 h-8 text-xs bg-slate-50"
+              />
+            </div>
+            {categories.length > 0 && (
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="h-8 text-xs rounded-md border border-slate-200 bg-slate-50 px-2.5 text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="all">Todas as Categorias ({categories.length})</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
-          {categories.length > 0 && (
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="h-8 text-xs rounded-md border border-slate-200 bg-slate-50 px-2.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+
+          {/* Atalhos Rápidos Solicitados: "Produtos sem estoque" e "Produtos inativos" */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            <span className="text-[11px] font-bold text-slate-500 mr-1 shrink-0">
+              Filtros Rápidos:
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant={quickFilter === 'all' ? 'default' : 'outline'}
+              onClick={() => setQuickFilter('all')}
+              className={`h-7 px-2.5 text-xs font-bold ${
+                quickFilter === 'all'
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+              }`}
             >
-              <option value="all">Todas as Categorias ({categories.length})</option>
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-          )}
+              Todos ({products.length})
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={quickFilter === 'zero_stock' ? 'default' : 'outline'}
+              onClick={() => setQuickFilter(quickFilter === 'zero_stock' ? 'all' : 'zero_stock')}
+              className={`h-7 px-2.5 text-xs font-bold ${
+                quickFilter === 'zero_stock'
+                  ? 'bg-rose-600 text-white hover:bg-rose-700'
+                  : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+              }`}
+            >
+              Produtos sem estoque ({globalStats.totalZeroStock})
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={quickFilter === 'inactive' ? 'default' : 'outline'}
+              onClick={() => setQuickFilter(quickFilter === 'inactive' ? 'all' : 'inactive')}
+              className={`h-7 px-2.5 text-xs font-bold ${
+                quickFilter === 'inactive'
+                  ? 'bg-slate-700 text-white hover:bg-slate-800'
+                  : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              Produtos inativos ({globalStats.totalInactive})
+            </Button>
+          </div>
         </div>
 
         {/* Tabela do Relatório */}
         <div className="flex-1 overflow-y-auto border border-slate-200 rounded-lg max-h-[380px]">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-100 border-b border-slate-200 text-slate-600 font-semibold sticky top-0 z-10">
+            <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold sticky top-0 z-10">
               <tr>
                 <th className="py-2.5 px-3 w-12 text-center">#</th>
                 <th className="py-2.5 px-3">Código (SKU)</th>
                 <th className="py-2.5 px-3">Código de Barras</th>
                 <th className="py-2.5 px-3">Nome do Produto</th>
+                <th className="py-2.5 px-3 text-center">Status</th>
                 <th className="py-2.5 px-3 text-center">Estoque Atual</th>
                 <th className="py-2.5 px-3 text-center">Contagem Física</th>
                 <th className="py-2.5 px-3 text-right">Preço Venda</th>
@@ -228,22 +297,45 @@ export function StockReportModal({ open, onOpenChange, products }: StockReportMo
                 const qty = p.stock_quantity ?? 0
                 const price = p.price || 0
                 const subPrice = qty * price
+                const isInactive = p.active === false
 
                 return (
-                  <tr key={p.id} className="hover:bg-slate-50/80">
-                    <td className="py-2 px-3 text-center text-slate-400 font-mono">{idx + 1}</td>
-                    <td className="py-2 px-3 font-mono text-slate-700">{p.sku || '-'}</td>
-                    <td className="py-2 px-3 font-mono text-slate-600 text-[11px]">{barcode}</td>
-                    <td className="py-2 px-3 font-medium text-slate-900">
+                  <tr
+                    key={p.id}
+                    className={`hover:bg-slate-50/80 ${isInactive ? 'bg-slate-50/60' : ''}`}
+                  >
+                    <td className="py-2 px-3 text-center text-slate-400 font-mono font-bold">
+                      {idx + 1}
+                    </td>
+                    <td className="py-2 px-3 font-mono font-bold text-slate-700">{p.sku || '-'}</td>
+                    <td className="py-2 px-3 font-mono text-slate-600 text-[11px] font-medium">
+                      {barcode}
+                    </td>
+                    <td className="py-2 px-3 font-bold text-slate-900">
                       <div>{p.name}</div>
                       {p.category && (
-                        <span className="text-[10px] text-slate-500">{p.category}</span>
+                        <span className="text-[10px] text-slate-500 font-medium">{p.category}</span>
                       )}
+                    </td>
+                    <td className="py-2 px-3 text-center">
+                      <span
+                        className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          !isInactive
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {!isInactive ? 'Ativo' : 'Inativo'}
+                      </span>
                     </td>
                     <td className="py-2 px-3 text-center font-mono">
                       <span
-                        className={`font-semibold ${
-                          qty <= 0 ? 'text-red-600' : qty < 5 ? 'text-amber-600' : 'text-slate-800'
+                        className={`font-bold px-1.5 py-0.5 rounded ${
+                          qty <= 0
+                            ? 'bg-rose-100 text-rose-700'
+                            : qty < 5
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'text-slate-800'
                         }`}
                       >
                         {qty}
@@ -254,7 +346,7 @@ export function StockReportModal({ open, onOpenChange, products }: StockReportMo
                         ____
                       </span>
                     </td>
-                    <td className="py-2 px-3 text-right font-mono font-medium text-slate-900">
+                    <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
                       R$ {price.toFixed(2)}
                     </td>
                     <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">
@@ -266,7 +358,7 @@ export function StockReportModal({ open, onOpenChange, products }: StockReportMo
 
               {filteredProducts.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
+                  <td colSpan={9} className="py-8 text-center text-slate-400 font-medium">
                     Nenhum produto corresponde aos filtros informados.
                   </td>
                 </tr>

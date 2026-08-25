@@ -20,4 +20,7 @@ export const createProduct = (data: Partial<Product>) =>
 export const updateProduct = (id: string, data: Partial<Product>) =>
   pb.collection('products').update<Product>(id, data)
 
+export const toggleProductActive = (id: string, currentActive: boolean) =>
+  pb.collection('products').update<Product>(id, { active: !currentActive })
+
 export const deleteProduct = (id: string) => pb.collection('products').delete(id)
