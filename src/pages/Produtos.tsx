@@ -261,7 +261,8 @@ export default function Produtos() {
                 <tr>
                   <th className="py-3 px-4">Foto</th>
                   <th className="py-3 px-4">Nome</th>
-                  <th className="py-3 px-4">SKU</th>
+                  <th className="py-3 px-4">SKU / Código</th>
+                  <th className="py-3 px-4">Cód. Barras</th>
                   <th className="py-3 px-4">Categoria</th>
                   <th className="py-3 px-4">Custo</th>
                   <th className="py-3 px-4">Preço</th>
@@ -294,6 +295,9 @@ export default function Produtos() {
                     </td>
                     <td className="py-3 px-4 font-bold text-slate-900">{p.name}</td>
                     <td className="py-3 px-4 font-mono text-slate-600">{p.sku || '-'}</td>
+                    <td className="py-3 px-4 font-mono text-slate-500 text-[11px]">
+                      {p.barcode || p.codigo_barras || '-'}
+                    </td>
                     <td className="py-3 px-4 text-slate-600">{p.category || '-'}</td>
                     <td className="py-3 px-4 font-mono text-slate-600">
                       R$ {(p.cost || 0).toFixed(2)}
@@ -331,7 +335,7 @@ export default function Produtos() {
                 ))}
                 {products.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="py-8 text-center text-slate-400">
+                    <td colSpan={10} className="py-8 text-center text-slate-400">
                       Nenhum produto encontrado.
                     </td>
                   </tr>

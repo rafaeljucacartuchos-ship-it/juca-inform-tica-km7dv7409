@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-25T15:40:09.638Z",
+  "generatedAt": "2026-08-25T15:55:02.910Z",
   "collections": [
     {
       "name": "users",
@@ -919,6 +919,18 @@
         {
           "name": "photo_file",
           "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "barcode",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "codigo_barras",
+          "type": "text",
           "required": false,
           "system": false
         }

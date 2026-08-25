@@ -20,7 +20,6 @@ import {
   Package,
   Layers,
   CircleDollarSign,
-  TrendingUp,
   AlertCircle,
 } from 'lucide-react'
 
@@ -61,31 +60,25 @@ export function StockReportModal({ open, onOpenChange, products }: StockReportMo
   // Estatísticas e totalizadores
   const totals = useMemo(() => {
     let totalItens = 0
-    let totalCustoEstoque = 0
     let totalVendaEstoque = 0
     let itensZerados = 0
+    let precoMedio = 0
 
     filteredProducts.forEach((p) => {
       const qty = p.stock_quantity ?? 0
-      const cost = p.cost || 0
       const price = p.price || 0
 
       totalItens += qty
-      totalCustoEstoque += qty * cost
       totalVendaEstoque += qty * price
       if (qty <= 0) itensZerados++
     })
 
-    const lucroProjetado = totalVendaEstoque - totalCustoEstoque
-    const margemMedia =
-      totalVendaEstoque > 0 ? ((lucroProjetado / totalVendaEstoque) * 100).toFixed(1) : '0'
+    precoMedio = totalItens > 0 ? totalVendaEstoque / totalItens : 0
 
     return {
       totalItens,
-      totalCustoEstoque,
       totalVendaEstoque,
-      lucroProjetado,
-      margemMedia,
+      precoMedio,
       itensZerados,
       totalProdutos: filteredProducts.length,
     }
@@ -152,24 +145,22 @@ export function StockReportModal({ open, onOpenChange, products }: StockReportMo
               <span>Produtos Listados</span>
             </div>
             <div className="text-lg font-bold text-slate-900">{totals.totalProdutos}</div>
-            <div className="text-[10px] text-slate-500">{totals.totalItens} unidades no total</div>
+            <div className="text-[10px] text-slate-500">Itens cadastrados</div>
           </div>
 
           <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5">
             <div className="flex items-center gap-1.5 text-slate-500 text-[11px] font-medium mb-1">
-              <Layers className="h-3.5 w-3.5 text-amber-500" />
-              <span>Custo do Estoque</span>
+              <Layers className="h-3.5 w-3.5 text-blue-500" />
+              <span>Unidades Físicas</span>
             </div>
-            <div className="text-lg font-bold text-slate-900 font-mono">
-              R$ {totals.totalCustoEstoque.toFixed(2)}
-            </div>
-            <div className="text-[10px] text-amber-600 font-medium">Investimento total</div>
+            <div className="text-lg font-bold text-slate-900 font-mono">{totals.totalItens}</div>
+            <div className="text-[10px] text-blue-600 font-medium">Saldo total em estoque</div>
           </div>
 
           <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5">
             <div className="flex items-center gap-1.5 text-slate-500 text-[11px] font-medium mb-1">
               <CircleDollarSign className="h-3.5 w-3.5 text-emerald-500" />
-              <span>Valor em Venda</span>
+              <span>Valor Total em Venda</span>
             </div>
             <div className="text-lg font-bold text-emerald-700 font-mono">
               R$ {totals.totalVendaEstoque.toFixed(2)}
@@ -179,15 +170,13 @@ export function StockReportModal({ open, onOpenChange, products }: StockReportMo
 
           <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5">
             <div className="flex items-center gap-1.5 text-slate-500 text-[11px] font-medium mb-1">
-              <TrendingUp className="h-3.5 w-3.5 text-blue-500" />
-              <span>Lucro Projetado</span>
+              <CircleDollarSign className="h-3.5 w-3.5 text-slate-500" />
+              <span>Preço Médio Unitário</span>
             </div>
-            <div className="text-lg font-bold text-blue-700 font-mono">
-              R$ {totals.lucroProjetado.toFixed(2)}
+            <div className="text-lg font-bold text-slate-800 font-mono">
+              R$ {totals.precoMedio.toFixed(2)}
             </div>
-            <div className="text-[10px] text-blue-600 font-medium">
-              Margem est.: {totals.margemMedia}%
-            </div>
+            <div className="text-[10px] text-slate-500 font-medium">Por unidade em estoque</div>
           </div>
         </div>
 
@@ -228,19 +217,16 @@ export function StockReportModal({ open, onOpenChange, products }: StockReportMo
                 <th className="py-2.5 px-3">Código de Barras</th>
                 <th className="py-2.5 px-3">Nome do Produto</th>
                 <th className="py-2.5 px-3 text-center">Estoque Atual</th>
-                <th className="py-2.5 px-3 text-right">Preço Custo</th>
+                <th className="py-2.5 px-3 text-center">Contagem Física</th>
                 <th className="py-2.5 px-3 text-right">Preço Venda</th>
-                <th className="py-2.5 px-3 text-right">Total Custo</th>
                 <th className="py-2.5 px-3 text-right">Total Venda</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
               {filteredProducts.map((p, idx) => {
-                const barcode = p.barcode || p.codigo_barras || p.sku || '-'
+                const barcode = p.barcode || p.codigo_barras || '-'
                 const qty = p.stock_quantity ?? 0
-                const cost = p.cost || 0
                 const price = p.price || 0
-                const subCost = qty * cost
                 const subPrice = qty * price
 
                 return (
@@ -263,14 +249,13 @@ export function StockReportModal({ open, onOpenChange, products }: StockReportMo
                         {qty}
                       </span>
                     </td>
-                    <td className="py-2 px-3 text-right font-mono text-slate-600">
-                      R$ {cost.toFixed(2)}
+                    <td className="py-2 px-3 text-center">
+                      <span className="inline-block border border-dashed border-slate-300 rounded px-2 py-0.5 text-slate-400 font-mono text-[11px]">
+                        ____
+                      </span>
                     </td>
                     <td className="py-2 px-3 text-right font-mono font-medium text-slate-900">
                       R$ {price.toFixed(2)}
-                    </td>
-                    <td className="py-2 px-3 text-right font-mono text-slate-600">
-                      R$ {subCost.toFixed(2)}
                     </td>
                     <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">
                       R$ {subPrice.toFixed(2)}
@@ -281,7 +266,7 @@ export function StockReportModal({ open, onOpenChange, products }: StockReportMo
 
               {filteredProducts.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-400">
+                  <td colSpan={8} className="py-8 text-center text-slate-400">
                     Nenhum produto corresponde aos filtros informados.
                   </td>
                 </tr>
@@ -301,12 +286,6 @@ export function StockReportModal({ open, onOpenChange, products }: StockReportMo
             </span>
           </div>
           <div className="flex items-center gap-4 text-xs font-mono">
-            <div>
-              <span className="text-slate-500 mr-1.5">Total Custo:</span>
-              <span className="font-bold text-slate-900">
-                R$ {totals.totalCustoEstoque.toFixed(2)}
-              </span>
-            </div>
             <div>
               <span className="text-slate-500 mr-1.5">Total Venda:</span>
               <span className="font-bold text-emerald-700 text-sm">

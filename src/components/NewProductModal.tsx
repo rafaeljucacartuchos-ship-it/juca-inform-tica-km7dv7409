@@ -48,6 +48,7 @@ export function NewProductModal({
     name: '',
     description: '',
     sku: '',
+    barcode: '',
     category: '',
     cost: '',
     price: '',
@@ -86,6 +87,7 @@ export function NewProductModal({
           name: editProduct.name || '',
           description: editProduct.description || '',
           sku: editProduct.sku || '',
+          barcode: editProduct.barcode || editProduct.codigo_barras || '',
           category: editProduct.category || '',
           cost: editProduct.cost != null ? String(editProduct.cost) : '',
           price: editProduct.price != null ? String(editProduct.price) : '',
@@ -109,6 +111,7 @@ export function NewProductModal({
           name: '',
           description: '',
           sku: '',
+          barcode: '',
           category: '',
           cost: '',
           price: '',
@@ -186,6 +189,8 @@ export function NewProductModal({
         form.append('name', formData.name)
         form.append('description', formData.description)
         form.append('sku', formData.sku)
+        form.append('barcode', formData.barcode)
+        form.append('codigo_barras', formData.barcode)
         form.append('category', formData.category)
         form.append('cost', String(Number(formData.cost) || 0))
         form.append('price', String(Number(formData.price) || 0))
@@ -205,6 +210,8 @@ export function NewProductModal({
           name: formData.name,
           description: formData.description,
           sku: formData.sku,
+          barcode: formData.barcode,
+          codigo_barras: formData.barcode,
           category: formData.category,
           cost: Number(formData.cost) || 0,
           price: Number(formData.price) || 0,
@@ -251,12 +258,22 @@ export function NewProductModal({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">SKU</Label>
+              <Label className="text-xs font-semibold text-slate-700">SKU / Código</Label>
+              <Input
+                placeholder="Ex: SSD-480"
+                value={formData.sku}
+                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                className="h-9 text-xs font-mono"
+              />
+              {errors.sku && <p className="text-[11px] text-red-500">{errors.sku}</p>}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">Código de Barras</Label>
               <div className="flex gap-1.5">
                 <Input
-                  placeholder="Ex: SSD-480"
-                  value={formData.sku}
-                  onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                  placeholder="Ex: 7891234567890"
+                  value={formData.barcode}
+                  onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
                   className="h-9 text-xs font-mono"
                 />
                 <Button
@@ -270,8 +287,9 @@ export function NewProductModal({
                   <ScanLine className="h-4 w-4 text-indigo-600" />
                 </Button>
               </div>
-              {errors.sku && <p className="text-[11px] text-red-500">{errors.sku}</p>}
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-slate-700">Categoria</Label>
               <Input
@@ -279,6 +297,15 @@ export function NewProductModal({
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 className="h-9 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">Estoque</Label>
+              <Input
+                type="number"
+                value={formData.stock_quantity}
+                onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })}
+                className="h-9 text-xs font-mono"
               />
             </div>
           </div>
@@ -296,26 +323,17 @@ export function NewProductModal({
               {errors.cost && <p className="text-[11px] text-red-500">{errors.cost}</p>}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">Estoque</Label>
+              <Label className="text-xs font-semibold text-slate-700">Preço Venda (R$)</Label>
               <Input
                 type="number"
-                value={formData.stock_quantity}
-                onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })}
+                step="0.01"
+                placeholder="0.00"
+                value={formData.price}
+                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                 className="h-9 text-xs font-mono"
               />
+              {errors.price && <p className="text-[11px] text-red-500">{errors.price}</p>}
             </div>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold text-slate-700">Preço (R$)</Label>
-            <Input
-              type="number"
-              step="0.01"
-              placeholder="0.00"
-              value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-              className="h-9 text-xs font-mono"
-            />
-            {errors.price && <p className="text-[11px] text-red-500">{errors.price}</p>}
           </div>
 
           {/* Foto do produto: captura (câmera/galeria) + busca Pexels */}
@@ -457,7 +475,7 @@ export function NewProductModal({
       <BarcodeScanner
         open={scannerOpen}
         onOpenChange={setScannerOpen}
-        onDetected={(code) => setFormData((d) => ({ ...d, sku: code }))}
+        onDetected={(code) => setFormData((d) => ({ ...d, barcode: code }))}
       />
     </Dialog>
   )

@@ -229,13 +229,14 @@ export function ImportProductsModal({ open, onOpenChange, onSuccess }: ImportPro
                 </div>
                 <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-600">
                   <li>
-                    Colunas aceitas: <b>Código</b> (ou SKU), <b>Nome</b> (ou Produto),{' '}
-                    <b>Quantidade</b> (ou Estoque), <b>Preço Venda</b> e <b>Categoria</b>{' '}
-                    (opcional).
+                    Colunas aceitas: <b>Código</b> (ou SKU), <b>Código de Barras</b> (ou Barcode /
+                    EAN), <b>Nome</b> (ou Produto), <b>Quantidade</b> (ou Estoque),{' '}
+                    <b>Preço Venda</b> e <b>Categoria</b> (opcional).
                   </li>
                   <li>
-                    <b>Atualização inteligente:</b> Se o produto já existir pelo Código (SKU) ou
-                    Nome, os valores de estoque e preços serão <b>atualizados</b>.
+                    <b>Atualização inteligente:</b> Se o produto já existir pelo Código (SKU),
+                    Código de Barras ou Nome, os valores de estoque e preços serão{' '}
+                    <b>atualizados</b>.
                   </li>
                   <li>
                     <b>Novos produtos:</b> Itens que ainda não existirem serão cadastrados
@@ -274,6 +275,7 @@ export function ImportProductsModal({ open, onOpenChange, onSuccess }: ImportPro
                   <thead className="bg-slate-100 border-b border-slate-200 text-slate-600 font-semibold sticky top-0">
                     <tr>
                       <th className="p-2">Cód.</th>
+                      <th className="p-2">Cód. Barras</th>
                       <th className="p-2">Nome</th>
                       <th className="p-2">Categoria</th>
                       <th className="p-2 text-right">Preço Venda</th>
@@ -284,6 +286,9 @@ export function ImportProductsModal({ open, onOpenChange, onSuccess }: ImportPro
                     {parsedRows.slice(0, 30).map((r, idx) => (
                       <tr key={idx} className="hover:bg-slate-50">
                         <td className="p-2 font-mono text-slate-700">{r.codigo || '-'}</td>
+                        <td className="p-2 font-mono text-slate-600 text-[10px]">
+                          {r.codigoBarras || '-'}
+                        </td>
                         <td className="p-2 font-medium text-slate-900">{r.nome}</td>
                         <td className="p-2 text-slate-600">{r.categoria || '-'}</td>
                         <td className="p-2 text-right font-mono font-medium text-slate-900">

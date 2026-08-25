@@ -4,6 +4,7 @@ import { downloadFile } from '@/lib/export-utils'
 
 export interface ParsedProductRow {
   codigo?: string // SKU
+  codigoBarras?: string // Barcode / EAN
   nome: string
   quantidadeEstoque: number
   precoVenda: number
@@ -203,6 +204,7 @@ export async function parseProductsFile(file: File): Promise<ParsedProductRow[]>
   let headerRowIndex = -1
   let colIndices = {
     codigo: -1,
+    codigoBarras: -1,
     nome: -1,
     quantidade: -1,
     precoVenda: -1,
@@ -221,6 +223,17 @@ export async function parseProductsFile(file: File): Promise<ParsedProductRow[]>
     row.forEach((_, colIdx) => {
       const norm = normalizedRow[colIdx]
       if (
+        norm === 'codigodebarras' ||
+        norm === 'codigobarras' ||
+        norm === 'codbarras' ||
+        norm === 'barcode' ||
+        norm === 'ean' ||
+        norm === 'gtin' ||
+        norm === 'ean13' ||
+        norm === 'barras'
+      ) {
+        colIndices.codigoBarras = colIdx
+      } else if (
         norm === 'codigo' ||
         norm === 'cod' ||
         norm === 'sku' ||
@@ -275,23 +288,27 @@ export async function parseProductsFile(file: File): Promise<ParsedProductRow[]>
       }
     })
 
-    if ((hasNome || hasCodigo) && (hasPreco || colIndices.quantidade !== -1 || row.length >= 3)) {
+    if (
+      (hasNome || hasCodigo || colIndices.codigoBarras !== -1) &&
+      (hasPreco || colIndices.quantidade !== -1 || row.length >= 3)
+    ) {
       headerRowIndex = r
       break
     }
   }
 
   // Fallback se não encontrou cabeçalho padrão: assume as primeiras colunas
-  // Ordem comum: [0] Código, [1] Nome, [2] Quantidade, [3] Preço Venda, [4] Categoria
+  // Ordem comum: [0] Código, [1] Código de Barras, [2] Nome, [3] Quantidade, [4] Preço Venda, [5] Categoria
   if (headerRowIndex === -1) {
     headerRowIndex = 0
     colIndices = {
       codigo: 0,
-      nome: 1,
-      quantidade: 2,
-      precoVenda: 3,
-      categoria: 4,
-      descricao: 5,
+      codigoBarras: 1,
+      nome: 2,
+      quantidade: 3,
+      precoVenda: 4,
+      categoria: 5,
+      descricao: 6,
     }
   } else {
     // Se achou cabeçalho mas faltou algum mapeamento básico
@@ -307,6 +324,8 @@ export async function parseProductsFile(file: File): Promise<ParsedProductRow[]>
     if (!row || row.length === 0 || row.every((cell) => !cell.trim())) continue
 
     const codigo = colIndices.codigo >= 0 ? (row[colIndices.codigo] || '').trim() : ''
+    const codigoBarras =
+      colIndices.codigoBarras >= 0 ? (row[colIndices.codigoBarras] || '').trim() : ''
     const nome = colIndices.nome >= 0 ? (row[colIndices.nome] || '').trim() : ''
     const rawQtd = colIndices.quantidade >= 0 ? row[colIndices.quantidade] : '0'
     const rawVenda = colIndices.precoVenda >= 0 ? row[colIndices.precoVenda] : '0'
@@ -315,7 +334,7 @@ export async function parseProductsFile(file: File): Promise<ParsedProductRow[]>
 
     const erros: string[] = []
 
-    if (!nome && !codigo) {
+    if (!nome && !codigo && !codigoBarras) {
       // Linha vazia ou irrelevante
       continue
     }
@@ -336,7 +355,10 @@ export async function parseProductsFile(file: File): Promise<ParsedProductRow[]>
 
     parsedRows.push({
       codigo: codigo || undefined,
-      nome: nome || (codigo ? `Produto ${codigo}` : 'Sem Nome'),
+      codigoBarras: codigoBarras || undefined,
+      nome:
+        nome ||
+        (codigo ? `Produto ${codigo}` : codigoBarras ? `Produto ${codigoBarras}` : 'Sem Nome'),
       quantidadeEstoque,
       precoVenda,
       categoria: categoria || undefined,
@@ -365,7 +387,7 @@ export async function importProductsData(
     totalProcessed: rows.length,
   }
 
-  // 1. Carrega todos os produtos existentes para busca rápida na memória por SKU ou Nome
+  // 1. Carrega todos os produtos existentes para busca rápida na memória por SKU, Código de Barras ou Nome
   let existingProducts: Product[] = []
   try {
     existingProducts = await pb.collection('products').getFullList<Product>({
@@ -376,11 +398,16 @@ export async function importProductsData(
   }
 
   const skuMap = new Map<string, Product>()
+  const barcodeMap = new Map<string, Product>()
   const nameMap = new Map<string, Product>()
 
   existingProducts.forEach((p) => {
     if (p.sku && p.sku.trim()) {
       skuMap.set(p.sku.trim().toLowerCase(), p)
+    }
+    const bCode = (p.barcode || p.codigo_barras || '').trim()
+    if (bCode) {
+      barcodeMap.set(bCode.toLowerCase(), p)
     }
     if (p.name && p.name.trim()) {
       nameMap.set(p.name.trim().toLowerCase(), p)
@@ -404,10 +431,13 @@ export async function importProductsData(
     }
 
     try {
-      // Procura por SKU existente, ou então pelo Nome
+      // Procura por SKU, Código de Barras ou Nome
       let match: Product | undefined
       if (r.codigo && r.codigo.trim()) {
         match = skuMap.get(r.codigo.trim().toLowerCase())
+      }
+      if (!match && r.codigoBarras && r.codigoBarras.trim()) {
+        match = barcodeMap.get(r.codigoBarras.trim().toLowerCase())
       }
       if (!match && r.nome && r.nome.trim()) {
         match = nameMap.get(r.nome.trim().toLowerCase())
@@ -416,6 +446,8 @@ export async function importProductsData(
       const payload: Partial<Product> = {
         name: r.nome,
         sku: r.codigo || undefined,
+        barcode: r.codigoBarras || undefined,
+        codigo_barras: r.codigoBarras || undefined,
         stock_quantity: r.quantidadeEstoque,
         price: r.precoVenda,
         active: true,
@@ -429,12 +461,16 @@ export async function importProductsData(
         summary.updated++
         // Atualiza nos maps para caso haja duplicatas no próprio arquivo
         if (updatedRecord.sku) skuMap.set(updatedRecord.sku.trim().toLowerCase(), updatedRecord)
+        const updatedBarcode = (updatedRecord.barcode || updatedRecord.codigo_barras || '').trim()
+        if (updatedBarcode) barcodeMap.set(updatedBarcode.toLowerCase(), updatedRecord)
         if (updatedRecord.name) nameMap.set(updatedRecord.name.trim().toLowerCase(), updatedRecord)
       } else {
         // Cria novo
         const createdRecord = await pb.collection('products').create<Product>(payload)
         summary.created++
         if (createdRecord.sku) skuMap.set(createdRecord.sku.trim().toLowerCase(), createdRecord)
+        const createdBarcode = (createdRecord.barcode || createdRecord.codigo_barras || '').trim()
+        if (createdBarcode) barcodeMap.set(createdBarcode.toLowerCase(), createdRecord)
         if (createdRecord.name) nameMap.set(createdRecord.name.trim().toLowerCase(), createdRecord)
       }
     } catch (err: unknown) {
@@ -453,22 +489,28 @@ export async function importProductsData(
  */
 export function exportProductsToExcel(products: Product[], fileName = 'produtos_estoque') {
   let totalItens = 0
+  let totalValorVenda = 0
 
   const tableRows = products
     .map((p) => {
       const sku = p.sku || '-'
+      const barcode = p.barcode || p.codigo_barras || '-'
       const name = p.name || ''
       const qty = p.stock_quantity ?? 0
       const price = p.price || 0
+      const totalVenda = qty * price
 
       totalItens += qty
+      totalValorVenda += totalVenda
 
       return `
       <tr>
         <td style="mso-number-format:'\\@'; text-align:left;">${sku}</td>
+        <td style="mso-number-format:'\\@'; text-align:left; font-family:monospace;">${barcode}</td>
         <td style="text-align:left; font-weight:500;">${escapeHtml(name)}</td>
         <td style="text-align:center; mso-number-format:'#,##0';">${qty}</td>
         <td style="text-align:right; font-weight:bold; mso-number-format:'R$ #,##0.00';">R$ ${price.toFixed(2).replace('.', ',')}</td>
+        <td style="text-align:right; font-weight:bold; color:#047857; mso-number-format:'R$ #,##0.00';">R$ ${totalVenda.toFixed(2).replace('.', ',')}</td>
       </tr>`
     })
     .join('')
@@ -512,10 +554,12 @@ export function exportProductsToExcel(products: Product[], fileName = 'produtos_
     <table border="1">
       <thead>
         <tr>
-          <th style="width: 120px;">Código</th>
+          <th style="width: 120px;">Código (SKU)</th>
+          <th style="width: 140px;">Código de Barras</th>
           <th style="width: 320px;">Nome</th>
           <th style="width: 100px; text-align: center;">Quantidade em Estoque</th>
           <th style="width: 130px; text-align: right;">Preço de Venda</th>
+          <th style="width: 130px; text-align: right;">Total Venda</th>
         </tr>
       </thead>
       <tbody>
@@ -523,9 +567,10 @@ export function exportProductsToExcel(products: Product[], fileName = 'produtos_
       </tbody>
       <tfoot>
         <tr class="totals">
-          <td colspan="2" style="text-align: right; font-weight: bold; font-size: 11pt;">TOTALIZADORES:</td>
+          <td colspan="3" style="text-align: right; font-weight: bold; font-size: 11pt;">TOTALIZADORES:</td>
           <td style="text-align: center; font-weight: bold; font-size: 11pt;">${totalItens}</td>
           <td style="text-align: right; font-weight: bold; font-size: 11pt;">—</td>
+          <td style="text-align: right; font-weight: bold; font-size: 11pt; color: #047857;">R$ ${totalValorVenda.toFixed(2).replace('.', ',')}</td>
         </tr>
       </tfoot>
     </table>
@@ -538,28 +583,25 @@ export function exportProductsToExcel(products: Product[], fileName = 'produtos_
 
 /**
  * Gera o relatório de produtos para conferência de estoque (download em formato Excel / Relatório)
+ * Colunas: Item, Código, Código de Barras, Nome, Quantidade (Estoque Atual), Contagem Física, Preço de Venda, Total Venda
  */
 export function generateProductsReport(
   products: Product[],
   fileName = 'relatorio_conferencia_estoque',
 ) {
   let totalItens = 0
-  let totalCustoEstoque = 0
   let totalVendaEstoque = 0
 
   const tableRows = products
     .map((p, idx) => {
       const sku = p.sku || '-'
-      const barcode = p.barcode || p.codigo_barras || p.sku || '-'
+      const barcode = p.barcode || p.codigo_barras || '-'
       const name = p.name || ''
       const qty = p.stock_quantity ?? 0
-      const cost = p.cost || 0
       const price = p.price || 0
-      const subtotalCusto = qty * cost
       const subtotalVenda = qty * price
 
       totalItens += qty
-      totalCustoEstoque += subtotalCusto
       totalVendaEstoque += subtotalVenda
 
       return `
@@ -570,9 +612,7 @@ export function generateProductsReport(
         <td style="text-align:left; font-weight:600;">${escapeHtml(name)}</td>
         <td style="text-align:center; font-weight:bold; background-color:#f8fafc; mso-number-format:'#,##0';">${qty}</td>
         <td style="text-align:center; color:#94a3b8;">[ &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ]</td>
-        <td style="text-align:right; mso-number-format:'R$ #,##0.00';">R$ ${cost.toFixed(2).replace('.', ',')}</td>
         <td style="text-align:right; font-weight:bold; mso-number-format:'R$ #,##0.00';">R$ ${price.toFixed(2).replace('.', ',')}</td>
-        <td style="text-align:right; mso-number-format:'R$ #,##0.00';">R$ ${subtotalCusto.toFixed(2).replace('.', ',')}</td>
         <td style="text-align:right; font-weight:bold; color:#047857; mso-number-format:'R$ #,##0.00';">R$ ${subtotalVenda.toFixed(2).replace('.', ',')}</td>
       </tr>`
     })
@@ -608,7 +648,6 @@ export function generateProductsReport(
       .header-box { border-bottom: 2px solid #475569; padding-bottom: 8px; margin-bottom: 12px; }
       .title { font-size: 16pt; font-weight: bold; color: #0f172a; }
       .subtitle { font-size: 10pt; color: #64748b; margin-top: 2px; }
-      .kpi-row { margin: 12px 0; display: flex; gap: 20px; }
       .totals { background-color: #e2e8f0; font-weight: bold; border-top: 2px solid #0f172a; font-size: 10.5pt; }
     </style>
   </head>
@@ -623,13 +662,11 @@ export function generateProductsReport(
         <tr>
           <th style="width: 40px; text-align: center;">Item</th>
           <th style="width: 100px;">Código (SKU)</th>
-          <th style="width: 120px;">Código de Barras</th>
-          <th style="width: 260px;">Nome do Produto</th>
-          <th style="width: 90px; text-align: center;">Estoque Atual</th>
-          <th style="width: 90px; text-align: center;">Contagem Física</th>
-          <th style="width: 100px; text-align: right;">Preço Custo</th>
-          <th style="width: 100px; text-align: right;">Preço Venda</th>
-          <th style="width: 120px; text-align: right;">Total Custo</th>
+          <th style="width: 140px;">Código de Barras</th>
+          <th style="width: 280px;">Nome do Produto</th>
+          <th style="width: 100px; text-align: center;">Estoque Atual</th>
+          <th style="width: 110px; text-align: center;">Contagem Física</th>
+          <th style="width: 120px; text-align: right;">Preço Venda</th>
           <th style="width: 130px; text-align: right;">Total Venda</th>
         </tr>
       </thead>
@@ -642,8 +679,6 @@ export function generateProductsReport(
           <td style="text-align: center; font-weight: bold;">${totalItens}</td>
           <td style="text-align: center;">—</td>
           <td style="text-align: right;">—</td>
-          <td style="text-align: right;">—</td>
-          <td style="text-align: right; font-weight: bold;">R$ ${totalCustoEstoque.toFixed(2).replace('.', ',')}</td>
           <td style="text-align: right; font-weight: bold; color: #047857;">R$ ${totalVendaEstoque.toFixed(2).replace('.', ',')}</td>
         </tr>
       </tfoot>
@@ -667,6 +702,7 @@ export function downloadProductsTemplate() {
   const sampleData = [
     {
       codigo: 'SSD-480GB',
+      codigo_barras: '7891234567890',
       nome: 'SSD Kingston A400 480GB SATA 3',
       quantidade: 15,
       preco_venda: 220.0,
@@ -674,6 +710,7 @@ export function downloadProductsTemplate() {
     },
     {
       codigo: 'MEM-8GB-DDR4',
+      codigo_barras: '7891234567891',
       nome: 'Memória RAM 8GB DDR4 2666MHz Kingston Fury',
       quantidade: 20,
       preco_venda: 189.9,
@@ -681,6 +718,7 @@ export function downloadProductsTemplate() {
     },
     {
       codigo: 'FONTE-500W',
+      codigo_barras: '7891234567892',
       nome: 'Fonte ATX 500W 80 Plus Bronze PFC Ativo',
       quantidade: 8,
       preco_venda: 289.0,
@@ -688,6 +726,7 @@ export function downloadProductsTemplate() {
     },
     {
       codigo: 'CABO-HDMI-2M',
+      codigo_barras: '7891234567893',
       nome: 'Cabo HDMI 2.0 4K Ultra HD 2 Metros',
       quantidade: 35,
       preco_venda: 35.0,
@@ -700,6 +739,7 @@ export function downloadProductsTemplate() {
       (p) => `
     <tr>
       <td style="mso-number-format:'\\@';">${p.codigo}</td>
+      <td style="mso-number-format:'\\@';">${p.codigo_barras}</td>
       <td>${p.nome}</td>
       <td style="text-align:center;">${p.quantidade}</td>
       <td style="text-align:right;">${p.preco_venda.toFixed(2).replace('.', ',')}</td>
@@ -722,6 +762,7 @@ export function downloadProductsTemplate() {
       <thead>
         <tr>
           <th>código</th>
+          <th>código_barras</th>
           <th>nome</th>
           <th>quantidade</th>
           <th>preço_venda</th>
