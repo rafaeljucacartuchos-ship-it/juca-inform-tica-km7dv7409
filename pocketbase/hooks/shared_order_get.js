@@ -12,10 +12,18 @@ routerAdd('GET', '/backend/v1/shared-order/{id}', (e) => {
     const custId = record.getString('customer')
     if (custId) {
       const cust = $app.findRecordById('customers', custId)
+      const razao = cust.getString('razao_social')
+      const fantasia = cust.getString('nome_fantasia')
+      const legacyName = cust.getString('name')
+      const celular = cust.getString('celular')
+      const legacyPhone = cust.getString('phone')
+      const endereco = cust.getString('endereco')
+      const legacyStreet = cust.getString('street')
+
       customer = {
-        name: cust.getString('name'),
-        phone: cust.getString('phone'),
-        street: cust.getString('street'),
+        name: razao || fantasia || legacyName || '',
+        phone: celular || legacyPhone || '',
+        street: endereco || legacyStreet || '',
         number: cust.getString('number'),
         city: cust.getString('city'),
         state: cust.getString('state'),

@@ -9,7 +9,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { createCustomer, updateCustomer } from '@/services/customers'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
@@ -23,16 +22,13 @@ interface NewCustomerModalProps {
 }
 
 const emptyForm = {
-  name: '',
-  email: '',
-  phone: '',
+  razao_social: '',
+  nome_fantasia: '',
+  endereco: '',
+  bairro: '',
+  celular: '',
+  rg_ie: '',
   cpf_cnpj: '',
-  street: '',
-  number: '',
-  city: '',
-  state: '',
-  zip: '',
-  notes: '',
 }
 
 export function NewCustomerModal({
@@ -52,16 +48,13 @@ export function NewCustomerModal({
       setErrors({})
       if (editCustomer) {
         setFormData({
-          name: editCustomer.name || '',
-          email: editCustomer.email || '',
-          phone: editCustomer.phone || '',
+          razao_social: editCustomer.razao_social || editCustomer.name || '',
+          nome_fantasia: editCustomer.nome_fantasia || editCustomer.name || '',
+          endereco: editCustomer.endereco || editCustomer.street || '',
+          bairro: editCustomer.bairro || '',
+          celular: editCustomer.celular || editCustomer.phone || '',
+          rg_ie: editCustomer.rg_ie || '',
           cpf_cnpj: editCustomer.cpf_cnpj || '',
-          street: editCustomer.street || '',
-          number: editCustomer.number || '',
-          city: editCustomer.city || '',
-          state: editCustomer.state || '',
-          zip: editCustomer.zip || '',
-          notes: editCustomer.notes || '',
         })
       } else {
         setFormData(emptyForm)
@@ -72,22 +65,40 @@ export function NewCustomerModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrors({})
-    if (!formData.name.trim() || !formData.phone.trim()) {
+
+    const primaryName = formData.razao_social.trim() || formData.nome_fantasia.trim()
+    if (!primaryName) {
       setErrors({
-        name: !formData.name.trim() ? 'Nome é obrigatório' : '',
-        phone: !formData.phone.trim() ? 'Telefone é obrigatório' : '',
+        razao_social: 'Razão Social ou Nome Fantasia é obrigatório',
       })
       return
     }
+
     setLoading(true)
     try {
       let saved: Customer | undefined
+      const payload = {
+        razao_social: formData.razao_social.trim() || formData.nome_fantasia.trim(),
+        nome_fantasia: formData.nome_fantasia.trim() || formData.razao_social.trim(),
+        endereco: formData.endereco.trim(),
+        bairro: formData.bairro.trim(),
+        celular: formData.celular.trim(),
+        rg_ie: formData.rg_ie.trim(),
+        cpf_cnpj: formData.cpf_cnpj.trim(),
+      }
+
       if (isEdit && editCustomer) {
-        saved = await updateCustomer(editCustomer.id, formData)
-        toast({ title: 'Cliente atualizado!', description: formData.name })
+        saved = await updateCustomer(editCustomer.id, payload)
+        toast({
+          title: 'Cliente atualizado com sucesso!',
+          description: (payload.razao_social || payload.nome_fantasia) ?? undefined,
+        })
       } else {
-        saved = await createCustomer(formData)
-        toast({ title: 'Cliente cadastrado!', description: formData.name })
+        saved = await createCustomer(payload)
+        toast({
+          title: 'Cliente cadastrado com sucesso!',
+          description: (payload.razao_social || payload.nome_fantasia) ?? undefined,
+        })
       }
       onOpenChange(false)
       if (onCreated) onCreated(saved)
@@ -95,7 +106,7 @@ export function NewCustomerModal({
       setErrors(extractFieldErrors(err))
       toast({
         title: isEdit ? 'Erro ao atualizar cliente' : 'Erro ao cadastrar cliente',
-        description: 'Verifique as informações prestadas.',
+        description: 'Verifique as informações preenchidas e tente novamente.',
         variant: 'destructive',
       })
     } finally {
@@ -105,117 +116,96 @@ export function NewCustomerModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg font-bold text-slate-900">
             {isEdit ? 'Editar Cliente' : 'Novo Cliente'}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-3 py-2">
+        <form onSubmit={handleSubmit} className="space-y-3.5 py-2">
+          {/* 1. Razão Social */}
           <div className="space-y-1">
-            <Label className="text-xs font-semibold text-slate-700">
-              Nome Completo / Razão Social *
-            </Label>
+            <Label className="text-xs font-semibold text-slate-700">Razão Social *</Label>
             <Input
-              placeholder="Ex: João da Silva ou Empresa X"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="Ex: SILVA & SANTOS TECNOLOGIA LTDA"
+              value={formData.razao_social}
+              onChange={(e) => setFormData({ ...formData, razao_social: e.target.value })}
+              className="h-9 text-xs"
+              autoFocus
+            />
+            {errors.razao_social && (
+              <p className="text-[11px] text-red-500">{errors.razao_social}</p>
+            )}
+          </div>
+
+          {/* 2. Nome Fantasia */}
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold text-slate-700">Nome Fantasia</Label>
+            <Input
+              placeholder="Ex: SILVA TECH INFORMÁTICA"
+              value={formData.nome_fantasia}
+              onChange={(e) => setFormData({ ...formData, nome_fantasia: e.target.value })}
               className="h-9 text-xs"
             />
-            {errors.name && <p className="text-[11px] text-red-500">{errors.name}</p>}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">Telefone / WhatsApp *</Label>
+
+          {/* 3. Endereço e 4. Bairro */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2 space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">Endereço</Label>
               <Input
-                placeholder="(11) 99999-9999"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="Rua, Avenida, Número, Complemento..."
+                value={formData.endereco}
+                onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
                 className="h-9 text-xs"
               />
-              {errors.phone && <p className="text-[11px] text-red-500">{errors.phone}</p>}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">Bairro</Label>
+              <Input
+                placeholder="Ex: Centro"
+                value={formData.bairro}
+                onChange={(e) => setFormData({ ...formData, bairro: e.target.value })}
+                className="h-9 text-xs"
+              />
+            </div>
+          </div>
+
+          {/* 5. Celular */}
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold text-slate-700">Celular</Label>
+            <Input
+              placeholder="Ex: (11) 98765-4321"
+              value={formData.celular}
+              onChange={(e) => setFormData({ ...formData, celular: e.target.value })}
+              className="h-9 text-xs"
+            />
+            {errors.celular && <p className="text-[11px] text-red-500">{errors.celular}</p>}
+          </div>
+
+          {/* 6. RG/IE e 7. CPF/CNPJ */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">RG / IE</Label>
+              <Input
+                placeholder="Ex: 12.345.678-9 ou ISENTO"
+                value={formData.rg_ie}
+                onChange={(e) => setFormData({ ...formData, rg_ie: e.target.value })}
+                className="h-9 text-xs"
+              />
             </div>
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-slate-700">CPF / CNPJ</Label>
               <Input
-                placeholder="000.000.000-00 ou CNPJ"
+                placeholder="000.000.000-00 ou 00.000.000/0001-00"
                 value={formData.cpf_cnpj}
                 onChange={(e) => setFormData({ ...formData, cpf_cnpj: e.target.value })}
                 className="h-9 text-xs"
               />
             </div>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold text-slate-700">E-mail</Label>
-            <Input
-              type="email"
-              placeholder="cliente@email.com"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="h-9 text-xs"
-            />
-            {errors.email && <p className="text-[11px] text-red-500">{errors.email}</p>}
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <div className="col-span-2 space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">Rua / Logradouro</Label>
-              <Input
-                placeholder="Av. Paulista"
-                value={formData.street}
-                onChange={(e) => setFormData({ ...formData, street: e.target.value })}
-                className="h-9 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">Número</Label>
-              <Input
-                placeholder="1000"
-                value={formData.number}
-                onChange={(e) => setFormData({ ...formData, number: e.target.value })}
-                className="h-9 text-xs"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">Cidade</Label>
-              <Input
-                placeholder="São Paulo"
-                value={formData.city}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                className="h-9 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">Estado (UF)</Label>
-              <Input
-                placeholder="SP"
-                value={formData.state}
-                onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                className="h-9 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">CEP</Label>
-              <Input
-                placeholder="01000-000"
-                value={formData.zip}
-                onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
-                className="h-9 text-xs"
-              />
-            </div>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold text-slate-700">Observações do Cliente</Label>
-            <Textarea
-              placeholder="Anotações internas..."
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              rows={2}
-              className="text-xs"
-            />
-          </div>
-          <DialogFooter className="pt-2">
+
+          <DialogFooter className="pt-3">
             <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>

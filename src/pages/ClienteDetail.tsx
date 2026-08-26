@@ -51,7 +51,12 @@ export default function ClienteDetail() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">{customer.name}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            {customer.razao_social || customer.nome_fantasia || customer.name || 'Cliente'}
+          </h1>
+          {customer.nome_fantasia && customer.nome_fantasia !== customer.razao_social && (
+            <p className="text-xs text-slate-600 font-medium">{customer.nome_fantasia}</p>
+          )}
           <p className="text-xs text-slate-500">Perfil do cliente e histórico de atendimento</p>
         </div>
       </div>
@@ -63,18 +68,31 @@ export default function ClienteDetail() {
           </CardHeader>
           <CardContent className="space-y-3 text-xs">
             <div className="flex items-center gap-2 text-slate-700">
-              <Phone className="h-4 w-4 text-indigo-500" />
-              <span className="font-mono">{customer.phone}</span>
+              <Phone className="h-4 w-4 text-indigo-500 shrink-0" />
+              <span className="font-mono">
+                {customer.celular || customer.phone || 'Sem celular'}
+              </span>
             </div>
-            <div className="flex items-center gap-2 text-slate-700">
-              <Mail className="h-4 w-4 text-indigo-500" />
-              <span>{customer.email || 'Não informado'}</span>
-            </div>
-            <div className="flex items-start gap-2 text-slate-700">
-              <MapPin className="h-4 w-4 text-indigo-500 mt-0.5" />
+            {(customer.cpf_cnpj || customer.rg_ie) && (
+              <div className="space-y-1 pt-1 border-t border-slate-100">
+                {customer.cpf_cnpj && (
+                  <p className="text-slate-600">
+                    <span className="font-semibold text-slate-700">CPF/CNPJ:</span>{' '}
+                    {customer.cpf_cnpj}
+                  </p>
+                )}
+                {customer.rg_ie && (
+                  <p className="text-slate-600">
+                    <span className="font-semibold text-slate-700">RG/IE:</span> {customer.rg_ie}
+                  </p>
+                )}
+              </div>
+            )}
+            <div className="flex items-start gap-2 text-slate-700 pt-1 border-t border-slate-100">
+              <MapPin className="h-4 w-4 text-indigo-500 mt-0.5 shrink-0" />
               <span>
-                {customer.street} {customer.number}, {customer.city} - {customer.state} (
-                {customer.zip})
+                {customer.endereco || customer.street || 'Endereço não informado'}
+                {customer.bairro ? ` - Bairro: ${customer.bairro}` : ''}
               </span>
             </div>
           </CardContent>

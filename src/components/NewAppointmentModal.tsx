@@ -155,11 +155,15 @@ export function NewAppointmentModal({
                 <SelectValue placeholder="Selecione o cliente" />
               </SelectTrigger>
               <SelectContent>
-                {customers.map((c) => (
-                  <SelectItem key={c.id} value={c.id} className="text-xs">
-                    {c.name} {c.phone ? `(${c.phone})` : ''}
-                  </SelectItem>
-                ))}
+                {customers.map((c) => {
+                  const displayName = c.razao_social || c.nome_fantasia || c.name || 'Cliente'
+                  const phone = c.celular || c.phone
+                  return (
+                    <SelectItem key={c.id} value={c.id} className="text-xs">
+                      {displayName} {phone ? `(${phone})` : ''}
+                    </SelectItem>
+                  )
+                })}
               </SelectContent>
             </Select>
           </div>

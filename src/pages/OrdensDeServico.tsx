@@ -271,11 +271,14 @@ export default function OrdensDeServico() {
               <SelectItem value="all" className="text-xs">
                 Todos
               </SelectItem>
-              {customers.map((c) => (
-                <SelectItem key={c.id} value={c.id} className="text-xs">
-                  {c.name}
-                </SelectItem>
-              ))}
+              {customers.map((c) => {
+                const displayName = c.razao_social || c.nome_fantasia || c.name || 'Cliente'
+                return (
+                  <SelectItem key={c.id} value={c.id} className="text-xs">
+                    {displayName}
+                  </SelectItem>
+                )
+              })}
             </SelectContent>
           </Select>
         </div>

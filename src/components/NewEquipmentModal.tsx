@@ -130,11 +130,14 @@ export function NewEquipmentModal({
                 <SelectValue placeholder="Selecione o cliente" />
               </SelectTrigger>
               <SelectContent>
-                {customers.map((c) => (
-                  <SelectItem key={c.id} value={c.id} className="text-xs">
-                    {c.name}
-                  </SelectItem>
-                ))}
+                {customers.map((c) => {
+                  const displayName = c.razao_social || c.nome_fantasia || c.name || 'Cliente'
+                  return (
+                    <SelectItem key={c.id} value={c.id} className="text-xs">
+                      {displayName}
+                    </SelectItem>
+                  )
+                })}
               </SelectContent>
             </Select>
             {errors.customer && <p className="text-[11px] text-red-500">{errors.customer}</p>}

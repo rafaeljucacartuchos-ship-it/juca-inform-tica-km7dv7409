@@ -76,15 +76,32 @@ export function PrintOrderDocument({
         <div className="rounded border border-slate-200 p-3">
           <h4 className="mb-1 border-b border-slate-100 pb-1 font-bold">Cliente</h4>
           <p>
-            <strong>Nome:</strong> {cust?.name || '—'}
+            <strong>Razão Social / Nome:</strong>{' '}
+            {cust?.razao_social || cust?.nome_fantasia || cust?.name || '—'}
           </p>
+          {cust?.nome_fantasia && cust?.nome_fantasia !== cust?.razao_social && (
+            <p>
+              <strong>Nome Fantasia:</strong> {cust.nome_fantasia}
+            </p>
+          )}
           <p>
-            <strong>Telefone:</strong> {cust?.phone || '—'}
+            <strong>Celular / Telefone:</strong> {cust?.celular || cust?.phone || '—'}
           </p>
+          {cust?.cpf_cnpj && (
+            <p>
+              <strong>CPF/CNPJ:</strong> {cust.cpf_cnpj}
+            </p>
+          )}
           <p>
             <strong>Endereço:</strong>{' '}
-            {[cust?.street, cust?.number, cust?.city, cust?.state].filter(Boolean).join(', ') ||
-              '—'}
+            {[
+              cust?.endereco || cust?.street,
+              cust?.bairro ? `Bairro: ${cust.bairro}` : '',
+              cust?.city,
+              cust?.state,
+            ]
+              .filter(Boolean)
+              .join(', ') || '—'}
           </p>
         </div>
         <div className="rounded border border-slate-200 p-3">

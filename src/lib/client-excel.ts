@@ -1,16 +1,26 @@
 import pb from '@/lib/pocketbase/client'
 import { Customer } from '@/types'
-import { downloadFile } from '@/lib/export-utils'
 import { readSpreadsheetMatrix, normalizeHeader } from '@/lib/product-excel'
+import * as XLSX from 'xlsx'
 
+/**
+ * Estrutura da planilha de clientes (7 colunas exatas):
+ * 1. Razão Social
+ * 2. Nome Fantasia
+ * 3. Endereço
+ * 4. Bairro
+ * 5. Celular
+ * 6. RG/IE
+ * 7. CPF/CNPJ
+ */
 export interface ParsedCustomerRow {
-  nome: string
-  telefone: string
-  email?: string
-  cpf_cnpj?: string
-  endereco?: string
-  cidade?: string
-  estado?: string
+  razao_social: string
+  nome_fantasia: string
+  endereco: string
+  bairro: string
+  celular: string
+  rg_ie: string
+  cpf_cnpj: string
   rowNumber: number
   statusValido: boolean
   errosValidacao?: string[]
@@ -24,161 +34,183 @@ export interface ImportClientsSummary {
   totalProcessed: number
 }
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-}
-
 /**
- * Lê o arquivo (.xlsx, .xls ou .csv) e devolve as linhas estruturadas e validadas para Clientes
- * Colunas esperadas: nome, telefone, email, cpf/cnpj, endereco, cidade, estado
+ * Lê o arquivo (.xlsx, .xls ou .csv) e devolve as linhas estruturadas e validadas
+ * com as 7 colunas exatas da planilha do Rafael.
  */
 export async function parseClientsFile(file: File): Promise<ParsedCustomerRow[]> {
   const rawMatrix = await readSpreadsheetMatrix(file)
 
   if (rawMatrix.length === 0) {
     throw new Error(
-      'Não foi possível extrair dados da planilha. Certifique-se de salvar em formato .CSV ou .XLSX compatível.',
+      'Não foi possível extrair dados da planilha. Certifique-se de salvar em formato .XLSX, .XLS ou .CSV válido.',
     )
   }
 
   let headerRowIndex = -1
-  let colIndices = {
-    nome: -1,
-    telefone: -1,
-    email: -1,
-    cpf_cnpj: -1,
+  const colIndices = {
+    razao_social: -1,
+    nome_fantasia: -1,
     endereco: -1,
-    cidade: -1,
-    estado: -1,
+    bairro: -1,
+    celular: -1,
+    rg_ie: -1,
+    cpf_cnpj: -1,
   }
 
+  // Percorre as 10 primeiras linhas para encontrar cabeçalhos com variações
   for (let r = 0; r < Math.min(rawMatrix.length, 10); r++) {
     const row = rawMatrix[r]
     const normalizedRow = row.map((c) => normalizeHeader(c))
 
-    let hasNome = false
-    let hasTelefone = false
-    let hasEmail = false
+    let foundAny = false
 
     row.forEach((_, colIdx) => {
       const norm = normalizedRow[colIdx]
+
+      // Razão Social: razao_social, razão social, razao social, razaosocial, empresa, cliente, nome
       if (
-        norm === 'nome' ||
-        norm === 'cliente' ||
         norm === 'razaosocial' ||
-        norm === 'nomecliente' ||
-        norm === 'nomedocliente' ||
-        norm === 'contato'
+        norm === 'razao_social' ||
+        norm === 'razaosoc' ||
+        norm === 'razaos'
       ) {
-        colIndices.nome = colIdx
-        hasNome = true
-      } else if (
-        norm === 'telefone' ||
-        norm === 'tel' ||
-        norm === 'fone' ||
+        colIndices.razao_social = colIdx
+        foundAny = true
+      }
+      // Nome Fantasia: nome_fantasia, nome fantasia, nomefantasia, fantasia
+      else if (
+        norm === 'nomefantasia' ||
+        norm === 'nome_fantasia' ||
+        norm === 'fantasia' ||
+        norm === 'nomecomercial'
+      ) {
+        colIndices.nome_fantasia = colIdx
+        foundAny = true
+      }
+      // Endereço: endereco, endereço, endereco, logradouro, rua
+      else if (
+        norm === 'endereco' ||
+        norm === 'endereço' ||
+        norm === 'rua' ||
+        norm === 'logradouro' ||
+        norm === 'enderecocompleto'
+      ) {
+        colIndices.endereco = colIdx
+        foundAny = true
+      }
+      // Bairro: bairro, dist, distrito
+      else if (norm === 'bairro' || norm === 'bairros') {
+        colIndices.bairro = colIdx
+        foundAny = true
+      }
+      // Celular: celular, telefone, fone, tel, cel, whatsapp
+      else if (
         norm === 'celular' ||
-        norm === 'whatsapp' ||
+        norm === 'telefone' ||
+        norm === 'fone' ||
+        norm === 'tel' ||
         norm === 'cel' ||
-        norm === 'contatofone'
+        norm === 'whatsapp' ||
+        norm === 'contatofone' ||
+        norm === 'telefones'
       ) {
-        colIndices.telefone = colIdx
-        hasTelefone = true
-      } else if (
-        norm === 'email' ||
-        norm === 'mail' ||
-        norm === 'correioeletronico' ||
-        norm === 'e-mail'
+        colIndices.celular = colIdx
+        foundAny = true
+      }
+      // RG/IE: rg/ie, rg_ie, rgie, rg, ie, inscricaoestadual, inscr_estadual, ident
+      else if (
+        norm === 'rgie' ||
+        norm === 'rg_ie' ||
+        norm === 'rg' ||
+        norm === 'ie' ||
+        norm === 'inscricaoestadual' ||
+        norm === 'inscrest' ||
+        norm === 'identidade'
       ) {
-        colIndices.email = colIdx
-        hasEmail = true
-      } else if (
+        colIndices.rg_ie = colIdx
+        foundAny = true
+      }
+      // CPF/CNPJ: cpf/cnpj, cpf_cnpj, cpfcnpj, cpf, cnpj, documento, doc
+      else if (
         norm === 'cpfcnpj' ||
+        norm === 'cpf_cnpj' ||
         norm === 'cpf' ||
         norm === 'cnpj' ||
         norm === 'documento' ||
-        norm === 'cpfoucnpj' ||
-        norm === 'doc'
+        norm === 'doc' ||
+        norm === 'cpfoucnpj'
       ) {
         colIndices.cpf_cnpj = colIdx
-      } else if (
-        norm === 'endereco' ||
-        norm === 'rua' ||
-        norm === 'logradouro' ||
-        norm === 'enderecocompleto' ||
-        norm === 'bairro'
-      ) {
-        colIndices.endereco = colIdx
-      } else if (norm === 'cidade' || norm === 'municipio') {
-        colIndices.cidade = colIdx
-      } else if (norm === 'estado' || norm === 'uf') {
-        colIndices.estado = colIdx
+        foundAny = true
       }
     })
 
-    if ((hasNome || hasTelefone) && (hasEmail || colIndices.cpf_cnpj !== -1 || row.length >= 2)) {
+    if (
+      foundAny &&
+      (colIndices.razao_social !== -1 ||
+        colIndices.nome_fantasia !== -1 ||
+        colIndices.celular !== -1 ||
+        colIndices.cpf_cnpj !== -1)
+    ) {
       headerRowIndex = r
       break
     }
   }
 
-  // Fallback se não detectou cabeçalho clássico:
-  // [0] Nome, [1] Telefone, [2] Email, [3] CPF/CNPJ, [4] Endereço, [5] Cidade, [6] Estado
+  // Fallback se não detectou cabeçalho clássico: ordem exata da planilha do Rafael
+  // 0: Razão Social | 1: Nome Fantasia | 2: Endereço | 3: Bairro | 4: Celular | 5: RG/IE | 6: CPF/CNPJ
   if (headerRowIndex === -1) {
     headerRowIndex = 0
-    colIndices = {
-      nome: 0,
-      telefone: 1,
-      email: 2,
-      cpf_cnpj: 3,
-      endereco: 4,
-      cidade: 5,
-      estado: 6,
-    }
+    colIndices.razao_social = 0
+    colIndices.nome_fantasia = 1
+    colIndices.endereco = 2
+    colIndices.bairro = 3
+    colIndices.celular = 4
+    colIndices.rg_ie = 5
+    colIndices.cpf_cnpj = 6
   } else {
-    if (colIndices.nome === -1) colIndices.nome = 0
-    if (colIndices.telefone === -1 && colIndices.nome !== 1) colIndices.telefone = 1
+    // Se achou cabeçalho mas faltou algum mapeamento básico
+    if (colIndices.razao_social === -1 && colIndices.nome_fantasia === -1) {
+      colIndices.razao_social = 0
+    }
   }
 
   const parsedRows: ParsedCustomerRow[] = []
 
   for (let i = headerRowIndex + 1; i < rawMatrix.length; i++) {
     const row = rawMatrix[i]
-    if (!row || row.length === 0 || row.every((cell) => !cell.trim())) continue
+    if (!row || row.length === 0 || row.every((cell) => !String(cell || '').trim())) continue
 
-    const nome = colIndices.nome >= 0 ? (row[colIndices.nome] || '').trim() : ''
-    const telefone = colIndices.telefone >= 0 ? (row[colIndices.telefone] || '').trim() : ''
-    const email = colIndices.email >= 0 ? (row[colIndices.email] || '').trim() : ''
-    const cpf_cnpj = colIndices.cpf_cnpj >= 0 ? (row[colIndices.cpf_cnpj] || '').trim() : ''
-    const endereco = colIndices.endereco >= 0 ? (row[colIndices.endereco] || '').trim() : ''
-    const cidade = colIndices.cidade >= 0 ? (row[colIndices.cidade] || '').trim() : ''
-    const estado = colIndices.estado >= 0 ? (row[colIndices.estado] || '').trim() : ''
+    const razao_social =
+      colIndices.razao_social >= 0 ? String(row[colIndices.razao_social] || '').trim() : ''
+    const nome_fantasia =
+      colIndices.nome_fantasia >= 0 ? String(row[colIndices.nome_fantasia] || '').trim() : ''
+    const endereco = colIndices.endereco >= 0 ? String(row[colIndices.endereco] || '').trim() : ''
+    const bairro = colIndices.bairro >= 0 ? String(row[colIndices.bairro] || '').trim() : ''
+    const celular = colIndices.celular >= 0 ? String(row[colIndices.celular] || '').trim() : ''
+    const rg_ie = colIndices.rg_ie >= 0 ? String(row[colIndices.rg_ie] || '').trim() : ''
+    const cpf_cnpj = colIndices.cpf_cnpj >= 0 ? String(row[colIndices.cpf_cnpj] || '').trim() : ''
 
-    const erros: string[] = []
-
-    if (!nome && !telefone && !email) {
+    // Se a linha estiver totalmente vazia
+    if (!razao_social && !nome_fantasia && !celular && !cpf_cnpj && !endereco) {
       continue
     }
 
-    if (!nome) {
-      erros.push('Nome do cliente é obrigatório.')
-    }
-    if (!telefone) {
-      erros.push('Telefone do cliente é obrigatório.')
+    const erros: string[] = []
+
+    if (!razao_social && !nome_fantasia) {
+      erros.push('Razão Social ou Nome Fantasia é obrigatório.')
     }
 
     parsedRows.push({
-      nome: nome || 'Cliente Sem Nome',
-      telefone: telefone || '-',
-      email: email || undefined,
-      cpf_cnpj: cpf_cnpj || undefined,
-      endereco: endereco || undefined,
-      cidade: cidade || undefined,
-      estado: estado || undefined,
+      razao_social: razao_social || nome_fantasia,
+      nome_fantasia: nome_fantasia || razao_social,
+      endereco,
+      bairro,
+      celular,
+      rg_ie,
+      cpf_cnpj,
       rowNumber: i + 1,
       statusValido: erros.length === 0,
       errosValidacao: erros.length > 0 ? erros : undefined,
@@ -189,8 +221,8 @@ export async function parseClientsFile(file: File): Promise<ParsedCustomerRow[]>
 }
 
 /**
- * Importa/atualiza clientes no PocketBase em lote
- * Atualiza clientes existentes (pelo nome ou email) ou cria novos
+ * Importa e atualiza clientes no PocketBase em lote
+ * Reconhece clientes existentes por CPF/CNPJ, Razão Social ou Nome Fantasia
  */
 export async function importClientsData(
   rows: ParsedCustomerRow[],
@@ -213,16 +245,19 @@ export async function importClientsData(
     console.error('Erro ao buscar clientes existentes:', e)
   }
 
+  const docMap = new Map<string, Customer>()
+  const razaoMap = new Map<string, Customer>()
+  const fantasiaMap = new Map<string, Customer>()
   const nameMap = new Map<string, Customer>()
-  const emailMap = new Map<string, Customer>()
+
+  const cleanDoc = (doc?: string) => (doc || '').replace(/\D/g, '')
 
   existingCustomers.forEach((c) => {
-    if (c.name && c.name.trim()) {
-      nameMap.set(c.name.trim().toLowerCase(), c)
-    }
-    if (c.email && c.email.trim()) {
-      emailMap.set(c.email.trim().toLowerCase(), c)
-    }
+    const d = cleanDoc(c.cpf_cnpj)
+    if (d) docMap.set(d, c)
+    if (c.razao_social?.trim()) razaoMap.set(c.razao_social.trim().toLowerCase(), c)
+    if (c.nome_fantasia?.trim()) fantasiaMap.set(c.nome_fantasia.trim().toLowerCase(), c)
+    if (c.name?.trim()) nameMap.set(c.name.trim().toLowerCase(), c)
   })
 
   for (let i = 0; i < rows.length; i++) {
@@ -235,46 +270,74 @@ export async function importClientsData(
     if (!r.statusValido && r.errosValidacao && r.errosValidacao.length > 0) {
       summary.errors++
       summary.errorDetails.push(
-        `Linha ${r.rowNumber} (${r.nome || 'Sem Nome'}): ${r.errosValidacao.join(', ')}`,
+        `Linha ${r.rowNumber} (${r.razao_social || r.nome_fantasia || 'Sem Nome'}): ${r.errosValidacao.join(', ')}`,
       )
       continue
     }
 
     try {
-      // Busca cliente existente por email ou nome
       let match: Customer | undefined
-      if (r.email && r.email.trim()) {
-        match = emailMap.get(r.email.trim().toLowerCase())
+      const rowDoc = cleanDoc(r.cpf_cnpj)
+      if (rowDoc && docMap.has(rowDoc)) {
+        match = docMap.get(rowDoc)
       }
-      if (!match && r.nome && r.nome.trim()) {
-        match = nameMap.get(r.nome.trim().toLowerCase())
+      if (!match && r.razao_social?.trim() && razaoMap.has(r.razao_social.trim().toLowerCase())) {
+        match = razaoMap.get(r.razao_social.trim().toLowerCase())
+      }
+      if (
+        !match &&
+        r.nome_fantasia?.trim() &&
+        fantasiaMap.has(r.nome_fantasia.trim().toLowerCase())
+      ) {
+        match = fantasiaMap.get(r.nome_fantasia.trim().toLowerCase())
+      }
+      if (!match && r.razao_social?.trim() && nameMap.has(r.razao_social.trim().toLowerCase())) {
+        match = nameMap.get(r.razao_social.trim().toLowerCase())
       }
 
+      const mainName = r.razao_social || r.nome_fantasia || 'Cliente'
+
       const payload: Partial<Customer> = {
-        name: r.nome,
-        phone: r.telefone,
+        razao_social: r.razao_social,
+        nome_fantasia: r.nome_fantasia,
+        endereco: r.endereco,
+        bairro: r.bairro,
+        celular: r.celular,
+        rg_ie: r.rg_ie,
+        cpf_cnpj: r.cpf_cnpj,
+        // Compatibilidade legada
+        name: mainName,
+        phone: r.celular || '',
+        street: r.endereco || '',
       }
-      if (r.email) payload.email = r.email
-      if (r.cpf_cnpj) payload.cpf_cnpj = r.cpf_cnpj
-      if (r.endereco) payload.street = r.endereco
-      if (r.cidade) payload.city = r.cidade
-      if (r.estado) payload.state = r.estado
 
       if (match) {
         const updated = await pb.collection('customers').update<Customer>(match.id, payload)
         summary.updated++
-        if (updated.name) nameMap.set(updated.name.trim().toLowerCase(), updated)
-        if (updated.email) emailMap.set(updated.email.trim().toLowerCase(), updated)
+        const uDoc = cleanDoc(updated.cpf_cnpj)
+        if (uDoc) docMap.set(uDoc, updated)
+        if (updated.razao_social?.trim())
+          razaoMap.set(updated.razao_social.trim().toLowerCase(), updated)
+        if (updated.nome_fantasia?.trim())
+          fantasiaMap.set(updated.nome_fantasia.trim().toLowerCase(), updated)
+        if (updated.name?.trim()) nameMap.set(updated.name.trim().toLowerCase(), updated)
       } else {
         const created = await pb.collection('customers').create<Customer>(payload)
         summary.created++
-        if (created.name) nameMap.set(created.name.trim().toLowerCase(), created)
-        if (created.email) emailMap.set(created.email.trim().toLowerCase(), created)
+        const cDoc = cleanDoc(created.cpf_cnpj)
+        if (cDoc) docMap.set(cDoc, created)
+        if (created.razao_social?.trim())
+          razaoMap.set(created.razao_social.trim().toLowerCase(), created)
+        if (created.nome_fantasia?.trim())
+          fantasiaMap.set(created.nome_fantasia.trim().toLowerCase(), created)
+        if (created.name?.trim()) nameMap.set(created.name.trim().toLowerCase(), created)
       }
     } catch (err: unknown) {
       summary.errors++
       const msg = err instanceof Error ? err.message : String(err)
-      summary.errorDetails.push(`Linha ${r.rowNumber} (${r.nome}): ${msg}`)
+      summary.errorDetails.push(
+        `Linha ${r.rowNumber} (${r.razao_social || r.nome_fantasia}): ${msg}`,
+      )
     }
   }
 
@@ -282,177 +345,100 @@ export async function importClientsData(
 }
 
 /**
- * Exporta os clientes para planilha Excel (.xlsx / .xls)
- * Colunas: Nome, Telefone, Email, CPF/CNPJ, Endereço, Cidade, Estado
- * Linha de totalizadores no rodapé (total de clientes)
+ * Exporta os clientes para planilha Excel (.xlsx) na ordem exata solicitada:
+ * 1. Razão Social
+ * 2. Nome Fantasia
+ * 3. Endereço
+ * 4. Bairro
+ * 5. Celular
+ * 6. RG/IE
+ * 7. CPF/CNPJ
+ * Nome padrão do arquivo: "clientes.xlsx"
  */
-export function exportClientsToExcel(customers: Customer[], fileName = 'clientes') {
-  const tableRows = customers
-    .map((c) => {
-      const name = c.name || ''
-      const phone = c.phone || '-'
-      const email = c.email || '-'
-      const cpfCnpj = c.cpf_cnpj || '-'
-      const street = c.street ? `${c.street}${c.number ? ', ' + c.number : ''}` : '-'
-      const city = c.city || '-'
-      const state = c.state || '-'
+export function exportClientsToExcel(customers: Customer[], fileName = 'clientes.xlsx') {
+  // Cria dados estruturados com cabeçalhos exatos
+  const data = customers.map((c) => ({
+    'Razão Social': c.razao_social || c.name || '',
+    'Nome Fantasia': c.nome_fantasia || c.razao_social || c.name || '',
+    Endereço: c.endereco || c.street || '',
+    Bairro: c.bairro || '',
+    Celular: c.celular || c.phone || '',
+    'RG/IE': c.rg_ie || '',
+    'CPF/CNPJ': c.cpf_cnpj || '',
+  }))
 
-      return `
-      <tr>
-        <td style="text-align:left; font-weight:600;">${escapeHtml(name)}</td>
-        <td style="mso-number-format:'\\@'; text-align:left;">${escapeHtml(phone)}</td>
-        <td style="text-align:left;">${escapeHtml(email)}</td>
-        <td style="mso-number-format:'\\@'; text-align:left;">${escapeHtml(cpfCnpj)}</td>
-        <td style="text-align:left;">${escapeHtml(street)}</td>
-        <td style="text-align:left;">${escapeHtml(city)}</td>
-        <td style="text-align:center;">${escapeHtml(state)}</td>
-      </tr>`
-    })
-    .join('')
+  const worksheet = XLSX.utils.json_to_sheet(data, {
+    header: ['Razão Social', 'Nome Fantasia', 'Endereço', 'Bairro', 'Celular', 'RG/IE', 'CPF/CNPJ'],
+  })
 
-  const todayStr = new Date().toLocaleDateString('pt-BR')
-  const dateFile = new Date().toISOString().substring(0, 10)
+  // Ajusta larguras de coluna
+  worksheet['!cols'] = [
+    { wch: 32 }, // Razão Social
+    { wch: 28 }, // Nome Fantasia
+    { wch: 35 }, // Endereço
+    { wch: 20 }, // Bairro
+    { wch: 18 }, // Celular
+    { wch: 16 }, // RG/IE
+    { wch: 20 }, // CPF/CNPJ
+  ]
 
-  const html = `
-  <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-  <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <!--[if gte mso 9]>
-    <xml>
-      <x:ExcelWorkbook>
-        <x:ExcelWorksheets>
-          <x:ExcelWorksheet>
-            <x:Name>Clientes</x:Name>
-            <x:WorksheetOptions>
-              <x:DisplayGridlines/>
-            </x:WorksheetOptions>
-          </x:ExcelWorksheet>
-        </x:ExcelWorksheets>
-      </x:ExcelWorkbook>
-    </xml>
-    <![endif]-->
-    <style>
-      body { font-family: Arial, sans-serif; font-size: 11pt; color: #1e293b; }
-      table { border-collapse: collapse; width: 100%; }
-      th { background-color: #4f46e5; color: #ffffff; font-weight: bold; text-align: left; padding: 8px 12px; border: 1px solid #cbd5e1; }
-      td { padding: 6px 12px; border: 1px solid #cbd5e1; font-size: 10pt; }
-      tr:nth-child(even) { background-color: #f8fafc; }
-      .title { font-size: 16pt; font-weight: bold; color: #1e1b4b; padding-bottom: 4px; }
-      .subtitle { font-size: 10pt; color: #64748b; padding-bottom: 12px; }
-      .totals { background-color: #f1f5f9; font-weight: bold; border-top: 2px solid #6366f1; }
-    </style>
-  </head>
-  <body>
-    <div class="title">JUCA INFORMÁTICA — Cadastro de Clientes</div>
-    <div class="subtitle">Exportação gerada em ${todayStr} | Total de ${customers.length} clientes cadastrados</div>
-    
-    <table border="1">
-      <thead>
-        <tr>
-          <th style="width: 250px;">Nome</th>
-          <th style="width: 140px;">Telefone</th>
-          <th style="width: 200px;">Email</th>
-          <th style="width: 150px;">CPF/CNPJ</th>
-          <th style="width: 240px;">Endereço</th>
-          <th style="width: 140px;">Cidade</th>
-          <th style="width: 80px; text-align: center;">Estado</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${tableRows}
-      </tbody>
-      <tfoot>
-        <tr class="totals">
-          <td style="text-align: right; font-weight: bold; font-size: 11pt;">TOTAL DE CLIENTES:</td>
-          <td colspan="6" style="text-align: left; font-weight: bold; font-size: 11pt; color: #4f46e5;">${customers.length} cliente(s) cadastrado(s)</td>
-        </tr>
-      </tfoot>
-    </table>
-  </body>
-  </html>
-  `
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Clientes')
 
-  downloadFile(`${fileName}_${dateFile}.xls`, html, 'application/vnd.ms-excel')
+  const finalName = fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`
+  XLSX.writeFile(workbook, finalName)
 }
 
 /**
- * Baixa um arquivo de modelo Excel / CSV com as colunas corretas para preenchimento de clientes
+ * Baixa um arquivo de modelo Excel (.xlsx) com as 7 colunas exatas para importação
  */
 export function downloadClientsTemplate() {
   const sampleData = [
     {
-      nome: 'João Silva',
-      telefone: '(11) 98765-4321',
-      email: 'joao.silva@exemplo.com',
-      cpf_cnpj: '123.456.789-00',
-      endereco: 'Rua das Flores, 120',
-      cidade: 'São Paulo',
-      estado: 'SP',
+      'Razão Social': 'SILVA E SANTOS TECNOLOGIA LTDA',
+      'Nome Fantasia': 'SILVA TECH INFORMÁTICA',
+      Endereço: 'Rua das Flores, 120',
+      Bairro: 'Centro',
+      Celular: '(11) 98765-4321',
+      'RG/IE': '123.456.789.000',
+      'CPF/CNPJ': '12.345.678/0001-90',
     },
     {
-      nome: 'Empresa Alpha Tecnologia Ltda',
-      telefone: '(11) 3344-5566',
-      email: 'contato@alphatec.com.br',
-      cpf_cnpj: '12.345.678/0001-90',
-      endereco: 'Av. Paulista, 1000 - Cj 52',
-      cidade: 'São Paulo',
-      estado: 'SP',
+      'Razão Social': 'JOAO DA SILVA 12345678900',
+      'Nome Fantasia': 'JOÃO DA SILVA',
+      Endereço: 'Av. Paulista, 1000 - Apto 52',
+      Bairro: 'Bela Vista',
+      Celular: '(11) 99887-7665',
+      'RG/IE': '28.123.456-7',
+      'CPF/CNPJ': '123.456.789-00',
     },
     {
-      nome: 'Maria Oliveira',
-      telefone: '(21) 99887-7665',
-      email: 'maria.oliveira@gmail.com',
-      cpf_cnpj: '987.654.321-11',
-      endereco: 'Rua Copacabana, 500',
-      cidade: 'Rio de Janeiro',
-      estado: 'RJ',
+      'Razão Social': 'MARIA OLIVEIRA COMÉRCIO ME',
+      'Nome Fantasia': 'M&O ASSISTÊNCIA',
+      Endereço: 'Rua Copacabana, 500',
+      Bairro: 'Jardim América',
+      Celular: '(21) 99123-4567',
+      'RG/IE': 'ISENTO',
+      'CPF/CNPJ': '98.765.432/0001-11',
     },
   ]
 
-  const rowsHtml = sampleData
-    .map(
-      (c) => `
-    <tr>
-      <td style="font-weight: 500;">${c.nome}</td>
-      <td style="mso-number-format:'\\@';">${c.telefone}</td>
-      <td>${c.email}</td>
-      <td style="mso-number-format:'\\@';">${c.cpf_cnpj}</td>
-      <td>${c.endereco}</td>
-      <td>${c.cidade}</td>
-      <td style="text-align: center;">${c.estado}</td>
-    </tr>`,
-    )
-    .join('')
+  const worksheet = XLSX.utils.json_to_sheet(sampleData, {
+    header: ['Razão Social', 'Nome Fantasia', 'Endereço', 'Bairro', 'Celular', 'RG/IE', 'CPF/CNPJ'],
+  })
 
-  const html = `
-  <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
-  <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <style>
-      th { background-color: #4f46e5; color: #ffffff; font-weight: bold; text-align: left; padding: 8px; }
-      td { padding: 6px; border: 1px solid #cbd5e1; }
-    </style>
-  </head>
-  <body>
-    <table border="1">
-      <thead>
-        <tr>
-          <th>nome</th>
-          <th>telefone</th>
-          <th>email</th>
-          <th>cpf_cnpj</th>
-          <th>endereco</th>
-          <th>cidade</th>
-          <th>estado</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rowsHtml}
-      </tbody>
-    </table>
-  </body>
-  </html>
-  `
+  worksheet['!cols'] = [
+    { wch: 32 },
+    { wch: 28 },
+    { wch: 35 },
+    { wch: 20 },
+    { wch: 18 },
+    { wch: 16 },
+    { wch: 20 },
+  ]
 
-  downloadFile('modelo_importacao_clientes.xls', html, 'application/vnd.ms-excel')
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Modelo Clientes')
+
+  XLSX.writeFile(workbook, 'modelo_importacao_clientes.xlsx')
 }

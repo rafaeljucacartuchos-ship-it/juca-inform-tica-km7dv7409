@@ -46,10 +46,18 @@ export interface User {
 
 export interface Customer {
   id: string
-  name: string
-  email?: string
-  phone: string
+  // Novos campos padronizados conforme planilha:
+  razao_social?: string
+  nome_fantasia?: string
+  endereco?: string
+  bairro?: string
+  celular?: string
+  rg_ie?: string
   cpf_cnpj?: string
+  // Campos de compatibilidade legado (mantidos no banco)
+  name?: string
+  email?: string
+  phone?: string
   street?: string
   number?: string
   city?: string

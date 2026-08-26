@@ -13,11 +13,27 @@ routerAdd('GET', '/backend/v1/os/{id}/share', (e) => {
     const custId = record.getString('customer')
     if (custId) {
       const cust = $app.findRecordById('customers', custId)
+      const razao = cust.getString('razao_social')
+      const fantasia = cust.getString('nome_fantasia')
+      const legacyName = cust.getString('name')
+      const celular = cust.getString('celular')
+      const legacyPhone = cust.getString('phone')
+      const endereco = cust.getString('endereco')
+      const bairro = cust.getString('bairro')
+      const legacyStreet = cust.getString('street')
+
       customer = {
-        name: cust.getString('name'),
-        phone: cust.getString('phone'),
+        name: razao || fantasia || legacyName || '',
+        razao_social: razao,
+        nome_fantasia: fantasia,
+        phone: celular || legacyPhone || '',
+        celular: celular || legacyPhone || '',
+        endereco: endereco || legacyStreet || '',
+        bairro: bairro,
+        cpf_cnpj: cust.getString('cpf_cnpj'),
+        rg_ie: cust.getString('rg_ie'),
         email: cust.getString('email'),
-        street: cust.getString('street'),
+        street: endereco || legacyStreet || '',
         number: cust.getString('number'),
         city: cust.getString('city'),
         state: cust.getString('state'),

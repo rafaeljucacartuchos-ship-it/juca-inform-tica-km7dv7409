@@ -217,7 +217,7 @@ export function ImportClientsModal({ open, onOpenChange, onSuccess }: ImportClie
               {/* Informações e Modelo */}
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs space-y-2 text-slate-600">
                 <div className="font-semibold text-slate-800 flex items-center justify-between">
-                  <span>Regras de Importação de Clientes:</span>
+                  <span>Estrutura da Planilha (7 Colunas):</span>
                   <Button
                     type="button"
                     variant="link"
@@ -226,23 +226,36 @@ export function ImportClientsModal({ open, onOpenChange, onSuccess }: ImportClie
                     onClick={downloadClientsTemplate}
                   >
                     <FileDown className="h-3.5 w-3.5" />
-                    Baixar Modelo de Planilha
+                    Baixar Modelo Excel (.xlsx)
                   </Button>
                 </div>
-                <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-600">
+                <ol className="list-decimal list-inside space-y-0.5 text-[11px] text-slate-600">
                   <li>
-                    <b>Colunas esperadas:</b> Nome, Telefone, Email, CPF/CNPJ, Endereço, Cidade,
-                    Estado.
+                    <b>Razão Social</b>
                   </li>
                   <li>
-                    <b>Atualização inteligente:</b> Se o cliente já existir pelo <b>Email</b> ou{' '}
-                    <b>Nome</b>, os dados de contato e endereço serão <b>atualizados</b>.
+                    <b>Nome Fantasia</b>
                   </li>
                   <li>
-                    <b>Novos clientes:</b> Clientes ainda não cadastrados serão criados
-                    automaticamente.
+                    <b>Endereço</b>
                   </li>
-                </ul>
+                  <li>
+                    <b>Bairro</b>
+                  </li>
+                  <li>
+                    <b>Celular</b>
+                  </li>
+                  <li>
+                    <b>RG/IE</b>
+                  </li>
+                  <li>
+                    <b>CPF/CNPJ</b>
+                  </li>
+                </ol>
+                <p className="text-[10px] text-slate-500 pt-1 border-t border-slate-200">
+                  Atualização inteligente: clientes já existentes com o mesmo CPF/CNPJ, Razão Social
+                  ou Nome Fantasia serão atualizados.
+                </p>
               </div>
             </div>
           )}
@@ -263,34 +276,51 @@ export function ImportClientsModal({ open, onOpenChange, onSuccess }: ImportClie
               </div>
 
               <div className="flex items-center justify-between text-xs text-slate-600">
-                <span>Confira os clientes identificados na planilha antes de importar:</span>
+                <span>Pré-visualização das 7 colunas da planilha:</span>
                 <span className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
                   <Info className="h-3 w-3" />
                   {parsedRows.filter((r) => r.statusValido).length} linhas válidas
                 </span>
               </div>
 
-              <div className="border border-slate-200 rounded-lg overflow-hidden max-h-[260px] overflow-y-auto">
-                <table className="w-full text-left text-[11px]">
-                  <thead className="bg-slate-100 border-b border-slate-200 text-slate-600 font-semibold sticky top-0">
+              <div className="border border-slate-200 rounded-lg overflow-x-auto max-h-[280px] overflow-y-auto">
+                <table className="w-full text-left text-[11px] whitespace-nowrap">
+                  <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 font-semibold sticky top-0">
                     <tr>
-                      <th className="p-2">Nome</th>
-                      <th className="p-2">Telefone</th>
-                      <th className="p-2">E-mail</th>
+                      <th className="p-2">Razão Social</th>
+                      <th className="p-2">Nome Fantasia</th>
+                      <th className="p-2">Endereço</th>
+                      <th className="p-2">Bairro</th>
+                      <th className="p-2">Celular</th>
+                      <th className="p-2">RG/IE</th>
                       <th className="p-2">CPF/CNPJ</th>
-                      <th className="p-2">Cidade/UF</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {parsedRows.slice(0, 30).map((r, idx) => (
                       <tr key={idx} className="hover:bg-slate-50">
-                        <td className="p-2 font-medium text-slate-900">{r.nome}</td>
-                        <td className="p-2 font-mono text-slate-700">{r.telefone}</td>
-                        <td className="p-2 text-slate-600">{r.email || '-'}</td>
-                        <td className="p-2 font-mono text-slate-600">{r.cpf_cnpj || '-'}</td>
-                        <td className="p-2 text-slate-600">
-                          {r.cidade ? `${r.cidade}${r.estado ? ' / ' + r.estado : ''}` : '-'}
+                        <td
+                          className="p-2 font-medium text-slate-900 max-w-[150px] truncate"
+                          title={r.razao_social}
+                        >
+                          {r.razao_social || '-'}
                         </td>
+                        <td
+                          className="p-2 text-slate-700 max-w-[150px] truncate"
+                          title={r.nome_fantasia}
+                        >
+                          {r.nome_fantasia || '-'}
+                        </td>
+                        <td
+                          className="p-2 text-slate-600 max-w-[180px] truncate"
+                          title={r.endereco}
+                        >
+                          {r.endereco || '-'}
+                        </td>
+                        <td className="p-2 text-slate-600">{r.bairro || '-'}</td>
+                        <td className="p-2 font-mono text-slate-700">{r.celular || '-'}</td>
+                        <td className="p-2 font-mono text-slate-600">{r.rg_ie || '-'}</td>
+                        <td className="p-2 font-mono text-slate-700">{r.cpf_cnpj || '-'}</td>
                       </tr>
                     ))}
                   </tbody>

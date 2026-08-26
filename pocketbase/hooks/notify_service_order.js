@@ -50,7 +50,11 @@ onRecordAfterCreateSuccess((e) => {
     var custId0 = e.record.getString('customer')
     if (custId0) {
       var cust0 = $app.findRecordById('customers', custId0)
-      customerName = cust0.getString('name') || ''
+      customerName =
+        cust0.getString('razao_social') ||
+        cust0.getString('nome_fantasia') ||
+        cust0.getString('name') ||
+        ''
     }
   } catch (_) {}
 
