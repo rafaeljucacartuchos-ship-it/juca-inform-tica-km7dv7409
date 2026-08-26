@@ -87,10 +87,10 @@ export default function Clientes() {
             size="sm"
             onClick={() => setImportModalOpen(true)}
             className="bg-white border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800 gap-1.5 h-9 text-xs font-medium shadow-2xs"
-            title="Importar e atualizar clientes em lote via arquivo .xlsx ou .csv"
+            title="Importar e atualizar clientes em lote via arquivo .xlsx, .xls, .csv ou .html"
           >
             <Upload className="h-4 w-4 text-amber-600 shrink-0" />
-            <span>Importar Planilha</span>
+            <span>Importar Clientes</span>
           </Button>
 
           {/* Botão: Exportar Planilha */}

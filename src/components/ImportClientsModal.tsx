@@ -83,11 +83,11 @@ export function ImportClientsModal({ open, onOpenChange, onSuccess }: ImportClie
     if (!selectedFile) return
     setFileError(null)
 
-    const validExtensions = ['.xlsx', '.xls', '.csv', '.txt', '.tsv']
+    const validExtensions = ['.xlsx', '.xls', '.csv', '.html', '.htm', '.txt', '.tsv']
     const hasValidExt = validExtensions.some((ext) => selectedFile.name.toLowerCase().endsWith(ext))
 
     if (!hasValidExt) {
-      setFileError('Por favor selecione um arquivo Excel (.xlsx, .xls) ou .csv válido.')
+      setFileError('Por favor selecione um arquivo Excel (.xlsx, .xls), .csv ou .html válido.')
       return
     }
 
@@ -151,8 +151,8 @@ export function ImportClientsModal({ open, onOpenChange, onSuccess }: ImportClie
             </DialogTitle>
           </div>
           <DialogDescription className="text-xs text-slate-500">
-            Envie uma planilha Excel (.xlsx, .xls) ou .csv para cadastrar e atualizar clientes em
-            massa.
+            Envie um arquivo Excel (.xlsx, .xls), .csv ou .html para cadastrar e atualizar clientes
+            em massa.
           </DialogDescription>
         </DialogHeader>
 
@@ -179,7 +179,7 @@ export function ImportClientsModal({ open, onOpenChange, onSuccess }: ImportClie
                     Clique para selecionar ou arraste a planilha aqui
                   </p>
                   <p className="text-xs text-slate-500 mt-1">
-                    Formatos suportados: .xlsx, .xls ou .csv
+                    Formatos suportados: .xlsx, .xls, .csv ou .html
                   </p>
                 </div>
                 <Button
@@ -192,7 +192,7 @@ export function ImportClientsModal({ open, onOpenChange, onSuccess }: ImportClie
                   {loadingFile ? (
                     <>
                       <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                      Lendo planilha...
+                      Lendo arquivo...
                     </>
                   ) : (
                     'Selecionar Arquivo'
@@ -201,7 +201,7 @@ export function ImportClientsModal({ open, onOpenChange, onSuccess }: ImportClie
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".xlsx, .xls, .csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel, text/csv"
+                  accept=".xlsx, .xls, .csv, .html, .htm, text/html, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel, text/csv"
                   className="hidden"
                   onChange={(e) => handleFileChange(e.target.files?.[0])}
                 />

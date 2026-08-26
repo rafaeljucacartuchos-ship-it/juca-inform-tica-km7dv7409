@@ -38,12 +38,131 @@ export interface ImportClientsSummary {
  * Lê o arquivo (.xlsx, .xls ou .csv) e devolve as linhas estruturadas e validadas
  * com as 7 colunas exatas da planilha do Rafael.
  */
+/**
+ * Extrai dados tabulares de arquivo HTML ou XML com tratamento detalhado para múltiplos elementos <table>
+ */
+export function extractTablesFromHTML(htmlContent: string): string[][] {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(htmlContent, 'text/html')
+  const tables = Array.from(doc.querySelectorAll('table'))
+
+  if (tables.length === 0) {
+    // Tenta verificar se há tags XML de planilha (ex: SpreadsheetML / Excel XML)
+    const xmlDoc = parser.parseFromString(htmlContent, 'text/xml')
+    const xmlRows = Array.from(xmlDoc.querySelectorAll('Row, row'))
+    if (xmlRows.length > 0) {
+      const matrix: string[][] = []
+      xmlRows.forEach((r) => {
+        const row: string[] = []
+        const cells = Array.from(r.querySelectorAll('Cell, cell, c, Data, data'))
+        cells.forEach((c) => {
+          row.push(c.textContent?.trim() || '')
+        })
+        if (row.length > 0 && row.some((c) => c.length > 0)) {
+          matrix.push(row)
+        }
+      })
+      if (matrix.length > 0) return matrix
+    }
+    return []
+  }
+
+  // Se houver tabelas, seleciona a que tiver mais linhas com dados
+  let bestTableRows: string[][] = []
+
+  for (const table of tables) {
+    const tableRows: string[][] = []
+    const trElements = Array.from(table.querySelectorAll('tr'))
+
+    trElements.forEach((tr) => {
+      const row: string[] = []
+      const cells = Array.from(tr.querySelectorAll('th, td'))
+      cells.forEach((cell) => {
+        // Trata quebras de linha e múltiplos espaços
+        const text = (cell.textContent || '')
+          .replace(/[\r\n\t]+/g, ' ')
+          .replace(/\s{2,}/g, ' ')
+          .trim()
+        row.push(text)
+      })
+      if (row.length > 0 && row.some((c) => c.length > 0)) {
+        tableRows.push(row)
+      }
+    })
+
+    if (tableRows.length > bestTableRows.length) {
+      bestTableRows = tableRows
+    }
+  }
+
+  return bestTableRows
+}
+
+/**
+ * Lê o arquivo (.xlsx, .xls, .csv ou .html) e devolve as linhas estruturadas e validadas
+ * com as 7 colunas exatas da planilha.
+ */
 export async function parseClientsFile(file: File): Promise<ParsedCustomerRow[]> {
-  const rawMatrix = await readSpreadsheetMatrix(file)
+  const isHtml =
+    file.name.toLowerCase().endsWith('.html') ||
+    file.name.toLowerCase().endsWith('.htm') ||
+    file.type.includes('html')
+
+  let rawMatrix: string[][] = []
+
+  if (isHtml) {
+    try {
+      const text = await file.text()
+      rawMatrix = extractTablesFromHTML(text)
+
+      if (rawMatrix.length === 0) {
+        // Tenta fallback com SheetJS para o HTML
+        try {
+          const arrayBuffer = await file.arrayBuffer()
+          const workbook = XLSX.read(arrayBuffer, { type: 'array', raw: false })
+          const firstSheet = workbook.SheetNames[0]
+          if (firstSheet) {
+            const worksheet = workbook.Sheets[firstSheet]
+            if (worksheet) {
+              const rows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
+                header: 1,
+                raw: false,
+                defval: '',
+              })
+              rawMatrix = rows
+                .map((r) =>
+                  Array.isArray(r)
+                    ? r.map((c) => (c === null || c === undefined ? '' : String(c).trim()))
+                    : [],
+                )
+                .filter((r) => r.some((c) => c.length > 0))
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (rawMatrix.length === 0) {
+        throw new Error(
+          'O arquivo HTML enviado não contém nenhuma tabela de dados <table>. Certifique-se de que o arquivo contenha uma tabela válida com os clientes.',
+        )
+      }
+    } catch (err) {
+      if (err instanceof Error) {
+        throw err
+      }
+      throw new Error(
+        'O arquivo HTML enviado não pôde ser lido ou não contém tabela <table> de clientes.',
+      )
+    }
+  } else {
+    rawMatrix = await readSpreadsheetMatrix(file)
+  }
 
   if (rawMatrix.length === 0) {
     throw new Error(
-      'Não foi possível extrair dados da planilha. Certifique-se de salvar em formato .XLSX, .XLS ou .CSV válido.',
+      'Não foi possível extrair dados da planilha. Certifique-se de salvar em formato .XLSX, .XLS, .CSV ou .HTML válido.',
     )
   }
 
@@ -73,38 +192,55 @@ export async function parseClientsFile(file: File): Promise<ParsedCustomerRow[]>
         norm === 'razaosocial' ||
         norm === 'razao_social' ||
         norm === 'razaosoc' ||
-        norm === 'razaos'
+        norm === 'razaos' ||
+        norm === 'clienterazaosocial' ||
+        norm === 'empresa' ||
+        norm === 'cliente' ||
+        norm === 'nome' ||
+        norm === 'nomedocliente' ||
+        norm === 'razao'
       ) {
         colIndices.razao_social = colIdx
         foundAny = true
       }
-      // Nome Fantasia: nome_fantasia, nome fantasia, nomefantasia, fantasia
+      // Nome Fantasia: nome_fantasia, nome fantasia, nomefantasia, fantasia, comercial
       else if (
         norm === 'nomefantasia' ||
         norm === 'nome_fantasia' ||
         norm === 'fantasia' ||
-        norm === 'nomecomercial'
+        norm === 'nomecomercial' ||
+        norm === 'apelido' ||
+        norm === 'titulocomercial'
       ) {
         colIndices.nome_fantasia = colIdx
         foundAny = true
       }
-      // Endereço: endereco, endereço, endereco, logradouro, rua
+      // Endereço: endereco, endereço, endereco, logradouro, rua, logradouro/rua, localizacao
       else if (
         norm === 'endereco' ||
         norm === 'endereço' ||
         norm === 'rua' ||
         norm === 'logradouro' ||
-        norm === 'enderecocompleto'
+        norm === 'enderecocompleto' ||
+        norm === 'end' ||
+        norm === 'morada' ||
+        norm === 'localizacao'
       ) {
         colIndices.endereco = colIdx
         foundAny = true
       }
-      // Bairro: bairro, dist, distrito
-      else if (norm === 'bairro' || norm === 'bairros') {
+      // Bairro: bairro, dist, distrito, regiao, localidade
+      else if (
+        norm === 'bairro' ||
+        norm === 'bairros' ||
+        norm === 'dist' ||
+        norm === 'distrito' ||
+        norm === 'bairrolocalidade'
+      ) {
         colIndices.bairro = colIdx
         foundAny = true
       }
-      // Celular: celular, telefone, fone, tel, cel, whatsapp
+      // Celular: celular, telefone, fone, tel, cel, whatsapp, contatofone, telefone/celular, fone1, fone2
       else if (
         norm === 'celular' ||
         norm === 'telefone' ||
@@ -112,34 +248,52 @@ export async function parseClientsFile(file: File): Promise<ParsedCustomerRow[]>
         norm === 'tel' ||
         norm === 'cel' ||
         norm === 'whatsapp' ||
+        norm === 'whats' ||
+        norm === 'zap' ||
         norm === 'contatofone' ||
-        norm === 'telefones'
+        norm === 'telefones' ||
+        norm === 'telefonecelular' ||
+        norm === 'celulartelefone' ||
+        norm === 'telcel' ||
+        norm === 'contato' ||
+        norm === 'telefone1' ||
+        norm === 'celular1'
       ) {
         colIndices.celular = colIdx
         foundAny = true
       }
-      // RG/IE: rg/ie, rg_ie, rgie, rg, ie, inscricaoestadual, inscr_estadual, ident
+      // RG/IE: rg/ie, rg_ie, rgie, rg, ie, inscricaoestadual, inscr_estadual, ident, inscr estadual
       else if (
         norm === 'rgie' ||
         norm === 'rg_ie' ||
         norm === 'rg' ||
         norm === 'ie' ||
+        norm === 'rgouinscricao' ||
         norm === 'inscricaoestadual' ||
+        norm === 'inscricao' ||
+        norm === 'inscr_estadual' ||
         norm === 'inscrest' ||
-        norm === 'identidade'
+        norm === 'inscr' ||
+        norm === 'identidade' ||
+        norm === 'documentorg'
       ) {
         colIndices.rg_ie = colIdx
         foundAny = true
       }
-      // CPF/CNPJ: cpf/cnpj, cpf_cnpj, cpfcnpj, cpf, cnpj, documento, doc
+      // CPF/CNPJ: cpf/cnpj, cpf_cnpj, cpfcnpj, cpf, cnpj, documento, doc, cpf / cnpj
       else if (
         norm === 'cpfcnpj' ||
         norm === 'cpf_cnpj' ||
         norm === 'cpf' ||
         norm === 'cnpj' ||
         norm === 'documento' ||
+        norm === 'documentos' ||
         norm === 'doc' ||
-        norm === 'cpfoucnpj'
+        norm === 'cpfoucnpj' ||
+        norm === 'cnpjcpf' ||
+        norm === 'cnpjocpf' ||
+        norm === 'numdocumento' ||
+        norm === 'numerodocumento'
       ) {
         colIndices.cpf_cnpj = colIdx
         foundAny = true
