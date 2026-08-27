@@ -15,7 +15,7 @@ export const getCustomers = async (search = '') => {
   let filter = ''
   if (search && search.trim()) {
     const s = search.trim().replace(/"/g, '\\"')
-    filter = `razao_social ~ "${s}" || nome_fantasia ~ "${s}" || celular ~ "${s}"`
+    filter = `razao_social ~ "${s}" || nome_fantasia ~ "${s}" || name ~ "${s}"`
   }
   const result = await pb.collection('customers').getList<Customer>(1, 100, {
     filter,

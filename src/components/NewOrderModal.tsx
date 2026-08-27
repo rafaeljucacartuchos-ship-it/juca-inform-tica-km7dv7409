@@ -318,7 +318,7 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
                   >
                     <Command shouldFilter={false}>
                       <CommandInput
-                        placeholder="Digite o nome, razão social ou celular..."
+                        placeholder="Digite o nome do cliente..."
                         value={customerSearch}
                         onValueChange={setCustomerSearch}
                         className="h-9 text-xs"
