@@ -87,9 +87,11 @@ export default function OrdemDetail() {
         getCatalogServices(),
         getOrderPayments(id),
       ])
-      // Recalcula o total a partir da soma real dos itens carregados do banco de dados
-      const calculatedTotal = it.reduce((sum, item) => sum + (item.total || 0), 0)
-      // Força o total da ordem a refletir a soma real dos itens no objeto da ordem
+      // Recalcula o subtotal a partir da soma real dos itens carregados do banco de dados
+      const subtotal = it.reduce((sum, item) => sum + (item.total || 0), 0)
+      const desc = Number(o.desconto) || 0
+      const acresc = Number(o.acrescimo) || 0
+      const calculatedTotal = Math.max(0, subtotal + acresc - desc)
       o.total = calculatedTotal
 
       setOrder(o)
@@ -99,10 +101,33 @@ export default function OrdemDetail() {
       setPayments(p)
       setServiceReport(o.service_report || '')
 
-      // Se houver divergência no banco de dados (ex: total estava zerado ou desatualizado), persiste no backend
+      // Se houver divergência no banco de dados, persiste o total recalculado
       offlinePb.update('service_orders', id, { total: calculatedTotal }).catch(() => {})
     } catch {
       /* intentionally ignored */
+    }
+  }
+
+  const handleUpdateAdjustments = async (newDesconto: number, newAcrescimo: number) => {
+    if (!order) return
+    const subtotal = items.reduce((sum, item) => sum + (item.total || 0), 0)
+    const newTotal = Math.max(0, subtotal + newAcrescimo - newDesconto)
+    try {
+      const upd = await offlinePb.update('service_orders', order.id, {
+        desconto: newDesconto,
+        acrescimo: newAcrescimo,
+        total: newTotal,
+      })
+      if (upd.queued) {
+        toast({ title: 'Ajustes salvos localmente.' })
+      } else {
+        toast({ title: 'Valores atualizados com sucesso!' })
+      }
+      setOrder((prev) =>
+        prev ? { ...prev, desconto: newDesconto, acrescimo: newAcrescimo, total: newTotal } : prev,
+      )
+    } catch {
+      toast({ title: 'Erro ao atualizar valores', variant: 'destructive' })
     }
   }
 
@@ -615,49 +640,95 @@ export default function OrdemDetail() {
                   <p className="py-6 text-center text-slate-400 text-xs">Nenhum item adicionado.</p>
                 )}
               </div>
-              <table className="hidden sm:table w-full text-left text-xs">
-                <thead className="bg-slate-50 border-y border-slate-200 text-slate-500">
-                  <tr>
-                    <th className="py-2.5 px-4">Descrição</th>
-                    <th className="py-2.5 px-4 text-center">Qtd</th>
-                    <th className="py-2.5 px-4 text-right">Un.</th>
-                    <th className="py-2.5 px-4 text-right">Total</th>
-                    <th className="py-2.5 px-4"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {items.map((item) => (
-                    <tr key={item.id}>
-                      <td className="py-2.5 px-4 font-medium">
-                        {item.description || 'Item sem descrição'}
-                      </td>
-                      <td className="py-2.5 px-4 text-center">{item.quantity || 1}</td>
-                      <td className="py-2.5 px-4 text-right font-mono">
-                        R$ {(item.unit_price || 0).toFixed(2)}
-                      </td>
-                      <td className="py-2.5 px-4 text-right font-mono font-bold">
-                        R$ {(item.total || 0).toFixed(2)}
-                      </td>
-                      <td className="py-2.5 px-4 text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteItem(item.id)}
-                          disabled={fieldsLocked}
-                          className="h-7 w-7 text-red-500 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </td>
+              <div className="overflow-x-auto w-full">
+                <table className="hidden sm:table w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-y border-slate-200 text-slate-500">
+                    <tr>
+                      <th className="py-2.5 px-4">Descrição</th>
+                      <th className="py-2.5 px-4 text-center">Qtd</th>
+                      <th className="py-2.5 px-4 text-right">Un.</th>
+                      <th className="py-2.5 px-4 text-right">Total</th>
+                      <th className="py-2.5 px-4"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center font-bold text-sm">
-                <span>Total da Ordem:</span>
-                <span className="font-mono text-indigo-600">
-                  R$ {(order.total || 0).toFixed(2)}
-                </span>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {items.map((item) => (
+                      <tr key={item.id}>
+                        <td className="py-2.5 px-4 font-medium">
+                          {item.description || 'Item sem descrição'}
+                        </td>
+                        <td className="py-2.5 px-4 text-center">{item.quantity || 1}</td>
+                        <td className="py-2.5 px-4 text-right font-mono">
+                          R$ {(item.unit_price || 0).toFixed(2)}
+                        </td>
+                        <td className="py-2.5 px-4 text-right font-mono font-bold">
+                          R$ {(item.total || 0).toFixed(2)}
+                        </td>
+                        <td className="py-2.5 px-4 text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteItem(item.id)}
+                            disabled={fieldsLocked}
+                            className="h-7 w-7 text-red-500 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* Resumo Financeiro com Subtotal, Desconto, Acréscimo e Total */}
+              <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-2 text-xs">
+                <div className="flex justify-between items-center text-slate-600 font-medium">
+                  <span>Subtotal dos Itens:</span>
+                  <span className="font-mono font-bold text-slate-800">
+                    R$ {items.reduce((s, it) => s + (it.total || 0), 0).toFixed(2)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2 border-y border-slate-200/80">
+                  <div className="flex items-center gap-2">
+                    <label className="text-slate-600 font-semibold shrink-0">Desconto (R$):</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      disabled={!canEdit || fieldsLocked}
+                      value={order.desconto ?? 0}
+                      onChange={(e) => {
+                        const val = Math.max(0, parseFloat(e.target.value) || 0)
+                        handleUpdateAdjustments(val, order.acrescimo || 0)
+                      }}
+                      className="h-7 w-28 px-2 font-mono text-xs border border-slate-200 rounded bg-white text-rose-700 font-bold"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <label className="text-slate-600 font-semibold shrink-0">Acréscimo (R$):</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      disabled={!canEdit || fieldsLocked}
+                      value={order.acrescimo ?? 0}
+                      onChange={(e) => {
+                        const val = Math.max(0, parseFloat(e.target.value) || 0)
+                        handleUpdateAdjustments(order.desconto || 0, val)
+                      }}
+                      className="h-7 w-28 px-2 font-mono text-xs border border-slate-200 rounded bg-white text-emerald-700 font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center font-bold text-sm pt-1">
+                  <span>Total da Ordem (Subtotal + Acréscimo - Desconto):</span>
+                  <span className="font-mono text-indigo-600 text-base">
+                    R$ {(order.total || 0).toFixed(2)}
+                  </span>
+                </div>
               </div>
             </CardContent>
           </Card>

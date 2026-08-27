@@ -132,7 +132,7 @@ export function NewTechnicianModal({
   if (createdCode) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[420px]">
+        <DialogContent className="w-full max-w-full sm:max-w-[420px] h-full sm:h-auto max-h-screen sm:max-h-[90vh] rounded-none sm:rounded-lg overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-slate-900">
               Técnico Cadastrado!
@@ -185,7 +185,7 @@ export function NewTechnicianModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[420px]">
+      <DialogContent className="w-full max-w-full sm:max-w-[420px] h-full sm:h-auto max-h-screen sm:max-h-[90vh] rounded-none sm:rounded-lg overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="text-lg font-bold text-slate-900">
             {isEdit ? 'Editar Técnico' : 'Novo Técnico'}

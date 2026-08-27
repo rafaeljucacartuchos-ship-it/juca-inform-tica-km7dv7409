@@ -1,10 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Plus, LayoutGrid, List, Search, Filter, Wrench, X, MessageCircle } from 'lucide-react'
+import {
+  Plus,
+  LayoutGrid,
+  List,
+  Search,
+  Filter,
+  Wrench,
+  X,
+  MessageCircle,
+  Calendar,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
   SelectContent,
@@ -24,6 +35,7 @@ import { openWhatsApp, triggerWhatsAppEvaluation, buildServiceMessage } from '@/
 export default function OrdensDeServico() {
   const [orders, setOrders] = useState<ServiceOrder[]>([])
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
+  const [periodTab, setPeriodTab] = useState<'all' | 'today' | 'week' | 'month'>('all')
   const [searchParams] = useSearchParams()
   const [filterText, setFilterText] = useState(searchParams.get('search') || '')
   const [newModalOpen, setNewModalOpen] = useState(false)
@@ -81,14 +93,58 @@ export default function OrdensDeServico() {
     { status: 'closed', label: 'Fechadas', bg: 'border-t-slate-500' },
   ]
 
-  const filteredOrders = orders.filter((o) => {
+  const periodFilteredOrders = useMemo(() => {
+    if (periodTab === 'all') return orders
+
+    const now = new Date()
+    const todayStr = now.toISOString().substring(0, 10)
+
+    // Semana atual: segunda a domingo
+    const currentDay = now.getDay()
+    const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay
+    const monday = new Date(now)
+    monday.setDate(now.getDate() + diffToMonday)
+    monday.setHours(0, 0, 0, 0)
+    const sunday = new Date(monday)
+    sunday.setDate(monday.getDate() + 6)
+    sunday.setHours(23, 59, 59, 999)
+
+    const mondayStr = monday.toISOString().substring(0, 10)
+    const sundayStr = sunday.toISOString().substring(0, 10)
+
+    // Mês atual
+    const year = now.getFullYear()
+    const month = now.getMonth()
+    const firstDayMonthStr = new Date(year, month, 1).toISOString().substring(0, 10)
+    const lastDayMonthStr = new Date(year, month + 1, 0).toISOString().substring(0, 10)
+
+    return orders.filter((o) => {
+      const createdDate = o.created ? o.created.substring(0, 10) : ''
+      if (!createdDate) return true
+
+      if (periodTab === 'today') {
+        return createdDate === todayStr
+      }
+      if (periodTab === 'week') {
+        return createdDate >= mondayStr && createdDate <= sundayStr
+      }
+      if (periodTab === 'month') {
+        return createdDate >= firstDayMonthStr && createdDate <= lastDayMonthStr
+      }
+      return true
+    })
+  }, [orders, periodTab])
+
+  const filteredOrders = periodFilteredOrders.filter((o) => {
     if (!filterText.trim()) return true
     const q = filterText.toLowerCase()
+    const cust = o.expand?.customer
+    const custName = (cust?.razao_social || cust?.nome_fantasia || cust?.name || '').toLowerCase()
     return (
       o.number.toLowerCase().includes(q) ||
       o.title.toLowerCase().includes(q) ||
-      o.expand?.customer?.name.toLowerCase().includes(q) ||
-      o.expand?.technician?.name?.toLowerCase().includes(q)
+      custName.includes(q) ||
+      (o.expand?.technician?.name || '').toLowerCase().includes(q)
     )
   })
 
@@ -192,6 +248,35 @@ export default function OrdensDeServico() {
             </Button>
           )}
         </div>
+      </div>
+
+      {/* Abas Rápidas por Período de Criação da O.S (Hoje, Esta Semana, Este Mês, Todas) */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-indigo-600 shrink-0" />
+          <span className="text-xs font-bold text-slate-800">Filtrar por Período:</span>
+        </div>
+
+        <Tabs
+          value={periodTab}
+          onValueChange={(v) => setPeriodTab(v as 'all' | 'today' | 'week' | 'month')}
+          className="w-full sm:w-auto"
+        >
+          <TabsList className="grid grid-cols-4 w-full sm:w-auto h-9 bg-slate-100 p-1">
+            <TabsTrigger value="today" className="text-xs font-bold px-3">
+              Hoje
+            </TabsTrigger>
+            <TabsTrigger value="week" className="text-xs font-bold px-3">
+              Esta Semana
+            </TabsTrigger>
+            <TabsTrigger value="month" className="text-xs font-bold px-3">
+              Este Mês
+            </TabsTrigger>
+            <TabsTrigger value="all" className="text-xs font-bold px-3">
+              Todas
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
       <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
@@ -389,7 +474,7 @@ export default function OrdensDeServico() {
       ) : (
         <Card className="border-slate-200 shadow-sm">
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto w-full">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
                   <tr>

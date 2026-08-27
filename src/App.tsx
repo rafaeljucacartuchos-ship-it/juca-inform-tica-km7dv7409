@@ -11,7 +11,6 @@ import { PermissionRoute } from '@/components/PermissionRoute'
 import Layout from '@/components/Layout'
 import Login from '@/pages/Login'
 import Dashboard from '@/pages/Dashboard'
-import Agendamentos from '@/pages/Agendamentos'
 import OrdensDeServico from '@/pages/OrdensDeServico'
 import OrdemDetail from '@/pages/OrdemDetail'
 import Clientes from '@/pages/Clientes'
@@ -88,9 +87,6 @@ const App = () => {
                   <Route element={<Layout />}>
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/dashboard" element={<Dashboard />} />
-                    <Route element={<PermissionRoute module="agendamentos" />}>
-                      <Route path="/agendamentos" element={<Agendamentos />} />
-                    </Route>
                     <Route element={<PermissionRoute module="ordens" />}>
                       <Route path="/ordens" element={<OrdensDeServico />} />
                       <Route path="/ordens/:id" element={<OrdemDetail />} />

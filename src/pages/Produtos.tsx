@@ -347,7 +347,7 @@ export default function Produtos() {
 
       <Card className="border-slate-200 shadow-sm overflow-hidden">
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto w-full">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-100/80 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider">
                 <tr>

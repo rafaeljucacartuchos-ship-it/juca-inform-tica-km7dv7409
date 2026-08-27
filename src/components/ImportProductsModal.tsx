@@ -141,7 +141,7 @@ export function ImportProductsModal({ open, onOpenChange, onSuccess }: ImportPro
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[620px] max-h-[90vh] flex flex-col p-6">
+      <DialogContent className="w-full max-w-full sm:max-w-[620px] h-full sm:h-auto max-h-screen sm:max-h-[90vh] rounded-none sm:rounded-lg flex flex-col p-4 sm:p-6">
         <DialogHeader>
           <div className="flex items-center gap-2 text-indigo-600">
             <Upload className="h-5 w-5" />

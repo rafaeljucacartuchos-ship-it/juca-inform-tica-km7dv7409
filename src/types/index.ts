@@ -122,6 +122,8 @@ export interface ServiceOrder {
   signed_at?: string
   /** Indica se o estoque dos produtos da O.S. já foi descontado (uma única vez). */
   stock_deducted?: boolean
+  desconto?: number
+  acrescimo?: number
   created?: string
   updated?: string
   expand?: {

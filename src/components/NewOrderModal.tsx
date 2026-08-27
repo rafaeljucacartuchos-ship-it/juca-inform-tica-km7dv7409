@@ -72,6 +72,8 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
     title: '',
     description: '',
     priority: 'medium' as OrderPriority,
+    desconto: 0,
+    acrescimo: 0,
   })
 
   // Carrega clientes iniciais e técnicos ao abrir o modal
@@ -211,7 +213,9 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
         description: formData.description,
         priority: formData.priority,
         status: 'open',
-        total: 0,
+        desconto: Number(formData.desconto) || 0,
+        acrescimo: Number(formData.acrescimo) || 0,
+        total: Math.max(0, (Number(formData.acrescimo) || 0) - (Number(formData.desconto) || 0)),
       })
 
       const hist = await offlinePb.create('status_history', {
@@ -242,6 +246,8 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
         title: '',
         description: '',
         priority: 'medium',
+        desconto: 0,
+        acrescimo: 0,
       })
       setSelectedCustomer(null)
       onOpenChange(false)
@@ -269,14 +275,14 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[540px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-full max-w-full h-full sm:h-auto sm:max-w-[560px] max-h-screen sm:max-h-[90vh] overflow-y-auto rounded-none sm:rounded-lg p-4 sm:p-6 flex flex-col justify-between sm:justify-start">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-slate-900">
               Nova Ordem de Serviço
             </DialogTitle>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4 py-2">
+          <form onSubmit={handleSubmit} className="space-y-4 py-2 flex-1">
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-semibold text-slate-700">Cliente *</Label>
@@ -313,17 +319,17 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent
-                    className="w-[--radix-popover-trigger-width] p-0 shadow-lg"
+                    className="w-[--radix-popover-trigger-width] p-0 shadow-lg max-h-60 overflow-hidden"
                     align="start"
                   >
-                    <Command shouldFilter={false}>
+                    <Command shouldFilter={false} className="max-h-60 flex flex-col">
                       <CommandInput
                         placeholder="Digite o nome do cliente..."
                         value={customerSearch}
                         onValueChange={setCustomerSearch}
-                        className="h-9 text-xs"
+                        className="h-9 text-xs shrink-0"
                       />
-                      <CommandList className="max-h-60 overflow-y-auto">
+                      <CommandList className="max-h-48 overflow-y-auto">
                         {isSearchingCustomers && (
                           <div className="flex items-center justify-center p-4 text-xs text-slate-400 gap-1.5">
                             <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-600" />
@@ -556,6 +562,52 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
                 rows={3}
                 className="text-xs"
               />
+            </div>
+
+            {/* Campos de Desconto e Acréscimo */}
+            <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-3">
+              <span className="text-xs font-bold text-slate-800 block">
+                Ajustes Financeiros Iniciais
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700">Desconto (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0,00"
+                    value={formData.desconto === 0 ? '' : formData.desconto}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        desconto:
+                          e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value) || 0),
+                      })
+                    }
+                    className="h-9 text-xs font-mono bg-white"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700">Acréscimo (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0,00"
+                    value={formData.acrescimo === 0 ? '' : formData.acrescimo}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        acrescimo:
+                          e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value) || 0),
+                      })
+                    }
+                    className="h-9 text-xs font-mono bg-white"
+                  />
+                </div>
+              </div>
             </div>
 
             <DialogFooter className="pt-2">

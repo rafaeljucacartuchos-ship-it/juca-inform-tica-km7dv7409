@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-27T13:40:13.468Z",
+  "generatedAt": "2026-08-27T16:17:26.186Z",
   "collections": [
     {
       "name": "users",
@@ -447,6 +447,18 @@
         {
           "name": "stock_deducted",
           "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "desconto",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "acrescimo",
+          "type": "number",
           "required": false,
           "system": false
         }

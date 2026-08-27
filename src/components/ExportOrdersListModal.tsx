@@ -161,7 +161,7 @@ export function ExportOrdersListModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="w-full max-w-full sm:max-w-md h-full sm:h-auto max-h-screen sm:max-h-[90vh] rounded-none sm:rounded-lg overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="text-base font-bold text-slate-900">
             Exportar Lista de OSs

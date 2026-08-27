@@ -112,10 +112,16 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
       })
       // Recalcula o total buscando todos os itens atualizados
       try {
-        const freshItems = await pb.collection('service_order_items').getFullList({
-          filter: `service_order = "${orderId}"`,
-        })
-        const newTotal = freshItems.reduce((sum, it) => sum + (Number(it.total) || 0), 0)
+        const [freshItems, freshOrder] = await Promise.all([
+          pb.collection('service_order_items').getFullList({
+            filter: `service_order = "${orderId}"`,
+          }),
+          pb.collection('service_orders').getOne(orderId),
+        ])
+        const subtotal = freshItems.reduce((sum, it) => sum + (Number(it.total) || 0), 0)
+        const desc = Number(freshOrder.desconto) || 0
+        const acresc = Number(freshOrder.acrescimo) || 0
+        const newTotal = Math.max(0, subtotal + acresc - desc)
         await pb.collection('service_orders').update(orderId, {
           total: newTotal,
         })

@@ -5,28 +5,23 @@ import {
   CheckCircle2,
   DollarSign,
   ArrowRight,
-  Clock,
   UserCheck,
   Timer,
   Loader2,
   FileDown,
-  Calendar,
-  MapPin,
-  ChevronRight,
-  CalendarDays,
+  Search,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { ExportReportsModal } from '@/components/ExportReportsModal'
 import { ExportOrdersListModal } from '@/components/ExportOrdersListModal'
+import { DashboardProductSearchModal } from '@/components/DashboardProductSearchModal'
 import { EvolutionCharts } from '@/components/EvolutionCharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { KpiCard } from '@/components/KpiCard'
 import { StatusBadge } from '@/components/StatusBadge'
-import { ServiceOrder, Appointment, User, Payment, StatusHistory } from '@/types'
+import { ServiceOrder, User, Payment, StatusHistory } from '@/types'
 import { getServiceOrders } from '@/services/service_orders'
-import { getAppointments } from '@/services/appointments'
 import { getTechnicians } from '@/services/users'
 import { getAllPayments } from '@/services/payments'
 import { getAllStatusHistory } from '@/services/status_history'
@@ -46,7 +41,6 @@ import {
 
 export default function Dashboard() {
   const [orders, setOrders] = useState<ServiceOrder[]>([])
-  const [appointments, setAppointments] = useState<Appointment[]>([])
   const [technicians, setTechnicians] = useState<User[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [history, setHistory] = useState<StatusHistory[]>([])
@@ -57,6 +51,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const [exportOrdersOpen, setExportOrdersOpen] = useState(false)
+  const [productSearchOpen, setProductSearchOpen] = useState(false)
   const { user } = useAuth()
   const isTech = user?.role === 'technician'
 
@@ -65,15 +60,13 @@ export default function Dashboard() {
       setError(null)
       const isTech = user?.role === 'technician'
       const techFilter = isTech && user?.id ? `technician = "${user.id}"` : ''
-      const [so, appt, tech, pay, hist] = await Promise.all([
+      const [so, tech, pay, hist] = await Promise.all([
         getServiceOrders(techFilter),
-        getAppointments(undefined, isTech ? user?.id : undefined),
         getTechnicians(),
         getAllPayments(),
         getAllStatusHistory(),
       ])
       setOrders(so)
-      setAppointments(appt)
       setTechnicians(tech)
       if (isTech) {
         const orderIds = new Set(so.map((o) => o.id))
@@ -108,76 +101,6 @@ export default function Dashboard() {
   const openCount = orders.filter((o) =>
     ['open', 'in_progress', 'waiting_parts'].includes(o.status),
   ).length
-  const [apptViewTab, setApptViewTab] = useState<'day' | 'week' | 'month'>('day')
-
-  // Agrupamento claro de agendamentos por Dia, Semana e Mês
-  const apptStats = useMemo(() => {
-    const now = new Date()
-    const todayStr = now.toISOString().substring(0, 10)
-
-    // Início e fim da semana atual (Segunda a Domingo)
-    const currentDayOfWeek = now.getDay() // 0 = Domingo, 1 = Segunda...
-    const diffToMonday = currentDayOfWeek === 0 ? -6 : 1 - currentDayOfWeek
-    const monday = new Date(now)
-    monday.setDate(now.getDate() + diffToMonday)
-    monday.setHours(0, 0, 0, 0)
-
-    const sunday = new Date(monday)
-    sunday.setDate(monday.getDate() + 6)
-    sunday.setHours(23, 59, 59, 999)
-
-    const mondayStr = monday.toISOString().substring(0, 10)
-    const sundayStr = sunday.toISOString().substring(0, 10)
-
-    // Início e fim do mês atual
-    const currentYear = now.getFullYear()
-    const currentMonth = now.getMonth() // 0-indexed
-    const firstDayMonthStr = new Date(currentYear, currentMonth, 1).toISOString().substring(0, 10)
-    const lastDayMonthStr = new Date(currentYear, currentMonth + 1, 0)
-      .toISOString()
-      .substring(0, 10)
-
-    const dayList = appointments
-      .filter((a) => {
-        const d = a.date?.substring(0, 10) || ''
-        return d === todayStr
-      })
-      .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
-
-    const weekList = appointments
-      .filter((a) => {
-        const d = a.date?.substring(0, 10) || ''
-        return d >= mondayStr && d <= sundayStr
-      })
-      .sort((a, b) => {
-        const diff = (a.date || '').localeCompare(b.date || '')
-        if (diff !== 0) return diff
-        return (a.start_time || '').localeCompare(b.start_time || '')
-      })
-
-    const monthList = appointments
-      .filter((a) => {
-        const d = a.date?.substring(0, 10) || ''
-        return d >= firstDayMonthStr && d <= lastDayMonthStr
-      })
-      .sort((a, b) => {
-        const diff = (a.date || '').localeCompare(b.date || '')
-        if (diff !== 0) return diff
-        return (a.start_time || '').localeCompare(b.start_time || '')
-      })
-
-    return {
-      todayStr,
-      dayList,
-      weekList,
-      monthList,
-      counts: {
-        day: dayList.length,
-        week: weekList.length,
-        month: monthList.length,
-      },
-    }
-  }, [appointments])
 
   const sortedTechnicians = [...technicians].sort((a, b) =>
     (a.name || '').localeCompare(b.name || ''),
@@ -191,15 +114,32 @@ export default function Dashboard() {
     )
   }
 
-  const currentApptList =
-    apptViewTab === 'day'
-      ? apptStats.dayList
-      : apptViewTab === 'week'
-        ? apptStats.weekList
-        : apptStats.monthList
-
   return (
     <div className="space-y-6">
+      {/* Botão de Busca de Produto no Topo do Dashboard */}
+      <div className="flex items-center justify-between bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 rounded-xl p-3 sm:p-4 text-white shadow-md">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/10 border border-white/20 backdrop-blur-xs">
+            <Search className="h-5 w-5 text-indigo-200" />
+          </div>
+          <div>
+            <h2 className="text-sm sm:text-base font-bold text-white">
+              Consulta Rápida de Estoque
+            </h2>
+            <p className="text-xs text-indigo-200 hidden sm:block">
+              Pesquise produtos por nome, código SKU ou código de barras instantaneamente.
+            </p>
+          </div>
+        </div>
+        <Button
+          onClick={() => setProductSearchOpen(true)}
+          className="bg-white text-indigo-900 hover:bg-indigo-50 font-bold text-xs sm:text-sm h-9 sm:h-10 px-4 gap-2 shadow-xs shrink-0"
+        >
+          <Search className="h-4 w-4 text-indigo-600" />
+          <span>🔍 Buscar Produto</span>
+        </Button>
+      </div>
+
       {/* Topo do Dashboard */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-2 border-b border-slate-200">
         <div>
@@ -276,185 +216,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 1. Agendamentos e Visitas */}
-      <Card className="border-indigo-100 bg-gradient-to-br from-indigo-50/40 via-white to-slate-50/30 shadow-xs">
-        <CardHeader className="pb-3 border-b border-slate-100">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-2xs">
-                <CalendarDays className="h-4 w-4" />
-              </div>
-              <div>
-                <CardTitle className="text-base font-bold text-slate-900">
-                  Agendamentos e Visitas
-                </CardTitle>
-                <p className="text-xs text-slate-500 font-medium">
-                  Acompanhamento cronológico de visitas por período.
-                </p>
-              </div>
-            </div>
-
-            {/* Abas Rápidas do Módulo de Agendamentos: Dia / Semana / Mês */}
-            <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 shadow-2xs">
-              <button
-                type="button"
-                onClick={() => setApptViewTab('day')}
-                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-md transition-all ${
-                  apptViewTab === 'day'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span>Dia (Hoje)</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                    apptViewTab === 'day'
-                      ? 'bg-white/20 text-white'
-                      : 'bg-indigo-100 text-indigo-700'
-                  }`}
-                >
-                  {apptStats.counts.day}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setApptViewTab('week')}
-                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-md transition-all ${
-                  apptViewTab === 'week'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span>Semana</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                    apptViewTab === 'week'
-                      ? 'bg-white/20 text-white'
-                      : 'bg-indigo-100 text-indigo-700'
-                  }`}
-                >
-                  {apptStats.counts.week}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setApptViewTab('month')}
-                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-md transition-all ${
-                  apptViewTab === 'month'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span>Mês</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                    apptViewTab === 'month'
-                      ? 'bg-white/20 text-white'
-                      : 'bg-indigo-100 text-indigo-700'
-                  }`}
-                >
-                  {apptStats.counts.month}
-                </span>
-              </button>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent className="pt-4">
-          {currentApptList.length === 0 ? (
-            <div className="text-center py-8 bg-white/60 rounded-xl border border-dashed border-slate-200">
-              <Calendar className="h-8 w-8 mx-auto text-slate-300 mb-2" />
-              <p className="text-xs font-bold text-slate-600">
-                Nenhum agendamento programado para este período (
-                {apptViewTab === 'day'
-                  ? 'Hoje'
-                  : apptViewTab === 'week'
-                    ? 'Esta semana'
-                    : 'Este mês'}
-                ).
-              </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Novos atendimentos marcados aparecerão automaticamente aqui.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {currentApptList.map((a) => {
-                const isToday = (a.date?.substring(0, 10) || '') === apptStats.todayStr
-                const formattedDate = a.date
-                  ? a.date.substring(0, 10).split('-').reverse().join('/')
-                  : 'Data não informada'
-
-                return (
-                  <div
-                    key={a.id}
-                    className="flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-2xs hover:border-indigo-300 transition-all"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded flex items-center gap-1">
-                          <Clock className="h-3 w-3 text-indigo-600 shrink-0" />
-                          {a.start_time} - {a.end_time || '18:00'}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          {isToday && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800">
-                              HOJE
-                            </span>
-                          )}
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] font-bold uppercase tracking-wider capitalize"
-                          >
-                            {a.status === 'scheduled'
-                              ? 'Agendado'
-                              : a.status === 'in_progress'
-                                ? 'Em Andamento'
-                                : a.status === 'completed'
-                                  ? 'Concluído'
-                                  : a.status === 'cancelled'
-                                    ? 'Cancelado'
-                                    : a.status}
-                          </Badge>
-                        </div>
-                      </div>
-
-                      <h4 className="text-xs font-bold text-slate-900 truncate">
-                        {a.expand?.customer?.name || 'Cliente não identificado'}
-                      </h4>
-
-                      <div className="space-y-1 mt-1.5 text-[11px]">
-                        <p className="text-slate-500 font-medium flex items-center gap-1">
-                          <Calendar className="h-3 w-3 text-slate-400 shrink-0" />
-                          <span className="font-bold text-slate-700">{formattedDate}</span>
-                        </p>
-                        {a.address_note && (
-                          <p className="text-slate-600 flex items-center gap-1 truncate font-medium">
-                            <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
-                            <span className="truncate">{a.address_note}</span>
-                          </p>
-                        )}
-                        {a.expand?.technician && (
-                          <p className="text-slate-600 flex items-center gap-1 font-medium">
-                            <UserCheck className="h-3 w-3 text-indigo-500 shrink-0" />
-                            <span>
-                              Técnico:{' '}
-                              <strong className="text-slate-800">{a.expand.technician.name}</strong>
-                            </span>
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       {/* 2. Ordens de Serviço Recentes (Full Width) */}
       <Card className="border-slate-200 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-slate-100">
@@ -474,7 +235,7 @@ export default function Dashboard() {
           </Link>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto w-full">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 border-b border-slate-100 text-slate-600 font-bold uppercase tracking-wider">
                 <tr>
@@ -643,6 +404,8 @@ export default function Dashboard() {
         orders={orders}
         payments={payments}
       />
+
+      <DashboardProductSearchModal open={productSearchOpen} onOpenChange={setProductSearchOpen} />
     </div>
   )
 }

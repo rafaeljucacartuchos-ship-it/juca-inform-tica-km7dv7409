@@ -173,8 +173,27 @@ export function PrintOrderDocument({
               ))}
             </tbody>
           </table>
-          <div className="mt-1 text-right text-sm font-bold">
-            Total: R$ {(order.total || 0).toFixed(2)}
+          <div className="mt-2 space-y-1 text-right text-xs">
+            {((order.desconto ?? 0) > 0 || (order.acrescimo ?? 0) > 0) && (
+              <>
+                <div className="text-slate-600">
+                  Subtotal: R$ {items.reduce((s, it) => s + (it.total || 0), 0).toFixed(2)}
+                </div>
+                {(order.desconto ?? 0) > 0 && (
+                  <div className="text-rose-600">
+                    Desconto: - R$ {(order.desconto || 0).toFixed(2)}
+                  </div>
+                )}
+                {(order.acrescimo ?? 0) > 0 && (
+                  <div className="text-emerald-600">
+                    Acréscimo: + R$ {(order.acrescimo || 0).toFixed(2)}
+                  </div>
+                )}
+              </>
+            )}
+            <div className="text-sm font-bold text-slate-900 pt-1 border-t border-slate-200">
+              Total Geral: R$ {(order.total || 0).toFixed(2)}
+            </div>
           </div>
         </div>
       )}
