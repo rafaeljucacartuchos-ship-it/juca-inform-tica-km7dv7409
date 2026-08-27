@@ -259,8 +259,8 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
   }
 
   const selectedDisplayName = selectedCustomer
-    ? selectedCustomer.razao_social ||
-      selectedCustomer.nome_fantasia ||
+    ? selectedCustomer.nome_fantasia ||
+      selectedCustomer.razao_social ||
       selectedCustomer.name ||
       'Cliente Selecionado'
     : ''
@@ -338,9 +338,14 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
                         <CommandGroup>
                           {customers.map((c) => {
                             const displayName =
-                              c.razao_social || c.nome_fantasia || c.name || 'Cliente'
+                              c.nome_fantasia || c.razao_social || c.name || 'Cliente'
                             const phone = c.celular || c.phone
                             const isSelected = formData.customer === c.id
+                            const showSecondaryCode =
+                              Boolean(c.nome_fantasia) &&
+                              Boolean(c.razao_social) &&
+                              c.nome_fantasia?.trim() !== c.razao_social?.trim()
+
                             return (
                               <CommandItem
                                 key={c.id}
@@ -357,13 +362,17 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
                                 className="text-xs cursor-pointer flex items-center justify-between py-2"
                               >
                                 <div className="flex flex-col min-w-0 pr-2">
-                                  <span className="font-medium text-slate-900 truncate">
+                                  <span className="font-bold text-slate-900 truncate">
                                     {displayName}
                                   </span>
-                                  {phone && (
-                                    <span className="text-[11px] text-slate-500 font-mono">
-                                      {phone}
-                                    </span>
+                                  {(showSecondaryCode || phone) && (
+                                    <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                                      {showSecondaryCode && (
+                                        <span className="truncate">{c.razao_social}</span>
+                                      )}
+                                      {showSecondaryCode && phone && <span>•</span>}
+                                      {phone && <span className="font-mono">{phone}</span>}
+                                    </div>
                                   )}
                                 </div>
                                 <Check

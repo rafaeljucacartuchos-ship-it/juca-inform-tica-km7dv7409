@@ -3,7 +3,7 @@ import { Customer } from '@/types'
 
 export const getCustomerDisplayName = (customer?: Partial<Customer> | null): string => {
   if (!customer) return 'Cliente'
-  return customer.razao_social || customer.nome_fantasia || customer.name || 'Cliente Sem Nome'
+  return customer.nome_fantasia || customer.razao_social || customer.name || 'Cliente Sem Nome'
 }
 
 export const getCustomerPhone = (customer?: Partial<Customer> | null): string => {
@@ -14,8 +14,8 @@ export const getCustomerPhone = (customer?: Partial<Customer> | null): string =>
 export const getCustomers = async (search = '') => {
   let filter = ''
   if (search && search.trim()) {
-    const s = search.trim().replace(/"/g, '\\"')
-    filter = `razao_social ~ "${s}" || nome_fantasia ~ "${s}" || name ~ "${s}"`
+    const s = search.trim().replace(/'/g, "\\'")
+    filter = `razao_social ~ '${s}' || nome_fantasia ~ '${s}' || name ~ '${s}'`
   }
   const result = await pb.collection('customers').getList<Customer>(1, 100, {
     filter,
