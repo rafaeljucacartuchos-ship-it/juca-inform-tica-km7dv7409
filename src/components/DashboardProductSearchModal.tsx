@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Search, Package, Barcode, DollarSign, Layers, Loader2, X } from 'lucide-react'
+import { Search, Package, Barcode, DollarSign, Layers, Loader2, X, Camera } from 'lucide-react'
+import { BarcodeScanner } from '@/components/BarcodeScanner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -19,6 +20,7 @@ export function DashboardProductSearchModal({
   const [query, setQuery] = useState('')
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(false)
+  const [showScanner, setShowScanner] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -83,17 +85,30 @@ export function DashboardProductSearchModal({
             placeholder="Digite o nome, código (SKU) ou código de barras..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="pl-9 pr-8 h-10 text-xs sm:text-sm bg-slate-50 border-slate-200"
+            className="pl-9 pr-16 h-10 text-xs sm:text-sm bg-slate-50 border-slate-200"
           />
-          {query && (
+          <div className="absolute right-2 top-2 flex items-center gap-1">
             <button
               type="button"
-              onClick={() => setQuery('')}
-              className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+              onClick={() => setShowScanner(true)}
+              title="Escanear código de barras"
+              aria-label="Escanear código de barras"
+              className="p-1 text-slate-400 hover:text-indigo-600 transition-colors rounded hover:bg-slate-200/60"
             >
-              <X className="h-4 w-4" />
+              <Camera className="h-4 w-4" />
             </button>
-          )}
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                title="Limpar busca"
+                aria-label="Limpar busca"
+                className="p-1 text-slate-400 hover:text-slate-600 transition-colors rounded hover:bg-slate-200/60"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto border border-slate-200 rounded-lg max-h-[50vh] sm:max-h-[55vh]">
@@ -187,6 +202,14 @@ export function DashboardProductSearchModal({
           </Button>
         </div>
       </DialogContent>
+
+      <BarcodeScanner
+        open={showScanner}
+        onOpenChange={setShowScanner}
+        onDetected={(code) => {
+          setQuery(code)
+        }}
+      />
     </Dialog>
   )
 }
