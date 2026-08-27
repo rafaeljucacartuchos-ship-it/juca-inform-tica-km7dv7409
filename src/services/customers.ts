@@ -13,14 +13,15 @@ export const getCustomerPhone = (customer?: Partial<Customer> | null): string =>
 
 export const getCustomers = async (search = '') => {
   let filter = ''
-  if (search.trim()) {
-    const s = search.trim()
-    filter = `razao_social ~ "${s}" || nome_fantasia ~ "${s}" || celular ~ "${s}" || cpf_cnpj ~ "${s}" || rg_ie ~ "${s}" || endereco ~ "${s}" || bairro ~ "${s}" || name ~ "${s}" || phone ~ "${s}"`
+  if (search && search.trim()) {
+    const s = search.trim().replace(/"/g, '\\"')
+    filter = `razao_social ~ "${s}" || nome_fantasia ~ "${s}" || celular ~ "${s}"`
   }
-  return pb.collection('customers').getFullList<Customer>({
+  const result = await pb.collection('customers').getList<Customer>(1, 100, {
     filter,
-    sort: '-created',
+    sort: 'razao_social',
   })
+  return result.items
 }
 
 export const getCustomer = (id: string) => pb.collection('customers').getOne<Customer>(id)

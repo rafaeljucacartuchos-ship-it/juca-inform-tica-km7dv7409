@@ -1,15 +1,18 @@
 import pb from '@/lib/pocketbase/client'
 import { Product } from '@/types'
 
-export const getProducts = (search = '') => {
+export const getProducts = async (search = '') => {
   let filter = ''
-  if (search.trim()) {
-    filter = `name ~ "${search.trim()}" || sku ~ "${search.trim()}" || category ~ "${search.trim()}"`
+  if (search && search.trim()) {
+    const s = search.trim().replace(/"/g, '\\"')
+    // No PocketBase o campo de nome do produto é "name" (ou "produto" se mapeado), código de barras é "codigo_barras" ou "barcode", código é "sku"
+    filter = `name ~ "${s}" || barcode ~ "${s}" || codigo_barras ~ "${s}" || sku ~ "${s}"`
   }
-  return pb.collection('products').getFullList<Product>({
+  const result = await pb.collection('products').getList<Product>(1, 100, {
     filter,
-    sort: '-created',
+    sort: 'name',
   })
+  return result.items
 }
 
 export const getProduct = (id: string) => pb.collection('products').getOne<Product>(id)
