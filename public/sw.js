@@ -89,28 +89,11 @@ self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = new URL(request.url)
 
-  // Mutations (POST/PUT/DELETE/PATCH) para a API do PocketBase:
-  // se a rede falhar (offline), responde 503 JSON sinalizando que a
-  // operação foi enfileirada para sincronização pelo app.
-  if (request.method !== 'GET' && url.pathname.startsWith('/api/collections/')) {
-    event.respondWith(
-      fetch(request).catch(
-        () =>
-          new Response(
-            JSON.stringify({
-              offline: true,
-              message: 'Operação enfileirada para sincronização',
-            }),
-            {
-              status: 503,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          ),
-      ),
-    )
-    return
-  }
-
+  // Não intercepta mutações (POST/PUT/DELETE/PATCH/etc.): deixa o navegador
+  // enviar diretamente pela rede sem passar por event.respondWith(fetch(request)).
+  // No Safari (iOS/Mac), refazer fetch() em requisições de mutação com multipart
+  // corrompe o FormData/corpo de upload, causando erro 400 no PocketBase.
+  // O suporte offline de mutações é tratado na camada da aplicação (offlinePb).
   if (request.method !== 'GET') return
 
   // NetworkFirst for API calls (any origin, /api/* path).
