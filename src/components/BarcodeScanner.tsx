@@ -3,7 +3,15 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ScanLine, X, RefreshCw, AlertTriangle, ArrowRight, Keyboard } from 'lucide-react'
+import {
+  ScanLine,
+  X,
+  RefreshCw,
+  AlertTriangle,
+  ArrowRight,
+  Keyboard,
+  ExternalLink,
+} from 'lucide-react'
 
 interface BarcodeScannerProps {
   open: boolean
@@ -37,6 +45,7 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
   const isOpenRef = useRef(open)
 
   const [error, setError] = useState('')
+  const [isIframeBlocked, setIsIframeBlocked] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [manualCode, setManualCode] = useState('')
   const [isRetrying, setIsRetrying] = useState(false)
@@ -94,6 +103,7 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
 
     isStartingRef.current = true
     setError('')
+    setIsIframeBlocked(false)
     console.log('[BarcodeScanner] Iniciando leitor de código de barras...')
 
     try {
@@ -304,6 +314,20 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
         const errName = startErr instanceof Error ? startErr.name : ''
         const errMsg = String(startErr || '')
 
+        // Detecta se está rodando dentro de um iframe
+        let inIframe = false
+        try {
+          inIframe = window.self !== window.top
+        } catch {
+          inIframe = true
+        }
+
+        const isPermissionError =
+          errName === 'NotAllowedError' ||
+          errName === 'PermissionDeniedError' ||
+          errMsg.toLowerCase().includes('permission') ||
+          errMsg.toLowerCase().includes('notallowed')
+
         console.log('[BarcodeScanner] Detalhes do erro ao abrir câmera:', {
           errName,
           errMsg,
@@ -311,15 +335,17 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
           isMac,
           isSafari,
           isIOS,
+          inIframe,
+          isPermissionError,
         })
 
-        if (
-          errName === 'NotAllowedError' ||
-          errName === 'PermissionDeniedError' ||
-          errMsg.toLowerCase().includes('permission') ||
-          errMsg.toLowerCase().includes('notallowed')
-        ) {
-          if (isMac) {
+        if (isPermissionError) {
+          if (inIframe) {
+            setIsIframeBlocked(true)
+            setError(
+              'Acesso à câmera bloqueado pelo modo de visualização (preview em iframe). Para escanear com a câmera, abra o aplicativo diretamente em uma nova aba do navegador.',
+            )
+          } else if (isMac) {
             setError(
               'Permissão de acesso à câmera negada ou bloqueada. No macOS/Safari/Chrome: 1) Verifique se a câmera não está em uso por outro aplicativo (FaceTime, Zoom, Teams); 2) Autorize em Ajustes do Sistema > Privacidade e Segurança > Câmera; 3) Verifique as permissões de câmera nas configurações do Safari (Preferências > Sites > Câmera).',
             )
@@ -375,6 +401,7 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
     isProcessingRef.current = false
     setManualCode('')
     setIsRetrying(false)
+    setIsIframeBlocked(false)
     setError('')
 
     // 5. Aumentar Delay Inicial para 300ms garantindo que o modal e o container DOM estejam 100% estáveis no Safari
@@ -404,11 +431,20 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
   const handleRetryCamera = async () => {
     setIsRetrying(true)
     setError('')
+    setIsIframeBlocked(false)
     await stopScanner()
     try {
       await startScanner()
     } finally {
       setIsRetrying(false)
+    }
+  }
+
+  const handleOpenInNewTab = () => {
+    try {
+      window.open(window.location.href, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      console.warn('[BarcodeScanner] Falha ao abrir em nova aba:', err)
     }
   }
 
@@ -466,23 +502,38 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
                   <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-rose-600" />
                   <div className="text-xs leading-relaxed font-medium">{error}</div>
                 </div>
-                <div className="flex items-center justify-between pt-1 border-t border-rose-100">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-rose-100">
                   <span className="text-[11px] text-rose-600">
-                    Permita a câmera ou tente novamente.
+                    {isIframeBlocked
+                      ? 'Abra em nova aba ou digite o código abaixo.'
+                      : 'Permita a câmera ou tente novamente.'}
                   </span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={handleRetryCamera}
-                    disabled={isRetrying}
-                    className="h-8 text-xs font-semibold bg-white border-rose-200 hover:bg-rose-100 hover:text-rose-900 text-rose-700 shadow-sm"
-                  >
-                    <RefreshCw
-                      className={`h-3.5 w-3.5 mr-1.5 ${isRetrying ? 'animate-spin' : ''}`}
-                    />
-                    Tentar Novamente
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {isIframeBlocked && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleOpenInNewTab}
+                        className="h-8 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                        Abrir em nova aba
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleRetryCamera}
+                      disabled={isRetrying}
+                      className="h-8 text-xs font-semibold bg-white border-rose-200 hover:bg-rose-100 hover:text-rose-900 text-rose-700 shadow-sm"
+                    >
+                      <RefreshCw
+                        className={`h-3.5 w-3.5 mr-1.5 ${isRetrying ? 'animate-spin' : ''}`}
+                      />
+                      Tentar Novamente
+                    </Button>
+                  </div>
                 </div>
               </div>
             ) : (
