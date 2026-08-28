@@ -4,7 +4,7 @@
  * The production build (when VitePWA can be wired into vite.config.ts) will
  * replace this with a Workbox-generated SW. Until then this file provides:
  *   - precache of the app shell
- *   - NetworkFirst for API calls (PocketBase /api/*), 10s timeout
+ *   - Direct network access for PocketBase API calls (/api/*)
  *   - NetworkFirst for JS/CSS assets (sempre busca a versão nova com internet)
  *   - CacheFirst for static image/font assets
  *   - network-first navigation fallback to /index.html
@@ -96,11 +96,10 @@ self.addEventListener('fetch', (event) => {
   // O suporte offline de mutações é tratado na camada da aplicação (offlinePb).
   if (request.method !== 'GET') return
 
-  // NetworkFirst for API calls (any origin, /api/* path).
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(networkFirst(request, API_CACHE).catch(() => fetch(request)))
-    return
-  }
+  // Requisições para /api/* (PocketBase) vão direto pela rede sem passar pelo SW.
+  // No iOS, buscas e consultas podiam passar do timeout de 10s do networkFirst e
+  // retornar cache vazio. Mutações e consultas agora vão direto ao servidor.
+  if (url.pathname.startsWith('/api/')) return
 
   // NetworkFirst for static assets (images, fonts, css, js) — garante que o
   // app sempre busque a versão nova quando há internet, em vez de servir o
