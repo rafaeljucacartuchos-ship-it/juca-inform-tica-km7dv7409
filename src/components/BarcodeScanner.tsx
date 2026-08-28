@@ -110,43 +110,98 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
       }
 
       const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : ''
-      const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua)
-      const isMac = /Macintosh|MacIntel|MacPPC|Mac68K/i.test(ua)
+      const isIOS =
+        /iPad|iPhone|iPod/.test(ua) ||
+        (typeof navigator !== 'undefined' &&
+          navigator.platform === 'MacIntel' &&
+          navigator.maxTouchPoints > 1)
+      const isMobile = isIOS || /Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua)
+      const isMac = /Macintosh|MacIntel|MacPPC|Mac68K/i.test(ua) && !isIOS
+      const isSafari = /^((?!chrome|android).)*safari/i.test(ua)
+
+      console.log('[BarcodeScanner] Plataforma detectada:', {
+        ua,
+        isMobile,
+        isIOS,
+        isMac,
+        isSafari,
+      })
 
       // Garante que qualquer scanner anterior seja interrompido de forma limpa
       await stopScanner()
 
       if (!isOpenRef.current) return
 
-      // 1. Listar câmeras disponíveis ANTES de instanciar ou iniciar
+      // Garante que o elemento container exista no DOM e tenha dimensões calculadas
+      const targetElement = document.getElementById(containerId)
+      if (!targetElement) {
+        console.warn('[BarcodeScanner] Elemento container não encontrado no DOM:', containerId)
+        return
+      }
+
+      // 3. Verificação de Visibilidade: aguarda dimensões calculadas (evita NotAllowedError em Safari se elemento estiver colapsado)
+      const rect = targetElement.getBoundingClientRect()
+      console.log('[BarcodeScanner] Dimensões do container no DOM:', {
+        width: rect.width,
+        height: rect.height,
+        top: rect.top,
+        left: rect.left,
+      })
+
+      // Se dimensões forem 0, aguardar um frame extra para o CSS/DOM renderizar
+      if (rect.width === 0 || rect.height === 0) {
+        console.log(
+          '[BarcodeScanner] Container com tamanho zero, aguardando renderização do layout...',
+        )
+        await new Promise((resolve) => requestAnimationFrame(resolve))
+      }
+
+      // 1. Obter lista de câmeras disponíveis com log de diagnóstico
       let cameras: Array<{ id: string; label: string }> = []
       try {
         cameras = await Html5Qrcode.getCameras()
+        console.log('[BarcodeScanner] Câmeras detectadas via getCameras():', cameras)
       } catch (camErr) {
         console.warn('[BarcodeScanner] Erro ao listar câmeras (getCameras):', camErr)
       }
 
       if (!isOpenRef.current) return
 
-      // 2. Seleção Inteligente de Câmera
+      // 1. Simplificar Constraints:
+      // No macOS, o Safari frequentemente falha ao solicitar IDs específicos quando labels estão vazias
+      // ou bloqueia constraints rígidas. Iniciar com { facingMode: 'user' } é mais bem aceito.
       let selectedCameraTarget: string | MediaTrackConstraints
 
-      if (cameras && cameras.length > 0) {
+      if (isMac) {
+        // No macOS, prefere facingMode user ou câmera FaceTime/padrão sem travar em deviceId opaco
+        if (cameras && cameras.length === 1 && cameras[0].label) {
+          // Se só tem 1 câmera identificada e com label válida, podemos tentar o id ou facingMode
+          selectedCameraTarget = { facingMode: 'user' }
+        } else {
+          selectedCameraTarget = { facingMode: 'user' }
+        }
+        console.log(
+          '[BarcodeScanner] [macOS] Usando constraint simplificada:',
+          selectedCameraTarget,
+        )
+      } else if (cameras && cameras.length > 0) {
         if (isMobile) {
           // Em dispositivos móveis, priorizar câmeras traseiras ("back", "rear", "environment", "traseira")
           const backCam = cameras.find((c) => /back|rear|environment|traseira/i.test(c.label || ''))
-          selectedCameraTarget = backCam ? backCam.id : cameras[cameras.length - 1].id
+          selectedCameraTarget = backCam
+            ? backCam.id
+            : cameras[cameras.length - 1]?.id || { facingMode: 'environment' }
         } else {
-          // Em desktop / Mac, priorizar câmera padrão/FaceTime HD ou a primeira câmera disponível
+          // Em outros desktops, priorizar câmera padrão/FaceTime HD ou a primeira câmera disponível
           const defaultCam =
             cameras.find((c) =>
               /facetime|integrated|built-in|default|principal/i.test(c.label || ''),
             ) || cameras[0]
-          selectedCameraTarget = defaultCam.id
+          selectedCameraTarget = defaultCam ? defaultCam.id : { facingMode: 'user' }
         }
-        console.log('[BarcodeScanner] Câmera selecionada por ID:', selectedCameraTarget)
+        console.log('[BarcodeScanner] Câmera selecionada:', selectedCameraTarget)
       } else {
-        // Fallback se getCameras() retornar array vazio
+        // Fallback genérico quando getCameras() retorna vazio ou falha
         selectedCameraTarget = isMobile
           ? ({ facingMode: { ideal: 'environment' } } as unknown as MediaTrackConstraints)
           : ({ facingMode: 'user' } as unknown as MediaTrackConstraints)
@@ -154,13 +209,6 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
           '[BarcodeScanner] Nenhuma câmera listada por ID, usando constraint fallback:',
           selectedCameraTarget,
         )
-      }
-
-      // Garante que o elemento container exista no DOM
-      const targetElement = document.getElementById(containerId)
-      if (!targetElement) {
-        console.warn('[BarcodeScanner] Elemento container não encontrado no DOM:', containerId)
-        return
       }
 
       let instance: Html5Qrcode
@@ -179,17 +227,28 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
         return
       }
 
-      // Configurações de leitura otimizadas para códigos de barras 1D
-      const scanConfig = {
+      // 2. Afrouxar Constraints de Resolução/Aspect Ratio:
+      // Removemos aspectRatio fixo (1.777778 / 16:9) que causa recusa de stream em webcams antigas de MacBooks e Safari.
+      // Usamos qrbox responsivo e sem travar aspectRatio fixo.
+      const scanConfig: {
+        fps: number
+        qrbox: { width: number; height: number }
+        disableFlip: boolean
+        aspectRatio?: number
+      } = {
         fps: 15,
         qrbox: { width: 280, height: 160 },
-        aspectRatio: 1.777778, // 16:9
         disableFlip: false,
       }
 
+      console.log('[BarcodeScanner] Configurações de scan enviadas:', {
+        selectedCameraTarget,
+        scanConfig,
+      })
+
       const onSuccess = (decodedText: string) => {
         if (isProcessingRef.current || !isOpenRef.current) return
-        console.log('[BarcodeScanner] Código detectado:', decodedText)
+        console.log('[BarcodeScanner] Código detectado com sucesso:', decodedText)
         handleDetectedCode(decodedText)
       }
 
@@ -202,12 +261,9 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
         return
       }
 
-      // 3. Chamada ÚNICA a instance.start (sem loop de retentativas rápidas que causam conflito de transição no Safari)
+      // Tentativa de inicialização da câmera
       try {
-        console.log(
-          '[BarcodeScanner] Iniciando leitura na câmera selecionada:',
-          selectedCameraTarget,
-        )
+        console.log('[BarcodeScanner] Iniciando leitura na câmera:', selectedCameraTarget)
         await instance.start(selectedCameraTarget, scanConfig, onSuccess, onError)
 
         if (!isOpenRef.current) {
@@ -218,13 +274,44 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
         setScanning(true)
         console.log('[BarcodeScanner] Câmera iniciada com sucesso!')
       } catch (startErr: unknown) {
-        console.error('[BarcodeScanner] Falha ao iniciar câmera:', startErr)
+        console.error('[BarcodeScanner] Falha ao iniciar câmera na primeira tentativa:', startErr)
+
+        // Fallback secundário para Mac/Safari se a constraint inicial falhou:
+        // Tentar um fallback mais genérico ainda (ex: facingMode 'user' ou 'environment' ou deviceId)
+        if (isMac && typeof selectedCameraTarget !== 'string' && cameras && cameras.length > 0) {
+          try {
+            console.log(
+              '[BarcodeScanner] [macOS] Tentando fallback com ID da primeira câmera:',
+              cameras[0].id,
+            )
+            await instance.start(cameras[0].id, scanConfig, onSuccess, onError)
+            if (!isOpenRef.current) {
+              await stopScanner()
+              return
+            }
+            setScanning(true)
+            console.log('[BarcodeScanner] [macOS] Câmera iniciada com sucesso no fallback!')
+            return
+          } catch (fallbackErr) {
+            console.warn('[BarcodeScanner] [macOS] Fallback também falhou:', fallbackErr)
+          }
+        }
+
         await stopScanner()
 
         if (!isOpenRef.current) return
 
         const errName = startErr instanceof Error ? startErr.name : ''
         const errMsg = String(startErr || '')
+
+        console.log('[BarcodeScanner] Detalhes do erro ao abrir câmera:', {
+          errName,
+          errMsg,
+          startErr,
+          isMac,
+          isSafari,
+          isIOS,
+        })
 
         if (
           errName === 'NotAllowedError' ||
@@ -234,11 +321,15 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
         ) {
           if (isMac) {
             setError(
-              'Permissão de acesso à câmera negada. No macOS/Safari/Chrome, autorize a câmera nos Ajustes do Sistema > Privacidade e Segurança > Câmera, e nas permissões do site na barra de endereços.',
+              'Permissão de acesso à câmera negada ou bloqueada. No macOS/Safari/Chrome: 1) Verifique se a câmera não está em uso por outro aplicativo (FaceTime, Zoom, Teams); 2) Autorize em Ajustes do Sistema > Privacidade e Segurança > Câmera; 3) Verifique as permissões de câmera nas configurações do Safari (Preferências > Sites > Câmera).',
+            )
+          } else if (isIOS) {
+            setError(
+              'Permissão de acesso à câmera negada. No iOS/Safari: toque no ícone "aA" na barra de endereços > Ajustes do Site > Câmera (Permitir), ou vá em Ajustes do iOS > Safari > Câmera.',
             )
           } else {
             setError(
-              'Permissão de acesso à câmera negada. No iOS/Safari ou Chrome, permita o acesso à câmera nos Ajustes do dispositivo ou na barra de endereços do navegador.',
+              'Permissão de acesso à câmera negada. Permita o acesso à câmera nas configurações do navegador ou na barra de endereços e tente novamente.',
             )
           }
         } else if (
@@ -253,7 +344,7 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
           errMsg.toLowerCase().includes('readable')
         ) {
           setError(
-            'A câmera já está em uso por outro aplicativo ou aba. Feche outros apps e tente novamente.',
+            'A câmera já está em uso por outro aplicativo ou aba (como FaceTime, Zoom, Teams). Feche os outros programas e clique em Tentar Novamente.',
           )
         } else if (
           errName === 'OverconstrainedError' ||
@@ -261,11 +352,11 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
           errMsg.toLowerCase().includes('overconstrained')
         ) {
           setError(
-            'As configurações da câmera não são suportadas pelo dispositivo. Clique em Tentar Novamente.',
+            'As configurações de resolução da câmera não foram aceitas pelo sensor. Clique em Tentar Novamente para usar modo compatível.',
           )
         } else {
           setError(
-            `Não foi possível acessar a câmera (${errName || errMsg || 'Erro desconhecido'}). Verifique se a página está em conexão segura (HTTPS) e se as permissões estão ativas.`,
+            `Não foi possível acessar a câmera (${errName || errMsg || 'Erro desconhecido'}). Verifique se a página está em conexão segura (HTTPS), se a câmera não está em uso por outro app e se as permissões estão ativas.`,
           )
         }
       }
