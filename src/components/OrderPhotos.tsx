@@ -41,17 +41,16 @@ export function OrderPhotos({ orderId, canEdit }: OrderPhotosProps) {
     if (e.record['service_order'] === orderId) loadData()
   })
 
-  const convertHeicToJpeg = async (file: File): Promise<File> => {
+  const convertHeicToJpeg = async (file: File): Promise<Blob> => {
     try {
       const convertedBlob = await heic2any({
         blob: file,
         toType: 'image/jpeg',
         quality: 0.85,
+        multiple: false,
       })
 
-      const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
-      const newFileName = file.name.replace(/\.(heic|heif)$/i, '') + '.jpg'
-      return new File([blob], newFileName, { type: 'image/jpeg' })
+      return Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
     } catch (err) {
       console.error('Erro ao converter imagem HEIC:', err)
       throw new Error('Falha na conversão de imagem HEIC')
@@ -78,10 +77,13 @@ export function OrderPhotos({ orderId, canEdit }: OrderPhotosProps) {
         continue
       }
 
-      let fileToUpload = rawFile
+      let uploadBlob: Blob | File = rawFile
+      let uploadFileName = rawFile.name
+
       if (isHeicByName || isHeicByType) {
         try {
-          fileToUpload = await convertHeicToJpeg(rawFile)
+          uploadBlob = await convertHeicToJpeg(rawFile)
+          uploadFileName = rawFile.name.replace(/\.(heic|heif)$/i, '') + '.jpg'
         } catch {
           toast({
             title: 'Erro ao converter foto',
@@ -92,10 +94,10 @@ export function OrderPhotos({ orderId, canEdit }: OrderPhotosProps) {
         }
       }
 
-      if (fileToUpload.size > maxSize) {
+      if (uploadBlob.size > maxSize) {
         toast({
           title: 'Arquivo muito grande',
-          description: `${fileToUpload.name}: máximo 10MB.`,
+          description: `${uploadFileName}: máximo 10MB.`,
           variant: 'destructive',
         })
         continue
@@ -103,11 +105,11 @@ export function OrderPhotos({ orderId, canEdit }: OrderPhotosProps) {
 
       try {
         if (navigator.onLine) {
-          await createAttachment(orderId, fileToUpload)
+          await createAttachment(orderId, uploadBlob, uploadFileName)
           toast({ title: 'Foto enviada!' })
         } else {
           // Offline: armazena a foto como base64 na fila para sincronização.
-          const dataUrl = await fileToDataUrl(fileToUpload)
+          const dataUrl = await blobToDataUrl(uploadBlob)
           await offlinePb.create('service_attachments', {
             service_order: orderId,
             file: dataUrl,
@@ -149,13 +151,13 @@ export function OrderPhotos({ orderId, canEdit }: OrderPhotosProps) {
     }
   }
 
-  /** Converte um File em data URL base64 (para armazenar offline). */
-  function fileToDataUrl(file: File): Promise<string> {
+  /** Converte um Blob/File em data URL base64 (para armazenar offline). */
+  function blobToDataUrl(blob: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
       reader.onload = () => resolve(reader.result as string)
       reader.onerror = () => reject(reader.error)
-      reader.readAsDataURL(file)
+      reader.readAsDataURL(blob)
     })
   }
 

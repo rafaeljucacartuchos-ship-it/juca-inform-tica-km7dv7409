@@ -7,10 +7,21 @@ export const getAttachments = (orderId: string) =>
     sort: 'created',
   })
 
-export const createAttachment = (orderId: string, file: File, caption?: string) => {
+export const createAttachment = (
+  orderId: string,
+  file: File | Blob,
+  fileName?: string,
+  caption?: string,
+) => {
   const formData = new FormData()
   formData.append('service_order', orderId)
-  formData.append('file', file)
+  if (fileName) {
+    formData.append('file', file, fileName)
+  } else if (file instanceof File) {
+    formData.append('file', file, file.name)
+  } else {
+    formData.append('file', file, 'foto.jpg')
+  }
   if (caption) formData.append('caption', caption)
   return pb.collection('service_attachments').create<ServiceAttachment>(formData)
 }
