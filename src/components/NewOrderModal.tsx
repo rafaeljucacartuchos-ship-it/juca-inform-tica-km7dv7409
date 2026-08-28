@@ -54,6 +54,7 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
   const [isSearchingCustomers, setIsSearchingCustomers] = useState(false)
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const [techComboboxOpen, setTechComboboxOpen] = useState(false)
   const [technicians, setTechnicians] = useState<User[]>([])
   const [equipment, setEquipment] = useState<Equipment[]>([])
   const [customerModalOpen, setCustomerModalOpen] = useState(false)
@@ -93,6 +94,7 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
     } else {
       setCustomerSearch('')
       setComboboxOpen(false)
+      setTechComboboxOpen(false)
     }
   }, [open])
 
@@ -275,7 +277,7 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-full max-w-full h-full sm:h-auto sm:max-w-[560px] max-h-screen sm:max-h-[90vh] overflow-y-auto rounded-none sm:rounded-lg p-4 sm:p-6 flex flex-col justify-between sm:justify-start">
+        <DialogContent className="w-full max-w-full sm:max-w-[560px] sm:max-h-[90vh] overflow-y-auto rounded-none sm:rounded-lg p-4 sm:p-6 flex flex-col justify-between sm:justify-start">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-slate-900">
               Nova Ordem de Serviço
@@ -414,21 +416,86 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-slate-700">Técnico Responsável</Label>
-                <Select
-                  value={formData.technician}
-                  onValueChange={(val) => setFormData({ ...formData, technician: val })}
-                >
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="Sem técnico" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {technicians.map((t) => (
-                      <SelectItem key={t.id} value={t.id} className="text-xs">
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={techComboboxOpen} onOpenChange={setTechComboboxOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={techComboboxOpen}
+                      className={cn(
+                        'w-full h-9 text-xs justify-between font-normal px-3 bg-white border-slate-200 hover:bg-slate-50',
+                        !formData.technician && 'text-slate-400',
+                      )}
+                    >
+                      <span className="truncate text-left">
+                        {formData.technician
+                          ? technicians.find((t) => t.id === formData.technician)?.name ||
+                            'Técnico selecionado'
+                          : 'Sem técnico'}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-[--radix-popover-trigger-width] p-0 shadow-lg max-h-60 overflow-hidden"
+                    align="start"
+                  >
+                    <Command className="max-h-60 flex flex-col">
+                      <CommandInput
+                        placeholder="Buscar técnico..."
+                        className="h-9 text-xs shrink-0"
+                      />
+                      <CommandList className="max-h-48 overflow-y-auto">
+                        <CommandEmpty className="py-4 text-center text-xs text-slate-500">
+                          Nenhum técnico encontrado.
+                        </CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem
+                            value="__none__"
+                            onSelect={() => {
+                              setFormData((prev) => ({ ...prev, technician: '' }))
+                              setTechComboboxOpen(false)
+                            }}
+                            className="text-xs cursor-pointer flex items-center justify-between py-2"
+                          >
+                            <span className="text-slate-500 italic">Sem técnico</span>
+                            <Check
+                              className={cn(
+                                'h-4 w-4 shrink-0 text-indigo-600',
+                                !formData.technician ? 'opacity-100' : 'opacity-0',
+                              )}
+                            />
+                          </CommandItem>
+                          {technicians.map((t) => {
+                            const isSelected = formData.technician === t.id
+                            return (
+                              <CommandItem
+                                key={t.id}
+                                value={t.name || t.id}
+                                onSelect={() => {
+                                  setFormData((prev) => ({ ...prev, technician: t.id }))
+                                  setTechComboboxOpen(false)
+                                }}
+                                className="text-xs cursor-pointer flex items-center justify-between py-2"
+                              >
+                                <span className="font-medium text-slate-900 truncate">
+                                  {t.name}
+                                </span>
+                                <Check
+                                  className={cn(
+                                    'h-4 w-4 shrink-0 text-indigo-600',
+                                    isSelected ? 'opacity-100' : 'opacity-0',
+                                  )}
+                                />
+                              </CommandItem>
+                            )
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <div className="space-y-1.5">
