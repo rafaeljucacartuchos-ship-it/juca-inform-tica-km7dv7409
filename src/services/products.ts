@@ -1,14 +1,33 @@
 import pb from '@/lib/pocketbase/client'
 import { Product } from '@/types'
 
-export const getProducts = async (search = '') => {
+export const normalizeSearchText = (text: string): string => {
+  if (!text) return ''
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ç/g, 'c')
+    .replace(/Ç/g, 'c')
+    .toLowerCase()
+    .trim()
+}
+
+export const getProducts = async (search = '', page = 1, perPage = 100) => {
   let filter = ''
   if (search && search.trim()) {
-    const s = search.trim().replace(/'/g, "\\'")
-    // No PocketBase o campo de nome do produto é "name", código de barras é "barcode" / "codigo_barras", código é "sku"
-    filter = `name ~ '${s}' || barcode ~ '${s}' || codigo_barras ~ '${s}' || sku ~ '${s}'`
+    const normalized = normalizeSearchText(search)
+    // Divide em palavras para permitir busca em qualquer ordem (AND sobre search_text)
+    const words = normalized
+      .split(/\s+/)
+      .map((w) => w.trim().replace(/\\/g, '\\\\').replace(/'/g, "\\'"))
+      .filter((w) => w.length > 0)
+
+    if (words.length > 0) {
+      filter = words.map((w) => `search_text ~ '${w}'`).join(' && ')
+    }
   }
-  const result = await pb.collection('products').getList<Product>(1, 100, {
+
+  const result = await pb.collection('products').getList<Product>(page, perPage, {
     filter,
     sort: 'sku',
   })

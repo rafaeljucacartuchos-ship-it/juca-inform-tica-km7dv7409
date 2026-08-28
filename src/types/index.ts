@@ -224,6 +224,7 @@ export interface Product {
   sku?: string
   barcode?: string
   codigo_barras?: string
+  search_text?: string
   price?: number
   cost?: number
   category?: string

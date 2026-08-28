@@ -503,11 +503,34 @@ export async function importProductsData(
         match = nameMap.get(r.nome.trim().toLowerCase())
       }
 
+      const normalizeVal = (v?: string) =>
+        (v || '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/ç/g, 'c')
+          .replace(/Ç/g, 'c')
+          .toLowerCase()
+          .trim()
+
+      const parts = [
+        normalizeVal(r.nome),
+        normalizeVal(r.codigo),
+        normalizeVal(r.codigoBarras),
+      ].filter(Boolean)
+
+      const uniqueTokens: string[] = []
+      parts.forEach((p) => {
+        if (!uniqueTokens.includes(p)) {
+          uniqueTokens.push(p)
+        }
+      })
+
       const payload: Partial<Product> = {
         name: r.nome,
         sku: r.codigo || undefined,
         barcode: r.codigoBarras || undefined,
         codigo_barras: r.codigoBarras || undefined,
+        search_text: uniqueTokens.join(' '),
         stock_quantity: r.quantidadeEstoque,
         price: r.precoVenda,
         active: true,

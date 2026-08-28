@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-28T03:16:42.564Z",
+  "generatedAt": "2026-08-28T03:40:42.497Z",
   "collections": [
     {
       "name": "users",
@@ -981,11 +981,18 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "search_text",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
         "CREATE UNIQUE INDEX idx_products_sku ON products (sku)",
-        "CREATE INDEX idx_products_name ON products (name)"
+        "CREATE INDEX idx_products_name ON products (name)",
+        "CREATE INDEX `idx_products_search_text` ON `products` (search_text)"
       ]
     },
     {

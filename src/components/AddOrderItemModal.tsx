@@ -56,15 +56,35 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
     setLoading(true)
     debounceRef.current = setTimeout(async () => {
       try {
-        const safe = term.replace(/"/g, '')
+        const normalizedTerm = term
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/ç/g, 'c')
+          .replace(/Ç/g, 'c')
+          .toLowerCase()
+          .trim()
+
+        const productWords = normalizedTerm
+          .split(/\s+/)
+          .map((w) => w.trim().replace(/\\/g, '\\\\').replace(/'/g, "\\'"))
+          .filter((w) => w.length > 0)
+
+        const productFilter =
+          productWords.length > 0
+            ? productWords.map((w) => `search_text ~ '${w}'`).join(' && ')
+            : ''
+
+        const safeServiceTerm = term.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+        const serviceFilter = `name ~ '${safeServiceTerm}' || title ~ '${safeServiceTerm}'`
+
         const [products, services] = await Promise.all([
           pb.collection('products').getFullList<Product>({
-            filter: `name ~ "${safe}" || sku ~ "${safe}" || barcode ~ "${safe}" || codigo_barras ~ "${safe}" || category ~ "${safe}"`,
+            filter: productFilter,
             sort: 'name',
             perPage: 50,
           }),
           pb.collection('services').getFullList<CatalogService>({
-            filter: `name ~ "${safe}" || title ~ "${safe}"`,
+            filter: serviceFilter,
             sort: 'name',
             perPage: 50,
           }),
