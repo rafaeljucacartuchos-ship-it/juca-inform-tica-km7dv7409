@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Search, Package, Wrench, X } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { Product, CatalogService } from '@/types'
+import { getProducts } from '@/services/products'
 import { createOrderItem } from '@/services/service_orders'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -56,39 +57,17 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
     setLoading(true)
     debounceRef.current = setTimeout(async () => {
       try {
-        const normalizedTerm = term
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .replace(/ç/g, 'c')
-          .replace(/Ç/g, 'c')
-          .toLowerCase()
-          .trim()
-
-        const productWords = normalizedTerm
-          .split(/\s+/)
-          .map((w) => w.trim().replace(/\\/g, '\\\\').replace(/'/g, "\\'"))
-          .filter((w) => w.length > 0)
-
-        const productFilter =
-          productWords.length > 0
-            ? productWords.map((w) => `search_text ~ '${w}'`).join(' && ')
-            : ''
-
         const safeServiceTerm = term.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
         const serviceFilter = `name ~ '${safeServiceTerm}' || title ~ '${safeServiceTerm}'`
 
-        const [products, services] = await Promise.all([
-          pb.collection('products').getFullList<Product>({
-            filter: productFilter,
-            sort: 'name',
-            perPage: 50,
-          }),
-          pb.collection('services').getFullList<CatalogService>({
+        const [products, servicesResult] = await Promise.all([
+          getProducts(term, 1, 50),
+          pb.collection('services').getList<CatalogService>(1, 50, {
             filter: serviceFilter,
             sort: 'name',
-            perPage: 50,
           }),
         ])
+        const services = servicesResult.items
         const mapped: SearchResult[] = [
           ...products.map((p) => ({
             id: p.id,
