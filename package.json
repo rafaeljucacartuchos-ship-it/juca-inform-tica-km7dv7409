@@ -52,6 +52,7 @@
     "@ericblade/quagga2": "^1.8.4",
     "quagga2": "npm:@ericblade/quagga2@^1.8.4",
     "@tailwindcss/aspect-ratio": "^0.4.2",
+    "html5-qrcode": "^2.3.8",
     "caniuse-lite": "^1.0.30001799",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
