@@ -1,16 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
-import { Upload, Trash2 } from 'lucide-react'
+import { Upload, Trash2, Loader2 } from 'lucide-react'
+import heic2any from 'heic2any'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { ServiceAttachment } from '@/types'
-import {
-  getAttachments,
-  createAttachment,
-  updateAttachment,
-  deleteAttachment,
-} from '@/services/service_attachments'
+import { getAttachments, createAttachment, deleteAttachment } from '@/services/service_attachments'
 import { getFileUrl } from '@/lib/pocketbase/files'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
@@ -45,36 +41,73 @@ export function OrderPhotos({ orderId, canEdit }: OrderPhotosProps) {
     if (e.record['service_order'] === orderId) loadData()
   })
 
+  const convertHeicToJpeg = async (file: File): Promise<File> => {
+    try {
+      const convertedBlob = await heic2any({
+        blob: file,
+        toType: 'image/jpeg',
+        quality: 0.85,
+      })
+
+      const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
+      const newFileName = file.name.replace(/\.(heic|heif)$/i, '') + '.jpg'
+      return new File([blob], newFileName, { type: 'image/jpeg' })
+    } catch (err) {
+      console.error('Erro ao converter imagem HEIC:', err)
+      throw new Error('Falha na conversão de imagem HEIC')
+    }
+  }
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
-    const validTypes = ['image/png', 'image/jpeg', 'image/webp']
+    const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif']
     const maxSize = 10 * 1024 * 1024
     setUploading(true)
-    for (const file of Array.from(files)) {
-      if (!validTypes.includes(file.type)) {
+    for (const rawFile of Array.from(files)) {
+      const isHeicByName = /\.(heic|heif)$/i.test(rawFile.name)
+      const isHeicByType = rawFile.type === 'image/heic' || rawFile.type === 'image/heif'
+      const isValidType = validTypes.includes(rawFile.type) || isHeicByName || isHeicByType
+
+      if (!isValidType) {
         toast({
-          title: 'Formato invalido',
-          description: `${file.name}: apenas PNG, JPG e WebP.`,
+          title: 'Formato inválido',
+          description: `${rawFile.name}: apenas PNG, JPG, WebP ou HEIC.`,
           variant: 'destructive',
         })
         continue
       }
-      if (file.size > maxSize) {
+
+      let fileToUpload = rawFile
+      if (isHeicByName || isHeicByType) {
+        try {
+          fileToUpload = await convertHeicToJpeg(rawFile)
+        } catch {
+          toast({
+            title: 'Erro ao converter foto',
+            description: `Não foi possível processar ${rawFile.name}. Tente novamente.`,
+            variant: 'destructive',
+          })
+          continue
+        }
+      }
+
+      if (fileToUpload.size > maxSize) {
         toast({
           title: 'Arquivo muito grande',
-          description: `${file.name}: maximo 10MB.`,
+          description: `${fileToUpload.name}: máximo 10MB.`,
           variant: 'destructive',
         })
         continue
       }
+
       try {
         if (navigator.onLine) {
-          await createAttachment(orderId, file)
+          await createAttachment(orderId, fileToUpload)
           toast({ title: 'Foto enviada!' })
         } else {
           // Offline: armazena a foto como base64 na fila para sincronização.
-          const dataUrl = await fileToDataUrl(file)
+          const dataUrl = await fileToDataUrl(fileToUpload)
           await offlinePb.create('service_attachments', {
             service_order: orderId,
             file: dataUrl,
@@ -91,7 +124,6 @@ export function OrderPhotos({ orderId, canEdit }: OrderPhotosProps) {
     loadData()
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
-
   const handleDelete = async (id: string) => {
     try {
       const res = await offlinePb.delete('service_attachments', id)
@@ -138,7 +170,7 @@ export function OrderPhotos({ orderId, canEdit }: OrderPhotosProps) {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/png,image/jpeg,image/webp"
+              accept="image/*"
               multiple
               onChange={handleUpload}
               className="hidden"
@@ -151,7 +183,15 @@ export function OrderPhotos({ orderId, canEdit }: OrderPhotosProps) {
               disabled={uploading}
               className="text-xs gap-1.5"
             >
-              <Upload className="h-3.5 w-3.5" /> {uploading ? 'Enviando...' : 'Adicionar Fotos'}
+              {uploading ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Processando...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-3.5 w-3.5" /> Adicionar Fotos
+                </>
+              )}
             </Button>
           </div>
         )}

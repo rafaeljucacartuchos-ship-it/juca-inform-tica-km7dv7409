@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-28T02:17:04.938Z",
+  "generatedAt": "2026-08-28T02:44:59.957Z",
   "collections": [
     {
       "name": "users",
@@ -1007,12 +1007,6 @@
           "collectionRef": "service_orders"
         },
         {
-          "name": "file",
-          "type": "file",
-          "required": true,
-          "system": false
-        },
-        {
           "name": "caption",
           "type": "text",
           "required": false,
@@ -1031,6 +1025,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "file",
+          "type": "file",
+          "required": true,
+          "system": false
         }
       ],
       "indexes": ["CREATE INDEX idx_sa_so ON service_attachments (service_order)"]
