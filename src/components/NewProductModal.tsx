@@ -77,6 +77,7 @@ export function NewProductModal({
 
   useEffect(() => {
     if (open) {
+      setScannerOpen(false)
       setErrors({})
       setPexelsQuery('')
       setPexelsResults([])
@@ -120,6 +121,8 @@ export function NewProductModal({
           active: true,
         })
       }
+    } else {
+      setScannerOpen(false)
     }
   }, [open, editProduct])
 

@@ -44,11 +44,17 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
   const isUsingQuaggaRef = useRef(false)
   const isProcessingRef = useRef(false)
   const quaggaProcessingRef = useRef(false)
+  const isOpenRef = useRef(open)
 
   const [error, setError] = useState('')
   const [scanning, setScanning] = useState(false)
   const [manualCode, setManualCode] = useState('')
   const [isRetrying, setIsRetrying] = useState(false)
+
+  // Mantém isOpenRef sincronizado para evitar execuções de câmeras órfãs
+  useEffect(() => {
+    isOpenRef.current = open
+  }, [open])
 
   const stop = useCallback(() => {
     if (rafRef.current) {
@@ -56,8 +62,17 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
       rafRef.current = null
     }
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop())
+      try {
+        streamRef.current.getTracks().forEach((t) => {
+          t.stop()
+        })
+      } catch (e) {
+        console.warn('[BarcodeScanner] Erro ao parar faixas de mídia:', e)
+      }
       streamRef.current = null
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
     }
     setScanning(false)
   }, [])
@@ -102,11 +117,13 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
             if (isProcessingRef.current) return
             const code = result?.codeResult?.code
             if (code) {
+              console.log('[BarcodeScanner] Quagga2 detectou código:', code)
               handleDetectedCode(code)
             }
           },
         )
-      } catch {
+      } catch (err) {
+        console.warn('[BarcodeScanner] Erro Quagga decodeSingle:', err)
         quaggaProcessingRef.current = false
       }
     },
@@ -114,9 +131,9 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
   )
 
   const detectLoop = useCallback(() => {
-    if (isProcessingRef.current) return
+    if (isProcessingRef.current || !isOpenRef.current) return
     const video = videoRef.current
-    if (!video || video.readyState < 2) {
+    if (!video || video.readyState < 2 || video.paused || video.ended) {
       rafRef.current = requestAnimationFrame(detectLoop)
       return
     }
@@ -126,16 +143,19 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
       detectorRef.current
         .detect(video)
         .then((codes: BarcodeDetectorResult[]) => {
-          if (isProcessingRef.current) return
+          if (isProcessingRef.current || !isOpenRef.current) return
           if (codes && codes.length > 0) {
             const value = codes[0].rawValue || codes[0].stringValue || ''
             if (value) {
+              console.log('[BarcodeScanner] BarcodeDetector detectou código:', value)
               handleDetectedCode(value)
               return
             }
           }
         })
-        .catch(() => {})
+        .catch((err) => {
+          console.warn('[BarcodeScanner] BarcodeDetector detect error:', err)
+        })
     } else if (isUsingQuaggaRef.current && !quaggaProcessingRef.current) {
       // 2. Caminho Quagga2 (Safari iOS / Mac fallback)
       if (!canvasRef.current) {
@@ -155,75 +175,204 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
       }
     }
 
-    if (!isProcessingRef.current) {
+    if (!isProcessingRef.current && isOpenRef.current) {
       rafRef.current = requestAnimationFrame(detectLoop)
     }
   }, [decodeCanvasWithQuagga, handleDetectedCode])
 
   const start = useCallback(async () => {
     setError('')
+    console.log('[BarcodeScanner] Iniciando acesso à câmera...')
+
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-      setError(
-        'Acesso à câmera não suportado neste navegador ou ambiente (requer HTTPS ou localhost).',
-      )
+      const msg =
+        'Acesso à câmera não suportado neste navegador ou ambiente (requer HTTPS ou localhost).'
+      console.error('[BarcodeScanner]', msg)
+      setError(msg)
       return
     }
-    try {
-      let stream: MediaStream
-      try {
-        // Tenta câmera traseira em dispositivos móveis (com resolução ideal compatível com iOS/Safari)
-        stream = await navigator.mediaDevices.getUserMedia({
+
+    // Identifica se é dispositivo móvel (iOS/Android) ou Mac/Desktop
+    const isMobile =
+      typeof navigator !== 'undefined' &&
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent || '',
+      )
+    const isMac =
+      typeof navigator !== 'undefined' &&
+      /Macintosh|MacIntel|MacPPC|Mac68K/i.test(navigator.userAgent || '')
+
+    console.log(`[BarcodeScanner] Ambiente: mobile=${isMobile}, mac=${isMac}`)
+
+    // Monta estratégias em ordem de prioridade conforme o ambiente
+    const constraintsQueue: MediaStreamConstraints[] = []
+
+    if (isMobile) {
+      // Em celulares, prefere câmera traseira com resolução confortável
+      constraintsQueue.push(
+        {
           video: {
             facingMode: { ideal: 'environment' },
             width: { ideal: 1280 },
             height: { ideal: 720 },
           },
           audio: false,
-        })
-      } catch {
-        try {
-          // Segunda tentativa: apenas facingMode traseiro
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: 'environment' } },
-            audio: false,
-          })
-        } catch {
-          // Fallback final: qualquer câmera disponível
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: false,
-          })
-        }
+        },
+        {
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false,
+        },
+        {
+          video: { facingMode: 'user' },
+          audio: false,
+        },
+        {
+          video: true,
+          audio: false,
+        },
+      )
+    } else {
+      // Em Mac / Desktop / Notebooks, 'environment' não faz sentido ou gera problemas no Safari
+      // Prefere restrições simples que não acionem falhas de overconstraint no macOS FaceTime HD Camera
+      constraintsQueue.push(
+        {
+          video: true,
+          audio: false,
+        },
+        {
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        },
+        {
+          video: { facingMode: 'user' },
+          audio: false,
+        },
+      )
+    }
+
+    let stream: MediaStream | null = null
+    let lastError: unknown = null
+
+    for (let i = 0; i < constraintsQueue.length; i++) {
+      if (!isOpenRef.current) {
+        console.log('[BarcodeScanner] Modal foi fechado durante inicialização. Cancelando.')
+        return
       }
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play().catch(() => {})
-      }
-      setScanning(true)
-      rafRef.current = requestAnimationFrame(detectLoop)
-    } catch (err: unknown) {
-      const errName = err instanceof Error ? err.name : ''
-      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
-        setError(
-          'Permissão de acesso à câmera negada. No iOS/Safari ou Chrome, permita o acesso à câmera nos Ajustes do dispositivo ou na barra de endereços do navegador.',
+      const constraints = constraintsQueue[i]
+      try {
+        console.log(
+          `[BarcodeScanner] Tentando getUserMedia (passo ${i + 1}/${constraintsQueue.length}):`,
+          constraints,
         )
+        stream = await navigator.mediaDevices.getUserMedia(constraints)
+        console.log(
+          `[BarcodeScanner] Câmera obtida com sucesso no passo ${i + 1}!`,
+          stream.getVideoTracks().map((t) => t.getSettings()),
+        )
+        break
+      } catch (err: unknown) {
+        lastError = err
+        const errName = err instanceof Error ? err.name : String(err)
+        const errMsg = err instanceof Error ? err.message : ''
+        console.warn(`[BarcodeScanner] Falha no passo ${i + 1} (${errName}: ${errMsg})`)
+
+        // Se a permissão foi categoricamente negada ou o dispositivo bloqueou o app/navegador,
+        // tentar outros formatos não mudará a negação, mas no Mac às vezes constraints complexas
+        // disparam OverconstrainedError disfarçado ou falha de enumeração de hardware.
+        // Se for NotAllowedError no Mac/Desktop, tentamos ainda a restrição mais básica video:true se ainda não foi testada.
+      }
+    }
+
+    if (!stream) {
+      console.error(
+        '[BarcodeScanner] Todas as tentativas de obter câmera falharam. Erro final:',
+        lastError,
+      )
+      const errName = lastError instanceof Error ? lastError.name : ''
+      const errMsg = lastError instanceof Error ? lastError.message : ''
+
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+        if (isMac) {
+          setError(
+            'Permissão de acesso à câmera negada. No macOS/Safari/Chrome, autorize a câmera nos Ajustes do Sistema > Privacidade e Segurança > Câmera, e nas permissões do site na barra de endereços.',
+          )
+        } else {
+          setError(
+            'Permissão de acesso à câmera negada. No iOS/Safari ou Chrome, permita o acesso à câmera nos Ajustes do dispositivo ou na barra de endereços do navegador.',
+          )
+        }
       } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
         setError('Nenhuma câmera foi encontrada no dispositivo.')
       } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
         setError(
           'A câmera já está em uso por outro aplicativo ou aba. Feche outros apps e tente novamente.',
         )
-      } else if (errName === 'OverconstrainedError') {
+      } else if (errName === 'OverconstrainedError' || errName === 'ConstraintNotSatisfiedError') {
         setError(
-          'A resolução solicitada não é suportada pela câmera deste dispositivo. Tente novamente.',
+          'As configurações de resolução ou lente da câmera não são suportadas pelo dispositivo. Clique em Tentar Novamente.',
         )
       } else {
         setError(
-          'Não foi possível acessar a câmera. Verifique se a página está em conexão segura (HTTPS) e se as permissões de câmera estão autorizadas.',
+          `Não foi possível acessar a câmera (${errName || errMsg || 'Erro desconhecido'}). Verifique se a página está em conexão segura (HTTPS) e se as permissões estão ativas.`,
         )
       }
+      return
     }
+
+    if (!isOpenRef.current) {
+      // Se fechou durante o await, fecha as tracks
+      stream.getTracks().forEach((t) => t.stop())
+      return
+    }
+
+    streamRef.current = stream
+
+    if (videoRef.current) {
+      const video = videoRef.current
+      video.srcObject = stream
+
+      // Aguarda o vídeo estar carregado e pronto para reprodução
+      try {
+        if (video.readyState < 2) {
+          await new Promise<void>((resolve) => {
+            const onLoadedData = () => {
+              video.removeEventListener('loadeddata', onLoadedData)
+              resolve()
+            }
+            video.addEventListener('loadeddata', onLoadedData, { once: true })
+            // Timeout de fallback para não travar em navegadores com eventos fora do padrão
+            setTimeout(resolve, 800)
+          })
+        }
+
+        if (!isOpenRef.current) {
+          stop()
+          return
+        }
+
+        await video.play()
+        console.log('[BarcodeScanner] Vídeo reproduzindo com sucesso.', {
+          videoWidth: video.videoWidth,
+          videoHeight: video.videoHeight,
+        })
+      } catch (playErr) {
+        console.warn('[BarcodeScanner] Erro ao chamar video.play():', playErr)
+      }
+    }
+
+    if (!isOpenRef.current) {
+      stop()
+      return
+    }
+
+    setScanning(true)
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current)
+    }
+    rafRef.current = requestAnimationFrame(detectLoop)
   }, [detectLoop])
 
   useEffect(() => {
@@ -297,9 +446,13 @@ export function BarcodeScanner({ open, onOpenChange, onDetected }: BarcodeScanne
 
   const handleRetryCamera = async () => {
     setIsRetrying(true)
+    setError('')
     stop()
-    await start()
-    setIsRetrying(false)
+    try {
+      await start()
+    } finally {
+      setIsRetrying(false)
+    }
   }
 
   return (

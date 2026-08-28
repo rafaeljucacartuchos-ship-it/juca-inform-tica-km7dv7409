@@ -40,8 +40,11 @@ export function DashboardProductSearchModal({
     if (open) {
       setQuery('')
       performSearch('')
+      setShowScanner(false)
       const timer = setTimeout(() => inputRef.current?.focus(), 80)
       return () => clearTimeout(timer)
+    } else {
+      setShowScanner(false)
     }
   }, [open])
 
