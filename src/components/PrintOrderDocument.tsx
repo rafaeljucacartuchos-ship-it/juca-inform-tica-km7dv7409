@@ -1,6 +1,9 @@
-import { COMPANY_DATA } from '@/lib/company'
+import { COMPANY_DATA, JUCA_LOGO_URL } from '@/lib/company'
 import { getFileUrl } from '@/lib/pocketbase/files'
 import { ServiceOrder, ServiceOrderItem, StatusHistory, ServiceAttachment } from '@/types'
+import { Printer, ArrowLeft } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { useNavigate } from 'react-router-dom'
 
 const STATUS_LABELS: Record<string, string> = {
   open: 'Aberta',
@@ -10,273 +13,503 @@ const STATUS_LABELS: Record<string, string> = {
   closed: 'Fechada',
   cancelled: 'Cancelada',
 }
+
 const PRIORITY_LABELS: Record<string, string> = {
   low: 'Baixa',
   medium: 'Média',
   high: 'Alta',
   urgent: 'Urgente',
 }
-const fmtDate = (d?: string) => (d ? d.substring(0, 10).split('-').reverse().join('/') : '—')
+
+const EQUIPMENT_TYPE_LABELS: Record<string, string> = {
+  notebook: 'Notebook',
+  desktop: 'Desktop / Computador',
+  monitor: 'Monitor',
+  printer: 'Impressora',
+  smartphone: 'Smartphone / Celular',
+  tablet: 'Tablet',
+  network: 'Equipamento de Rede',
+  other: 'Outro Equipamento',
+}
+
+const fmtDate = (d?: string) => {
+  if (!d) return '—'
+  const dateOnly = d.substring(0, 10)
+  const parts = dateOnly.split('-')
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`
+  }
+  return d
+}
+
+const fmtCurrency = (val: number | undefined | null) => {
+  const num = Number(val) || 0
+  return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
 
 interface PrintOrderDocumentProps {
   order: ServiceOrder
   items: ServiceOrderItem[]
-  history: StatusHistory[]
-  attachments: ServiceAttachment[]
+  history?: StatusHistory[]
+  attachments?: ServiceAttachment[]
 }
 
 export function PrintOrderDocument({
   order,
-  items,
-  history,
-  attachments,
+  items = [],
+  attachments = [],
 }: PrintOrderDocumentProps) {
+  const navigate = useNavigate()
+
   const techSig = order.technician_signature
     ? getFileUrl(order.id, order.technician_signature, 'service_orders')
     : null
   const custSig = order.customer_signature
     ? getFileUrl(order.id, order.customer_signature, 'service_orders')
     : null
+
   const eq = order.expand?.equipment_ref
   const cust = order.expand?.customer
   const tech = order.expand?.technician
 
+  // Coleta as fotos do equipamento (fotos cadastradas no equipamento)
+  const equipmentPhotos = (eq?.photos || []).map((p) =>
+    getFileUrl(eq!.id, p, 'equipment', '400x400'),
+  )
+
+  // Coleta as fotos dos anexos da O.S. (fotos de check-in / atendimento)
+  const orderAttachmentPhotos = (attachments || []).map((a) => ({
+    url: getFileUrl(a.id, a.file, 'service_attachments', '400x400'),
+    caption: a.caption || 'Foto do Atendimento',
+  }))
+
+  // Cálculo financeiro preciso
+  const subtotal = (items || []).reduce((acc, it) => acc + (Number(it.total) || 0), 0)
+  const desconto = Number(order.desconto) || 0
+  const acrescimo = Number(order.acrescimo) || 0
+  const calculatedTotal =
+    subtotal > 0 || (order.total ?? 0) === 0
+      ? Math.max(0, subtotal + acrescimo - desconto)
+      : Number(order.total) || 0
+
   return (
-    <div className="print-document mx-auto max-w-4xl text-slate-900">
-      <div className="mb-6 flex items-center gap-4 border-b-2 border-slate-800 pb-4">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-black p-1">
-          <img src="/logo.svg" alt="Juca Logo" className="h-full w-full object-contain" />
-        </div>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold">{COMPANY_DATA.razaoSocial}</h1>
-          <p className="text-xs text-slate-600">{COMPANY_DATA.endereco}</p>
-          <p className="text-xs text-slate-600">Telefones: {COMPANY_DATA.telefones}</p>
-        </div>
-        <div className="text-right">
-          <h2 className="font-mono text-lg font-bold">OS {order.number}</h2>
-          <p className="text-xs text-slate-600">Emitida em: {fmtDate(order.created)}</p>
-        </div>
-      </div>
-
-      <div className="mb-4 flex gap-6 text-xs">
-        <span>
-          <strong>Status:</strong> {STATUS_LABELS[order.status] || order.status}
-        </span>
-        <span>
-          <strong>Prioridade:</strong> {PRIORITY_LABELS[order.priority] || order.priority}
-        </span>
-        <span>
-          <strong>Título:</strong> {order.title}
-        </span>
-      </div>
-
-      {order.description && <p className="mb-4 text-xs text-slate-700">{order.description}</p>}
-
-      <div className="mb-4 grid grid-cols-2 gap-4 text-xs">
-        <div className="rounded border border-slate-200 p-3">
-          <h4 className="mb-1 border-b border-slate-100 pb-1 font-bold">Cliente</h4>
-          <p>
-            <strong>Razão Social / Nome:</strong>{' '}
-            {cust?.razao_social || cust?.nome_fantasia || cust?.name || '—'}
-          </p>
-          {cust?.nome_fantasia && cust?.nome_fantasia !== cust?.razao_social && (
-            <p>
-              <strong>Nome Fantasia:</strong> {cust.nome_fantasia}
-            </p>
-          )}
-          <p>
-            <strong>Celular / Telefone:</strong> {cust?.celular || cust?.phone || '—'}
-          </p>
-          {cust?.cpf_cnpj && (
-            <p>
-              <strong>CPF/CNPJ:</strong> {cust.cpf_cnpj}
-            </p>
-          )}
-          <p>
-            <strong>Endereço:</strong>{' '}
-            {[
-              cust?.endereco || cust?.street,
-              cust?.bairro ? `Bairro: ${cust.bairro}` : '',
-              cust?.city,
-              cust?.state,
-            ]
-              .filter(Boolean)
-              .join(', ') || '—'}
-          </p>
-        </div>
-        <div className="rounded border border-slate-200 p-3">
-          <h4 className="mb-1 border-b border-slate-100 pb-1 font-bold">Técnico</h4>
-          <p>
-            <strong>Nome:</strong> {tech?.name || 'Não atribuído'}
-          </p>
-          <p>
-            <strong>Telefone:</strong> {tech?.phone || '—'}
-          </p>
+    <div className="min-h-screen bg-slate-100/60 p-4 sm:p-6 print:bg-white print:p-0">
+      {/* Barra de controle na tela (oculta na impressão) */}
+      <div className="no-print mx-auto mb-4 flex max-w-4xl items-center justify-between rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate(-1)}
+          className="gap-1.5 text-xs text-slate-600 hover:text-slate-900"
+        >
+          <ArrowLeft className="h-4 w-4" /> Voltar
+        </Button>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-500">Impressão O.S. A4 - {order.number}</span>
+          <Button
+            size="sm"
+            onClick={() => window.print()}
+            className="gap-2 bg-blue-600 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
+          >
+            <Printer className="h-4 w-4" /> Imprimir / Salvar PDF
+          </Button>
         </div>
       </div>
 
-      {(eq || order.equipment) && (
-        <div className="mb-4 rounded border border-slate-200 p-3 text-xs">
-          <h4 className="mb-1 border-b border-slate-100 pb-1 font-bold">Equipamento</h4>
-          {eq ? (
-            <div className="grid grid-cols-2 gap-1">
-              <p>
-                <strong>Nome:</strong> {eq.name}
-              </p>
-              <p>
-                <strong>Marca:</strong> {eq.brand || '—'}
-              </p>
-              <p>
-                <strong>Modelo:</strong> {eq.model || '—'}
-              </p>
-              <p>
-                <strong>N° Série:</strong> {eq.serial_number || '—'}
+      {/* Documento A4 */}
+      <div className="print-document mx-auto max-w-4xl bg-white p-6 text-slate-900 shadow-lg border border-slate-200 rounded-lg print:border-0 print:shadow-none print:p-0 print:rounded-none">
+        {/* CABEÇALHO COM LOGOMARCA OFICIAL JUCA */}
+        <div className="mb-4 flex items-center justify-between border-b-2 border-slate-900 pb-3">
+          <div className="flex items-center gap-3.5">
+            <div className="h-14 w-32 sm:h-16 sm:w-36 shrink-0 overflow-hidden rounded-md bg-slate-950 p-1 flex items-center justify-center border border-slate-800">
+              <img
+                src={JUCA_LOGO_URL}
+                alt="JUCA Informática"
+                className="h-full w-full object-contain"
+                onError={(e) => {
+                  // Fallback para SVG se houver falha de rede
+                  ;(e.target as HTMLImageElement).src = '/logo.svg'
+                }}
+              />
+            </div>
+            <div>
+              <h1 className="text-base font-extrabold tracking-tight text-slate-900 sm:text-lg">
+                {COMPANY_DATA.nomeFantasia || 'JUCA INFORMÁTICA'}
+              </h1>
+              <p className="text-[11px] font-semibold text-slate-700">{COMPANY_DATA.razaoSocial}</p>
+              <p className="text-[10px] text-slate-600">{COMPANY_DATA.endereco}</p>
+              <p className="text-[10px] text-slate-600">
+                <strong>Telefones:</strong> {COMPANY_DATA.telefones}
               </p>
             </div>
-          ) : (
-            <p>{order.equipment}</p>
-          )}
-        </div>
-      )}
-
-      {order.service_report && (
-        <div className="mb-4 text-xs">
-          <h4 className="mb-1 font-bold">Relatório de Serviço</h4>
-          <p className="whitespace-pre-wrap text-slate-700">{order.service_report}</p>
-        </div>
-      )}
-
-      {items.length > 0 && (
-        <div className="mb-4">
-          <h4 className="mb-1 text-xs font-bold">Itens e Serviços</h4>
-          <table className="w-full border border-slate-300 text-xs">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="border border-slate-300 px-2 py-1 text-left">Descrição</th>
-                <th className="border border-slate-300 px-2 py-1 text-center">Qtd</th>
-                <th className="border border-slate-300 px-2 py-1 text-right">Unit.</th>
-                <th className="border border-slate-300 px-2 py-1 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((i) => (
-                <tr key={i.id}>
-                  <td className="border border-slate-300 px-2 py-1">{i.description}</td>
-                  <td className="border border-slate-300 px-2 py-1 text-center">{i.quantity}</td>
-                  <td className="border border-slate-300 px-2 py-1 text-right">
-                    R$ {i.unit_price.toFixed(2)}
-                  </td>
-                  <td className="border border-slate-300 px-2 py-1 text-right font-bold">
-                    R$ {i.total.toFixed(2)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="mt-2 space-y-1 text-right text-xs">
-            {((order.desconto ?? 0) > 0 || (order.acrescimo ?? 0) > 0) && (
-              <>
-                <div className="text-slate-600">
-                  Subtotal: R$ {items.reduce((s, it) => s + (it.total || 0), 0).toFixed(2)}
-                </div>
-                {(order.desconto ?? 0) > 0 && (
-                  <div className="text-rose-600">
-                    Desconto: - R$ {(order.desconto || 0).toFixed(2)}
-                  </div>
-                )}
-                {(order.acrescimo ?? 0) > 0 && (
-                  <div className="text-emerald-600">
-                    Acréscimo: + R$ {(order.acrescimo || 0).toFixed(2)}
-                  </div>
-                )}
-              </>
+          </div>
+          <div className="text-right">
+            <div className="inline-block rounded-md bg-slate-900 px-3 py-1 text-white">
+              <span className="font-mono text-base font-black tracking-wider sm:text-lg">
+                OS {order.number}
+              </span>
+            </div>
+            <p className="mt-1 text-[10px] font-medium text-slate-600">
+              <strong>Emissão:</strong> {fmtDate(order.created)}
+            </p>
+            {order.attendance_date && (
+              <p className="text-[10px] text-slate-600">
+                <strong>Atendimento:</strong> {fmtDate(order.attendance_date)}{' '}
+                {order.attendance_time || ''}
+              </p>
             )}
-            <div className="text-sm font-bold text-slate-900 pt-1 border-t border-slate-200">
-              Total Geral: R$ {(order.total || 0).toFixed(2)}
+          </div>
+        </div>
+
+        {/* FAIXA DE STATUS E IDENTIFICAÇÃO RÁPIDA */}
+        <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2 rounded-md bg-slate-50 border border-slate-200 px-3 py-1.5 text-xs">
+          <div>
+            <span className="text-slate-500 font-medium">Status: </span>
+            <span className="font-bold text-slate-900 uppercase">
+              {STATUS_LABELS[order.status] || order.status}
+            </span>
+          </div>
+          <div>
+            <span className="text-slate-500 font-medium">Prioridade: </span>
+            <span className="font-bold text-slate-900">
+              {PRIORITY_LABELS[order.priority] || order.priority}
+            </span>
+          </div>
+          <div className="min-w-0 flex-1 truncate text-right">
+            <span className="text-slate-500 font-medium">Título: </span>
+            <span className="font-bold text-slate-900">{order.title}</span>
+          </div>
+        </div>
+
+        {/* DADOS DO CLIENTE E TÉCNICO */}
+        <div className="mb-3.5 grid grid-cols-2 gap-3 text-[11px]">
+          <div className="rounded-md border border-slate-200 p-2.5">
+            <h3 className="mb-1.5 border-b border-slate-200 pb-1 text-xs font-bold text-slate-900 uppercase tracking-wide">
+              Dados do Cliente
+            </h3>
+            <div className="space-y-0.5 leading-snug">
+              <p>
+                <strong className="text-slate-700">Razão / Nome:</strong>{' '}
+                <span className="font-semibold text-slate-900">
+                  {cust?.razao_social || cust?.nome_fantasia || cust?.name || 'Não informado'}
+                </span>
+              </p>
+              {cust?.nome_fantasia && cust?.nome_fantasia !== cust?.razao_social && (
+                <p>
+                  <strong className="text-slate-700">Nome Fantasia:</strong> {cust.nome_fantasia}
+                </p>
+              )}
+              <p>
+                <strong className="text-slate-700">Telefone/Celular:</strong>{' '}
+                <span className="font-medium text-slate-900">
+                  {cust?.celular || cust?.phone || '—'}
+                </span>
+              </p>
+              {cust?.cpf_cnpj && (
+                <p>
+                  <strong className="text-slate-700">CPF/CNPJ:</strong> {cust.cpf_cnpj}
+                </p>
+              )}
+              {cust?.email && (
+                <p>
+                  <strong className="text-slate-700">E-mail:</strong> {cust.email}
+                </p>
+              )}
+              <p>
+                <strong className="text-slate-700">Endereço:</strong>{' '}
+                {[
+                  cust?.endereco || cust?.street,
+                  cust?.number ? `Nº ${cust.number}` : '',
+                  cust?.bairro ? `Bairro ${cust.bairro}` : '',
+                  cust?.city ? `${cust.city}${cust?.state ? ` - ${cust.state}` : ''}` : '',
+                  cust?.zip ? `CEP: ${cust.zip}` : '',
+                ]
+                  .filter(Boolean)
+                  .join(', ') || '—'}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-md border border-slate-200 p-2.5">
+            <h3 className="mb-1.5 border-b border-slate-200 pb-1 text-xs font-bold text-slate-900 uppercase tracking-wide">
+              Atendimento Técnico
+            </h3>
+            <div className="space-y-0.5 leading-snug">
+              <p>
+                <strong className="text-slate-700">Técnico Responsável:</strong>{' '}
+                <span className="font-semibold text-slate-900">
+                  {tech?.name || 'Não atribuído'}
+                </span>
+              </p>
+              <p>
+                <strong className="text-slate-700">Telefone do Técnico:</strong>{' '}
+                {tech?.phone || '—'}
+              </p>
+              {order.started_at && (
+                <p>
+                  <strong className="text-slate-700">Início do Atendimento:</strong>{' '}
+                  {fmtDate(order.started_at)}
+                </p>
+              )}
             </div>
           </div>
         </div>
-      )}
 
-      {attachments.length > 0 && (
-        <div className="mb-4">
-          <h4 className="mb-1 text-xs font-bold">Fotos do Atendimento</h4>
-          <div className="grid grid-cols-3 gap-2">
-            {attachments.map((a) => (
-              <div key={a.id}>
-                <img
-                  src={getFileUrl(a.id, a.file, 'service_attachments', '300x300')}
-                  alt={a.caption || ''}
-                  className="h-28 w-full rounded border border-slate-200 object-cover"
-                />
-                {a.caption && <p className="mt-0.5 text-[10px] text-slate-600">{a.caption}</p>}
+        {/* SEÇÃO DO EQUIPAMENTO COM FOTO DE CHECK-IN E DETALHES COMPLETOS */}
+        <div className="page-break-inside-avoid mb-3.5 rounded-md border border-slate-200 p-2.5 text-[11px]">
+          <h3 className="mb-1.5 border-b border-slate-200 pb-1 text-xs font-bold text-slate-900 uppercase tracking-wide">
+            Equipamento no Check-in
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div
+              className={`${equipmentPhotos.length > 0 || orderAttachmentPhotos.length > 0 ? 'md:col-span-2' : 'md:col-span-3'} space-y-1`}
+            >
+              {eq ? (
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                  <div>
+                    <strong className="text-slate-700">Equipamento:</strong>{' '}
+                    <span className="font-bold text-slate-900">{eq.name}</span>
+                  </div>
+                  <div>
+                    <strong className="text-slate-700">Tipo:</strong>{' '}
+                    <span>{EQUIPMENT_TYPE_LABELS[eq.type || ''] || eq.type || '—'}</span>
+                  </div>
+                  <div>
+                    <strong className="text-slate-700">Marca:</strong> {eq.brand || '—'}
+                  </div>
+                  <div>
+                    <strong className="text-slate-700">Modelo:</strong> {eq.model || '—'}
+                  </div>
+                  <div className="col-span-2">
+                    <strong className="text-slate-700">N° de Série:</strong>{' '}
+                    <span className="font-mono font-semibold">{eq.serial_number || '—'}</span>
+                  </div>
+                  {eq.notes && (
+                    <div className="col-span-2 text-slate-600">
+                      <strong className="text-slate-700">Obs do Equipamento:</strong> {eq.notes}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <strong className="text-slate-700">Equipamento / Modelo:</strong>{' '}
+                  <span className="font-semibold text-slate-900">
+                    {order.equipment || 'Não especificado'}
+                  </span>
+                </div>
+              )}
+
+              {/* Descrição do problema / Diagnóstico */}
+              {order.description && (
+                <div className="mt-2 rounded bg-slate-50 p-2 border border-slate-100">
+                  <strong className="text-slate-800 block mb-0.5">
+                    Defeito Relatado / Queixa do Cliente:
+                  </strong>
+                  <p className="text-slate-700 leading-relaxed">{order.description}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Foto de identificação/check-in do equipamento */}
+            {(equipmentPhotos.length > 0 || orderAttachmentPhotos.length > 0) && (
+              <div className="flex flex-col items-center justify-center border-t md:border-t-0 md:border-l border-slate-200 pt-2 md:pt-0 md:pl-3">
+                <span className="mb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Foto do Check-in
+                </span>
+                {equipmentPhotos.length > 0 ? (
+                  <div className="flex flex-wrap items-center justify-center gap-1.5">
+                    {equipmentPhotos.slice(0, 2).map((photoUrl, idx) => (
+                      <img
+                        key={idx}
+                        src={photoUrl}
+                        alt="Foto do Equipamento"
+                        className="h-24 w-28 rounded border border-slate-300 object-cover shadow-2xs"
+                      />
+                    ))}
+                  </div>
+                ) : orderAttachmentPhotos.length > 0 ? (
+                  <div className="flex flex-col items-center">
+                    <img
+                      src={orderAttachmentPhotos[0].url}
+                      alt={orderAttachmentPhotos[0].caption}
+                      className="h-24 w-28 rounded border border-slate-300 object-cover shadow-2xs"
+                    />
+                    <span className="mt-0.5 text-[9px] text-slate-500 truncate max-w-[120px]">
+                      {orderAttachmentPhotos[0].caption}
+                    </span>
+                  </div>
+                ) : null}
               </div>
-            ))}
+            )}
           </div>
         </div>
-      )}
 
-      {history.length > 0 && (
-        <div className="mb-4">
-          <h4 className="mb-1 text-xs font-bold">Histórico de Alterações</h4>
-          <table className="w-full border border-slate-300 text-xs">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="border border-slate-300 px-2 py-1 text-left">Status</th>
-                <th className="border border-slate-300 px-2 py-1 text-left">Observação</th>
-                <th className="border border-slate-300 px-2 py-1 text-left">Alterado por</th>
-                <th className="border border-slate-300 px-2 py-1 text-left">Data</th>
+        {/* RELATÓRIO DO SERVIÇO EXECUTADO */}
+        {order.service_report && (
+          <div className="page-break-inside-avoid mb-3.5 rounded-md border border-slate-200 p-2.5 text-[11px]">
+            <h3 className="mb-1 text-xs font-bold text-slate-900 uppercase tracking-wide">
+              Laudo Técnico / Serviço Executado
+            </h3>
+            <p className="whitespace-pre-wrap text-slate-700 leading-relaxed">
+              {order.service_report}
+            </p>
+          </div>
+        )}
+
+        {/* ITENS, PRODUTOS, PEÇAS E SERVIÇOS (TABELA COMPLETA COM VALORES) */}
+        <div className="page-break-inside-avoid mb-3.5 rounded-md border border-slate-200 p-2.5">
+          <h3 className="mb-1.5 text-xs font-bold text-slate-900 uppercase tracking-wide">
+            Itens, Peças e Serviços
+          </h3>
+          <table className="w-full border-collapse text-[11px]">
+            <thead>
+              <tr className="bg-slate-100 text-slate-700">
+                <th className="border border-slate-300 px-2 py-1.5 text-left font-bold">
+                  Item / Descrição
+                </th>
+                <th className="border border-slate-300 px-2 py-1.5 text-center font-bold w-16">
+                  Qtd
+                </th>
+                <th className="border border-slate-300 px-2 py-1.5 text-right font-bold w-24">
+                  Vlr. Unit.
+                </th>
+                <th className="border border-slate-300 px-2 py-1.5 text-right font-bold w-24">
+                  Total
+                </th>
               </tr>
             </thead>
             <tbody>
-              {history.map((h) => (
-                <tr key={h.id}>
-                  <td className="border border-slate-300 px-2 py-1">
-                    {STATUS_LABELS[h.status] || h.status}
+              {items.length > 0 ? (
+                items.map((item, idx) => (
+                  <tr key={item.id || idx} className="even:bg-slate-50/50">
+                    <td className="border border-slate-300 px-2 py-1 text-slate-900">
+                      {item.description || 'Item de serviço'}
+                    </td>
+                    <td className="border border-slate-300 px-2 py-1 text-center font-mono text-slate-700">
+                      {item.quantity || 1}
+                    </td>
+                    <td className="border border-slate-300 px-2 py-1 text-right font-mono text-slate-700">
+                      R$ {fmtCurrency(item.unit_price)}
+                    </td>
+                    <td className="border border-slate-300 px-2 py-1 text-right font-mono font-bold text-slate-900">
+                      R$ {fmtCurrency(item.total)}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="border border-slate-300 px-2 py-2 text-center text-slate-400 italic"
+                  >
+                    Nenhum item ou serviço discriminado nesta ordem.
                   </td>
-                  <td className="border border-slate-300 px-2 py-1">{h.note || '—'}</td>
-                  <td className="border border-slate-300 px-2 py-1">
-                    {h.expand?.changed_by?.name || '—'}
-                  </td>
-                  <td className="border border-slate-300 px-2 py-1">{fmtDate(h.created)}</td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
-        </div>
-      )}
 
-      <div className="mt-8 grid grid-cols-2 gap-6">
-        <div>
-          {techSig ? (
-            <img
-              src={techSig}
-              alt="Assinatura Técnico"
-              className="h-16 border-b border-slate-400 object-contain"
-            />
-          ) : (
-            <div className="h-16 border-b border-slate-400" />
-          )}
-          <p className="mt-1 text-center text-xs text-slate-600">Assinatura do Técnico</p>
+          {/* TOTALIZAÇÃO FINANCEIRA */}
+          <div className="mt-2 flex justify-end">
+            <div className="w-64 space-y-1 text-right text-[11px]">
+              <div className="flex justify-between text-slate-600">
+                <span>Subtotal dos Itens:</span>
+                <span className="font-mono font-medium">R$ {fmtCurrency(subtotal)}</span>
+              </div>
+              {desconto > 0 && (
+                <div className="flex justify-between text-rose-600 font-medium">
+                  <span>Desconto:</span>
+                  <span className="font-mono">- R$ {fmtCurrency(desconto)}</span>
+                </div>
+              )}
+              {acrescimo > 0 && (
+                <div className="flex justify-between text-emerald-600 font-medium">
+                  <span>Acréscimo:</span>
+                  <span className="font-mono">+ R$ {fmtCurrency(acrescimo)}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-t-2 border-slate-900 pt-1 text-xs font-black text-slate-900">
+                <span>TOTAL GERAL:</span>
+                <span className="font-mono text-sm">R$ {fmtCurrency(calculatedTotal)}</span>
+              </div>
+            </div>
+          </div>
         </div>
-        <div>
-          {custSig ? (
-            <img
-              src={custSig}
-              alt="Assinatura Cliente"
-              className="h-16 border-b border-slate-400 object-contain"
-            />
-          ) : (
-            <div className="h-16 border-b border-slate-400" />
-          )}
-          <p className="mt-1 text-center text-xs text-slate-600">Assinatura do Cliente</p>
-        </div>
-      </div>
 
-      <div className="mt-6 border-t border-slate-200 pt-3 text-center text-[10px] text-slate-400">
-        <p className="font-semibold">{COMPANY_DATA.razaoSocial}</p>
-        <p>{COMPANY_DATA.endereco}</p>
-        <p>Telefones: {COMPANY_DATA.telefones}</p>
+        {/* FOTOS ADICIONAIS DO ATENDIMENTO (SE HOUVER MAIS DE UMA) */}
+        {orderAttachmentPhotos.length > 1 && (
+          <div className="page-break-inside-avoid mb-3.5 rounded-md border border-slate-200 p-2.5">
+            <h3 className="mb-1.5 text-xs font-bold text-slate-900 uppercase tracking-wide">
+              Registros Fotográficos do Atendimento
+            </h3>
+            <div className="grid grid-cols-4 gap-2">
+              {orderAttachmentPhotos.map((a, i) => (
+                <div key={i} className="text-center">
+                  <img
+                    src={a.url}
+                    alt={a.caption}
+                    className="h-20 w-full rounded border border-slate-200 object-cover"
+                  />
+                  {a.caption && (
+                    <p className="mt-0.5 truncate text-[9px] text-slate-500">{a.caption}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ASSINATURAS */}
+        <div className="page-break-inside-avoid mt-5 grid grid-cols-2 gap-8 text-[11px]">
+          <div className="text-center">
+            <div className="flex h-16 items-end justify-center border-b border-slate-400 pb-1">
+              {techSig ? (
+                <img
+                  src={techSig}
+                  alt="Assinatura do Técnico"
+                  className="max-h-14 max-w-full object-contain"
+                />
+              ) : (
+                <div className="text-slate-300 italic text-[10px]">Assinatura não coletada</div>
+              )}
+            </div>
+            <p className="mt-1 font-bold text-slate-800">
+              {tech?.name ? `Técnico: ${tech.name}` : 'Técnico Responsável'}
+            </p>
+            <p className="text-[10px] text-slate-500">{COMPANY_DATA.nomeFantasia}</p>
+          </div>
+
+          <div className="text-center">
+            <div className="flex h-16 items-end justify-center border-b border-slate-400 pb-1">
+              {custSig ? (
+                <img
+                  src={custSig}
+                  alt="Assinatura do Cliente"
+                  className="max-h-14 max-w-full object-contain"
+                />
+              ) : (
+                <div className="text-slate-300 italic text-[10px]">Assinatura não coletada</div>
+              )}
+            </div>
+            <p className="mt-1 font-bold text-slate-800">
+              {cust?.name || cust?.razao_social || 'Assinatura do Cliente'}
+            </p>
+            <p className="text-[10px] text-slate-500">
+              Declaro o recebimento e conferência do equipamento
+            </p>
+          </div>
+        </div>
+
+        {/* RODAPÉ DO DOCUMENTO */}
+        <div className="page-break-inside-avoid mt-5 border-t border-slate-200 pt-2 text-center text-[9px] text-slate-500">
+          <p className="font-bold text-slate-700">
+            {COMPANY_DATA.razaoSocial} — {COMPANY_DATA.slogan}
+          </p>
+          <p>
+            {COMPANY_DATA.endereco} | Telefones: {COMPANY_DATA.telefones}
+          </p>
+        </div>
       </div>
     </div>
   )

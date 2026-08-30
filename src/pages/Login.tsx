@@ -182,17 +182,22 @@ export default function Login() {
       <Card className="w-full max-w-md border-slate-800 bg-slate-900/90 text-slate-100 shadow-2xl backdrop-blur-xl z-10">
         <CardHeader className="space-y-2 text-center pb-4">
           <div className="mx-auto flex items-center justify-center">
-            <img
-              src="/logo.svg"
-              alt="Juca Cartuchos e Informática"
-              className="h-20 object-contain"
-            />
+            <div className="h-16 w-36 overflow-hidden rounded-lg bg-slate-950 p-1 flex items-center justify-center border border-slate-800 shadow-md">
+              <img
+                src="https://dagtlwojkqyivnjgveda.supabase.co/storage/v1/object/public/message-attachments/819ad1b5-1865-4f2e-9fe9-f488ce98c0b0/img6259-fc419.jpg"
+                alt="JUCA Informática"
+                className="h-full w-full object-contain"
+                onError={(e) => {
+                  ;(e.target as HTMLImageElement).src = '/logo.svg'
+                }}
+              />
+            </div>
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight text-white pt-2">
-            Juca Cartuchos e Informática
+          <CardTitle className="text-xl font-extrabold tracking-tight text-white pt-2">
+            JUCA INFORMÁTICA
           </CardTitle>
           <CardDescription className="text-xs text-slate-400">
-            Acesse o sistema de gerenciamento de ordens e visitas
+            Solução e Tecnologia — Sistema de Gestão de Ordens de Serviço
           </CardDescription>
         </CardHeader>
 

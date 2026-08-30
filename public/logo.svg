@@ -1,16 +1,60 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="135" viewBox="0 0 300 135">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#1e293b"/>
-      <stop offset="1" stop-color="#0f172a"/>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#070c17"/>
+      <stop offset="50%" stop-color="#0a1224"/>
+      <stop offset="100%" stop-color="#050811"/>
     </linearGradient>
-    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#6366f1"/>
-      <stop offset="1" stop-color="#3b82f6"/>
+    <linearGradient id="blueSquare1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="blueSquare2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#60a5fa"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="blueSquare3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#93c5fd"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="dividerGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.2"/>
+      <stop offset="25%" stop-color="#60a5fa"/>
+      <stop offset="75%" stop-color="#60a5fa"/>
+      <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.2"/>
     </linearGradient>
   </defs>
-  <rect width="256" height="256" rx="48" fill="url(#bg)"/>
-  <g transform="translate(56, 56) scale(6)">
-    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" fill="url(#accent)"/>
+  
+  <rect width="300" height="135" rx="8" fill="url(#bgGrad)"/>
+  
+  <!-- Pixel/Block pattern representing technology / blocks -->
+  <g id="pixel-cluster">
+    <rect x="36" y="24" width="10" height="10" rx="1.5" fill="url(#blueSquare2)" />
+    <rect x="48" y="22" width="12" height="12" rx="1.5" fill="url(#blueSquare3)" />
+    <rect x="32" y="36" width="14" height="14" rx="2" fill="url(#blueSquare1)" />
+    <rect x="48" y="36" width="11" height="11" rx="1.5" fill="url(#blueSquare2)" />
+    <rect x="61" y="33" width="9" height="9" rx="1" fill="url(#blueSquare3)" />
+    <rect x="25" y="48" width="12" height="12" rx="1.5" fill="url(#blueSquare3)" />
+    <rect x="39" y="52" width="15" height="15" rx="2" fill="url(#blueSquare1)" />
+    <rect x="56" y="49" width="10" height="10" rx="1.5" fill="url(#blueSquare2)" />
+    <rect x="23" y="62" width="14" height="14" rx="2" fill="url(#blueSquare2)" />
+    <rect x="39" y="69" width="11" height="11" rx="1.5" fill="url(#blueSquare3)" />
+    <rect x="52" y="61" width="13" height="13" rx="1.5" fill="url(#blueSquare1)" />
+    <rect x="67" y="64" width="8" height="8" rx="1" fill="url(#blueSquare2)" />
+    <rect x="28" y="78" width="10" height="10" rx="1.5" fill="url(#blueSquare1)" />
+    <rect x="40" y="82" width="8" height="8" rx="1" fill="url(#blueSquare2)" />
+    <rect x="50" y="76" width="11" height="11" rx="1.5" fill="url(#blueSquare3)" />
   </g>
+
+  <!-- JUCA Typography -->
+  <text x="82" y="66" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Montserrat', 'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="44" fill="#ffffff" letter-spacing="1">JUCA</text>
+  
+  <!-- INFORMÁTICA Subtitle -->
+  <text x="83" y="86" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-weight="800" font-size="14.5" fill="#ffffff" letter-spacing="4.5">INFORMÁTICA</text>
+  
+  <!-- Divider line -->
+  <line x1="28" y1="99" x2="272" y2="99" stroke="url(#dividerGrad)" stroke-width="1.5"/>
+  
+  <!-- SOLUÇÃO E TECNOLOGIA Slogan -->
+  <text x="150" y="117" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-weight="700" font-size="10" fill="#ffffff" letter-spacing="4" text-anchor="middle">SOLUÇÃO E TECNOLOGIA</text>
 </svg>

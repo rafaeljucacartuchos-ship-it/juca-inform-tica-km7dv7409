@@ -125,17 +125,22 @@ export function Sidebar({ onNavClick }: SidebarProps) {
 
   return (
     <aside className="flex h-full w-64 flex-col bg-slate-900 text-slate-100 shadow-xl border-r border-slate-800">
-      <div className="flex h-16 items-center gap-3 px-4 border-b border-slate-800/80 bg-slate-950/40">
-        <img
-          src="/logo.svg"
-          alt="Juca Logo"
-          className="h-10 w-10 object-contain rounded-lg bg-black"
-        />
-        <div className="min-w-0">
-          <h1 className="text-sm font-bold leading-tight tracking-tight text-white truncate">
-            Juca Cartuchos
+      <div className="flex h-16 items-center gap-3 px-3.5 border-b border-slate-800/80 bg-slate-950/50">
+        <div className="h-10 w-20 shrink-0 overflow-hidden rounded-md bg-slate-950 p-1 flex items-center justify-center border border-slate-800">
+          <img
+            src="https://dagtlwojkqyivnjgveda.supabase.co/storage/v1/object/public/message-attachments/819ad1b5-1865-4f2e-9fe9-f488ce98c0b0/img6259-fc419.jpg"
+            alt="JUCA Informática"
+            className="h-full w-full object-contain"
+            onError={(e) => {
+              ;(e.target as HTMLImageElement).src = '/logo.svg'
+            }}
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xs font-bold leading-tight tracking-tight text-white truncate">
+            JUCA INFORMÁTICA
           </h1>
-          <p className="text-[11px] text-indigo-400 font-medium truncate">e Informática</p>
+          <p className="text-[10px] text-blue-400 font-medium truncate">Solução e Tecnologia</p>
         </div>
       </div>
 
