@@ -23,17 +23,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ServiceOrder, OrderStatus, Customer } from '@/types'
+import { ServiceOrder, OrderStatus, Customer, User } from '@/types'
 import { getServiceOrders, updateServiceOrder, addStatusHistory } from '@/services/service_orders'
 import { getCustomers } from '@/services/customers'
 import { getTechnicians } from '@/services/users'
-import { User } from '@/types'
 import { StatusBadge } from '@/components/StatusBadge'
 import { NewOrderModal } from '@/components/NewOrderModal'
 import { useAuth } from '@/hooks/use-auth'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import { openWhatsApp, triggerWhatsAppEvaluation, buildServiceMessage } from '@/lib/whatsapp'
+import { STATUS_PRIORITY_MAP } from '@/lib/dashboard-utils'
 
 export default function OrdensDeServico() {
   const [orders, setOrders] = useState<ServiceOrder[]>([])
@@ -54,11 +54,15 @@ export default function OrdensDeServico() {
   const { user } = useAuth()
   const { toast } = useToast()
 
-  // Sincroniza technician e search da query string se mudar na URL
+  // Sincroniza technician, status e search da query string se mudar na URL
   useEffect(() => {
     const techParam = searchParams.get('technician')
     if (techParam) {
       setTechnicianFilter(techParam)
+    }
+    const statusParam = searchParams.get('status')
+    if (statusParam) {
+      setStatusFilter(statusParam)
     }
     const searchParam = searchParams.get('search')
     if (searchParam !== null) {
@@ -161,16 +165,6 @@ export default function OrdensDeServico() {
     })
   }, [orders, periodTab])
 
-  const STATUS_PRIORITY_MAP: Record<OrderStatus, number> = {
-    open: 1,
-    in_progress: 2,
-    paused: 3,
-    waiting_parts: 4,
-    completed: 5,
-    closed: 6,
-    cancelled: 7,
-  }
-
   const filteredOrders = useMemo(() => {
     const list = periodFilteredOrders.filter((o) => {
       if (!filterText.trim()) return true
@@ -186,8 +180,8 @@ export default function OrdensDeServico() {
     })
 
     return [...list].sort((a, b) => {
-      const pA = STATUS_PRIORITY_MAP[a.status] || 99
-      const pB = STATUS_PRIORITY_MAP[b.status] || 99
+      const pA = STATUS_PRIORITY_MAP[a.status] ?? 99
+      const pB = STATUS_PRIORITY_MAP[b.status] ?? 99
       if (pA !== pB) {
         return pA - pB
       }
@@ -605,7 +599,17 @@ export default function OrdensDeServico() {
                       <td className="py-3 px-4 font-medium text-slate-900">{o.title}</td>
                       <td className="py-3 px-4 text-slate-600">{o.expand?.customer?.name}</td>
                       <td className="py-3 px-4 text-slate-600">
-                        {o.expand?.technician?.name || 'Não atribuído'}
+                        {o.expand?.technician?.name ? (
+                          <Link
+                            to={`/ordens?technician=${o.technician || o.expand.technician.id}`}
+                            className="text-slate-600 hover:text-indigo-600 hover:underline font-medium"
+                            title={`Filtrar ordens de ${o.expand.technician.name}`}
+                          >
+                            {o.expand.technician.name}
+                          </Link>
+                        ) : (
+                          'Não atribuído'
+                        )}
                       </td>
                       <td className="py-3 px-4">
                         <StatusBadge status={o.status} />

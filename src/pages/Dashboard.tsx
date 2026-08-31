@@ -30,6 +30,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
 import {
   STATUS_CONFIG,
+  STATUS_PRIORITY_MAP,
   getPeriodRange,
   computeBilling,
   countCompletedInPeriod,
@@ -105,6 +106,19 @@ export default function Dashboard() {
   const sortedTechnicians = useMemo(() => {
     return [...technicians].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
   }, [technicians])
+
+  const sortedRecentOrders = useMemo(() => {
+    return [...orders].sort((a, b) => {
+      const pA = STATUS_PRIORITY_MAP[a.status] ?? 99
+      const pB = STATUS_PRIORITY_MAP[b.status] ?? 99
+      if (pA !== pB) {
+        return pA - pB
+      }
+      const timeA = a.created ? new Date(a.created).getTime() : 0
+      const timeB = b.created ? new Date(b.created).getTime() : 0
+      return timeB - timeA
+    })
+  }, [orders])
 
   if (loading) {
     return (
@@ -248,7 +262,7 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {orders.slice(0, 5).map((o) => (
+                {sortedRecentOrders.slice(0, 5).map((o) => (
                   <tr key={o.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3 px-4 font-mono font-bold text-indigo-600">
                       <Link to={`/ordens/${o.id}`}>{o.number}</Link>
@@ -258,7 +272,17 @@ export default function Dashboard() {
                       {o.expand?.customer?.name || 'Cliente'}
                     </td>
                     <td className="py-3 px-4 text-slate-600 font-medium">
-                      {o.expand?.technician?.name || '—'}
+                      {o.expand?.technician?.name ? (
+                        <Link
+                          to={`/ordens?technician=${o.technician || o.expand.technician.id}`}
+                          className="text-slate-600 hover:text-indigo-600 hover:underline font-medium"
+                          title={`Filtrar ordens de ${o.expand.technician.name}`}
+                        >
+                          {o.expand.technician.name}
+                        </Link>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                     <td className="py-3 px-4">
                       <StatusBadge status={o.status} />
@@ -268,7 +292,7 @@ export default function Dashboard() {
                     </td>
                   </tr>
                 ))}
-                {orders.length === 0 && (
+                {sortedRecentOrders.length === 0 && (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">
                       Nenhuma ordem cadastrada no momento.
@@ -370,17 +394,26 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* 6 Mini-Cards dos Status de O.S */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {/* Mini-Cards dos Status de O.S */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
           {STATUS_CONFIG.map((s) => (
-            <Card key={s.value} className={`border-slate-200/80 shadow-2xs ${s.bg}`}>
-              <CardContent className="p-3.5">
-                <p className={`text-2xl font-bold ${s.color}`}>
-                  {orders.filter((o) => o.status === s.value).length}
-                </p>
-                <p className="text-xs text-slate-700 font-bold mt-0.5">{s.label}</p>
-              </CardContent>
-            </Card>
+            <Link
+              key={s.value}
+              to={`/ordens?status=${s.value}`}
+              className="block group"
+              title={`Ver ordens com status ${s.label}`}
+            >
+              <Card
+                className={`border-slate-200/80 shadow-2xs ${s.bg} transition-all duration-200 hover:shadow-md hover:scale-[1.02] cursor-pointer`}
+              >
+                <CardContent className="p-3.5">
+                  <p className={`text-2xl font-bold ${s.color}`}>
+                    {orders.filter((o) => o.status === s.value).length}
+                  </p>
+                  <p className="text-xs text-slate-700 font-bold mt-0.5">{s.label}</p>
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
       </div>

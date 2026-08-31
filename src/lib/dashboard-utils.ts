@@ -1,6 +1,16 @@
-import { ServiceOrder, StatusHistory, Payment } from '@/types'
+import { ServiceOrder, StatusHistory, Payment, OrderStatus } from '@/types'
 
 export type Period = 'today' | 'week' | 'month' | 'custom'
+
+export const STATUS_PRIORITY_MAP: Record<OrderStatus, number> = {
+  open: 1,
+  in_progress: 2,
+  paused: 3,
+  waiting_parts: 4,
+  completed: 5,
+  closed: 6,
+  cancelled: 7,
+}
 
 export const STATUS_CONFIG = [
   { value: 'open', label: 'Aberta', color: 'text-blue-600', bg: 'bg-blue-50' },
