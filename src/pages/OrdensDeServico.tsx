@@ -469,104 +469,116 @@ export default function OrdensDeServico() {
       </div>
 
       {viewMode === 'kanban' ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4 overflow-x-auto pb-4">
+        <div className="flex gap-4 overflow-x-auto pb-6 pt-1 w-full snap-x snap-mandatory scroll-smooth">
           {columns.map((col) => {
             const colOrders = filteredOrders.filter((o) => o.status === col.status)
             return (
               <div
                 key={col.status}
-                className="flex flex-col min-w-[240px] rounded-xl bg-slate-100/70 p-3 border border-slate-200/80"
+                className="flex flex-col w-[280px] min-w-[280px] max-w-[280px] shrink-0 snap-start rounded-xl bg-slate-100/80 p-3 border border-slate-200 shadow-2xs"
               >
                 <div className={`flex items-center justify-between mb-3 border-t-2 ${col.bg} pt-2`}>
-                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  <h3
+                    className="text-xs font-bold text-slate-800 uppercase tracking-wider truncate mr-2"
+                    title={col.label}
+                  >
                     {col.label}
                   </h3>
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-[11px] font-bold text-slate-700">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[11px] font-bold text-slate-700">
                     {colOrders.length}
                   </span>
                 </div>
 
                 <div className="space-y-3 flex-1 overflow-y-auto max-h-[calc(100vh-340px)] pr-1">
-                  {colOrders.map((o) => (
-                    <Card
-                      key={o.id}
-                      className="border-slate-200 shadow-2xs hover:shadow-md transition-shadow bg-white"
-                    >
-                      <CardContent className="p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Link
-                            to={`/ordens/${o.id}`}
-                            className="font-mono text-xs font-bold text-indigo-600 hover:underline"
-                          >
-                            {o.number}
-                          </Link>
-                          <Badge variant="outline" className="text-[9px] uppercase">
-                            {o.priority}
-                          </Badge>
-                        </div>
-
-                        <h4 className="text-xs font-bold text-slate-900 line-clamp-2">{o.title}</h4>
-                        <p className="text-[11px] text-slate-500 truncate">
-                          {o.expand?.customer?.name}
-                        </p>
-                        <p className="text-[11px] text-indigo-700 font-medium truncate flex items-center gap-1 bg-indigo-50/60 px-1.5 py-0.5 rounded border border-indigo-100/60">
-                          <Wrench className="h-3 w-3 text-indigo-600 shrink-0" />
-                          <span className="truncate">
-                            {o.expand?.technician?.name || 'Sem técnico'}
-                          </span>
-                        </p>
-
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                          <span className="font-mono font-semibold text-slate-900">
-                            R$ {(o.total || 0).toFixed(2)}
-                          </span>
-                          <div className="flex items-center gap-1">
-                            {user?.role !== 'technician' && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleNotifyClient(o)}
-                                className="h-7 w-7 text-emerald-600 hover:bg-emerald-50"
-                              >
-                                <MessageCircle className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                            <Select
-                              value={o.status}
-                              onValueChange={(val: OrderStatus) => handleMoveStatus(o.id, val)}
+                  {colOrders.length === 0 ? (
+                    <div className="py-8 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-lg bg-white/40">
+                      Nenhuma OS
+                    </div>
+                  ) : (
+                    colOrders.map((o) => (
+                      <Card
+                        key={o.id}
+                        className="border-slate-200 shadow-2xs hover:shadow-md transition-shadow bg-white"
+                      >
+                        <CardContent className="p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Link
+                              to={`/ordens/${o.id}`}
+                              className="font-mono text-xs font-bold text-indigo-600 hover:underline"
                             >
-                              <SelectTrigger className="h-6 text-[10px] w-20 px-1">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="open" className="text-[10px]">
-                                  Aberto
-                                </SelectItem>
-                                <SelectItem value="in_progress" className="text-[10px]">
-                                  Em Andam.
-                                </SelectItem>
-                                <SelectItem value="paused" className="text-[10px]">
-                                  Pausada
-                                </SelectItem>
-                                <SelectItem value="waiting_parts" className="text-[10px]">
-                                  Peças
-                                </SelectItem>
-                                <SelectItem value="completed" className="text-[10px]">
-                                  Concluído
-                                </SelectItem>
-                                <SelectItem value="closed" className="text-[10px]">
-                                  Fechado
-                                </SelectItem>
-                                <SelectItem value="cancelled" className="text-[10px]">
-                                  Cancelado
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
+                              {o.number}
+                            </Link>
+                            <Badge variant="outline" className="text-[9px] uppercase">
+                              {o.priority}
+                            </Badge>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+
+                          <h4 className="text-xs font-bold text-slate-900 line-clamp-2">
+                            {o.title}
+                          </h4>
+                          <p className="text-[11px] text-slate-500 truncate">
+                            {o.expand?.customer?.name || 'Cliente não identificado'}
+                          </p>
+                          <p className="text-[11px] text-indigo-700 font-medium truncate flex items-center gap-1 bg-indigo-50/60 px-1.5 py-0.5 rounded border border-indigo-100/60">
+                            <Wrench className="h-3 w-3 text-indigo-600 shrink-0" />
+                            <span className="truncate">
+                              {o.expand?.technician?.name || 'Sem técnico'}
+                            </span>
+                          </p>
+
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] gap-2">
+                            <span className="font-mono font-semibold text-slate-900 shrink-0">
+                              R$ {(o.total || 0).toFixed(2)}
+                            </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {user?.role !== 'technician' && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleNotifyClient(o)}
+                                  className="h-7 w-7 text-emerald-600 hover:bg-emerald-50 shrink-0"
+                                  title="Notificar via WhatsApp"
+                                >
+                                  <MessageCircle className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              <Select
+                                value={o.status}
+                                onValueChange={(val: OrderStatus) => handleMoveStatus(o.id, val)}
+                              >
+                                <SelectTrigger className="h-6 text-[10px] w-24 px-1.5">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="open" className="text-[10px]">
+                                    Aberto
+                                  </SelectItem>
+                                  <SelectItem value="in_progress" className="text-[10px]">
+                                    Em Andam.
+                                  </SelectItem>
+                                  <SelectItem value="paused" className="text-[10px]">
+                                    Pausada
+                                  </SelectItem>
+                                  <SelectItem value="waiting_parts" className="text-[10px]">
+                                    Peças
+                                  </SelectItem>
+                                  <SelectItem value="completed" className="text-[10px]">
+                                    Concluído
+                                  </SelectItem>
+                                  <SelectItem value="closed" className="text-[10px]">
+                                    Fechado
+                                  </SelectItem>
+                                  <SelectItem value="cancelled" className="text-[10px]">
+                                    Cancelado
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
                 </div>
               </div>
             )
