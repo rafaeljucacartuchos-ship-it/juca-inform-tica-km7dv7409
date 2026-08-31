@@ -12,6 +12,8 @@ import {
   Printer,
   ScanLine,
   Search,
+  Package,
+  Wrench,
 } from 'lucide-react'
 import { BarcodeScanner } from '@/components/BarcodeScanner'
 import { AddOrderItemModal } from '@/components/AddOrderItemModal'
@@ -172,7 +174,7 @@ export default function OrdemDetail() {
 
   const handleStatusChange = async (newStatus: OrderStatus) => {
     // Validação da regra de negócio: Equipamento obrigatório ao fechar/concluir a O.S.
-    if (newStatus === 'completed' || newStatus === 'closed' || newStatus === 'delivered') {
+    if (newStatus === 'completed' || newStatus === 'closed') {
       const hasEquipment = Boolean(
         order.equipment_ref || (order.equipment && order.equipment.trim().length > 0),
       )

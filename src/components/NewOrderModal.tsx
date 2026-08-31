@@ -449,15 +449,15 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs font-semibold text-slate-700">Tipo de Atendimento</Label>
+                  <Label className="text-xs font-semibold text-slate-700">
+                    Tipo de Atendimento
+                  </Label>
                   {isBalcao ? (
                     <span className="text-[10px] text-amber-600 font-medium bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
                       Balcão (Exige Eq.)
                     </span>
                   ) : (
-                    <span className="text-[10px] text-slate-500 font-medium">
-                      Eq. opcional
-                    </span>
+                    <span className="text-[10px] text-slate-500 font-medium">Eq. opcional</span>
                   )}
                 </div>
                 <Select
@@ -571,9 +571,7 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
                               }}
                               className="text-xs cursor-pointer flex items-center justify-between py-2"
                             >
-                              <span className="font-medium text-slate-900 truncate">
-                                {t.name}
-                              </span>
+                              <span className="font-medium text-slate-900 truncate">{t.name}</span>
                               <Check
                                 className={cn(
                                   'h-4 w-4 shrink-0 text-indigo-600',
@@ -588,116 +586,6 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
                   </Command>
                 </PopoverContent>
               </Popover>
-            </div>
-                <Popover open={techComboboxOpen} onOpenChange={setTechComboboxOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={techComboboxOpen}
-                      className={cn(
-                        'w-full h-9 text-xs justify-between font-normal px-3 bg-white border-slate-200 hover:bg-slate-50',
-                        !formData.technician && 'text-slate-400',
-                      )}
-                    >
-                      <span className="truncate text-left">
-                        {formData.technician
-                          ? technicians.find((t) => t.id === formData.technician)?.name ||
-                            'Técnico selecionado'
-                          : 'Sem técnico'}
-                      </span>
-                      <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    className="w-[--radix-popover-trigger-width] p-0 shadow-lg max-h-60 overflow-hidden"
-                    align="start"
-                  >
-                    <Command className="max-h-60 flex flex-col">
-                      <CommandInput
-                        placeholder="Buscar técnico..."
-                        className="h-9 text-xs shrink-0"
-                      />
-                      <CommandList className="max-h-48 overflow-y-auto">
-                        <CommandEmpty className="py-4 text-center text-xs text-slate-500">
-                          Nenhum técnico encontrado.
-                        </CommandEmpty>
-                        <CommandGroup>
-                          <CommandItem
-                            value="__none__"
-                            onSelect={() => {
-                              setFormData((prev) => ({ ...prev, technician: '' }))
-                              setTechComboboxOpen(false)
-                            }}
-                            className="text-xs cursor-pointer flex items-center justify-between py-2"
-                          >
-                            <span className="text-slate-500 italic">Sem técnico</span>
-                            <Check
-                              className={cn(
-                                'h-4 w-4 shrink-0 text-indigo-600',
-                                !formData.technician ? 'opacity-100' : 'opacity-0',
-                              )}
-                            />
-                          </CommandItem>
-                          {technicians.map((t) => {
-                            const isSelected = formData.technician === t.id
-                            return (
-                              <CommandItem
-                                key={t.id}
-                                value={t.name || t.id}
-                                onSelect={() => {
-                                  setFormData((prev) => ({ ...prev, technician: t.id }))
-                                  setTechComboboxOpen(false)
-                                }}
-                                className="text-xs cursor-pointer flex items-center justify-between py-2"
-                              >
-                                <span className="font-medium text-slate-900 truncate">
-                                  {t.name}
-                                </span>
-                                <Check
-                                  className={cn(
-                                    'h-4 w-4 shrink-0 text-indigo-600',
-                                    isSelected ? 'opacity-100' : 'opacity-0',
-                                  )}
-                                />
-                              </CommandItem>
-                            )
-                          })}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-700">Prioridade</Label>
-                <Select
-                  value={formData.priority}
-                  onValueChange={(val: OrderPriority) =>
-                    setFormData({ ...formData, priority: val })
-                  }
-                >
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low" className="text-xs">
-                      Baixa
-                    </SelectItem>
-                    <SelectItem value="medium" className="text-xs">
-                      Média
-                    </SelectItem>
-                    <SelectItem value="high" className="text-xs">
-                      Alta
-                    </SelectItem>
-                    <SelectItem value="urgent" className="text-xs">
-                      Urgente
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

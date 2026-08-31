@@ -18,7 +18,16 @@ import { Product } from '@/types'
 import { getFileUrl } from '@/lib/pocketbase/files'
 import pb from '@/lib/pocketbase/client'
 import { BarcodeScanner } from '@/components/BarcodeScanner'
-import { Camera, Image as ImageIcon, ScanLine, Search, X, Loader2 } from 'lucide-react'
+import {
+  Camera,
+  Image as ImageIcon,
+  ScanLine,
+  Search,
+  X,
+  Loader2,
+  Package,
+  Wrench,
+} from 'lucide-react'
 
 interface NewProductModalProps {
   open: boolean

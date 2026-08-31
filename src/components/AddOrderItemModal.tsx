@@ -72,10 +72,13 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
 
         const [products, servicesResult] = await Promise.all([
           getProducts(term, 1, 50),
-          pb.collection('services').getList<CatalogService>(1, 50, {
-            filter: serviceFilter,
-            sort: 'name',
-          }).catch(() => ({ items: [] as CatalogService[] })),
+          pb
+            .collection('services')
+            .getList<CatalogService>(1, 50, {
+              filter: serviceFilter,
+              sort: 'name',
+            })
+            .catch(() => ({ items: [] as CatalogService[] })),
         ])
         const services = servicesResult.items
 
@@ -92,7 +95,9 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
         })
 
         // Evita duplicar se o serviço já foi migrado para products
-        const existingProductNames = new Set(mappedProducts.map((mp) => mp.name.toLowerCase().trim()))
+        const existingProductNames = new Set(
+          mappedProducts.map((mp) => mp.name.toLowerCase().trim()),
+        )
         const mappedLegacyServices: SearchResult[] = services
           .filter((s) => {
             const sName = (s.title || s.name || '').toLowerCase().trim()
@@ -169,7 +174,8 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
         title:
           selectedItem.kind === 'product' ? 'Produto adicionado à OS' : 'Serviço adicionado à OS',
         description: `${validQty}x ${selectedItem.name} — R$ ${itemSubtotal.toFixed(2)} (R$ ${validUnitPrice.toFixed(2)} un.)`,
-      })      onAdded()
+      })
+      onAdded()
       onOpenChange(false)
     } catch {
       toast({ title: 'Erro ao adicionar item', variant: 'destructive' })
@@ -352,7 +358,8 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
                   min="0"
                   value={unitPrice === 0 ? '' : unitPrice}
                   onChange={(e) => {
-                    const val = e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value) || 0)
+                    const val =
+                      e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value) || 0)
                     setUnitPrice(val)
                   }}
                   onKeyDown={(e) => {
@@ -428,7 +435,10 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
                   Subtotal Calculado (Qtd × Valor Unitário)
                 </span>
                 <span className="font-mono font-bold text-base text-indigo-600">
-                  R$ {(Math.max(0, Number(unitPrice) || 0) * Math.max(1, Number(quantity) || 1)).toFixed(2)}
+                  R${' '}
+                  {(
+                    Math.max(0, Number(unitPrice) || 0) * Math.max(1, Number(quantity) || 1)
+                  ).toFixed(2)}
                 </span>
               </div>
               <Button

@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { ServiceOrder, Payment, User, StatusHistory } from '@/types'
+import { ServiceOrder, Payment, User, StatusHistory, ServiceOrderItem } from '@/types'
 import { exportToCSV, exportToExcel, type ExportSection } from '@/lib/export-utils'
 
 interface ExportReportsModalProps {
