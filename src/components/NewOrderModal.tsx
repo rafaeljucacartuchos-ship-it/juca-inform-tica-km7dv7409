@@ -179,6 +179,10 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
       setErrors((prev) => ({ ...prev, customer: 'Selecione um cliente' }))
       return
     }
+    if (!formData.equipment_ref) {
+      setErrors((prev) => ({ ...prev, equipment_ref: 'Selecione o equipamento do cliente' }))
+      return
+    }
     if (!formData.title) {
       setErrors((prev) => ({ ...prev, title: 'Informe o título da ordem' }))
       return
@@ -574,7 +578,7 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-semibold text-slate-700">
-                  Equipamento do Cliente
+                  Equipamento do Cliente *
                 </Label>
                 <Button
                   type="button"
@@ -589,7 +593,16 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
               </div>
               <Select
                 value={formData.equipment_ref}
-                onValueChange={(val) => setFormData({ ...formData, equipment_ref: val })}
+                onValueChange={(val) => {
+                  setFormData({ ...formData, equipment_ref: val })
+                  if (errors.equipment_ref) {
+                    setErrors((prev) => {
+                      const next = { ...prev }
+                      delete next.equipment_ref
+                      return next
+                    })
+                  }
+                }}
                 disabled={!formData.customer}
               >
                 <SelectTrigger className="h-9 text-xs">
@@ -611,6 +624,9 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
                   ))}
                 </SelectContent>
               </Select>
+              {errors.equipment_ref && (
+                <p className="text-[11px] text-red-500">{errors.equipment_ref}</p>
+              )}
               {formData.customer && equipment.length === 0 && (
                 <p className="text-[11px] text-amber-600">
                   Nenhum equipamento cadastrado. Clique em "Cadastrar Novo" para adicionar.

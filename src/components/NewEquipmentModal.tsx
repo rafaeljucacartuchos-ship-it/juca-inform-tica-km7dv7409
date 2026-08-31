@@ -17,7 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Upload, X } from 'lucide-react'
+import { Upload, X, Loader2 } from 'lucide-react'
+import heic2any from 'heic2any'
 import { Customer, EquipmentType } from '@/types'
 import { getCustomers } from '@/services/customers'
 import { createEquipmentWithPhotos } from '@/services/equipment'
@@ -39,6 +40,7 @@ export function NewEquipmentModal({
 }: NewEquipmentModalProps) {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(false)
+  const [processingPhotos, setProcessingPhotos] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [photos, setPhotos] = useState<File[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
@@ -59,12 +61,95 @@ export function NewEquipmentModal({
         .then(setCustomers)
         .catch(() => {})
       setFormData((p) => ({ ...p, customer: defaultCustomerId || p.customer }))
+      setErrors({})
+    } else {
+      setPhotos([])
+      setErrors({})
     }
   }, [open, defaultCustomerId])
 
-  const handlePhotosChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const convertHeicToJpeg = async (file: File): Promise<Blob> => {
+    try {
+      const convertedBlob = await heic2any({
+        blob: file,
+        toType: 'image/jpeg',
+        quality: 0.85,
+        multiple: false,
+      })
+
+      return Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
+    } catch (err) {
+      console.error('Erro ao converter imagem HEIC:', err)
+      throw new Error('Falha na conversão de imagem HEIC')
+    }
+  }
+
+  const handlePhotosChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
-    if (files) setPhotos((prev) => [...prev, ...Array.from(files)])
+    if (!files || files.length === 0) return
+
+    const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif']
+    const maxSize = 10 * 1024 * 1024
+    setProcessingPhotos(true)
+
+    const processedFiles: File[] = []
+
+    for (const rawFile of Array.from(files)) {
+      const isHeicByName = /\.(heic|heif)$/i.test(rawFile.name)
+      const isHeicByType = rawFile.type === 'image/heic' || rawFile.type === 'image/heif'
+      const isValidType = validTypes.includes(rawFile.type) || isHeicByName || isHeicByType
+
+      if (!isValidType) {
+        toast({
+          title: 'Formato inválido',
+          description: `${rawFile.name}: apenas PNG, JPG, WebP ou HEIC.`,
+          variant: 'destructive',
+        })
+        continue
+      }
+
+      let uploadFile: File = rawFile
+
+      if (isHeicByName || isHeicByType) {
+        try {
+          const convertedBlob = await convertHeicToJpeg(rawFile)
+          const newFileName = rawFile.name.replace(/\.(heic|heif)$/i, '') + '.jpg'
+          uploadFile = new File([convertedBlob], newFileName, { type: 'image/jpeg' })
+        } catch {
+          toast({
+            title: 'Erro ao converter foto',
+            description: `Não foi possível processar ${rawFile.name}. Tente novamente.`,
+            variant: 'destructive',
+          })
+          continue
+        }
+      }
+
+      if (uploadFile.size > maxSize) {
+        toast({
+          title: 'Arquivo muito grande',
+          description: `${uploadFile.name}: máximo 10MB.`,
+          variant: 'destructive',
+        })
+        continue
+      }
+
+      processedFiles.push(uploadFile)
+    }
+
+    if (processedFiles.length > 0) {
+      setPhotos((prev) => [...prev, ...processedFiles])
+      if (errors.photos) {
+        setErrors((prev) => {
+          const next = { ...prev }
+          delete next.photos
+          return next
+        })
+      }
+    }
+
+    setProcessingPhotos(false)
+    if (fileRef.current) fileRef.current.value = ''
   }
 
   const removePhoto = (idx: number) => setPhotos((prev) => prev.filter((_, i) => i !== idx))
@@ -73,11 +158,15 @@ export function NewEquipmentModal({
     e.preventDefault()
     setErrors({})
     if (!formData.customer) {
-      setErrors({ customer: 'Selecione um cliente' })
+      setErrors((prev) => ({ ...prev, customer: 'Selecione um cliente' }))
       return
     }
     if (!formData.name) {
-      setErrors({ name: 'Informe o nome do equipamento' })
+      setErrors((prev) => ({ ...prev, name: 'Informe o nome do equipamento' }))
+      return
+    }
+    if (photos.length === 0) {
+      setErrors((prev) => ({ ...prev, photos: 'Adicione pelo menos 1 foto do equipamento' }))
       return
     }
     setLoading(true)
@@ -211,11 +300,11 @@ export function NewEquipmentModal({
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-700">Fotos de Identificação</Label>
+            <Label className="text-xs font-semibold text-slate-700">Fotos de Identificação *</Label>
             <input
               ref={fileRef}
               type="file"
-              accept="image/png,image/jpeg,image/webp"
+              accept="image/*"
               multiple
               onChange={handlePhotosChange}
               className="hidden"
@@ -226,10 +315,20 @@ export function NewEquipmentModal({
               variant="outline"
               size="sm"
               onClick={() => fileRef.current?.click()}
+              disabled={processingPhotos}
               className="text-xs gap-1.5"
             >
-              <Upload className="h-3.5 w-3.5" /> Adicionar Fotos
+              {processingPhotos ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Processando...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-3.5 w-3.5" /> Adicionar Fotos
+                </>
+              )}
             </Button>
+            {errors.photos && <p className="text-[11px] text-red-500">{errors.photos}</p>}
             {photos.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {photos.map((p, i) => (
