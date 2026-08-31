@@ -102,9 +102,9 @@ export default function Dashboard() {
     ['open', 'in_progress', 'waiting_parts'].includes(o.status),
   ).length
 
-  const sortedTechnicians = [...technicians].sort((a, b) =>
-    (a.name || '').localeCompare(b.name || ''),
-  )
+  const sortedTechnicians = useMemo(() => {
+    return [...technicians].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+  }, [technicians])
 
   if (loading) {
     return (
@@ -296,31 +296,35 @@ export default function Dashboard() {
                 (o) => o.technician === t.id && o.status !== 'closed' && o.status !== 'cancelled',
               ).length
               return (
-                <div
+                <Link
                   key={t.id}
-                  className="flex items-center gap-3 rounded-xl border border-slate-200/90 p-3 bg-white shadow-2xs hover:border-indigo-200 transition-colors"
+                  to={`/ordens?technician=${t.id}`}
+                  className="flex items-center gap-3 rounded-xl border border-slate-200/90 p-3 bg-white shadow-2xs hover:border-indigo-400 hover:shadow-md hover:bg-indigo-50/30 cursor-pointer transition-all duration-200 group"
+                  title={`Filtrar ordens de ${t.name}`}
                 >
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 border border-indigo-200">
-                    <UserCheck className="h-4.5 w-4.5 text-indigo-700" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 border border-indigo-200 group-hover:bg-indigo-600 group-hover:border-indigo-600 transition-colors">
+                    <UserCheck className="h-4.5 w-4.5 text-indigo-700 group-hover:text-white transition-colors" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-xs font-bold text-slate-900 truncate">{t.name}</h3>
-                    <p className="text-[11px] text-slate-500 font-medium">
+                    <h3 className="text-xs font-bold text-slate-900 truncate group-hover:text-indigo-900 transition-colors">
+                      {t.name}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-medium group-hover:text-slate-600">
                       {count} {count === 1 ? 'ordem ativa' : 'ordens ativas'}
                     </p>
                   </div>
                   <span
-                    className={`text-xs font-mono font-bold px-2 py-0.5 rounded shrink-0 ${
+                    className={`text-xs font-mono font-bold px-2 py-0.5 rounded shrink-0 transition-colors ${
                       count > 3
-                        ? 'bg-amber-100 text-amber-800'
+                        ? 'bg-amber-100 text-amber-800 group-hover:bg-amber-200'
                         : count > 0
-                          ? 'bg-indigo-100 text-indigo-800'
-                          : 'bg-slate-100 text-slate-600'
+                          ? 'bg-indigo-100 text-indigo-800 group-hover:bg-indigo-200'
+                          : 'bg-slate-100 text-slate-600 group-hover:bg-slate-200'
                     }`}
                   >
                     {count}
                   </span>
-                </div>
+                </Link>
               )
             })}
             {sortedTechnicians.length === 0 && (

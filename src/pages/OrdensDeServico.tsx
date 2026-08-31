@@ -26,6 +26,8 @@ import {
 import { ServiceOrder, OrderStatus, Customer } from '@/types'
 import { getServiceOrders, updateServiceOrder, addStatusHistory } from '@/services/service_orders'
 import { getCustomers } from '@/services/customers'
+import { getTechnicians } from '@/services/users'
+import { User } from '@/types'
 import { NewOrderModal } from '@/components/NewOrderModal'
 import { useAuth } from '@/hooks/use-auth'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -36,22 +38,40 @@ export default function OrdensDeServico() {
   const [orders, setOrders] = useState<ServiceOrder[]>([])
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
   const [periodTab, setPeriodTab] = useState<'all' | 'today' | 'week' | 'month'>('all')
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [filterText, setFilterText] = useState(searchParams.get('search') || '')
   const [newModalOpen, setNewModalOpen] = useState(false)
   const [dateStart, setDateStart] = useState('')
   const [dateEnd, setDateEnd] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [customerFilter, setCustomerFilter] = useState<string>('all')
+  const [technicianFilter, setTechnicianFilter] = useState<string>(
+    searchParams.get('technician') || 'all',
+  )
   const [customers, setCustomers] = useState<Customer[]>([])
+  const [technicians, setTechnicians] = useState<User[]>([])
   const { user } = useAuth()
   const { toast } = useToast()
+
+  // Sincroniza technician e search da query string se mudar na URL
+  useEffect(() => {
+    const techParam = searchParams.get('technician')
+    if (techParam) {
+      setTechnicianFilter(techParam)
+    }
+    const searchParam = searchParams.get('search')
+    if (searchParam !== null) {
+      setFilterText(searchParam)
+    }
+  }, [searchParams])
 
   const loadData = async () => {
     try {
       const filters: string[] = []
       if (user?.role === 'technician' && user?.id) {
         filters.push(`technician = "${user.id}"`)
+      } else if (technicianFilter !== 'all') {
+        filters.push(`technician = "${technicianFilter}"`)
       }
       if (dateStart) {
         filters.push(`created >= "${dateStart} 00:00:00.000Z"`)
@@ -77,11 +97,14 @@ export default function OrdensDeServico() {
     getCustomers()
       .then(setCustomers)
       .catch(() => {})
+    getTechnicians()
+      .then(setTechnicians)
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
     loadData()
-  }, [dateStart, dateEnd, statusFilter, customerFilter])
+  }, [dateStart, dateEnd, statusFilter, customerFilter, technicianFilter])
 
   useRealtime('service_orders', loadData)
 
@@ -91,6 +114,7 @@ export default function OrdensDeServico() {
     { status: 'waiting_parts', label: 'Aguardando Peças', bg: 'border-t-amber-500' },
     { status: 'completed', label: 'Concluídas', bg: 'border-t-emerald-500' },
     { status: 'closed', label: 'Fechadas', bg: 'border-t-slate-500' },
+    { status: 'cancelled', label: 'Canceladas', bg: 'border-t-red-500' },
   ]
 
   const periodFilteredOrders = useMemo(() => {
@@ -135,18 +159,40 @@ export default function OrdensDeServico() {
     })
   }, [orders, periodTab])
 
-  const filteredOrders = periodFilteredOrders.filter((o) => {
-    if (!filterText.trim()) return true
-    const q = filterText.toLowerCase()
-    const cust = o.expand?.customer
-    const custName = (cust?.razao_social || cust?.nome_fantasia || cust?.name || '').toLowerCase()
-    return (
-      o.number.toLowerCase().includes(q) ||
-      o.title.toLowerCase().includes(q) ||
-      custName.includes(q) ||
-      (o.expand?.technician?.name || '').toLowerCase().includes(q)
-    )
-  })
+  const STATUS_PRIORITY_MAP: Record<OrderStatus, number> = {
+    open: 1,
+    in_progress: 2,
+    waiting_parts: 3,
+    completed: 4,
+    closed: 5,
+    cancelled: 6,
+  }
+
+  const filteredOrders = useMemo(() => {
+    const list = periodFilteredOrders.filter((o) => {
+      if (!filterText.trim()) return true
+      const q = filterText.toLowerCase()
+      const cust = o.expand?.customer
+      const custName = (cust?.razao_social || cust?.nome_fantasia || cust?.name || '').toLowerCase()
+      return (
+        o.number.toLowerCase().includes(q) ||
+        o.title.toLowerCase().includes(q) ||
+        custName.includes(q) ||
+        (o.expand?.technician?.name || '').toLowerCase().includes(q)
+      )
+    })
+
+    return [...list].sort((a, b) => {
+      const pA = STATUS_PRIORITY_MAP[a.status] || 99
+      const pB = STATUS_PRIORITY_MAP[b.status] || 99
+      if (pA !== pB) {
+        return pA - pB
+      }
+      const timeA = a.created ? new Date(a.created).getTime() : 0
+      const timeB = b.created ? new Date(b.created).getTime() : 0
+      return timeB - timeA
+    })
+  }, [periodFilteredOrders, filterText])
 
   const handleMoveStatus = async (orderId: string, newStatus: OrderStatus) => {
     try {
@@ -200,11 +246,18 @@ export default function OrdensDeServico() {
     setDateEnd('')
     setStatusFilter('all')
     setCustomerFilter('all')
+    setTechnicianFilter('all')
     setFilterText('')
+    setSearchParams({}, { replace: true })
   }
 
   const hasActiveFilters =
-    dateStart || dateEnd || statusFilter !== 'all' || customerFilter !== 'all'
+    dateStart ||
+    dateEnd ||
+    statusFilter !== 'all' ||
+    customerFilter !== 'all' ||
+    (technicianFilter !== 'all' && user?.role !== 'technician') ||
+    Boolean(filterText.trim())
 
   return (
     <div className="space-y-6">
@@ -367,6 +420,42 @@ export default function OrdensDeServico() {
             </SelectContent>
           </Select>
         </div>
+        {user?.role !== 'technician' && (
+          <div className="flex items-center gap-2">
+            <label className="text-[11px] font-semibold text-slate-600 whitespace-nowrap">
+              Técnico:
+            </label>
+            <Select
+              value={technicianFilter}
+              onValueChange={(val) => {
+                setTechnicianFilter(val)
+                if (val === 'all') {
+                  const newParams = new URLSearchParams(searchParams)
+                  newParams.delete('technician')
+                  setSearchParams(newParams, { replace: true })
+                } else {
+                  const newParams = new URLSearchParams(searchParams)
+                  newParams.set('technician', val)
+                  setSearchParams(newParams, { replace: true })
+                }
+              }}
+            >
+              <SelectTrigger className="h-8 text-xs w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">
+                  Todos os Técnicos
+                </SelectItem>
+                {technicians.map((t) => (
+                  <SelectItem key={t.id} value={t.id} className="text-xs">
+                    {t.name || t.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         {hasActiveFilters && (
           <Button
             variant="ghost"
@@ -380,7 +469,7 @@ export default function OrdensDeServico() {
       </div>
 
       {viewMode === 'kanban' ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto pb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 overflow-x-auto pb-4">
           {columns.map((col) => {
             const colOrders = filteredOrders.filter((o) => o.status === col.status)
             return (
@@ -420,6 +509,12 @@ export default function OrdensDeServico() {
                         <p className="text-[11px] text-slate-500 truncate">
                           {o.expand?.customer?.name}
                         </p>
+                        <p className="text-[11px] text-indigo-700 font-medium truncate flex items-center gap-1 bg-indigo-50/60 px-1.5 py-0.5 rounded border border-indigo-100/60">
+                          <Wrench className="h-3 w-3 text-indigo-600 shrink-0" />
+                          <span className="truncate">
+                            {o.expand?.technician?.name || 'Sem técnico'}
+                          </span>
+                        </p>
 
                         <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
                           <span className="font-mono font-semibold text-slate-900">
@@ -458,6 +553,9 @@ export default function OrdensDeServico() {
                                 </SelectItem>
                                 <SelectItem value="closed" className="text-[10px]">
                                   Fechado
+                                </SelectItem>
+                                <SelectItem value="cancelled" className="text-[10px]">
+                                  Cancelado
                                 </SelectItem>
                               </SelectContent>
                             </Select>

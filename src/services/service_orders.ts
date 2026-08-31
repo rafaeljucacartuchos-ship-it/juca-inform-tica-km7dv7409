@@ -1,11 +1,11 @@
 import pb from '@/lib/pocketbase/client'
 import { ServiceOrder, ServiceOrderItem, StatusHistory } from '@/types'
 
-export const getServiceOrders = (filterStr = '') =>
+export const getServiceOrders = (filterStr = '', sortStr = '-created') =>
   pb.collection('service_orders').getFullList<ServiceOrder>({
     filter: filterStr,
     expand: 'customer,technician,appointment,equipment_ref',
-    sort: 'title',
+    sort: sortStr,
   })
 
 export const getServiceOrder = (id: string) =>
