@@ -113,6 +113,7 @@ onRecordAfterUpdateSuccess((e) => {
             var statusLabels = {
               open: 'Aberta',
               in_progress: 'Em Andamento',
+              paused: 'Pausada',
               waiting_parts: 'Aguardando Peças',
               completed: 'Concluída',
               closed: 'Fechada',
@@ -208,6 +209,7 @@ onRecordAfterUpdateSuccess((e) => {
       var statusLabels2 = {
         open: 'Aberta',
         in_progress: 'Em Andamento',
+        paused: 'Pausada',
         waiting_parts: 'Aguardando Peças',
         completed: 'Concluída',
         closed: 'Fechada',

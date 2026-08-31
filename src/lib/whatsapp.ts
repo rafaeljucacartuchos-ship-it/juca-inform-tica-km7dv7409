@@ -34,6 +34,7 @@ export function buildServiceMessage(
   const statusLabels: Record<string, string> = {
     open: 'Aberta',
     in_progress: 'Em Andamento',
+    paused: 'Pausada',
     waiting_parts: 'Aguardando Peças',
     completed: 'Concluída',
     closed: 'Fechada',

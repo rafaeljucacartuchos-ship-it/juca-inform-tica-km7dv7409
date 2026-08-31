@@ -5,6 +5,7 @@ export type Period = 'today' | 'week' | 'month' | 'custom'
 export const STATUS_CONFIG = [
   { value: 'open', label: 'Aberta', color: 'text-blue-600', bg: 'bg-blue-50' },
   { value: 'in_progress', label: 'Em Andamento', color: 'text-purple-600', bg: 'bg-purple-50' },
+  { value: 'paused', label: 'Pausada', color: 'text-orange-600', bg: 'bg-orange-50' },
   { value: 'waiting_parts', label: 'Aguardando Peças', color: 'text-amber-600', bg: 'bg-amber-50' },
   { value: 'completed', label: 'Concluída', color: 'text-emerald-600', bg: 'bg-emerald-50' },
   { value: 'closed', label: 'Fechada', color: 'text-slate-600', bg: 'bg-slate-50' },

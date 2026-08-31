@@ -439,7 +439,7 @@ export default function OrdemDetail() {
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 font-mono">
                 {order.number}
               </h1>
-              <Badge className="capitalize">{order.status}</Badge>
+              <StatusBadge status={order.status} />
               {serviceInProgress && (
                 <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-[10px] gap-1">
                   <Play className="h-3 w-3" /> Atendimento em andamento
@@ -761,6 +761,23 @@ export default function OrdemDetail() {
                   <CheckCircle className="h-4 w-4 mr-1" /> Concluir Serviço
                 </Button>
               )}
+              {order.status === 'in_progress' && (
+                <Button
+                  onClick={() => handleStatusChange('paused')}
+                  variant="outline"
+                  className="w-full justify-start text-xs h-9 border-orange-300 text-orange-700 hover:bg-orange-50"
+                >
+                  Pausar Atendimento
+                </Button>
+              )}
+              {order.status === 'paused' && (
+                <Button
+                  onClick={() => handleStatusChange('in_progress')}
+                  className="w-full justify-start text-xs h-9 bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  <Play className="h-4 w-4 mr-1" /> Retomar Atendimento
+                </Button>
+              )}
               <Button
                 onClick={() => handleStatusChange('waiting_parts')}
                 variant="outline"
@@ -786,8 +803,11 @@ export default function OrdemDetail() {
             <CardContent className="space-y-3">
               {history.map((h) => (
                 <div key={h.id} className="text-xs border-l-2 border-indigo-500 pl-3 py-1">
-                  <p className="font-semibold text-slate-800 capitalize">Status: {h.status}</p>
-                  <p className="text-slate-500 text-[11px]">{h.note}</p>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-slate-800">Status:</span>
+                    <StatusBadge status={h.status as OrderStatus} />
+                  </div>
+                  <p className="text-slate-500 text-[11px] mt-1">{h.note}</p>
                   <p className="text-slate-400 text-[10px] font-mono mt-0.5">
                     {h.created?.substring(0, 10).split('-').reverse().join('/')}
                   </p>

@@ -99,7 +99,7 @@ export default function Dashboard() {
   const evolutionData = computeEvolutionData(orders, payments, range.start, range.end)
   const periodOrderCount = countOrdersInPeriod(orders, range.start, range.end)
   const openCount = orders.filter((o) =>
-    ['open', 'in_progress', 'waiting_parts'].includes(o.status),
+    ['open', 'in_progress', 'paused', 'waiting_parts'].includes(o.status),
   ).length
 
   const sortedTechnicians = useMemo(() => {

@@ -28,6 +28,7 @@ import { getServiceOrders, updateServiceOrder, addStatusHistory } from '@/servic
 import { getCustomers } from '@/services/customers'
 import { getTechnicians } from '@/services/users'
 import { User } from '@/types'
+import { StatusBadge } from '@/components/StatusBadge'
 import { NewOrderModal } from '@/components/NewOrderModal'
 import { useAuth } from '@/hooks/use-auth'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -111,6 +112,7 @@ export default function OrdensDeServico() {
   const columns: { status: OrderStatus; label: string; bg: string }[] = [
     { status: 'open', label: 'Abertas', bg: 'border-t-blue-500' },
     { status: 'in_progress', label: 'Em Andamento', bg: 'border-t-purple-500' },
+    { status: 'paused', label: 'Pausadas', bg: 'border-t-orange-500' },
     { status: 'waiting_parts', label: 'Aguardando Peças', bg: 'border-t-amber-500' },
     { status: 'completed', label: 'Concluídas', bg: 'border-t-emerald-500' },
     { status: 'closed', label: 'Fechadas', bg: 'border-t-slate-500' },
@@ -162,10 +164,11 @@ export default function OrdensDeServico() {
   const STATUS_PRIORITY_MAP: Record<OrderStatus, number> = {
     open: 1,
     in_progress: 2,
-    waiting_parts: 3,
-    completed: 4,
-    closed: 5,
-    cancelled: 6,
+    paused: 3,
+    waiting_parts: 4,
+    completed: 5,
+    closed: 6,
+    cancelled: 7,
   }
 
   const filteredOrders = useMemo(() => {
@@ -382,6 +385,9 @@ export default function OrdensDeServico() {
               <SelectItem value="in_progress" className="text-xs">
                 Em Andamento
               </SelectItem>
+              <SelectItem value="paused" className="text-xs">
+                Pausada
+              </SelectItem>
               <SelectItem value="waiting_parts" className="text-xs">
                 Aguardando Peças
               </SelectItem>
@@ -469,7 +475,7 @@ export default function OrdensDeServico() {
       </div>
 
       {viewMode === 'kanban' ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 overflow-x-auto pb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4 overflow-x-auto pb-4">
           {columns.map((col) => {
             const colOrders = filteredOrders.filter((o) => o.status === col.status)
             return (
@@ -545,6 +551,9 @@ export default function OrdensDeServico() {
                                 <SelectItem value="in_progress" className="text-[10px]">
                                   Em Andam.
                                 </SelectItem>
+                                <SelectItem value="paused" className="text-[10px]">
+                                  Pausada
+                                </SelectItem>
                                 <SelectItem value="waiting_parts" className="text-[10px]">
                                   Peças
                                 </SelectItem>
@@ -598,7 +607,9 @@ export default function OrdensDeServico() {
                       <td className="py-3 px-4 text-slate-600">
                         {o.expand?.technician?.name || 'Não atribuído'}
                       </td>
-                      <td className="py-3 px-4 capitalize">{o.status}</td>
+                      <td className="py-3 px-4">
+                        <StatusBadge status={o.status} />
+                      </td>
                       <td className="py-3 px-4 text-right font-mono font-bold">
                         R$ {(o.total || 0).toFixed(2)}
                       </td>

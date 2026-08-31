@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-31T19:15:32.651Z",
+  "generatedAt": "2026-08-31T19:32:42.759Z",
   "collections": [
     {
       "name": "users",
@@ -326,6 +326,7 @@
           "selectValues": [
             "open",
             "in_progress",
+            "paused",
             "waiting_parts",
             "completed",
             "closed",
@@ -685,6 +686,7 @@
           "selectValues": [
             "open",
             "in_progress",
+            "paused",
             "waiting_parts",
             "completed",
             "closed",

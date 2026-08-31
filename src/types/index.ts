@@ -91,6 +91,7 @@ export interface Appointment {
 export type OrderStatus =
   | 'open'
   | 'in_progress'
+  | 'paused'
   | 'waiting_parts'
   | 'completed'
   | 'closed'

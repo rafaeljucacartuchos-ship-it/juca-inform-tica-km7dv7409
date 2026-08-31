@@ -25,6 +25,7 @@ interface ExportReportsModalProps {
 const STATUS_LABELS: Record<string, string> = {
   open: 'Aberta',
   in_progress: 'Em Andamento',
+  paused: 'Pausada',
   waiting_parts: 'Aguardando Peças',
   completed: 'Concluída',
   closed: 'Fechada',
@@ -66,6 +67,7 @@ export function ExportReportsModal({
   const statusCounts = [
     'open',
     'in_progress',
+    'paused',
     'waiting_parts',
     'completed',
     'closed',

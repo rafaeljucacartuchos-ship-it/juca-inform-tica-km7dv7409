@@ -25,6 +25,7 @@ interface ExportOrdersListModalProps {
 const STATUS_LABELS: Record<string, string> = {
   open: 'Aberta',
   in_progress: 'Em Andamento',
+  paused: 'Pausada',
   waiting_parts: 'Aguardando Peças',
   completed: 'Concluída',
   closed: 'Fechada',
