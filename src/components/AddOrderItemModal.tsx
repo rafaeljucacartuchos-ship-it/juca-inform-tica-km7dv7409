@@ -31,15 +31,20 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<SearchResult[]>([])
+  const [selectedItem, setSelectedItem] = useState<SearchResult | null>(null)
+  const [quantity, setQuantity] = useState<number>(1)
   const [addingId, setAddingId] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const qtyInputRef = useRef<HTMLInputElement>(null)
 
-  // Foca o campo de busca ao abrir o modal.
+  // Foca o campo de busca ao abrir o modal e reseta o estado.
   useEffect(() => {
     if (open) {
       setQuery('')
       setResults([])
+      setSelectedItem(null)
+      setQuantity(1)
       const t = setTimeout(() => inputRef.current?.focus(), 50)
       return () => clearTimeout(t)
     }
@@ -96,20 +101,32 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
     }
   }, [query])
 
-  const handleAdd = async (item: SearchResult) => {
-    setAddingId(item.id)
+  const handleSelectItem = (item: SearchResult) => {
+    setSelectedItem(item)
+    setQuantity(1)
+    setTimeout(() => {
+      qtyInputRef.current?.focus()
+      qtyInputRef.current?.select()
+    }, 50)
+  }
+
+  const handleConfirmAdd = async () => {
+    if (!selectedItem) return
+    const validQty = Math.max(1, Number(quantity) || 1)
+    setAddingId(selectedItem.id)
     try {
-      const unitPrice = item.price || 0
+      const unitPrice = selectedItem.price || 0
+      const itemSubtotal = unitPrice * validQty
       await createOrderItem({
         service_order: orderId,
-        service: item.kind === 'service' ? item.id : undefined,
-        product: item.kind === 'product' ? item.id : undefined,
-        description: item.name,
-        quantity: 1,
+        service: selectedItem.kind === 'service' ? selectedItem.id : undefined,
+        product: selectedItem.kind === 'product' ? selectedItem.id : undefined,
+        description: selectedItem.name,
+        quantity: validQty,
         unit_price: unitPrice,
-        total: unitPrice,
+        total: itemSubtotal,
       })
-      // Recalcula o total buscando todos os itens atualizados
+      // Recalcula o total da OS buscando todos os itens atualizados
       try {
         const [freshItems, freshOrder] = await Promise.all([
           pb.collection('service_order_items').getFullList({
@@ -128,8 +145,9 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
         /* total update best-effort */
       }
       toast({
-        title: item.kind === 'product' ? 'Produto adicionado à OS' : 'Serviço adicionado à OS',
-        description: item.name,
+        title:
+          selectedItem.kind === 'product' ? 'Produto adicionado à OS' : 'Serviço adicionado à OS',
+        description: `${validQty}x ${selectedItem.name} — R$ ${itemSubtotal.toFixed(2)}`,
       })
       onAdded()
       onOpenChange(false)
@@ -180,7 +198,7 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
           </p>
         </div>
 
-        <div className="max-h-[55vh] overflow-y-auto border-t border-slate-100">
+        <div className="max-h-[45vh] overflow-y-auto border-t border-slate-100">
           {loading && <div className="py-8 text-center text-xs text-slate-400">Buscando...</div>}
 
           {isEmpty && (
@@ -195,52 +213,144 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
             </div>
           )}
 
-          {results.map((item) => (
-            <button
-              key={`${item.kind}-${item.id}`}
-              type="button"
-              onClick={() => handleAdd(item)}
-              disabled={addingId !== null}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-50 disabled:opacity-50 border-b border-slate-50 last:border-0 transition-colors"
-            >
-              <span
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
-                  item.kind === 'product'
-                    ? 'bg-indigo-50 text-indigo-600'
-                    : 'bg-emerald-50 text-emerald-600'
-                }`}
+          {results.map((item) => {
+            const isSelected = selectedItem?.id === item.id && selectedItem?.kind === item.kind
+            return (
+              <button
+                key={`${item.kind}-${item.id}`}
+                type="button"
+                onClick={() => handleSelectItem(item)}
+                disabled={addingId !== null}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left border-b border-slate-50 last:border-0 transition-colors ${
+                  isSelected
+                    ? 'bg-indigo-50/80 ring-1 ring-inset ring-indigo-500'
+                    : 'hover:bg-slate-50'
+                } disabled:opacity-50`}
               >
-                {item.kind === 'product' ? (
-                  <Package className="h-4 w-4" />
-                ) : (
-                  <Wrench className="h-4 w-4" />
-                )}
-              </span>
-              <span className="flex-1 min-w-0">
-                <span className="block text-sm font-medium text-slate-900 truncate">
-                  {item.name}
-                </span>
-                <Badge
-                  variant="outline"
-                  className={`mt-0.5 text-[10px] h-4 px-1.5 ${
+                <span
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
                     item.kind === 'product'
-                      ? 'border-indigo-200 text-indigo-600'
-                      : 'border-emerald-200 text-emerald-600'
+                      ? 'bg-indigo-50 text-indigo-600'
+                      : 'bg-emerald-50 text-emerald-600'
                   }`}
                 >
-                  {item.kind === 'product' ? 'Produto' : 'Serviço'}
-                </Badge>
-              </span>
-              <span className="text-sm font-mono font-bold text-slate-900 shrink-0">
-                R$ {(item.price || 0).toFixed(2)}
-              </span>
-            </button>
-          ))}
+                  {item.kind === 'product' ? (
+                    <Package className="h-4 w-4" />
+                  ) : (
+                    <Wrench className="h-4 w-4" />
+                  )}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-medium text-slate-900 truncate">
+                    {item.name}
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className={`mt-0.5 text-[10px] h-4 px-1.5 ${
+                      item.kind === 'product'
+                        ? 'border-indigo-200 text-indigo-600'
+                        : 'border-emerald-200 text-emerald-600'
+                    }`}
+                  >
+                    {item.kind === 'product' ? 'Produto' : 'Serviço'}
+                  </Badge>
+                </span>
+                <span className="text-sm font-mono font-bold text-slate-900 shrink-0">
+                  R$ {(item.price || 0).toFixed(2)}
+                </span>
+              </button>
+            )
+          })}
         </div>
+
+        {selectedItem && (
+          <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-slate-700 truncate mr-2">
+                Selecionado: <strong className="text-slate-900">{selectedItem.name}</strong>
+              </span>
+              <span className="font-mono text-slate-600 shrink-0">
+                Unitário: R$ {(selectedItem.price || 0).toFixed(2)}
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="order-item-qty"
+                  className="text-xs font-semibold text-slate-700 shrink-0"
+                >
+                  Quantidade:
+                </label>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-slate-600"
+                    disabled={quantity <= 1 || addingId !== null}
+                    onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
+                  >
+                    -
+                  </Button>
+                  <Input
+                    id="order-item-qty"
+                    ref={qtyInputRef}
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={quantity}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10)
+                      setQuantity(isNaN(val) || val < 1 ? 1 : val)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleConfirmAdd()
+                      }
+                    }}
+                    className="h-8 w-16 text-center font-bold font-mono text-sm px-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-slate-600"
+                    disabled={addingId !== null}
+                    onClick={() => setQuantity((prev) => prev + 1)}
+                  >
+                    +
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between sm:justify-end gap-3 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                <div className="text-right">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                    Subtotal
+                  </span>
+                  <span className="font-mono font-bold text-sm text-indigo-600">
+                    R$ {((selectedItem.price || 0) * Math.max(1, Number(quantity) || 1)).toFixed(2)}
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleConfirmAdd}
+                  disabled={addingId !== null}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 px-3"
+                >
+                  {addingId !== null ? 'Adicionando...' : 'Adicionar Item'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="px-4 py-3 border-t border-slate-100 flex justify-end">
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-            Fechar
+            {selectedItem ? 'Cancelar' : 'Fechar'}
           </Button>
         </div>
       </DialogContent>
