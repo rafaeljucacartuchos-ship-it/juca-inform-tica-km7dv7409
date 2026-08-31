@@ -42,7 +42,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (pb.authStore.isValid) {
       pb.collection('users')
         .authRefresh()
-        .then(() => setUser(pb.authStore.record as unknown as User))
+        .then(() => {
+          pb.realtime.unsubscribe()
+          setUser(pb.authStore.record as unknown as User)
+        })
         .catch(() => pb.authStore.clear())
         .finally(() => setLoading(false))
     } else {
@@ -58,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const identity = registrationCode.trim()
     try {
       const res = await pb.collection('users').authWithPassword(identity, pass)
+      pb.realtime.unsubscribe()
       setUser(res.record as unknown as User)
       return { error: null }
     } catch (error) {
@@ -65,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (fallbackEmail) {
         try {
           const res = await pb.collection('users').authWithPassword(fallbackEmail, pass)
+          pb.realtime.unsubscribe()
           setUser(res.record as unknown as User)
           return { error: null }
         } catch (fallbackError) {
@@ -82,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .create<User>({ password: pass, passwordConfirm: pass, name, role })
       const loginName = created.username || name
       const res = await pb.collection('users').authWithPassword(loginName, pass)
+      pb.realtime.unsubscribe()
       setUser(res.record as unknown as User)
       return { error: null }
     } catch (error) {

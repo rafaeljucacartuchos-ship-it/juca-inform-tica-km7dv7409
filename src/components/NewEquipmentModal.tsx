@@ -17,10 +17,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Upload, X, Loader2 } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { Check, ChevronsUpDown, Upload, X, Loader2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import heic2any from 'heic2any'
-import { Customer, EquipmentType } from '@/types'
-import { getCustomers } from '@/services/customers'
+import { Customer, EquipmentType, Equipment } from '@/types'
+import { getCustomers, getCustomer } from '@/services/customers'
 import { createEquipmentWithPhotos } from '@/services/equipment'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
@@ -28,7 +38,7 @@ import { extractFieldErrors } from '@/lib/pocketbase/errors'
 interface NewEquipmentModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreated?: () => void
+  onCreated?: (created?: Equipment) => void
   defaultCustomerId?: string
 }
 
@@ -39,6 +49,12 @@ export function NewEquipmentModal({
   defaultCustomerId,
 }: NewEquipmentModalProps) {
   const [customers, setCustomers] = useState<Customer[]>([])
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+  const [comboboxOpen, setComboboxOpen] = useState(false)
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [isSearchingCustomers, setIsSearchingCustomers] = useState(false)
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const [loading, setLoading] = useState(false)
   const [processingPhotos, setProcessingPhotos] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -55,18 +71,69 @@ export function NewEquipmentModal({
     notes: '',
   })
 
+  // Carrega clientes iniciais ao abrir o modal
   useEffect(() => {
     if (open) {
-      getCustomers()
-        .then(setCustomers)
+      setIsSearchingCustomers(true)
+      getCustomers('')
+        .then((items) => {
+          setCustomers(items)
+        })
         .catch(() => {})
+        .finally(() => setIsSearchingCustomers(false))
+
       setFormData((p) => ({ ...p, customer: defaultCustomerId || p.customer }))
       setErrors({})
     } else {
+      setCustomerSearch('')
+      setComboboxOpen(false)
       setPhotos([])
       setErrors({})
     }
   }, [open, defaultCustomerId])
+
+  // Busca de clientes com debounce de 300ms
+  useEffect(() => {
+    if (!open) return
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+
+    setIsSearchingCustomers(true)
+    debounceTimerRef.current = setTimeout(() => {
+      getCustomers(customerSearch)
+        .then((items) => {
+          setCustomers(items)
+        })
+        .catch(() => {})
+        .finally(() => {
+          setIsSearchingCustomers(false)
+        })
+    }, 300)
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+    }
+  }, [customerSearch, open])
+
+  // Mantém selectedCustomer sincronizado
+  useEffect(() => {
+    if (!formData.customer) {
+      setSelectedCustomer(null)
+      return
+    }
+    const found = customers.find((c) => c.id === formData.customer)
+    if (found) {
+      setSelectedCustomer(found)
+    } else if (!selectedCustomer || selectedCustomer.id !== formData.customer) {
+      getCustomer(formData.customer)
+        .then((cust) => setSelectedCustomer(cust))
+        .catch(() => {})
+    }
+  }, [formData.customer, customers])
 
   const convertHeicToJpeg = async (file: File): Promise<Blob> => {
     try {
@@ -180,7 +247,7 @@ export function NewEquipmentModal({
       fd.append('serial_number', formData.serial_number)
       fd.append('notes', formData.notes)
       photos.forEach((p) => fd.append('photos', p))
-      await createEquipmentWithPhotos(fd)
+      const created = await createEquipmentWithPhotos(fd)
       toast({ title: 'Equipamento cadastrado com sucesso!' })
       setFormData({
         customer: '',
@@ -191,9 +258,10 @@ export function NewEquipmentModal({
         serial_number: '',
         notes: '',
       })
+      setSelectedCustomer(null)
       setPhotos([])
       onOpenChange(false)
-      if (onCreated) onCreated()
+      if (onCreated) onCreated(created)
     } catch (err) {
       setErrors(extractFieldErrors(err))
       toast({ title: 'Erro ao cadastrar equipamento', variant: 'destructive' })
@@ -201,6 +269,14 @@ export function NewEquipmentModal({
       setLoading(false)
     }
   }
+
+  const selectedDisplayName = selectedCustomer
+    ? selectedCustomer.nome_fantasia ||
+      selectedCustomer.razao_social ||
+      selectedCustomer.name ||
+      'Cliente Selecionado'
+    : ''
+  const selectedPhone = selectedCustomer?.celular || selectedCustomer?.phone
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -211,24 +287,108 @@ export function NewEquipmentModal({
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-slate-700">Cliente *</Label>
-            <Select
-              value={formData.customer}
-              onValueChange={(v) => setFormData({ ...formData, customer: v })}
-            >
-              <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder="Selecione o cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                {customers.map((c) => {
-                  const displayName = c.razao_social || c.nome_fantasia || c.name || 'Cliente'
-                  return (
-                    <SelectItem key={c.id} value={c.id} className="text-xs">
-                      {displayName}
-                    </SelectItem>
-                  )
-                })}
-              </SelectContent>
-            </Select>
+            <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={comboboxOpen}
+                  className={cn(
+                    'w-full h-9 text-xs justify-between font-normal px-3 bg-white border-slate-200 hover:bg-slate-50',
+                    !formData.customer && 'text-slate-400',
+                  )}
+                >
+                  <span className="truncate text-left">
+                    {formData.customer && selectedCustomer
+                      ? `${selectedDisplayName}${selectedPhone ? ` (${selectedPhone})` : ''}`
+                      : 'Selecione ou digite para buscar o cliente...'}
+                  </span>
+                  <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="w-[--radix-popover-trigger-width] p-0 shadow-lg max-h-60 overflow-hidden"
+                align="start"
+              >
+                <Command shouldFilter={false} className="max-h-60 flex flex-col">
+                  <CommandInput
+                    placeholder="Digite o nome do cliente..."
+                    value={customerSearch}
+                    onValueChange={setCustomerSearch}
+                    className="h-9 text-xs shrink-0"
+                  />
+                  <CommandList className="max-h-48 overflow-y-auto">
+                    {isSearchingCustomers && (
+                      <div className="flex items-center justify-center p-4 text-xs text-slate-400 gap-1.5">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-600" />
+                        <span>Buscando clientes...</span>
+                      </div>
+                    )}
+                    {!isSearchingCustomers && customers.length === 0 && (
+                      <CommandEmpty className="py-4 text-center text-xs text-slate-500">
+                        Nenhum cliente encontrado.
+                      </CommandEmpty>
+                    )}
+                    <CommandGroup>
+                      {customers.map((c) => {
+                        const displayName = c.nome_fantasia || c.razao_social || c.name || 'Cliente'
+                        const phone = c.celular || c.phone
+                        const isSelected = formData.customer === c.id
+                        const showSecondaryCode =
+                          Boolean(c.nome_fantasia) &&
+                          Boolean(c.razao_social) &&
+                          c.nome_fantasia?.trim() !== c.razao_social?.trim()
+
+                        return (
+                          <CommandItem
+                            key={c.id}
+                            value={c.id}
+                            onSelect={() => {
+                              setFormData((prev) => ({
+                                ...prev,
+                                customer: c.id,
+                              }))
+                              setSelectedCustomer(c)
+                              setComboboxOpen(false)
+                              if (errors.customer) {
+                                setErrors((prev) => {
+                                  const next = { ...prev }
+                                  delete next.customer
+                                  return next
+                                })
+                              }
+                            }}
+                            className="text-xs cursor-pointer flex items-center justify-between py-2"
+                          >
+                            <div className="flex flex-col min-w-0 pr-2">
+                              <span className="font-bold text-slate-900 truncate">
+                                {displayName}
+                              </span>
+                              {(showSecondaryCode || phone) && (
+                                <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                                  {showSecondaryCode && (
+                                    <span className="truncate">{c.razao_social}</span>
+                                  )}
+                                  {showSecondaryCode && phone && <span>•</span>}
+                                  {phone && <span className="font-mono">{phone}</span>}
+                                </div>
+                              )}
+                            </div>
+                            <Check
+                              className={cn(
+                                'h-4 w-4 shrink-0 text-indigo-600',
+                                isSelected ? 'opacity-100' : 'opacity-0',
+                              )}
+                            />
+                          </CommandItem>
+                        )
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
             {errors.customer && <p className="text-[11px] text-red-500">{errors.customer}</p>}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

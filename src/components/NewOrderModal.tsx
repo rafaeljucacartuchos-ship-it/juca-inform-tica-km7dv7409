@@ -719,7 +719,12 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
       <NewEquipmentModal
         open={equipmentModalOpen}
         onOpenChange={setEquipmentModalOpen}
-        onCreated={refreshEquipment}
+        onCreated={(created) => {
+          refreshEquipment()
+          if (created?.id) {
+            setFormData((prev) => ({ ...prev, equipment_ref: created.id }))
+          }
+        }}
         defaultCustomerId={formData.customer}
       />
     </>
