@@ -28,11 +28,12 @@ import {
 } from '@/components/ui/command'
 import { Check, ChevronsUpDown, Loader2, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Customer, User, OrderPriority, Equipment } from '@/types'
+import { Customer, User, OrderPriority, Equipment, ServiceType } from '@/types'
 import { getCustomers, getCustomer } from '@/services/customers'
 import { getTechnicians } from '@/services/users'
 import { getEquipmentByCustomer } from '@/services/equipment'
 import { createAppointment } from '@/services/appointments'
+import { getServiceTypes } from '@/services/service_types'
 import { NewEquipmentModal } from '@/components/NewEquipmentModal'
 import { NewCustomerModal } from '@/components/NewCustomerModal'
 import { useAuth } from '@/hooks/use-auth'
@@ -57,6 +58,7 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
   const [techComboboxOpen, setTechComboboxOpen] = useState(false)
   const [technicians, setTechnicians] = useState<User[]>([])
   const [equipment, setEquipment] = useState<Equipment[]>([])
+  const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([])
   const [customerModalOpen, setCustomerModalOpen] = useState(false)
   const [equipmentModalOpen, setEquipmentModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -67,6 +69,7 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
   const [formData, setFormData] = useState({
     customer: '',
     technician: '',
+    attendance_type: '',
     attendance_date: '',
     attendance_time: '',
     equipment_ref: '',
@@ -90,6 +93,19 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
 
       getTechnicians()
         .then(setTechnicians)
+        .catch(() => {})
+
+      getServiceTypes(true)
+        .then((types) => {
+          setServiceTypes(types)
+          if (types.length > 0) {
+            setFormData((prev) => {
+              if (prev.attendance_type) return prev
+              const balcao = types.find((t) => t.name.trim().toLowerCase() === 'balcão')
+              return { ...prev, attendance_type: balcao ? balcao.id : types[0].id }
+            })
+          }
+        })
         .catch(() => {})
     } else {
       setCustomerSearch('')
@@ -172,6 +188,11 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
     }
   }
 
+  const selectedServiceType = serviceTypes.find((st) => st.id === formData.attendance_type)
+  const isBalcao =
+    selectedServiceType?.name?.trim().toLowerCase() === 'balcão' ||
+    (!formData.attendance_type && serviceTypes.length === 0)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrors({})
@@ -179,8 +200,11 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
       setErrors((prev) => ({ ...prev, customer: 'Selecione um cliente' }))
       return
     }
-    if (!formData.equipment_ref) {
-      setErrors((prev) => ({ ...prev, equipment_ref: 'Selecione o equipamento do cliente' }))
+    if (isBalcao && !formData.equipment_ref) {
+      setErrors((prev) => ({
+        ...prev,
+        equipment_ref: 'Equipamento é obrigatório para atendimento do tipo Balcão',
+      }))
       return
     }
     if (!formData.title) {
@@ -211,10 +235,13 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
         customer: formData.customer,
         technician: formData.technician || undefined,
         appointment: appointment.id,
+        attendance_type: formData.attendance_type || undefined,
         equipment_ref: formData.equipment_ref || undefined,
         equipment: eqItem
           ? `${eqItem.name}${eqItem.brand ? ' - ' + eqItem.brand : ''}${eqItem.model ? ' ' + eqItem.model : ''}`
           : '',
+        attendance_date: formData.attendance_date || undefined,
+        attendance_time: formData.attendance_time || undefined,
         title: formData.title,
         description: formData.description,
         priority: formData.priority,
@@ -243,9 +270,11 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
         })
       }
 
+      const balcaoDefault = serviceTypes.find((t) => t.name.trim().toLowerCase() === 'balcão')
       setFormData({
         customer: '',
         technician: '',
+        attendance_type: balcaoDefault ? balcaoDefault.id : serviceTypes[0]?.id || '',
         attendance_date: '',
         attendance_time: '',
         equipment_ref: '',
@@ -419,7 +448,147 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-700">Técnico Responsável</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-slate-700">Tipo de Atendimento</Label>
+                  {isBalcao ? (
+                    <span className="text-[10px] text-amber-600 font-medium bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                      Balcão (Exige Eq.)
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      Eq. opcional
+                    </span>
+                  )}
+                </div>
+                <Select
+                  value={formData.attendance_type}
+                  onValueChange={(val) => setFormData({ ...formData, attendance_type: val })}
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Selecione o tipo..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {serviceTypes.map((st) => (
+                      <SelectItem key={st.id} value={st.id} className="text-xs">
+                        {st.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-700">Prioridade</Label>
+                <Select
+                  value={formData.priority}
+                  onValueChange={(val: OrderPriority) =>
+                    setFormData({ ...formData, priority: val })
+                  }
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low" className="text-xs">
+                      Baixa
+                    </SelectItem>
+                    <SelectItem value="medium" className="text-xs">
+                      Média
+                    </SelectItem>
+                    <SelectItem value="high" className="text-xs">
+                      Alta
+                    </SelectItem>
+                    <SelectItem value="urgent" className="text-xs">
+                      Urgente
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-700">Técnico Responsável</Label>
+              <Popover open={techComboboxOpen} onOpenChange={setTechComboboxOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={techComboboxOpen}
+                    className={cn(
+                      'w-full h-9 text-xs justify-between font-normal px-3 bg-white border-slate-200 hover:bg-slate-50',
+                      !formData.technician && 'text-slate-400',
+                    )}
+                  >
+                    <span className="truncate text-left">
+                      {formData.technician
+                        ? technicians.find((t) => t.id === formData.technician)?.name ||
+                          'Técnico selecionado'
+                        : 'Sem técnico'}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-[--radix-popover-trigger-width] p-0 shadow-lg max-h-60 overflow-hidden"
+                  align="start"
+                >
+                  <Command className="max-h-60 flex flex-col">
+                    <CommandInput
+                      placeholder="Buscar técnico..."
+                      className="h-9 text-xs shrink-0"
+                    />
+                    <CommandList className="max-h-48 overflow-y-auto">
+                      <CommandEmpty className="py-4 text-center text-xs text-slate-500">
+                        Nenhum técnico encontrado.
+                      </CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="__none__"
+                          onSelect={() => {
+                            setFormData((prev) => ({ ...prev, technician: '' }))
+                            setTechComboboxOpen(false)
+                          }}
+                          className="text-xs cursor-pointer flex items-center justify-between py-2"
+                        >
+                          <span className="text-slate-500 italic">Sem técnico</span>
+                          <Check
+                            className={cn(
+                              'h-4 w-4 shrink-0 text-indigo-600',
+                              !formData.technician ? 'opacity-100' : 'opacity-0',
+                            )}
+                          />
+                        </CommandItem>
+                        {technicians.map((t) => {
+                          const isSelected = formData.technician === t.id
+                          return (
+                            <CommandItem
+                              key={t.id}
+                              value={t.name || t.id}
+                              onSelect={() => {
+                                setFormData((prev) => ({ ...prev, technician: t.id }))
+                                setTechComboboxOpen(false)
+                              }}
+                              className="text-xs cursor-pointer flex items-center justify-between py-2"
+                            >
+                              <span className="font-medium text-slate-900 truncate">
+                                {t.name}
+                              </span>
+                              <Check
+                                className={cn(
+                                  'h-4 w-4 shrink-0 text-indigo-600',
+                                  isSelected ? 'opacity-100' : 'opacity-0',
+                                )}
+                              />
+                            </CommandItem>
+                          )
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
                 <Popover open={techComboboxOpen} onOpenChange={setTechComboboxOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -578,7 +747,7 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-semibold text-slate-700">
-                  Equipamento do Cliente *
+                  Equipamento do Cliente {isBalcao ? '*' : '(Opcional no cadastro)'}
                 </Label>
                 <Button
                   type="button"
@@ -609,7 +778,9 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
                   <SelectValue
                     placeholder={
                       formData.customer
-                        ? 'Selecione o equipamento'
+                        ? isBalcao
+                          ? 'Selecione o equipamento (obrigatório)'
+                          : 'Selecione o equipamento (ou deixe em branco)'
                         : 'Selecione um cliente primeiro'
                     }
                   />
@@ -629,7 +800,9 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
               )}
               {formData.customer && equipment.length === 0 && (
                 <p className="text-[11px] text-amber-600">
-                  Nenhum equipamento cadastrado. Clique em "Cadastrar Novo" para adicionar.
+                  {isBalcao
+                    ? 'Nenhum equipamento cadastrado. Clique em "Cadastrar Novo" para adicionar (obrigatório para Balcão).'
+                    : 'Nenhum equipamento cadastrado. (Opcional para este tipo de atendimento)'}
                 </p>
               )}
             </div>

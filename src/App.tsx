@@ -22,6 +22,7 @@ import RelatoriosAvaliacoes from '@/pages/RelatoriosAvaliacoes'
 import Tecnicos from '@/pages/Tecnicos'
 import Produtos from '@/pages/Produtos'
 import Equipamentos from '@/pages/Equipamentos'
+import TiposAtendimento from '@/pages/TiposAtendimento'
 import OrdemShare from '@/pages/OrdemShare'
 import OrdemPrint from '@/pages/OrdemPrint'
 import NotFound from '@/pages/NotFound'
@@ -110,6 +111,9 @@ const App = () => {
                     </Route>
                     <Route element={<PermissionRoute module="tecnicos" />}>
                       <Route path="/tecnicos" element={<Tecnicos />} />
+                    </Route>
+                    <Route element={<PermissionRoute module="service_types" />}>
+                      <Route path="/tipos-atendimento" element={<TiposAtendimento />} />
                     </Route>
                   </Route>
                 </Route>

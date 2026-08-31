@@ -12,6 +12,7 @@ export type PermissionModule =
   | 'equipamentos'
   | 'produtos'
   | 'servicos'
+  | 'service_types'
 
 export type UserPermissions = Record<PermissionModule, boolean>
 
@@ -27,6 +28,7 @@ export const PERMISSION_LABELS: Record<PermissionModule, string> = {
   equipamentos: 'Cadastro de Equipamentos',
   produtos: 'Cadastro de Produtos',
   servicos: 'Cadastro de Serviços',
+  service_types: 'Tipos de Atendimento (Admin)',
 }
 
 export const ALL_PERMISSION_MODULES: PermissionModule[] = [
@@ -41,6 +43,7 @@ export const ALL_PERMISSION_MODULES: PermissionModule[] = [
   'equipamentos',
   'produtos',
   'servicos',
+  'service_types',
 ]
 
 export function getDefaultPermissions(role: UserRole): UserPermissions {
@@ -58,6 +61,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         equipamentos: true,
         produtos: true,
         servicos: true,
+        service_types: true,
       }
     case 'attendant':
       return {
@@ -72,6 +76,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         equipamentos: true,
         produtos: true,
         servicos: true,
+        service_types: false,
       }
     case 'technician':
       return {
@@ -86,6 +91,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         equipamentos: false,
         produtos: false,
         servicos: false,
+        service_types: false,
       }
     default:
       return {
@@ -100,6 +106,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         equipamentos: false,
         produtos: false,
         servicos: false,
+        service_types: false,
       }
   }
 }

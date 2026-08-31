@@ -98,12 +98,21 @@ export type OrderStatus =
   | 'cancelled'
 export type OrderPriority = 'low' | 'medium' | 'high' | 'urgent'
 
+export interface ServiceType {
+  id: string
+  name: string
+  active?: boolean
+  created?: string
+  updated?: string
+}
+
 export interface ServiceOrder {
   id: string
   number: string
   customer: string
   technician?: string
   appointment?: string
+  attendance_type?: string
   status: OrderStatus
   priority: OrderPriority
   title: string
@@ -132,6 +141,7 @@ export interface ServiceOrder {
     technician?: User
     appointment?: Appointment
     equipment_ref?: Equipment
+    attendance_type?: ServiceType
   }
 }
 
@@ -218,6 +228,8 @@ export interface Payment {
   updated?: string
 }
 
+export type ProductType = 'produto' | 'servico'
+
 export interface Product {
   id: string
   name: string
@@ -229,6 +241,7 @@ export interface Product {
   price?: number
   cost?: number
   category?: string
+  type?: ProductType
   /** URL externa da foto (ex: Pexels). */
   photo?: string
   /** Foto enviada como arquivo (câmera/galeria) — exibida via getFileUrl. */

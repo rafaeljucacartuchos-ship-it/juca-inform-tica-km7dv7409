@@ -12,8 +12,13 @@ export const normalizeSearchText = (text: string): string => {
     .trim()
 }
 
-export const getProducts = async (search = '', page = 1, perPage = 100) => {
-  let filter = ''
+export const getProducts = async (
+  search = '',
+  page = 1,
+  perPage = 100,
+  typeFilter?: 'produto' | 'servico',
+) => {
+  const filterParts: string[] = []
   if (search && search.trim()) {
     const normalized = normalizeSearchText(search)
     // Divide em palavras para permitir busca em qualquer ordem (AND sobre search_text)
@@ -23,13 +28,19 @@ export const getProducts = async (search = '', page = 1, perPage = 100) => {
       .filter((w) => w.length > 0)
 
     if (words.length > 0) {
-      filter = words.map((w) => `search_text ~ '${w}'`).join(' && ')
+      filterParts.push(words.map((w) => `search_text ~ '${w}'`).join(' && '))
     }
   }
 
+  if (typeFilter) {
+    filterParts.push(`type = '${typeFilter}'`)
+  }
+
+  const filter = filterParts.join(' && ')
+
   const result = await pb.collection('products').getList<Product>(page, perPage, {
     filter,
-    sort: 'sku',
+    sort: 'name',
   })
   return result.items
 }

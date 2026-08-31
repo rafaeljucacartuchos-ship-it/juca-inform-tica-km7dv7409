@@ -20,6 +20,7 @@ interface ExportReportsModalProps {
   payments: Payment[]
   technicians: User[]
   history: StatusHistory[]
+  items?: ServiceOrderItem[]
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -44,6 +45,7 @@ export function ExportReportsModal({
   orders,
   payments,
   technicians,
+  items = [],
 }: ExportReportsModalProps) {
   const today = new Date().toISOString().substring(0, 10)
   const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
@@ -59,10 +61,25 @@ export function ExportReportsModal({
   }
 
   const periodOrders = orders.filter((o) => inRange(o.created))
+  const periodOrderIds = new Set(periodOrders.map((o) => o.id))
   const periodPayments = payments.filter((p) => p.status === 'paid' && inRange(p.paid_at))
   const revenue = periodPayments.reduce((s, p) => s + (p.amount || 0), 0)
   const invoiced = periodOrders.reduce((s, o) => s + (o.total || 0), 0)
   const uniqueCustomers = new Set(periodOrders.map((o) => o.customer)).size
+
+  // Métricas separadas de Produtos vs Serviços
+  const periodItems = items.filter((it) => periodOrderIds.has(it.service_order))
+  const productItems = periodItems.filter(
+    (it) => !!it.product && it.expand?.product?.type !== 'servico',
+  )
+  const serviceItems = periodItems.filter(
+    (it) => !!it.service || it.expand?.product?.type === 'servico',
+  )
+
+  const productTotal = productItems.reduce((s, it) => s + (it.total || 0), 0)
+  const serviceTotal = serviceItems.reduce((s, it) => s + (it.total || 0), 0)
+  const productQty = productItems.reduce((s, it) => s + (it.quantity || 1), 0)
+  const serviceQty = serviceItems.reduce((s, it) => s + (it.quantity || 1), 0)
 
   const statusCounts = [
     'open',
@@ -108,11 +125,13 @@ export function ExportReportsModal({
       rows: priorityCounts.map((p) => [p.label, p.count]),
     },
     {
-      title: 'Financeiro',
+      title: 'Financeiro e Segmentação (Produtos vs Serviços)',
       headers: ['Indicador', 'Valor'],
       rows: [
         ['Faturamento Total (Pago)', `R$ ${revenue.toFixed(2)}`],
-        ['Total Faturado', `R$ ${invoiced.toFixed(2)}`],
+        ['Total Faturado em O.S.', `R$ ${invoiced.toFixed(2)}`],
+        ['Total em Produtos / Peças', `R$ ${productTotal.toFixed(2)} (${productQty} un.)`],
+        ['Total em Serviços / Mão de Obra', `R$ ${serviceTotal.toFixed(2)} (${serviceQty} un.)`],
         ['Clientes Atendidos', uniqueCustomers],
       ],
     },
@@ -168,8 +187,20 @@ export function ExportReportsModal({
               <span className="text-slate-500">Faturamento:</span>
               <span className="font-bold text-emerald-600">R$ {revenue.toFixed(2)}</span>
             </div>
+            <div className="flex justify-between pt-1 border-t border-slate-200">
+              <span className="text-indigo-700 font-medium">Produtos / Peças:</span>
+              <span className="font-mono font-bold text-indigo-700">
+                R$ {productTotal.toFixed(2)}
+              </span>
+            </div>
             <div className="flex justify-between">
-              <span className="text-slate-500">Clientes:</span>
+              <span className="text-emerald-700 font-medium">Serviços / Mão de Obra:</span>
+              <span className="font-mono font-bold text-emerald-700">
+                R$ {serviceTotal.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between pt-1 border-t border-slate-200">
+              <span className="text-slate-500">Clientes Atendidos:</span>
               <span className="font-bold">{uniqueCustomers}</span>
             </div>
           </div>

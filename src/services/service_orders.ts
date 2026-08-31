@@ -4,35 +4,35 @@ import { ServiceOrder, ServiceOrderItem, StatusHistory } from '@/types'
 export const getServiceOrders = (filterStr = '', sortStr = '-created') =>
   pb.collection('service_orders').getFullList<ServiceOrder>({
     filter: filterStr,
-    expand: 'customer,technician,appointment,equipment_ref',
+    expand: 'customer,technician,appointment,equipment_ref,attendance_type',
     sort: sortStr,
   })
 
 export const getServiceOrder = (id: string) =>
   pb.collection('service_orders').getOne<ServiceOrder>(id, {
-    expand: 'customer,technician,appointment,equipment_ref',
+    expand: 'customer,technician,appointment,equipment_ref,attendance_type',
   })
 
 export const createServiceOrder = (data: Partial<ServiceOrder>) =>
   pb.collection('service_orders').create<ServiceOrder>(data, {
-    expand: 'customer,technician,equipment_ref',
+    expand: 'customer,technician,equipment_ref,attendance_type',
   })
 
 export const updateServiceOrder = (id: string, data: Partial<ServiceOrder>) =>
   pb.collection('service_orders').update<ServiceOrder>(id, data, {
-    expand: 'customer,technician,equipment_ref',
+    expand: 'customer,technician,equipment_ref,attendance_type',
   })
 
 export const getOrderItems = (orderId: string) =>
   pb.collection('service_order_items').getFullList<ServiceOrderItem>({
     filter: `service_order = "${orderId}"`,
-    expand: 'service',
+    expand: 'service,product',
     sort: 'created',
   })
 
 export const getAllOrderItems = () =>
   pb.collection('service_order_items').getFullList<ServiceOrderItem>({
-    expand: 'service',
+    expand: 'service,product',
     sort: 'created',
   })
 

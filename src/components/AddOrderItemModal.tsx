@@ -31,12 +31,15 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<SearchResult[]>([])
+  const [activeTab, setActiveTab] = useState<'all' | 'product' | 'service'>('all')
   const [selectedItem, setSelectedItem] = useState<SearchResult | null>(null)
   const [quantity, setQuantity] = useState<number>(1)
+  const [unitPrice, setUnitPrice] = useState<number>(0)
   const [addingId, setAddingId] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const qtyInputRef = useRef<HTMLInputElement>(null)
+  const unitPriceInputRef = useRef<HTMLInputElement>(null)
 
   // Foca o campo de busca ao abrir o modal e reseta o estado.
   useEffect(() => {
@@ -45,6 +48,8 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
       setResults([])
       setSelectedItem(null)
       setQuantity(1)
+      setUnitPrice(0)
+      setActiveTab('all')
       const t = setTimeout(() => inputRef.current?.focus(), 50)
       return () => clearTimeout(t)
     }
@@ -70,25 +75,38 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
           pb.collection('services').getList<CatalogService>(1, 50, {
             filter: serviceFilter,
             sort: 'name',
-          }),
+          }).catch(() => ({ items: [] as CatalogService[] })),
         ])
         const services = servicesResult.items
-        const mapped: SearchResult[] = [
-          ...products.map((p) => ({
+
+        // Mapeia os produtos diferenciando pelo campo type (ou 'produto' por padrão)
+        const mappedProducts: SearchResult[] = products.map((p) => {
+          const isService = p.type === 'servico'
+          return {
             id: p.id,
-            kind: 'product' as const,
-            name: p.name || 'Produto',
+            kind: isService ? ('service' as const) : ('product' as const),
+            name: p.name || (isService ? 'Serviço' : 'Produto'),
             price: p.price || 0,
             raw: p,
-          })),
-          ...services.map((s) => ({
+          }
+        })
+
+        // Evita duplicar se o serviço já foi migrado para products
+        const existingProductNames = new Set(mappedProducts.map((mp) => mp.name.toLowerCase().trim()))
+        const mappedLegacyServices: SearchResult[] = services
+          .filter((s) => {
+            const sName = (s.title || s.name || '').toLowerCase().trim()
+            return !existingProductNames.has(sName)
+          })
+          .map((s) => ({
             id: s.id,
             kind: 'service' as const,
             name: s.title || s.name || 'Serviço',
             price: s.price || 0,
             raw: s,
-          })),
-        ]
+          }))
+
+        const mapped: SearchResult[] = [...mappedProducts, ...mappedLegacyServices]
         setResults(mapped)
       } catch {
         setResults([])
@@ -104,26 +122,29 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
   const handleSelectItem = (item: SearchResult) => {
     setSelectedItem(item)
     setQuantity(1)
+    setUnitPrice(item.price || 0)
     setTimeout(() => {
-      qtyInputRef.current?.focus()
-      qtyInputRef.current?.select()
+      unitPriceInputRef.current?.focus()
+      unitPriceInputRef.current?.select()
     }, 50)
   }
 
   const handleConfirmAdd = async () => {
     if (!selectedItem) return
     const validQty = Math.max(1, Number(quantity) || 1)
+    const validUnitPrice = Math.max(0, Number(unitPrice) || 0)
+    const itemSubtotal = validUnitPrice * validQty
     setAddingId(selectedItem.id)
     try {
-      const unitPrice = selectedItem.price || 0
-      const itemSubtotal = unitPrice * validQty
+      // Se for um item de catálogo legado (kind == service e não é do tipo Product)
+      const isLegacyService = selectedItem.kind === 'service' && !('type' in selectedItem.raw)
       await createOrderItem({
         service_order: orderId,
-        service: selectedItem.kind === 'service' ? selectedItem.id : undefined,
-        product: selectedItem.kind === 'product' ? selectedItem.id : undefined,
+        service: isLegacyService ? selectedItem.id : undefined,
+        product: !isLegacyService ? selectedItem.id : undefined,
         description: selectedItem.name,
         quantity: validQty,
-        unit_price: unitPrice,
+        unit_price: validUnitPrice,
         total: itemSubtotal,
       })
       // Recalcula o total da OS buscando todos os itens atualizados
@@ -147,9 +168,8 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
       toast({
         title:
           selectedItem.kind === 'product' ? 'Produto adicionado à OS' : 'Serviço adicionado à OS',
-        description: `${validQty}x ${selectedItem.name} — R$ ${itemSubtotal.toFixed(2)}`,
-      })
-      onAdded()
+        description: `${validQty}x ${selectedItem.name} — R$ ${itemSubtotal.toFixed(2)} (R$ ${validUnitPrice.toFixed(2)} un.)`,
+      })      onAdded()
       onOpenChange(false)
     } catch {
       toast({ title: 'Erro ao adicionar item', variant: 'destructive' })
@@ -172,14 +192,14 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
           </DialogTitle>
         </DialogHeader>
 
-        <div className="px-4 pb-2">
+        <div className="px-4 pb-2 space-y-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <Input
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Digite o nome do produto ou serviço..."
+              placeholder="Digite o nome do item ou código..."
               className="pl-8 pr-8 h-10 text-sm"
               autoComplete="off"
             />
@@ -193,9 +213,45 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
               </button>
             )}
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">
-            Busca em produtos e serviços em tempo real.
-          </p>
+
+          {/* Abas para filtrar resultados entre Todos | Produtos | Serviços */}
+          <div className="flex items-center gap-1.5 border-b border-slate-100 pb-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab('all')}
+              className={`text-xs px-2.5 py-1 rounded-md font-semibold transition-colors ${
+                activeTab === 'all'
+                  ? 'bg-slate-900 text-white shadow-2xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              Todos ({results.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('product')}
+              className={`text-xs px-2.5 py-1 rounded-md font-semibold flex items-center gap-1 transition-colors ${
+                activeTab === 'product'
+                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Package className="h-3 w-3" />
+              Produtos ({results.filter((r) => r.kind === 'product').length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('service')}
+              className={`text-xs px-2.5 py-1 rounded-md font-semibold flex items-center gap-1 transition-colors ${
+                activeTab === 'service'
+                  ? 'bg-emerald-600 text-white shadow-2xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Wrench className="h-3 w-3" />
+              Serviços ({results.filter((r) => r.kind === 'service').length})
+            </button>
+          </div>
         </div>
 
         <div className="max-h-[45vh] overflow-y-auto border-t border-slate-100">
@@ -213,74 +269,113 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
             </div>
           )}
 
-          {results.map((item) => {
-            const isSelected = selectedItem?.id === item.id && selectedItem?.kind === item.kind
-            return (
-              <button
-                key={`${item.kind}-${item.id}`}
-                type="button"
-                onClick={() => handleSelectItem(item)}
-                disabled={addingId !== null}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left border-b border-slate-50 last:border-0 transition-colors ${
-                  isSelected
-                    ? 'bg-indigo-50/80 ring-1 ring-inset ring-indigo-500'
-                    : 'hover:bg-slate-50'
-                } disabled:opacity-50`}
-              >
-                <span
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
-                    item.kind === 'product'
-                      ? 'bg-indigo-50 text-indigo-600'
-                      : 'bg-emerald-50 text-emerald-600'
-                  }`}
+          {results
+            .filter((item) => activeTab === 'all' || item.kind === activeTab)
+            .map((item) => {
+              const isSelected = selectedItem?.id === item.id && selectedItem?.kind === item.kind
+              return (
+                <button
+                  key={`${item.kind}-${item.id}`}
+                  type="button"
+                  onClick={() => handleSelectItem(item)}
+                  disabled={addingId !== null}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left border-b border-slate-50 last:border-0 transition-colors ${
+                    isSelected
+                      ? 'bg-indigo-50/80 ring-1 ring-inset ring-indigo-500'
+                      : 'hover:bg-slate-50'
+                  } disabled:opacity-50`}
                 >
-                  {item.kind === 'product' ? (
-                    <Package className="h-4 w-4" />
-                  ) : (
-                    <Wrench className="h-4 w-4" />
-                  )}
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-medium text-slate-900 truncate">
-                    {item.name}
-                  </span>
-                  <Badge
-                    variant="outline"
-                    className={`mt-0.5 text-[10px] h-4 px-1.5 ${
+                  <span
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
                       item.kind === 'product'
-                        ? 'border-indigo-200 text-indigo-600'
-                        : 'border-emerald-200 text-emerald-600'
+                        ? 'bg-indigo-50 text-indigo-600'
+                        : 'bg-emerald-50 text-emerald-600'
                     }`}
                   >
-                    {item.kind === 'product' ? 'Produto' : 'Serviço'}
-                  </Badge>
-                </span>
-                <span className="text-sm font-mono font-bold text-slate-900 shrink-0">
-                  R$ {(item.price || 0).toFixed(2)}
-                </span>
-              </button>
-            )
-          })}
+                    {item.kind === 'product' ? (
+                      <Package className="h-4 w-4" />
+                    ) : (
+                      <Wrench className="h-4 w-4" />
+                    )}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm font-medium text-slate-900 truncate">
+                      {item.name}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={`mt-0.5 text-[10px] h-4 px-1.5 ${
+                        item.kind === 'product'
+                          ? 'border-indigo-200 text-indigo-600'
+                          : 'border-emerald-200 text-emerald-600'
+                      }`}
+                    >
+                      {item.kind === 'product' ? 'Produto' : 'Serviço'}
+                    </Badge>
+                  </span>
+                  <span className="text-sm font-mono font-bold text-slate-900 shrink-0">
+                    R$ {(item.price || 0).toFixed(2)}
+                  </span>
+                </button>
+              )
+            })}
         </div>
 
         {selectedItem && (
           <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-3">
             <div className="flex items-center justify-between text-xs">
               <span className="font-semibold text-slate-700 truncate mr-2">
-                Selecionado: <strong className="text-slate-900">{selectedItem.name}</strong>
+                Item Selecionado: <strong className="text-slate-900">{selectedItem.name}</strong>
               </span>
-              <span className="font-mono text-slate-600 shrink-0">
-                Unitário: R$ {(selectedItem.price || 0).toFixed(2)}
-              </span>
+              <Badge
+                variant="outline"
+                className={`text-[10px] ${
+                  selectedItem.kind === 'product'
+                    ? 'border-indigo-200 text-indigo-700 bg-indigo-50'
+                    : 'border-emerald-200 text-emerald-700 bg-emerald-50'
+                }`}
+              >
+                {selectedItem.kind === 'product' ? 'Produto' : 'Serviço'}
+              </Badge>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
-              <div className="flex items-center gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
+              {/* Edição do Valor Unitário */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-700 block">
+                  Valor Unitário (R$) *
+                </label>
+                <Input
+                  ref={unitPriceInputRef}
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={unitPrice === 0 ? '' : unitPrice}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value) || 0)
+                    setUnitPrice(val)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleConfirmAdd()
+                    }
+                  }}
+                  placeholder="0,00"
+                  className="h-8 text-xs font-mono font-bold text-slate-900"
+                />
+                <span className="text-[10px] text-slate-400">
+                  Tabela original: R$ {(selectedItem.price || 0).toFixed(2)}
+                </span>
+              </div>
+
+              {/* Quantidade */}
+              <div className="space-y-1">
                 <label
                   htmlFor="order-item-qty"
-                  className="text-xs font-semibold text-slate-700 shrink-0"
+                  className="text-xs font-semibold text-slate-700 block"
                 >
-                  Quantidade:
+                  Quantidade
                 </label>
                 <div className="flex items-center gap-1">
                   <Button
@@ -310,7 +405,7 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
                         handleConfirmAdd()
                       }
                     }}
-                    className="h-8 w-16 text-center font-bold font-mono text-sm px-1"
+                    className="h-8 flex-1 text-center font-bold font-mono text-xs px-1"
                   />
                   <Button
                     type="button"
@@ -324,26 +419,27 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
                   </Button>
                 </div>
               </div>
+            </div>
 
-              <div className="flex items-center justify-between sm:justify-end gap-3 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                <div className="text-right">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                    Subtotal
-                  </span>
-                  <span className="font-mono font-bold text-sm text-indigo-600">
-                    R$ {((selectedItem.price || 0) * Math.max(1, Number(quantity) || 1)).toFixed(2)}
-                  </span>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleConfirmAdd}
-                  disabled={addingId !== null}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 px-3"
-                >
-                  {addingId !== null ? 'Adicionando...' : 'Adicionar Item'}
-                </Button>
+            {/* Recálculo em tempo real do Subtotal */}
+            <div className="flex items-center justify-between pt-1">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-500 block">
+                  Subtotal Calculado (Qtd × Valor Unitário)
+                </span>
+                <span className="font-mono font-bold text-base text-indigo-600">
+                  R$ {(Math.max(0, Number(unitPrice) || 0) * Math.max(1, Number(quantity) || 1)).toFixed(2)}
+                </span>
               </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleConfirmAdd}
+                disabled={addingId !== null}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-9 px-4 font-semibold shadow-xs"
+              >
+                {addingId !== null ? 'Adicionando...' : 'Adicionar à O.S.'}
+              </Button>
             </div>
           </div>
         )}

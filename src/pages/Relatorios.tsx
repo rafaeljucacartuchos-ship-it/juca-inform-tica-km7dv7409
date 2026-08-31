@@ -34,6 +34,7 @@ export default function Relatorios() {
   const [completedOrders, setCompletedOrders] = useState(0)
   const [payments, setPayments] = useState<any[]>([])
   const [orders, setOrders] = useState<ServiceOrder[]>([])
+  const [orderItems, setOrderItems] = useState<ServiceOrderItem[]>([])
   const [exportOpen, setExportOpen] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -41,6 +42,7 @@ export default function Relatorios() {
     Promise.all([getServiceOrders(), getAllOrderItems(), getAllPayments()])
       .then(([so, items, pay]: [ServiceOrder[], ServiceOrderItem[], any[]]) => {
         setOrders(so)
+        setOrderItems(items)
         setPayments(pay)
         setTotalOrders(so.length)
         setCompletedOrders(
@@ -237,6 +239,7 @@ export default function Relatorios() {
         payments={payments}
         technicians={[]}
         history={[]}
+        items={orderItems}
       />
     </div>
   )

@@ -269,6 +269,12 @@ export function PrintOrderDocument({
               {eq ? (
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                   <div>
+                    <strong className="text-slate-700">Tipo de Atendimento:</strong>{' '}
+                    <span className="font-semibold text-slate-900">
+                      {order.expand?.attendance_type?.name || '—'}
+                    </span>
+                  </div>
+                  <div>
                     <strong className="text-slate-700">Equipamento:</strong>{' '}
                     <span className="font-bold text-slate-900">{eq.name}</span>
                   </div>
@@ -293,11 +299,19 @@ export function PrintOrderDocument({
                   )}
                 </div>
               ) : (
-                <div>
-                  <strong className="text-slate-700">Equipamento / Modelo:</strong>{' '}
-                  <span className="font-semibold text-slate-900">
-                    {order.equipment || 'Não especificado'}
-                  </span>
+                <div className="space-y-1">
+                  <div>
+                    <strong className="text-slate-700">Tipo de Atendimento:</strong>{' '}
+                    <span className="font-semibold text-slate-900">
+                      {order.expand?.attendance_type?.name || '—'}
+                    </span>
+                  </div>
+                  <div>
+                    <strong className="text-slate-700">Equipamento / Modelo:</strong>{' '}
+                    <span className="font-semibold text-slate-900">
+                      {order.equipment || 'Não especificado'}
+                    </span>
+                  </div>
                 </div>
               )}
 

@@ -15,6 +15,7 @@ import {
   Package,
   UserCog,
   ChevronDown,
+  Tag,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -57,6 +58,16 @@ export function Sidebar({ onNavClick }: SidebarProps) {
       icon: Briefcase,
       permission: 'servicos' as PermissionModule,
     },
+    ...(user?.role === 'admin'
+      ? [
+          {
+            label: 'Tipos de Atendimento',
+            path: '/tipos-atendimento',
+            icon: Tag,
+            permission: 'service_types' as PermissionModule,
+          },
+        ]
+      : []),
   ]
   const cadastroChildren = allCadastroChildren.filter((c) => hasPermission(c.permission))
 

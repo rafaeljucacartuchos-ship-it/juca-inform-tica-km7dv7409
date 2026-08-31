@@ -58,6 +58,7 @@ export default function OrdemDetail() {
   const { toast } = useToast()
   const [order, setOrder] = useState<ServiceOrder | null>(null)
   const [items, setItems] = useState<ServiceOrderItem[]>([])
+  const [orderItemsTab, setOrderItemsTab] = useState<'all' | 'products' | 'services'>('all')
   const [history, setHistory] = useState<StatusHistory[]>([])
   const [catalog, setCatalog] = useState<CatalogService[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
@@ -170,6 +171,22 @@ export default function OrdemDetail() {
   }
 
   const handleStatusChange = async (newStatus: OrderStatus) => {
+    // Validação da regra de negócio: Equipamento obrigatório ao fechar/concluir a O.S.
+    if (newStatus === 'completed' || newStatus === 'closed' || newStatus === 'delivered') {
+      const hasEquipment = Boolean(
+        order.equipment_ref || (order.equipment && order.equipment.trim().length > 0),
+      )
+      if (!hasEquipment) {
+        toast({
+          title: 'Equipamento obrigatório ao fechar a O.S.',
+          description:
+            'Vincule ou cadastre um equipamento na ordem de serviço antes de finalizá-la.',
+          variant: 'destructive',
+        })
+        return
+      }
+    }
+
     try {
       const upd = await offlinePb.update('service_orders', order.id, { status: newStatus })
       if (upd.queued) {
@@ -253,6 +270,19 @@ export default function OrdemDetail() {
       })
       return
     }
+
+    const hasEquipment = Boolean(
+      order.equipment_ref || (order.equipment && order.equipment.trim().length > 0),
+    )
+    if (!hasEquipment) {
+      toast({
+        title: 'Equipamento obrigatório ao fechar a O.S.',
+        description: 'Vincule ou cadastre um equipamento na ordem de serviço antes de finalizá-la.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     try {
       const upd = await offlinePb.update('service_orders', order.id, {
         status: 'completed',
@@ -518,8 +548,20 @@ export default function OrdemDetail() {
                   </p>
                 </div>
                 <div>
+                  <span className="font-semibold text-slate-500">Tipo de Atendimento:</span>
+                  <p className="font-medium text-slate-900">
+                    {order.expand?.attendance_type?.name || 'Não informado'}
+                  </p>
+                </div>
+                <div>
                   <span className="font-semibold text-slate-500">Equipamento:</span>
-                  <p className="font-medium text-slate-900">{order.equipment || 'Não informado'}</p>
+                  <p className="font-medium text-slate-900">
+                    {order.equipment || (
+                      <span className="text-amber-600 font-semibold italic">
+                        Não vinculado (Obrigatório ao fechar)
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div>
                   <span className="font-semibold text-slate-500">Prioridade:</span>
@@ -610,77 +652,189 @@ export default function OrdemDetail() {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="sm:hidden divide-y divide-slate-100">
-                {items.map((item) => (
-                  <div key={item.id} className="p-3 space-y-1.5">
-                    <div className="flex justify-between items-start gap-2">
-                      <span className="font-medium text-xs text-slate-900 flex-1">
-                        {item.description}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteItem(item.id)}
-                        disabled={fieldsLocked}
-                        className="h-7 w-7 shrink-0 text-red-500 hover:bg-red-50"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+              {/* Abas de visualização de Itens: Todos | Produtos | Serviços */}
+              {(() => {
+                const productItems = items.filter(
+                  (it) => !!it.product && it.expand?.product?.type !== 'servico',
+                )
+                const serviceItems = items.filter(
+                  (it) => !!it.service || it.expand?.product?.type === 'servico',
+                )
+                const totalProd = productItems.reduce((acc, it) => acc + (it.total || 0), 0)
+                const totalServ = serviceItems.reduce((acc, it) => acc + (it.total || 0), 0)
+
+                const displayedItems =
+                  orderItemsTab === 'products'
+                    ? productItems
+                    : orderItemsTab === 'services'
+                      ? serviceItems
+                      : items
+
+                return (
+                  <div>
+                    <div className="flex items-center justify-between px-4 py-2 border-y border-slate-100 bg-slate-50/70 text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setOrderItemsTab('all')}
+                          className={`px-2.5 py-1 rounded font-semibold transition-colors ${
+                            orderItemsTab === 'all'
+                              ? 'bg-slate-900 text-white'
+                              : 'text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          Todos ({items.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setOrderItemsTab('products')}
+                          className={`px-2.5 py-1 rounded font-semibold flex items-center gap-1 transition-colors ${
+                            orderItemsTab === 'products'
+                              ? 'bg-indigo-600 text-white'
+                              : 'text-indigo-700 bg-indigo-50 hover:bg-indigo-100'
+                          }`}
+                        >
+                          <Package className="h-3 w-3" />
+                          Produtos ({productItems.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setOrderItemsTab('services')}
+                          className={`px-2.5 py-1 rounded font-semibold flex items-center gap-1 transition-colors ${
+                            orderItemsTab === 'services'
+                              ? 'bg-emerald-600 text-white'
+                              : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+                          }`}
+                        >
+                          <Wrench className="h-3 w-3" />
+                          Serviços ({serviceItems.length})
+                        </button>
+                      </div>
+
+                      <div className="hidden sm:flex items-center gap-3 text-[11px] text-slate-500 font-medium">
+                        <span>
+                          Produtos:{' '}
+                          <strong className="font-mono text-slate-800">
+                            R$ {totalProd.toFixed(2)}
+                          </strong>
+                        </span>
+                        <span>•</span>
+                        <span>
+                          Serviços:{' '}
+                          <strong className="font-mono text-slate-800">
+                            R$ {totalServ.toFixed(2)}
+                          </strong>
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-[11px] text-slate-500">
-                      <span>
-                        Qtd: {item.quantity || 1} × R$ {(item.unit_price || 0).toFixed(2)}
-                      </span>
-                      <span className="font-bold text-slate-900 text-xs">
-                        R$ {(item.total || 0).toFixed(2)}
-                      </span>
+
+                    <div className="sm:hidden divide-y divide-slate-100">
+                      {displayedItems.map((item) => {
+                        const isService = !!item.service || item.expand?.product?.type === 'servico'
+                        return (
+                          <div key={item.id} className="p-3 space-y-1.5">
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="flex-1">
+                                <span className="font-medium text-xs text-slate-900 block">
+                                  {item.description}
+                                </span>
+                                <span
+                                  className={`inline-flex items-center text-[9px] font-bold px-1.5 py-0.2 rounded mt-0.5 ${
+                                    isService
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : 'bg-indigo-100 text-indigo-800'
+                                  }`}
+                                >
+                                  {isService ? 'Serviço' : 'Produto'}
+                                </span>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteItem(item.id)}
+                                disabled={fieldsLocked}
+                                className="h-7 w-7 shrink-0 text-red-500 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                            <div className="flex justify-between text-[11px] text-slate-500">
+                              <span>
+                                Qtd: {item.quantity || 1} × R$ {(item.unit_price || 0).toFixed(2)}
+                              </span>
+                              <span className="font-bold text-slate-900 text-xs">
+                                R$ {(item.total || 0).toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                      {displayedItems.length === 0 && (
+                        <p className="py-6 text-center text-slate-400 text-xs">
+                          Nenhum item nesta aba.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="overflow-x-auto w-full">
+                      <table className="hidden sm:table w-full text-left text-xs">
+                        <thead className="bg-slate-50 border-b border-slate-200 text-slate-500">
+                          <tr>
+                            <th className="py-2.5 px-4">Tipo</th>
+                            <th className="py-2.5 px-4">Descrição</th>
+                            <th className="py-2.5 px-4 text-center">Qtd</th>
+                            <th className="py-2.5 px-4 text-right">Un.</th>
+                            <th className="py-2.5 px-4 text-right">Total</th>
+                            <th className="py-2.5 px-4"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {displayedItems.map((item) => {
+                            const isService =
+                              !!item.service || item.expand?.product?.type === 'servico'
+                            return (
+                              <tr key={item.id}>
+                                <td className="py-2.5 px-4">
+                                  <span
+                                    className={`inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                      isService
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : 'bg-indigo-100 text-indigo-800'
+                                    }`}
+                                  >
+                                    {isService ? 'Serviço' : 'Produto'}
+                                  </span>
+                                </td>
+                                <td className="py-2.5 px-4 font-medium">
+                                  {item.description || 'Item sem descrição'}
+                                </td>
+                                <td className="py-2.5 px-4 text-center">{item.quantity || 1}</td>
+                                <td className="py-2.5 px-4 text-right font-mono">
+                                  R$ {(item.unit_price || 0).toFixed(2)}
+                                </td>
+                                <td className="py-2.5 px-4 text-right font-mono font-bold">
+                                  R$ {(item.total || 0).toFixed(2)}
+                                </td>
+                                <td className="py-2.5 px-4 text-right">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDeleteItem(item.id)}
+                                    disabled={fieldsLocked}
+                                    className="h-7 w-7 text-red-500 hover:bg-red-50"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
-                ))}
-                {items.length === 0 && (
-                  <p className="py-6 text-center text-slate-400 text-xs">Nenhum item adicionado.</p>
-                )}
-              </div>
-              <div className="overflow-x-auto w-full">
-                <table className="hidden sm:table w-full text-left text-xs">
-                  <thead className="bg-slate-50 border-y border-slate-200 text-slate-500">
-                    <tr>
-                      <th className="py-2.5 px-4">Descrição</th>
-                      <th className="py-2.5 px-4 text-center">Qtd</th>
-                      <th className="py-2.5 px-4 text-right">Un.</th>
-                      <th className="py-2.5 px-4 text-right">Total</th>
-                      <th className="py-2.5 px-4"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {items.map((item) => (
-                      <tr key={item.id}>
-                        <td className="py-2.5 px-4 font-medium">
-                          {item.description || 'Item sem descrição'}
-                        </td>
-                        <td className="py-2.5 px-4 text-center">{item.quantity || 1}</td>
-                        <td className="py-2.5 px-4 text-right font-mono">
-                          R$ {(item.unit_price || 0).toFixed(2)}
-                        </td>
-                        <td className="py-2.5 px-4 text-right font-mono font-bold">
-                          R$ {(item.total || 0).toFixed(2)}
-                        </td>
-                        <td className="py-2.5 px-4 text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteItem(item.id)}
-                            disabled={fieldsLocked}
-                            className="h-7 w-7 text-red-500 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                )
+              })()}
               {/* Resumo Financeiro com Subtotal, Desconto, Acréscimo e Total */}
               <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-2 text-xs">
                 <div className="flex justify-between items-center text-slate-600 font-medium">

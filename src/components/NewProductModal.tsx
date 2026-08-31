@@ -46,6 +46,7 @@ export function NewProductModal({
 
   const [formData, setFormData] = useState({
     name: '',
+    type: 'produto' as 'produto' | 'servico',
     description: '',
     sku: '',
     barcode: '',
@@ -86,6 +87,7 @@ export function NewProductModal({
       if (editProduct) {
         setFormData({
           name: editProduct.name || '',
+          type: editProduct.type || 'produto',
           description: editProduct.description || '',
           sku: editProduct.sku || '',
           barcode: editProduct.barcode || editProduct.codigo_barras || '',
@@ -110,6 +112,7 @@ export function NewProductModal({
       } else {
         setFormData({
           name: '',
+          type: 'produto',
           description: '',
           sku: '',
           barcode: '',
@@ -190,6 +193,7 @@ export function NewProductModal({
         // Envio multipart com arquivo de foto
         const form = new FormData()
         form.append('name', formData.name)
+        form.append('type', formData.type)
         form.append('description', formData.description)
         form.append('sku', formData.sku)
         form.append('barcode', formData.barcode)
@@ -211,6 +215,7 @@ export function NewProductModal({
       } else {
         const payload = {
           name: formData.name,
+          type: formData.type,
           description: formData.description,
           sku: formData.sku,
           barcode: formData.barcode,
@@ -249,10 +254,47 @@ export function NewProductModal({
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3 py-2">
+          {/* Seletor de Tipo: Produto vs Serviço */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-slate-700">Tipo de Cadastro *</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, type: 'produto' })}
+                className={`flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-bold border transition-colors ${
+                  formData.type === 'produto'
+                    ? 'bg-indigo-50 border-indigo-500 text-indigo-700 ring-1 ring-indigo-500'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <Package className="h-4 w-4" />
+                <span>Produto / Peça</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, type: 'servico' })}
+                className={`flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-bold border transition-colors ${
+                  formData.type === 'servico'
+                    ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-1 ring-emerald-500'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <Wrench className="h-4 w-4" />
+                <span>Mão de Obra / Serviço</span>
+              </button>
+            </div>
+          </div>
+
           <div className="space-y-1">
-            <Label className="text-xs font-semibold text-slate-700">Nome *</Label>
+            <Label className="text-xs font-semibold text-slate-700">
+              {formData.type === 'servico' ? 'Nome do Serviço *' : 'Nome do Produto *'}
+            </Label>
             <Input
-              placeholder="Ex: HD SSD 480GB"
+              placeholder={
+                formData.type === 'servico'
+                  ? 'Ex: Formatação de Notebook'
+                  : 'Ex: HD SSD 480GB Kingston'
+              }
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="h-9 text-xs"
