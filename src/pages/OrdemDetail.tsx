@@ -49,6 +49,7 @@ import { offlinePb } from '@/lib/offline-pb'
 import { PaymentModal } from '@/components/PaymentModal'
 import { OrderPhotos } from '@/components/OrderPhotos'
 import { OrderSignatures } from '@/components/OrderSignatures'
+import { NewEquipmentModal } from '@/components/NewEquipmentModal'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -74,6 +75,7 @@ export default function OrdemDetail() {
   const [searchItemOpen, setSearchItemOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ServiceOrderItem | null>(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
+  const [equipmentModalOpen, setEquipmentModalOpen] = useState(false)
   const canEdit = user?.role === 'technician' || user?.role === 'admin'
   // Antes de iniciar o atendimento (started_at vazio), os campos editáveis
   // ficam bloqueados para o técnico. Após iniciar, ficam liberados.
@@ -418,6 +420,50 @@ export default function OrdemDetail() {
     }
   }
 
+  const handleEquipmentCreated = async (created?: any) => {
+    if (!order || !created?.id) return
+    const equipmentLabel = `${created.name || 'Equipamento'}${
+      created.brand ? ' - ' + created.brand : ''
+    }${created.model ? ' ' + created.model : ''}`
+
+    try {
+      const upd = await offlinePb.update('service_orders', order.id, {
+        equipment_ref: created.id,
+        equipment: equipmentLabel,
+      })
+      if (upd.queued) {
+        toast({
+          title: 'Equipamento vinculado localmente',
+          description: 'Será sincronizado quando houver conexão.',
+        })
+      } else {
+        toast({
+          title: 'Equipamento vinculado com sucesso!',
+          description: equipmentLabel,
+        })
+      }
+      setOrder((prev) =>
+        prev
+          ? {
+              ...prev,
+              equipment_ref: created.id,
+              equipment: equipmentLabel,
+              expand: {
+                ...prev.expand,
+                equipment_ref: created,
+              },
+            }
+          : prev,
+      )
+      loadAll()
+    } catch {
+      toast({
+        title: 'Erro ao vincular equipamento à O.S.',
+        variant: 'destructive',
+      })
+    }
+  }
+
   const handleScanProduct = async (code: string) => {
     if (!order || addingByCode) return
     setAddingByCode(true)
@@ -566,13 +612,34 @@ export default function OrdemDetail() {
                 </div>
                 <div>
                   <span className="font-semibold text-slate-500">Equipamento:</span>
-                  <p className="font-medium text-slate-900">
-                    {order.equipment || (
-                      <span className="text-amber-600 font-semibold italic">
-                        Não vinculado (Obrigatório ao fechar)
-                      </span>
+                  <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                    {order.equipment_ref ||
+                    (order.equipment && order.equipment.trim().length > 0) ? (
+                      <p className="font-medium text-slate-900">
+                        {order.equipment ||
+                          order.expand?.equipment_ref?.name ||
+                          'Equipamento vinculado'}
+                      </p>
+                    ) : (
+                      <>
+                        <span className="text-amber-600 font-semibold italic text-xs">
+                          Não vinculado (Obrigatório ao fechar)
+                        </span>
+                        {canEdit && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setEquipmentModalOpen(true)}
+                            className="h-6 text-[11px] font-medium border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 px-2 gap-1 rounded"
+                          >
+                            <Plus className="h-3 w-3" />
+                            Vincular / Cadastrar
+                          </Button>
+                        )}
+                      </>
                     )}
-                  </p>
+                  </div>
                 </div>
                 <div>
                   <span className="font-semibold text-slate-500">Prioridade:</span>
@@ -1058,6 +1125,13 @@ export default function OrdemDetail() {
         item={editingItem}
         orderId={order.id}
         onSaved={loadAll}
+      />
+
+      <NewEquipmentModal
+        open={equipmentModalOpen}
+        onOpenChange={setEquipmentModalOpen}
+        onCreated={handleEquipmentCreated}
+        defaultCustomerId={order.customer}
       />
     </div>
   )
