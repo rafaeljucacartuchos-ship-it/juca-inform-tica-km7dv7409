@@ -193,6 +193,38 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
     selectedServiceType?.name?.trim().toLowerCase() === 'balcão' ||
     (!formData.attendance_type && serviceTypes.length === 0)
 
+  const handleTimeChange = (rawValue: string) => {
+    const digits = rawValue.replace(/\D/g, '').slice(0, 4)
+    let formatted = digits
+    if (digits.length >= 3) {
+      formatted = `${digits.slice(0, 2)}:${digits.slice(2, 4)}`
+    } else if (digits.length > 2) {
+      formatted = `${digits.slice(0, 2)}:${digits.slice(2)}`
+    }
+
+    setFormData((prev) => ({ ...prev, attendance_time: formatted }))
+
+    if (errors.attendance_time) {
+      setErrors((prev) => {
+        const next = { ...prev }
+        delete next.attendance_time
+        return next
+      })
+    }
+
+    if (formatted.length === 5) {
+      const [hStr, mStr] = formatted.split(':')
+      const h = parseInt(hStr, 10)
+      const m = parseInt(mStr, 10)
+      if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) {
+        setErrors((prev) => ({
+          ...prev,
+          attendance_time: 'Horário inválido. Use um horário entre 00:00 e 23:59',
+        }))
+      }
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrors({})
@@ -217,6 +249,15 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
     }
     if (!formData.attendance_time) {
       setErrors((prev) => ({ ...prev, attendance_time: 'Informe o horário do atendimento' }))
+      return
+    }
+
+    const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/
+    if (!timeRegex.test(formData.attendance_time)) {
+      setErrors((prev) => ({
+        ...prev,
+        attendance_time: 'Horário inválido. Formato esperado: HH:MM (00:00 a 23:59)',
+      }))
       return
     }
 
@@ -608,10 +649,13 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
                   Horário do Atendimento *
                 </Label>
                 <Input
-                  type="time"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="HH:MM"
+                  maxLength={5}
                   value={formData.attendance_time}
-                  onChange={(e) => setFormData({ ...formData, attendance_time: e.target.value })}
-                  className="h-9 text-xs"
+                  onChange={(e) => handleTimeChange(e.target.value)}
+                  className="h-9 text-xs font-mono"
                 />
                 {errors.attendance_time && (
                   <p className="text-[11px] text-red-500">{errors.attendance_time}</p>
