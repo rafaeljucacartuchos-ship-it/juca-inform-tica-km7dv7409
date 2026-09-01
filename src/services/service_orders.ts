@@ -39,6 +39,9 @@ export const getAllOrderItems = () =>
 export const createOrderItem = (data: Partial<ServiceOrderItem>) =>
   pb.collection('service_order_items').create<ServiceOrderItem>(data)
 
+export const updateOrderItem = (id: string, data: Partial<ServiceOrderItem>) =>
+  pb.collection('service_order_items').update<ServiceOrderItem>(id, data)
+
 export const deleteOrderItem = (id: string) => pb.collection('service_order_items').delete(id)
 
 export const getStatusHistory = (orderId: string) =>

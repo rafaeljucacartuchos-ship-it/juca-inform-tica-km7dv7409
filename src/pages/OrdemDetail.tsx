@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { BarcodeScanner } from '@/components/BarcodeScanner'
 import { AddOrderItemModal } from '@/components/AddOrderItemModal'
+import { EditOrderItemModal } from '@/components/EditOrderItemModal'
 import { getProduct } from '@/services/products'
 import { Product } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -71,6 +72,8 @@ export default function OrdemDetail() {
   const [scannerOpen, setScannerOpen] = useState(false)
   const [addingByCode, setAddingByCode] = useState(false)
   const [searchItemOpen, setSearchItemOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<ServiceOrderItem | null>(null)
+  const [editModalOpen, setEditModalOpen] = useState(false)
   const canEdit = user?.role === 'technician' || user?.role === 'admin'
   // Antes de iniciar o atendimento (started_at vazio), os campos editáveis
   // ficam bloqueados para o técnico. Após iniciar, ficam liberados.
@@ -347,6 +350,12 @@ export default function OrdemDetail() {
     const shareUrl = `${window.location.origin}/share/${order.id}`
     navigator.clipboard.writeText(shareUrl)
     toast({ title: 'Link de compartilhamento copiado!' })
+  }
+
+  const handleOpenEditItem = (item: ServiceOrderItem) => {
+    if (fieldsLocked) return
+    setEditingItem(item)
+    setEditModalOpen(true)
   }
 
   const handleAddItem = async () => {
@@ -734,10 +743,19 @@ export default function OrdemDetail() {
                       {displayedItems.map((item) => {
                         const isService = !!item.service || item.expand?.product?.type === 'servico'
                         return (
-                          <div key={item.id} className="p-3 space-y-1.5">
+                          <div
+                            key={item.id}
+                            onClick={() => handleOpenEditItem(item)}
+                            className={`p-3 space-y-1.5 transition-colors ${
+                              fieldsLocked
+                                ? 'opacity-90'
+                                : 'cursor-pointer hover:bg-slate-50/80 active:bg-slate-100/70'
+                            }`}
+                            title={fieldsLocked ? undefined : 'Clique para editar o item'}
+                          >
                             <div className="flex justify-between items-start gap-2">
                               <div className="flex-1">
-                                <span className="font-medium text-xs text-slate-900 block">
+                                <span className="font-medium text-xs text-slate-900 block group-hover:text-indigo-600">
                                   {item.description}
                                 </span>
                                 <span
@@ -753,16 +771,25 @@ export default function OrdemDetail() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleDeleteItem(item.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDeleteItem(item.id)
+                                }}
                                 disabled={fieldsLocked}
                                 className="h-7 w-7 shrink-0 text-red-500 hover:bg-red-50"
+                                title="Excluir item"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </div>
                             <div className="flex justify-between text-[11px] text-slate-500">
-                              <span>
+                              <span className="flex items-center gap-1">
                                 Qtd: {item.quantity || 1} × R$ {(item.unit_price || 0).toFixed(2)}
+                                {!fieldsLocked && (
+                                  <span className="text-[10px] text-indigo-600 font-medium ml-1">
+                                    (editar)
+                                  </span>
+                                )}
                               </span>
                               <span className="font-bold text-slate-900 text-xs">
                                 R$ {(item.total || 0).toFixed(2)}
@@ -787,7 +814,7 @@ export default function OrdemDetail() {
                             <th className="py-2.5 px-4 text-center">Qtd</th>
                             <th className="py-2.5 px-4 text-right">Un.</th>
                             <th className="py-2.5 px-4 text-right">Total</th>
-                            <th className="py-2.5 px-4"></th>
+                            <th className="py-2.5 px-4 text-right">Ações</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -795,7 +822,20 @@ export default function OrdemDetail() {
                             const isService =
                               !!item.service || item.expand?.product?.type === 'servico'
                             return (
-                              <tr key={item.id}>
+                              <tr
+                                key={item.id}
+                                onClick={() => handleOpenEditItem(item)}
+                                className={`transition-colors group ${
+                                  fieldsLocked
+                                    ? 'opacity-90'
+                                    : 'cursor-pointer hover:bg-indigo-50/40'
+                                }`}
+                                title={
+                                  fieldsLocked
+                                    ? undefined
+                                    : 'Clique na linha para editar valor ou quantidade'
+                                }
+                              >
                                 <td className="py-2.5 px-4">
                                   <span
                                     className={`inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded ${
@@ -807,26 +847,41 @@ export default function OrdemDetail() {
                                     {isService ? 'Serviço' : 'Produto'}
                                   </span>
                                 </td>
-                                <td className="py-2.5 px-4 font-medium">
-                                  {item.description || 'Item sem descrição'}
+                                <td className="py-2.5 px-4 font-medium text-slate-900 group-hover:text-indigo-600 transition-colors">
+                                  <div className="flex items-center gap-1.5">
+                                    <span>{item.description || 'Item sem descrição'}</span>
+                                    {!fieldsLocked && (
+                                      <span className="opacity-0 group-hover:opacity-100 text-[10px] text-indigo-500 transition-opacity">
+                                        (clique para editar)
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
-                                <td className="py-2.5 px-4 text-center">{item.quantity || 1}</td>
+                                <td className="py-2.5 px-4 text-center font-semibold text-slate-800">
+                                  {item.quantity || 1}
+                                </td>
                                 <td className="py-2.5 px-4 text-right font-mono">
                                   R$ {(item.unit_price || 0).toFixed(2)}
                                 </td>
-                                <td className="py-2.5 px-4 text-right font-mono font-bold">
+                                <td className="py-2.5 px-4 text-right font-mono font-bold text-slate-900">
                                   R$ {(item.total || 0).toFixed(2)}
                                 </td>
                                 <td className="py-2.5 px-4 text-right">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleDeleteItem(item.id)}
-                                    disabled={fieldsLocked}
-                                    className="h-7 w-7 text-red-500 hover:bg-red-50"
+                                  <div
+                                    className="flex items-center justify-end gap-1"
+                                    onClick={(e) => e.stopPropagation()}
                                   >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleDeleteItem(item.id)}
+                                      disabled={fieldsLocked}
+                                      className="h-7 w-7 text-red-500 hover:bg-red-50"
+                                      title="Excluir item"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
                                 </td>
                               </tr>
                             )
@@ -995,6 +1050,14 @@ export default function OrdemDetail() {
         orderId={order.id}
         currentTotal={order.total || 0}
         onAdded={loadAll}
+      />
+
+      <EditOrderItemModal
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        item={editingItem}
+        orderId={order.id}
+        onSaved={loadAll}
       />
     </div>
   )
