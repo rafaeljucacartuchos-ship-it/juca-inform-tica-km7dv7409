@@ -7,7 +7,7 @@ import { PushNotificationPrompt } from '@/components/PushNotificationPrompt'
 
 export default function Layout() {
   return (
-    <div className="flex h-[100dvh] w-full overflow-hidden bg-slate-50 font-sans text-slate-900 antialiased">
+    <div className="flex h-[100dvh] w-full overflow-hidden bg-slate-50 font-sans text-slate-900 antialiased pb-[env(safe-area-inset-bottom)]">
       <div className="hidden lg:block lg:w-64 shrink-0">
         <Sidebar />
       </div>
