@@ -10,8 +10,17 @@ onRecordAfterCreateSuccess((e) => {
       if (custId) {
         var cust = $app.findRecordById('customers', custId)
         if (cust) {
-          var phone = cust.getString('phone')
+          var phone = cust.getString('celular') || cust.getString('phone')
           if (phone) {
+            var digits = phone.replace(/\D/g, '')
+            if (digits.length === 10 || digits.length === 11) {
+              digits = '55' + digits
+            }
+            var custName =
+              cust.getString('razao_social') ||
+              cust.getString('nome_fantasia') ||
+              cust.getString('name') ||
+              'Cliente'
             var siteUrl = ($secrets.get('SITE_URL') || '').replace(/\/$/, '')
             var shareUrl = siteUrl + '/share/' + e.record.id
             // ENVIO INICIAL: apenas o link de compartilhamento/assinatura, SEM avaliação.
@@ -19,7 +28,7 @@ onRecordAfterCreateSuccess((e) => {
             var msg =
               '🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n' +
               'Olá ' +
-              cust.getString('name') +
+              custName +
               '! Sua Ordem de Serviço *' +
               number +
               '* foi criada com status: *Aberta*.\n\n' +
@@ -27,8 +36,7 @@ onRecordAfterCreateSuccess((e) => {
               shareUrl +
               '\n\nQualquer dúvida, estamos à disposição!\n\n' +
               'Juca Cartuchos e Informática Ltda\n(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981'
-            var waUrl =
-              'https://wa.me/' + phone.replace(/\D/g, '') + '?text=' + encodeURIComponent(msg)
+            var waUrl = 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg)
             $http.send({ url: waUrl, method: 'GET', timeout: 10 })
             $app
               .logger()
@@ -106,8 +114,17 @@ onRecordAfterUpdateSuccess((e) => {
       if (custId) {
         var cust = $app.findRecordById('customers', custId)
         if (cust) {
-          var phone = cust.getString('phone')
+          var phone = cust.getString('celular') || cust.getString('phone')
           if (phone) {
+            var digits = phone.replace(/\D/g, '')
+            if (digits.length === 10 || digits.length === 11) {
+              digits = '55' + digits
+            }
+            var custName =
+              cust.getString('razao_social') ||
+              cust.getString('nome_fantasia') ||
+              cust.getString('name') ||
+              'Cliente'
             var siteUrl = ($secrets.get('SITE_URL') || '').replace(/\/$/, '')
             var shareUrl = siteUrl + '/share/' + e.record.id
             var statusLabels = {
@@ -129,7 +146,7 @@ onRecordAfterUpdateSuccess((e) => {
               msg =
                 '🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n' +
                 'Olá ' +
-                cust.getString('name') +
+                custName +
                 '! Sua Ordem de Serviço *' +
                 number +
                 '* foi *CONCLUÍDA*! 🎉\n\n' +
@@ -147,7 +164,7 @@ onRecordAfterUpdateSuccess((e) => {
               msg =
                 '🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n' +
                 'Olá ' +
-                cust.getString('name') +
+                custName +
                 '! Sua Ordem de Serviço *' +
                 number +
                 '* foi atualizada para: *' +
@@ -159,8 +176,7 @@ onRecordAfterUpdateSuccess((e) => {
                 'Juca Cartuchos e Informática Ltda\n(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981'
             }
 
-            var waUrl =
-              'https://wa.me/' + phone.replace(/\D/g, '') + '?text=' + encodeURIComponent(msg)
+            var waUrl = 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg)
             $http.send({ url: waUrl, method: 'GET', timeout: 10 })
             $app
               .logger()

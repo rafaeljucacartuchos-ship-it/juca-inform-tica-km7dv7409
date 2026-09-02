@@ -43,6 +43,7 @@ import {
 } from '@/types'
 import { getServiceOrder, getOrderItems, getStatusHistory } from '@/services/service_orders'
 import { getCatalogServices } from '@/services/services_catalog'
+import { getCustomerPhone, getCustomerDisplayName } from '@/services/customers'
 import { getOrderPayments } from '@/services/payments'
 import pb from '@/lib/pocketbase/client'
 import { offlinePb } from '@/lib/offline-pb'
@@ -222,13 +223,13 @@ export default function OrdemDetail() {
       } else {
         toast({ title: 'Status alterado com sucesso!' })
       }
-      const phone = order.expand?.customer?.phone || ''
+      const phone = getCustomerPhone(order.expand?.customer)
       if (phone && canEdit) {
         const shareUrl = `${window.location.origin}/share/${order.id}`
         openWhatsApp(
           phone,
           buildServiceMessage(
-            order.expand?.customer?.name || 'Cliente',
+            getCustomerDisplayName(order.expand?.customer),
             order.number,
             newStatus,
             shareUrl,
@@ -308,8 +309,8 @@ export default function OrdemDetail() {
         toast({ title: 'Histórico salvo localmente. Será sincronizado quando houver conexão.' })
       }
       if (!upd.queued && !hist.queued) toast({ title: 'Serviço concluído com sucesso!' })
-      const phone = order.expand?.customer?.phone || ''
-      const name = order.expand?.customer?.name || 'Cliente'
+      const phone = getCustomerPhone(order.expand?.customer)
+      const name = getCustomerDisplayName(order.expand?.customer)
       const shareUrl = `${window.location.origin}/share/${order.id}`
       if (phone) triggerWhatsAppEvaluation(phone, name, order.number, shareUrl)
       loadAll()
@@ -333,13 +334,13 @@ export default function OrdemDetail() {
   }
 
   const handleWhatsApp = () => {
-    const phone = order.expand?.customer?.phone || ''
+    const phone = getCustomerPhone(order.expand?.customer)
     if (!phone) {
       toast({ title: 'Cliente sem telefone cadastrado', variant: 'destructive' })
       return
     }
     const shareUrl = `${window.location.origin}/share/${order.id}`
-    const name = order.expand?.customer?.name || 'Cliente'
+    const name = getCustomerDisplayName(order.expand?.customer)
     // O.S. concluída: envia a mensagem de avaliação. Caso contrário, mensagem padrão.
     if (order.status === 'completed') {
       triggerWhatsAppEvaluation(phone, name, order.number, shareUrl)

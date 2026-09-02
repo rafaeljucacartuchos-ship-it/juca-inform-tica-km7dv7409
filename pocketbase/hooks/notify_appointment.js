@@ -10,17 +10,25 @@ onRecordAfterCreateSuccess((e) => {
       $app.expandRecord(rec, ['customer'])
       var cust = rec.expanded('customer')
       if (cust) {
-        var phone = cust.getString('phone')
+        var phone = cust.getString('celular') || cust.getString('phone')
         if (phone) {
+          var digits = phone.replace(/\D/g, '')
+          if (digits.length === 10 || digits.length === 11) {
+            digits = '55' + digits
+          }
+          var custName =
+            cust.getString('razao_social') ||
+            cust.getString('nome_fantasia') ||
+            cust.getString('name') ||
+            'Cliente'
           var msg =
             'Olá ' +
-            cust.getString('name') +
+            custName +
             '! Sua visita técnica foi agendada para ' +
             date +
             (startTime ? ' às ' + startTime : '') +
             '.\n\nJuca Cartuchos e Informática Ltda\n(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981'
-          var waUrl =
-            'https://wa.me/' + phone.replace(/\D/g, '') + '?text=' + encodeURIComponent(msg)
+          var waUrl = 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg)
           $http.send({ url: waUrl, method: 'GET', timeout: 10 })
           $app
             .logger()
@@ -75,17 +83,25 @@ onRecordAfterUpdateSuccess((e) => {
       $app.expandRecord(rec, ['customer'])
       var cust = rec.expanded('customer')
       if (cust) {
-        var phone = cust.getString('phone')
+        var phone = cust.getString('celular') || cust.getString('phone')
         if (phone) {
+          var digits = phone.replace(/\D/g, '')
+          if (digits.length === 10 || digits.length === 11) {
+            digits = '55' + digits
+          }
+          var custName =
+            cust.getString('razao_social') ||
+            cust.getString('nome_fantasia') ||
+            cust.getString('name') ||
+            'Cliente'
           var msg =
             'Olá ' +
-            cust.getString('name') +
+            custName +
             '! Seu agendamento foi atualizado para ' +
             currDate +
             (currStart ? ' às ' + currStart : '') +
             '.\n\nJuca Cartuchos e Informática Ltda\n(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981'
-          var waUrl =
-            'https://wa.me/' + phone.replace(/\D/g, '') + '?text=' + encodeURIComponent(msg)
+          var waUrl = 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg)
           $http.send({ url: waUrl, method: 'GET', timeout: 10 })
           $app
             .logger()

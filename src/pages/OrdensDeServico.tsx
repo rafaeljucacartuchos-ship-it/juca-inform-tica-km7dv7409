@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select'
 import { ServiceOrder, OrderStatus, Customer, User } from '@/types'
 import { getServiceOrders, updateServiceOrder, addStatusHistory } from '@/services/service_orders'
-import { getCustomers } from '@/services/customers'
+import { getCustomers, getCustomerDisplayName, getCustomerPhone } from '@/services/customers'
 import { getTechnicians } from '@/services/users'
 import { StatusBadge } from '@/components/StatusBadge'
 import { NewOrderModal } from '@/components/NewOrderModal'
@@ -203,10 +203,10 @@ export default function OrdensDeServico() {
       toast({ title: 'Status da OS atualizado com sucesso!' })
       const changedOrder = orders.find((o) => o.id === orderId)
       if (changedOrder && user?.role !== 'technician') {
-        const phone = changedOrder.expand?.customer?.phone || ''
+        const phone = getCustomerPhone(changedOrder.expand?.customer)
         if (phone) {
           const shareUrl = `${window.location.origin}/share/${changedOrder.id}`
-          const name = changedOrder.expand?.customer?.name || 'Cliente'
+          const name = getCustomerDisplayName(changedOrder.expand?.customer)
           if (newStatus === 'completed') {
             triggerWhatsAppEvaluation(phone, name, changedOrder.number, shareUrl)
           } else {
@@ -221,7 +221,7 @@ export default function OrdensDeServico() {
   }
 
   const handleNotifyClient = (order: ServiceOrder) => {
-    const phone = order.expand?.customer?.phone || ''
+    const phone = getCustomerPhone(order.expand?.customer)
     if (!phone) {
       toast({ title: 'Cliente sem telefone cadastrado', variant: 'destructive' })
       return
@@ -230,7 +230,7 @@ export default function OrdensDeServico() {
     openWhatsApp(
       phone,
       buildServiceMessage(
-        order.expand?.customer?.name || 'Cliente',
+        getCustomerDisplayName(order.expand?.customer),
         order.number,
         order.status,
         shareUrl,
