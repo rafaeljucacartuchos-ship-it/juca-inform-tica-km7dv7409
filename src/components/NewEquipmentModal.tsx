@@ -32,6 +32,7 @@ import heic2any from 'heic2any'
 import { Customer, EquipmentType, Equipment } from '@/types'
 import { getCustomers, getCustomer } from '@/services/customers'
 import { createEquipmentWithPhotos } from '@/services/equipment'
+import { formatPhone } from '@/lib/phones'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
 
@@ -276,7 +277,10 @@ export function NewEquipmentModal({
       selectedCustomer.name ||
       'Cliente Selecionado'
     : ''
-  const selectedPhone = selectedCustomer?.celular || selectedCustomer?.phone
+  const selectedPhone =
+    selectedCustomer?.celular || selectedCustomer?.phone
+      ? formatPhone(selectedCustomer?.celular || selectedCustomer?.phone)
+      : ''
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -333,7 +337,8 @@ export function NewEquipmentModal({
                     <CommandGroup>
                       {customers.map((c) => {
                         const displayName = c.nome_fantasia || c.razao_social || c.name || 'Cliente'
-                        const phone = c.celular || c.phone
+                        const rawPhone = c.celular || c.phone
+                        const phone = rawPhone ? formatPhone(rawPhone) : ''
                         const isSelected = formData.customer === c.id
                         const showSecondaryCode =
                           Boolean(c.nome_fantasia) &&

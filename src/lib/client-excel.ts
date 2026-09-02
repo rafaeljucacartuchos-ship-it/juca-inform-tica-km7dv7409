@@ -1,6 +1,7 @@
 import pb from '@/lib/pocketbase/client'
 import { Customer } from '@/types'
 import { readSpreadsheetMatrix, normalizeHeader } from '@/lib/product-excel'
+import { normalizePhone, formatPhone } from '@/lib/phones'
 import * as XLSX from 'xlsx'
 
 /**
@@ -342,12 +343,13 @@ export async function parseClientsFile(file: File): Promise<ParsedCustomerRow[]>
       colIndices.nome_fantasia >= 0 ? String(row[colIndices.nome_fantasia] || '').trim() : ''
     const endereco = colIndices.endereco >= 0 ? String(row[colIndices.endereco] || '').trim() : ''
     const bairro = colIndices.bairro >= 0 ? String(row[colIndices.bairro] || '').trim() : ''
-    const celular = colIndices.celular >= 0 ? String(row[colIndices.celular] || '').trim() : ''
+    const rawCelular = colIndices.celular >= 0 ? String(row[colIndices.celular] || '').trim() : ''
+    const celular = normalizePhone(rawCelular)
     const rg_ie = colIndices.rg_ie >= 0 ? String(row[colIndices.rg_ie] || '').trim() : ''
     const cpf_cnpj = colIndices.cpf_cnpj >= 0 ? String(row[colIndices.cpf_cnpj] || '').trim() : ''
 
     // Se a linha estiver totalmente vazia
-    if (!razao_social && !nome_fantasia && !celular && !cpf_cnpj && !endereco) {
+    if (!razao_social && !nome_fantasia && !celular && !rawCelular && !cpf_cnpj && !endereco) {
       continue
     }
 
@@ -451,17 +453,18 @@ export async function importClientsData(
 
       const mainName = r.razao_social || r.nome_fantasia || 'Cliente'
 
+      const normalizedPhone = normalizePhone(r.celular)
       const payload: Partial<Customer> = {
         razao_social: r.razao_social,
         nome_fantasia: r.nome_fantasia,
         endereco: r.endereco,
         bairro: r.bairro,
-        celular: r.celular,
+        celular: normalizedPhone,
         rg_ie: r.rg_ie,
         cpf_cnpj: r.cpf_cnpj,
         // Compatibilidade legada
         name: mainName,
-        phone: r.celular || '',
+        phone: normalizedPhone,
         street: r.endereco || '',
       }
 
@@ -516,7 +519,7 @@ export function exportClientsToExcel(customers: Customer[], fileName = 'clientes
     'Nome Fantasia': c.nome_fantasia || c.razao_social || c.name || '',
     Endereço: c.endereco || c.street || '',
     Bairro: c.bairro || '',
-    Celular: c.celular || c.phone || '',
+    Celular: formatPhone(c.celular || c.phone || ''),
     'RG/IE': c.rg_ie || '',
     'CPF/CNPJ': c.cpf_cnpj || '',
   }))

@@ -21,6 +21,7 @@ import {
 import { Customer, User } from '@/types'
 import { getCustomers } from '@/services/customers'
 import { getTechnicians } from '@/services/users'
+import { formatPhone } from '@/lib/phones'
 import { createAppointment } from '@/services/appointments'
 import { createServiceOrder, addStatusHistory } from '@/services/service_orders'
 import { useAuth } from '@/hooks/use-auth'
@@ -157,7 +158,8 @@ export function NewAppointmentModal({
               <SelectContent>
                 {customers.map((c) => {
                   const displayName = c.razao_social || c.nome_fantasia || c.name || 'Cliente'
-                  const phone = c.celular || c.phone
+                  const rawPhone = c.celular || c.phone
+                  const phone = rawPhone ? formatPhone(rawPhone) : ''
                   return (
                     <SelectItem key={c.id} value={c.id} className="text-xs">
                       {displayName} {phone ? `(${phone})` : ''}

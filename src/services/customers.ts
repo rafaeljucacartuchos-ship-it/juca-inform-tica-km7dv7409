@@ -1,5 +1,6 @@
 import pb from '@/lib/pocketbase/client'
 import { Customer } from '@/types'
+import { normalizePhone } from '@/lib/phones'
 
 export const getCustomerDisplayName = (customer?: Partial<Customer> | null): string => {
   if (!customer) return 'Cliente'
@@ -15,7 +16,12 @@ export const getCustomers = async (search = '') => {
   let filter = ''
   if (search && search.trim()) {
     const s = search.trim().replace(/'/g, "\\'")
-    filter = `razao_social ~ '${s}' || nome_fantasia ~ '${s}' || name ~ '${s}' || cpf_cnpj ~ '${s}'`
+    const digits = search.replace(/\D/g, '')
+    if (digits) {
+      filter = `razao_social ~ '${s}' || nome_fantasia ~ '${s}' || name ~ '${s}' || cpf_cnpj ~ '${s}' || celular ~ '${digits}' || phone ~ '${digits}'`
+    } else {
+      filter = `razao_social ~ '${s}' || nome_fantasia ~ '${s}' || name ~ '${s}' || cpf_cnpj ~ '${s}' || celular ~ '${s}' || phone ~ '${s}'`
+    }
   }
   const result = await pb.collection('customers').getList<Customer>(1, 100, {
     filter,
@@ -27,21 +33,26 @@ export const getCustomers = async (search = '') => {
 export const getCustomer = (id: string) => pb.collection('customers').getOne<Customer>(id)
 
 export const createCustomer = (data: Partial<Customer>) => {
+  const rawPhone = data.celular || data.phone || ''
+  const normalized = normalizePhone(rawPhone)
   const payload: Partial<Customer> = {
     ...data,
+    celular: normalized,
     // Garante sincronização bidirecional com campos legados para manter compatibilidade
     name: data.razao_social || data.nome_fantasia || data.name || '',
-    phone: data.celular || data.phone || '',
+    phone: normalized,
     street: data.endereco || data.street || '',
   }
   return pb.collection('customers').create<Customer>(payload)
 }
 
 export const updateCustomer = (id: string, data: Partial<Customer>) => {
+  const rawPhone = data.celular !== undefined ? data.celular : data.phone
+  const normalized = rawPhone !== undefined ? normalizePhone(rawPhone) : undefined
   const payload: Partial<Customer> = {
     ...data,
+    ...(normalized !== undefined ? { celular: normalized, phone: normalized } : {}),
     name: data.razao_social || data.nome_fantasia || data.name || '',
-    phone: data.celular || data.phone || '',
     street: data.endereco || data.street || '',
   }
   return pb.collection('customers').update<Customer>(id, payload)

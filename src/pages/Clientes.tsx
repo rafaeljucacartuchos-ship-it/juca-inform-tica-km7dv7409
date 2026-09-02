@@ -12,6 +12,7 @@ import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import { exportClientsToExcel } from '@/lib/client-excel'
+import { formatPhone } from '@/lib/phones'
 
 export default function Clientes() {
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -151,7 +152,8 @@ export default function Clientes() {
                   const nomeFantasia = c.nome_fantasia || c.razao_social || c.name || '-'
                   const endereco = c.endereco || c.street || '-'
                   const bairro = c.bairro || '-'
-                  const celular = c.celular || c.phone || '-'
+                  const rawCelular = c.celular || c.phone || ''
+                  const celularFormatted = rawCelular ? formatPhone(rawCelular) : '-'
                   const rgIe = c.rg_ie || '-'
                   const cpfCnpj = c.cpf_cnpj || '-'
 
@@ -176,7 +178,9 @@ export default function Clientes() {
                         {endereco}
                       </td>
                       <td className="py-3 px-4 text-slate-600">{bairro}</td>
-                      <td className="py-3 px-4 font-mono text-slate-700 font-medium">{celular}</td>
+                      <td className="py-3 px-4 font-mono text-slate-700 font-medium">
+                        {celularFormatted}
+                      </td>
                       <td className="py-3 px-4 font-mono text-slate-600">{rgIe}</td>
                       <td className="py-3 px-4 font-mono text-slate-700">{cpfCnpj}</td>
                       <td className="py-3 px-4 text-right">

@@ -4,6 +4,7 @@ import { ArrowLeft, Phone, Mail, MapPin, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Customer, ServiceOrder, Equipment } from '@/types'
+import { formatPhone } from '@/lib/phones'
 import { getCustomer } from '@/services/customers'
 import { getServiceOrders } from '@/services/service_orders'
 import { getEquipmentByCustomer } from '@/services/equipment'
@@ -70,7 +71,9 @@ export default function ClienteDetail() {
             <div className="flex items-center gap-2 text-slate-700">
               <Phone className="h-4 w-4 text-indigo-500 shrink-0" />
               <span className="font-mono">
-                {customer.celular || customer.phone || 'Sem celular'}
+                {customer.celular || customer.phone
+                  ? formatPhone(customer.celular || customer.phone)
+                  : 'Sem celular'}
               </span>
             </div>
             {(customer.cpf_cnpj || customer.rg_ie) && (

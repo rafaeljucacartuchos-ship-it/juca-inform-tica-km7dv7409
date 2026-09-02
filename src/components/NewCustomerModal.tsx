@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { createCustomer, updateCustomer } from '@/services/customers'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
+import { formatPhone, maskPhoneInput } from '@/lib/phones'
 import { Customer } from '@/types'
 
 interface NewCustomerModalProps {
@@ -52,7 +53,7 @@ export function NewCustomerModal({
           nome_fantasia: editCustomer.nome_fantasia || editCustomer.name || '',
           endereco: editCustomer.endereco || editCustomer.street || '',
           bairro: editCustomer.bairro || '',
-          celular: editCustomer.celular || editCustomer.phone || '',
+          celular: formatPhone(editCustomer.celular || editCustomer.phone || ''),
           rg_ie: editCustomer.rg_ie || '',
           cpf_cnpj: editCustomer.cpf_cnpj || '',
         })
@@ -175,9 +176,11 @@ export function NewCustomerModal({
           <div className="space-y-1">
             <Label className="text-xs font-semibold text-slate-700">Celular</Label>
             <Input
-              placeholder="Ex: (11) 98765-4321"
+              placeholder="Ex: (67) 99964-7143"
               value={formData.celular}
-              onChange={(e) => setFormData({ ...formData, celular: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, celular: maskPhoneInput(e.target.value) })
+              }
               className="h-9 text-xs"
             />
             {errors.celular && <p className="text-[11px] text-red-500">{errors.celular}</p>}

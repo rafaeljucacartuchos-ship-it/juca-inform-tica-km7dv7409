@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils'
 import { Customer, User, OrderPriority, Equipment, ServiceType } from '@/types'
 import { getCustomers, getCustomer } from '@/services/customers'
 import { getTechnicians } from '@/services/users'
+import { formatPhone } from '@/lib/phones'
 import { getEquipmentByCustomer } from '@/services/equipment'
 import { createAppointment } from '@/services/appointments'
 import { getServiceTypes } from '@/services/service_types'
@@ -346,7 +347,10 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
       selectedCustomer.name ||
       'Cliente Selecionado'
     : ''
-  const selectedPhone = selectedCustomer?.celular || selectedCustomer?.phone
+  const selectedPhone =
+    selectedCustomer?.celular || selectedCustomer?.phone
+      ? formatPhone(selectedCustomer?.celular || selectedCustomer?.phone)
+      : ''
 
   return (
     <>
@@ -421,7 +425,8 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
                           {customers.map((c) => {
                             const displayName =
                               c.nome_fantasia || c.razao_social || c.name || 'Cliente'
-                            const phone = c.celular || c.phone
+                            const rawPhone = c.celular || c.phone
+                            const phone = rawPhone ? formatPhone(rawPhone) : ''
                             const isSelected = formData.customer === c.id
                             const showSecondaryCode =
                               Boolean(c.nome_fantasia) &&

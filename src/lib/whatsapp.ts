@@ -6,23 +6,9 @@ const WHATSAPP_FOOTER =
 // Link de avaliação no Google (fixo conforme solicitado).
 export const GOOGLE_REVIEW_URL = 'https://g.page/r/CfKb0UxVRFNsEAI/review'
 
-export function sanitizePhone(phone: string): string {
-  if (!phone) return ''
-  const digits = phone.replace(/\D/g, '')
-  if (!digits) return ''
-  // Se tiver 10 ou 11 dígitos (DDD + número brasileiro sem DDI 55), adiciona o prefixo 55
-  if (digits.length === 10 || digits.length === 11) {
-    return `55${digits}`
-  }
-  // Se começar com 0 (ex: 067999999999), remove o 0 inicial e se tiver 10 ou 11 adiciona 55
-  if (digits.startsWith('0') && (digits.length === 11 || digits.length === 12)) {
-    const withoutZero = digits.substring(1)
-    if (withoutZero.length === 10 || withoutZero.length === 11) {
-      return `55${withoutZero}`
-    }
-  }
-  return digits
-}
+import { normalizePhone, sanitizePhone } from './phones'
+
+export { normalizePhone, sanitizePhone } from './phones'
 
 export function buildWhatsAppUrl(phone: string, message: string): string {
   const digits = sanitizePhone(phone)
