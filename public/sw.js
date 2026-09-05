@@ -14,9 +14,9 @@
 
 // BUILD: __TIMESTAMP__
 
-const APP_SHELL_CACHE = 'juca-app-shell-v1'
-const API_CACHE = 'juca-api-v1'
-const ASSET_CACHE = 'juca-assets-v1'
+const APP_SHELL_CACHE = 'juca-app-shell-v2'
+const API_CACHE = 'juca-api-v2'
+const ASSET_CACHE = 'juca-assets-v2'
 
 const PRECACHE_URLS = [
   '/',

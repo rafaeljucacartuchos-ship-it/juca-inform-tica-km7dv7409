@@ -191,14 +191,14 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg p-0 gap-0 overflow-hidden">
-        <DialogHeader className="px-4 pt-4 pb-2">
+      <DialogContent className="sm:max-w-lg p-0 gap-0 flex flex-col h-[100dvh] sm:h-auto max-h-[var(--app-visible-height,100dvh)] sm:max-h-[90vh] overflow-hidden">
+        <DialogHeader className="px-4 pt-4 pb-2 shrink-0">
           <DialogTitle className="text-sm font-bold text-slate-900">
             Adicionar Item / Serviço
           </DialogTitle>
         </DialogHeader>
 
-        <div className="px-4 pb-2 space-y-2">
+        <div className="px-4 pb-2 space-y-2 shrink-0">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <Input
@@ -206,7 +206,7 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Digite o nome do item ou código..."
-              className="pl-8 pr-8 h-10 text-sm"
+              className="pl-8 pr-8 h-9 sm:h-10 text-sm"
               autoComplete="off"
             />
             {query && (
@@ -221,7 +221,7 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
           </div>
 
           {/* Abas para filtrar resultados entre Todos | Produtos | Serviços */}
-          <div className="flex items-center gap-1.5 border-b border-slate-100 pb-1">
+          <div className="flex items-center gap-1.5 border-b border-slate-100 pb-1 shrink-0">
             <button
               type="button"
               onClick={() => setActiveTab('all')}
@@ -260,7 +260,7 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
           </div>
         </div>
 
-        <div className="max-h-[45vh] overflow-y-auto border-t border-slate-100">
+        <div className="flex-1 min-h-0 overflow-y-auto border-t border-slate-100">
           {loading && <div className="py-8 text-center text-xs text-slate-400">Buscando...</div>}
 
           {isEmpty && (
@@ -328,14 +328,14 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
         </div>
 
         {selectedItem && (
-          <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-3">
+          <div className="shrink-0 p-3 sm:p-4 bg-slate-50 border-t border-slate-200 space-y-2 sm:space-y-3">
             <div className="flex items-center justify-between text-xs">
               <span className="font-semibold text-slate-700 truncate mr-2">
                 Item Selecionado: <strong className="text-slate-900">{selectedItem.name}</strong>
               </span>
               <Badge
                 variant="outline"
-                className={`text-[10px] ${
+                className={`text-[10px] shrink-0 ${
                   selectedItem.kind === 'product'
                     ? 'border-indigo-200 text-indigo-700 bg-indigo-50'
                     : 'border-emerald-200 text-emerald-700 bg-emerald-50'
@@ -345,10 +345,10 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
               </Badge>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 bg-white p-2.5 sm:p-3 rounded-lg border border-slate-200 shadow-2xs">
               {/* Edição do Valor Unitário */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700 block">
+                <label className="text-[11px] sm:text-xs font-semibold text-slate-700 block">
                   Valor Unitário (R$) *
                 </label>
                 <Input
@@ -371,8 +371,8 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
                   placeholder="0,00"
                   className="h-8 text-xs font-mono font-bold text-slate-900"
                 />
-                <span className="text-[10px] text-slate-400">
-                  Tabela original: R$ {(selectedItem.price || 0).toFixed(2)}
+                <span className="text-[9px] sm:text-[10px] text-slate-400 block truncate">
+                  Tabela: R$ {(selectedItem.price || 0).toFixed(2)}
                 </span>
               </div>
 
@@ -380,7 +380,7 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
               <div className="space-y-1">
                 <label
                   htmlFor="order-item-qty"
-                  className="text-xs font-semibold text-slate-700 block"
+                  className="text-[11px] sm:text-xs font-semibold text-slate-700 block"
                 >
                   Quantidade
                 </label>
@@ -389,7 +389,7 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-8 w-8 p-0 text-slate-600"
+                    className="h-8 w-8 p-0 text-slate-600 shrink-0"
                     disabled={quantity <= 1 || addingId !== null}
                     onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
                   >
@@ -412,13 +412,13 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
                         handleConfirmAdd()
                       }
                     }}
-                    className="h-8 flex-1 text-center font-bold font-mono text-xs px-1"
+                    className="h-8 flex-1 text-center font-bold font-mono text-xs px-1 min-w-0"
                   />
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-8 w-8 p-0 text-slate-600"
+                    className="h-8 w-8 p-0 text-slate-600 shrink-0"
                     disabled={addingId !== null}
                     onClick={() => setQuantity((prev) => prev + 1)}
                   >
@@ -428,13 +428,13 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
               </div>
             </div>
 
-            {/* Recálculo em tempo real do Subtotal */}
-            <div className="flex items-center justify-between pt-1">
-              <div>
-                <span className="text-[10px] uppercase font-bold text-slate-500 block">
-                  Subtotal Calculado (Qtd × Valor Unitário)
+            {/* Recálculo em tempo real do Subtotal e botão Adicionar */}
+            <div className="flex items-center justify-between pt-1 gap-2">
+              <div className="min-w-0">
+                <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 block truncate">
+                  Subtotal (Qtd × Valor)
                 </span>
-                <span className="font-mono font-bold text-base text-indigo-600">
+                <span className="font-mono font-bold text-sm sm:text-base text-indigo-600 block truncate">
                   R${' '}
                   {(
                     Math.max(0, Number(unitPrice) || 0) * Math.max(1, Number(quantity) || 1)
@@ -446,7 +446,7 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
                 size="sm"
                 onClick={handleConfirmAdd}
                 disabled={addingId !== null}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-9 px-4 font-semibold shadow-xs"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-9 px-4 font-semibold shadow-xs shrink-0"
               >
                 {addingId !== null ? 'Adicionando...' : 'Adicionar à O.S.'}
               </Button>
@@ -454,7 +454,7 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
           </div>
         )}
 
-        <div className="px-4 py-3 border-t border-slate-100 flex justify-end">
+        <div className="shrink-0 px-4 py-2.5 sm:py-3 border-t border-slate-100 flex justify-end">
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             {selectedItem ? 'Cancelar' : 'Fechar'}
           </Button>

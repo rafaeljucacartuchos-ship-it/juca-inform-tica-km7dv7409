@@ -355,45 +355,223 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-full max-w-full sm:max-w-[560px] sm:max-h-[90vh] overflow-y-auto rounded-none sm:rounded-lg p-4 sm:p-6 flex flex-col justify-between sm:justify-start">
-          <DialogHeader>
+        <DialogContent className="w-full max-w-full sm:max-w-[560px] h-[100dvh] sm:h-auto max-h-[var(--app-visible-height,100dvh)] sm:max-h-[90vh] p-0 flex flex-col rounded-none sm:rounded-lg overflow-hidden">
+          <DialogHeader className="px-4 pt-4 pb-2 sm:px-6 sm:pt-6 shrink-0 border-b border-slate-100">
             <DialogTitle className="text-lg font-bold text-slate-900">
               Nova Ordem de Serviço
             </DialogTitle>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4 py-2 flex-1">
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold text-slate-700">Cliente *</Label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setCustomerModalOpen(true)}
-                  className="h-6 text-[11px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-1.5 gap-1"
-                  title="Cadastrar novo cliente rapidamente"
-                >
-                  <Plus className="h-3 w-3" /> Novo Cliente
-                </Button>
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-slate-700">Cliente *</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setCustomerModalOpen(true)}
+                    className="h-6 text-[11px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-1.5 gap-1"
+                    title="Cadastrar novo cliente rapidamente"
+                  >
+                    <Plus className="h-3 w-3" /> Novo Cliente
+                  </Button>
+                </div>
+                <div className="flex gap-1.5">
+                  <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={comboboxOpen}
+                        className={cn(
+                          'h-9 text-xs flex-1 justify-between font-normal px-3 bg-white border-slate-200 hover:bg-slate-50',
+                          !formData.customer && 'text-slate-400',
+                        )}
+                      >
+                        <span className="truncate text-left">
+                          {formData.customer && selectedCustomer
+                            ? `${selectedDisplayName}${selectedPhone ? ` (${selectedPhone})` : ''}`
+                            : 'Selecione ou digite para buscar o cliente...'}
+                        </span>
+                        <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-[--radix-popover-trigger-width] p-0 shadow-lg max-h-60 overflow-hidden"
+                      align="start"
+                    >
+                      <Command shouldFilter={false} className="max-h-60 flex flex-col">
+                        <CommandInput
+                          placeholder="Digite o nome do cliente..."
+                          value={customerSearch}
+                          onValueChange={setCustomerSearch}
+                          className="h-9 text-xs shrink-0"
+                        />
+                        <CommandList className="max-h-48 overflow-y-auto">
+                          {isSearchingCustomers && (
+                            <div className="flex items-center justify-center p-4 text-xs text-slate-400 gap-1.5">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-600" />
+                              <span>Buscando clientes...</span>
+                            </div>
+                          )}
+                          {!isSearchingCustomers && customers.length === 0 && (
+                            <CommandEmpty className="py-4 text-center text-xs text-slate-500">
+                              Nenhum cliente encontrado.
+                            </CommandEmpty>
+                          )}
+                          <CommandGroup>
+                            {customers.map((c) => {
+                              const displayName =
+                                c.nome_fantasia || c.razao_social || c.name || 'Cliente'
+                              const rawPhone = c.celular || c.phone
+                              const phone = rawPhone ? formatPhone(rawPhone) : ''
+                              const isSelected = formData.customer === c.id
+                              const showSecondaryCode =
+                                Boolean(c.nome_fantasia) &&
+                                Boolean(c.razao_social) &&
+                                c.nome_fantasia?.trim() !== c.razao_social?.trim()
+
+                              return (
+                                <CommandItem
+                                  key={c.id}
+                                  value={c.id}
+                                  onSelect={() => {
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      customer: c.id,
+                                      equipment_ref: '',
+                                    }))
+                                    setSelectedCustomer(c)
+                                    setComboboxOpen(false)
+                                  }}
+                                  className="text-xs cursor-pointer flex items-center justify-between py-2"
+                                >
+                                  <div className="flex flex-col min-w-0 pr-2">
+                                    <span className="font-bold text-slate-900 truncate">
+                                      {displayName}
+                                    </span>
+                                    {(showSecondaryCode || phone) && (
+                                      <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                                        {showSecondaryCode && (
+                                          <span className="truncate">{c.razao_social}</span>
+                                        )}
+                                        {showSecondaryCode && phone && <span>•</span>}
+                                        {phone && <span className="font-mono">{phone}</span>}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <Check
+                                    className={cn(
+                                      'h-4 w-4 shrink-0 text-indigo-600',
+                                      isSelected ? 'opacity-100' : 'opacity-0',
+                                    )}
+                                  />
+                                </CommandItem>
+                              )
+                            })}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCustomerModalOpen(true)}
+                    className="h-9 px-2.5 shrink-0 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-medium"
+                    title="Cadastrar Novo Cliente"
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Novo
+                  </Button>
+                </div>
+                {errors.customer && <p className="text-[11px] text-red-500">{errors.customer}</p>}
               </div>
-              <div className="flex gap-1.5">
-                <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-slate-700">
+                      Tipo de Atendimento
+                    </Label>
+                    {isBalcao ? (
+                      <span className="text-[10px] text-amber-600 font-medium bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                        Balcão (Exige Eq.)
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-500 font-medium">Eq. opcional</span>
+                    )}
+                  </div>
+                  <Select
+                    value={formData.attendance_type}
+                    onValueChange={(val) => setFormData({ ...formData, attendance_type: val })}
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Selecione o tipo..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {serviceTypes.map((st) => (
+                        <SelectItem key={st.id} value={st.id} className="text-xs">
+                          {st.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700">Prioridade</Label>
+                  <Select
+                    value={formData.priority}
+                    onValueChange={(val: OrderPriority) =>
+                      setFormData({ ...formData, priority: val })
+                    }
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low" className="text-xs">
+                        Baixa
+                      </SelectItem>
+                      <SelectItem value="medium" className="text-xs">
+                        Média
+                      </SelectItem>
+                      <SelectItem value="high" className="text-xs">
+                        Alta
+                      </SelectItem>
+                      <SelectItem value="urgent" className="text-xs">
+                        Urgente
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-700">Técnico Responsável</Label>
+                <Popover open={techComboboxOpen} onOpenChange={setTechComboboxOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       type="button"
                       variant="outline"
                       role="combobox"
-                      aria-expanded={comboboxOpen}
+                      aria-expanded={techComboboxOpen}
                       className={cn(
-                        'h-9 text-xs flex-1 justify-between font-normal px-3 bg-white border-slate-200 hover:bg-slate-50',
-                        !formData.customer && 'text-slate-400',
+                        'w-full h-9 text-xs justify-between font-normal px-3 bg-white border-slate-200 hover:bg-slate-50',
+                        !formData.technician && 'text-slate-400',
                       )}
                     >
                       <span className="truncate text-left">
-                        {formData.customer && selectedCustomer
-                          ? `${selectedDisplayName}${selectedPhone ? ` (${selectedPhone})` : ''}`
-                          : 'Selecione ou digite para buscar o cliente...'}
+                        {formData.technician
+                          ? technicians.find((t) => t.id === formData.technician)?.name ||
+                            'Técnico selecionado'
+                          : 'Sem técnico'}
                       </span>
                       <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
                     </Button>
@@ -402,66 +580,47 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
                     className="w-[--radix-popover-trigger-width] p-0 shadow-lg max-h-60 overflow-hidden"
                     align="start"
                   >
-                    <Command shouldFilter={false} className="max-h-60 flex flex-col">
+                    <Command className="max-h-60 flex flex-col">
                       <CommandInput
-                        placeholder="Digite o nome do cliente..."
-                        value={customerSearch}
-                        onValueChange={setCustomerSearch}
+                        placeholder="Buscar técnico..."
                         className="h-9 text-xs shrink-0"
                       />
                       <CommandList className="max-h-48 overflow-y-auto">
-                        {isSearchingCustomers && (
-                          <div className="flex items-center justify-center p-4 text-xs text-slate-400 gap-1.5">
-                            <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-600" />
-                            <span>Buscando clientes...</span>
-                          </div>
-                        )}
-                        {!isSearchingCustomers && customers.length === 0 && (
-                          <CommandEmpty className="py-4 text-center text-xs text-slate-500">
-                            Nenhum cliente encontrado.
-                          </CommandEmpty>
-                        )}
+                        <CommandEmpty className="py-4 text-center text-xs text-slate-500">
+                          Nenhum técnico encontrado.
+                        </CommandEmpty>
                         <CommandGroup>
-                          {customers.map((c) => {
-                            const displayName =
-                              c.nome_fantasia || c.razao_social || c.name || 'Cliente'
-                            const rawPhone = c.celular || c.phone
-                            const phone = rawPhone ? formatPhone(rawPhone) : ''
-                            const isSelected = formData.customer === c.id
-                            const showSecondaryCode =
-                              Boolean(c.nome_fantasia) &&
-                              Boolean(c.razao_social) &&
-                              c.nome_fantasia?.trim() !== c.razao_social?.trim()
-
+                          <CommandItem
+                            value="__none__"
+                            onSelect={() => {
+                              setFormData((prev) => ({ ...prev, technician: '' }))
+                              setTechComboboxOpen(false)
+                            }}
+                            className="text-xs cursor-pointer flex items-center justify-between py-2"
+                          >
+                            <span className="text-slate-500 italic">Sem técnico</span>
+                            <Check
+                              className={cn(
+                                'h-4 w-4 shrink-0 text-indigo-600',
+                                !formData.technician ? 'opacity-100' : 'opacity-0',
+                              )}
+                            />
+                          </CommandItem>
+                          {technicians.map((t) => {
+                            const isSelected = formData.technician === t.id
                             return (
                               <CommandItem
-                                key={c.id}
-                                value={c.id}
+                                key={t.id}
+                                value={t.name || t.id}
                                 onSelect={() => {
-                                  setFormData((prev) => ({
-                                    ...prev,
-                                    customer: c.id,
-                                    equipment_ref: '',
-                                  }))
-                                  setSelectedCustomer(c)
-                                  setComboboxOpen(false)
+                                  setFormData((prev) => ({ ...prev, technician: t.id }))
+                                  setTechComboboxOpen(false)
                                 }}
                                 className="text-xs cursor-pointer flex items-center justify-between py-2"
                               >
-                                <div className="flex flex-col min-w-0 pr-2">
-                                  <span className="font-bold text-slate-900 truncate">
-                                    {displayName}
-                                  </span>
-                                  {(showSecondaryCode || phone) && (
-                                    <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                                      {showSecondaryCode && (
-                                        <span className="truncate">{c.razao_social}</span>
-                                      )}
-                                      {showSecondaryCode && phone && <span>•</span>}
-                                      {phone && <span className="font-mono">{phone}</span>}
-                                    </div>
-                                  )}
-                                </div>
+                                <span className="font-medium text-slate-900 truncate">
+                                  {t.name}
+                                </span>
                                 <Check
                                   className={cn(
                                     'h-4 w-4 shrink-0 text-indigo-600',
@@ -476,334 +635,183 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
                     </Command>
                   </PopoverContent>
                 </Popover>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCustomerModalOpen(true)}
-                  className="h-9 px-2.5 shrink-0 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-medium"
-                  title="Cadastrar Novo Cliente"
-                >
-                  <Plus className="h-3.5 w-3.5 mr-1" />
-                  Novo
-                </Button>
               </div>
-              {errors.customer && <p className="text-[11px] text-red-500">{errors.customer}</p>}
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700">
+                    Data do Atendimento *
+                  </Label>
+                  <Input
+                    type="date"
+                    value={formData.attendance_date}
+                    onChange={(e) => setFormData({ ...formData, attendance_date: e.target.value })}
+                    className="h-9 text-xs"
+                  />
+                  {errors.attendance_date && (
+                    <p className="text-[11px] text-red-500">{errors.attendance_date}</p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700">
+                    Horário do Atendimento *
+                  </Label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="HH:MM"
+                    maxLength={5}
+                    value={formData.attendance_time}
+                    onChange={(e) => handleTimeChange(e.target.value)}
+                    className="h-9 text-xs font-mono"
+                  />
+                  {errors.attendance_time && (
+                    <p className="text-[11px] text-red-500">{errors.attendance_time}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-700">
+                  Título / Serviço Principal *
+                </Label>
+                <Input
+                  placeholder="Ex: Formatação e Limpeza de Notebook"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className="h-9 text-xs"
+                />
+                {errors.title && <p className="text-[11px] text-red-500">{errors.title}</p>}
+              </div>
+
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-semibold text-slate-700">
-                    Tipo de Atendimento
+                    Equipamento do Cliente {isBalcao ? '*' : '(Opcional no cadastro)'}
                   </Label>
-                  {isBalcao ? (
-                    <span className="text-[10px] text-amber-600 font-medium bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                      Balcão (Exige Eq.)
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-slate-500 font-medium">Eq. opcional</span>
-                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEquipmentModalOpen(true)}
+                    disabled={!formData.customer}
+                    className="h-7 text-[11px] text-indigo-600 hover:text-indigo-700 p-0"
+                  >
+                    <Plus className="h-3 w-3 mr-0.5" /> Cadastrar Novo
+                  </Button>
                 </div>
                 <Select
-                  value={formData.attendance_type}
-                  onValueChange={(val) => setFormData({ ...formData, attendance_type: val })}
+                  value={formData.equipment_ref}
+                  onValueChange={(val) => {
+                    setFormData({ ...formData, equipment_ref: val })
+                    if (errors.equipment_ref) {
+                      setErrors((prev) => {
+                        const next = { ...prev }
+                        delete next.equipment_ref
+                        return next
+                      })
+                    }
+                  }}
+                  disabled={!formData.customer}
                 >
                   <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="Selecione o tipo..." />
+                    <SelectValue
+                      placeholder={
+                        formData.customer
+                          ? isBalcao
+                            ? 'Selecione o equipamento (obrigatório)'
+                            : 'Selecione o equipamento (ou deixe em branco)'
+                          : 'Selecione um cliente primeiro'
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    {serviceTypes.map((st) => (
-                      <SelectItem key={st.id} value={st.id} className="text-xs">
-                        {st.name}
+                    {equipment.map((eq) => (
+                      <SelectItem key={eq.id} value={eq.id} className="text-xs">
+                        {eq.name}
+                        {eq.brand ? ` - ${eq.brand}` : ''}
+                        {eq.model ? ` ${eq.model}` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {errors.equipment_ref && (
+                  <p className="text-[11px] text-red-500">{errors.equipment_ref}</p>
+                )}
+                {formData.customer && equipment.length === 0 && (
+                  <p className="text-[11px] text-amber-600">
+                    {isBalcao
+                      ? 'Nenhum equipamento cadastrado. Clique em "Cadastrar Novo" para adicionar (obrigatório para Balcão).'
+                      : 'Nenhum equipamento cadastrado. (Opcional para este tipo de atendimento)'}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-700">Prioridade</Label>
-                <Select
-                  value={formData.priority}
-                  onValueChange={(val: OrderPriority) =>
-                    setFormData({ ...formData, priority: val })
-                  }
-                >
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low" className="text-xs">
-                      Baixa
-                    </SelectItem>
-                    <SelectItem value="medium" className="text-xs">
-                      Média
-                    </SelectItem>
-                    <SelectItem value="high" className="text-xs">
-                      Alta
-                    </SelectItem>
-                    <SelectItem value="urgent" className="text-xs">
-                      Urgente
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label className="text-xs font-semibold text-slate-700">
+                  Descrição do Problema / Relato do Cliente
+                </Label>
+                <Textarea
+                  placeholder="Descreva o problema relatado..."
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows={3}
+                  className="text-xs"
+                />
               </div>
-            </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-700">Técnico Responsável</Label>
-              <Popover open={techComboboxOpen} onOpenChange={setTechComboboxOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={techComboboxOpen}
-                    className={cn(
-                      'w-full h-9 text-xs justify-between font-normal px-3 bg-white border-slate-200 hover:bg-slate-50',
-                      !formData.technician && 'text-slate-400',
-                    )}
-                  >
-                    <span className="truncate text-left">
-                      {formData.technician
-                        ? technicians.find((t) => t.id === formData.technician)?.name ||
-                          'Técnico selecionado'
-                        : 'Sem técnico'}
-                    </span>
-                    <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="w-[--radix-popover-trigger-width] p-0 shadow-lg max-h-60 overflow-hidden"
-                  align="start"
-                >
-                  <Command className="max-h-60 flex flex-col">
-                    <CommandInput
-                      placeholder="Buscar técnico..."
-                      className="h-9 text-xs shrink-0"
+              {/* Campos de Desconto e Acréscimo */}
+              <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-3">
+                <span className="text-xs font-bold text-slate-800 block">
+                  Ajustes Financeiros Iniciais
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Desconto (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0,00"
+                      value={formData.desconto === 0 ? '' : formData.desconto}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          desconto:
+                            e.target.value === ''
+                              ? 0
+                              : Math.max(0, parseFloat(e.target.value) || 0),
+                        })
+                      }
+                      className="h-9 text-xs font-mono bg-white"
                     />
-                    <CommandList className="max-h-48 overflow-y-auto">
-                      <CommandEmpty className="py-4 text-center text-xs text-slate-500">
-                        Nenhum técnico encontrado.
-                      </CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          value="__none__"
-                          onSelect={() => {
-                            setFormData((prev) => ({ ...prev, technician: '' }))
-                            setTechComboboxOpen(false)
-                          }}
-                          className="text-xs cursor-pointer flex items-center justify-between py-2"
-                        >
-                          <span className="text-slate-500 italic">Sem técnico</span>
-                          <Check
-                            className={cn(
-                              'h-4 w-4 shrink-0 text-indigo-600',
-                              !formData.technician ? 'opacity-100' : 'opacity-0',
-                            )}
-                          />
-                        </CommandItem>
-                        {technicians.map((t) => {
-                          const isSelected = formData.technician === t.id
-                          return (
-                            <CommandItem
-                              key={t.id}
-                              value={t.name || t.id}
-                              onSelect={() => {
-                                setFormData((prev) => ({ ...prev, technician: t.id }))
-                                setTechComboboxOpen(false)
-                              }}
-                              className="text-xs cursor-pointer flex items-center justify-between py-2"
-                            >
-                              <span className="font-medium text-slate-900 truncate">{t.name}</span>
-                              <Check
-                                className={cn(
-                                  'h-4 w-4 shrink-0 text-indigo-600',
-                                  isSelected ? 'opacity-100' : 'opacity-0',
-                                )}
-                              />
-                            </CommandItem>
-                          )
-                        })}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
+                  </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-700">
-                  Data do Atendimento *
-                </Label>
-                <Input
-                  type="date"
-                  value={formData.attendance_date}
-                  onChange={(e) => setFormData({ ...formData, attendance_date: e.target.value })}
-                  className="h-9 text-xs"
-                />
-                {errors.attendance_date && (
-                  <p className="text-[11px] text-red-500">{errors.attendance_date}</p>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-700">
-                  Horário do Atendimento *
-                </Label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="HH:MM"
-                  maxLength={5}
-                  value={formData.attendance_time}
-                  onChange={(e) => handleTimeChange(e.target.value)}
-                  className="h-9 text-xs font-mono"
-                />
-                {errors.attendance_time && (
-                  <p className="text-[11px] text-red-500">{errors.attendance_time}</p>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-700">
-                Título / Serviço Principal *
-              </Label>
-              <Input
-                placeholder="Ex: Formatação e Limpeza de Notebook"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="h-9 text-xs"
-              />
-              {errors.title && <p className="text-[11px] text-red-500">{errors.title}</p>}
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold text-slate-700">
-                  Equipamento do Cliente {isBalcao ? '*' : '(Opcional no cadastro)'}
-                </Label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setEquipmentModalOpen(true)}
-                  disabled={!formData.customer}
-                  className="h-7 text-[11px] text-indigo-600 hover:text-indigo-700 p-0"
-                >
-                  <Plus className="h-3 w-3 mr-0.5" /> Cadastrar Novo
-                </Button>
-              </div>
-              <Select
-                value={formData.equipment_ref}
-                onValueChange={(val) => {
-                  setFormData({ ...formData, equipment_ref: val })
-                  if (errors.equipment_ref) {
-                    setErrors((prev) => {
-                      const next = { ...prev }
-                      delete next.equipment_ref
-                      return next
-                    })
-                  }
-                }}
-                disabled={!formData.customer}
-              >
-                <SelectTrigger className="h-9 text-xs">
-                  <SelectValue
-                    placeholder={
-                      formData.customer
-                        ? isBalcao
-                          ? 'Selecione o equipamento (obrigatório)'
-                          : 'Selecione o equipamento (ou deixe em branco)'
-                        : 'Selecione um cliente primeiro'
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {equipment.map((eq) => (
-                    <SelectItem key={eq.id} value={eq.id} className="text-xs">
-                      {eq.name}
-                      {eq.brand ? ` - ${eq.brand}` : ''}
-                      {eq.model ? ` ${eq.model}` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.equipment_ref && (
-                <p className="text-[11px] text-red-500">{errors.equipment_ref}</p>
-              )}
-              {formData.customer && equipment.length === 0 && (
-                <p className="text-[11px] text-amber-600">
-                  {isBalcao
-                    ? 'Nenhum equipamento cadastrado. Clique em "Cadastrar Novo" para adicionar (obrigatório para Balcão).'
-                    : 'Nenhum equipamento cadastrado. (Opcional para este tipo de atendimento)'}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-700">
-                Descrição do Problema / Relato do Cliente
-              </Label>
-              <Textarea
-                placeholder="Descreva o problema relatado..."
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={3}
-                className="text-xs"
-              />
-            </div>
-
-            {/* Campos de Desconto e Acréscimo */}
-            <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-3">
-              <span className="text-xs font-bold text-slate-800 block">
-                Ajustes Financeiros Iniciais
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-700">Desconto (R$)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0,00"
-                    value={formData.desconto === 0 ? '' : formData.desconto}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        desconto:
-                          e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value) || 0),
-                      })
-                    }
-                    className="h-9 text-xs font-mono bg-white"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-700">Acréscimo (R$)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0,00"
-                    value={formData.acrescimo === 0 ? '' : formData.acrescimo}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        acrescimo:
-                          e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value) || 0),
-                      })
-                    }
-                    className="h-9 text-xs font-mono bg-white"
-                  />
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Acréscimo (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0,00"
+                      value={formData.acrescimo === 0 ? '' : formData.acrescimo}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          acrescimo:
+                            e.target.value === ''
+                              ? 0
+                              : Math.max(0, parseFloat(e.target.value) || 0),
+                        })
+                      }
+                      className="h-9 text-xs font-mono bg-white"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
-            <DialogFooter className="pt-2">
+            <DialogFooter className="px-4 py-3 sm:px-6 sm:py-4 border-t border-slate-100 shrink-0 bg-slate-50/50 flex flex-row items-center justify-end gap-2">
               <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
