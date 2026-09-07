@@ -54,6 +54,7 @@ export interface Customer {
   celular?: string
   rg_ie?: string
   cpf_cnpj?: string
+  whatsapp_consent?: boolean
   // Campos de compatibilidade legado (mantidos no banco)
   name?: string
   email?: string
@@ -284,6 +285,37 @@ export interface ServiceAttachment {
   service_order: string
   file: string
   caption?: string
+  created?: string
+  updated?: string
+}
+
+export type PosVendaTipo = 'resumo_finalizacao' | 'avaliacao_30min' | 'pos_venda_7d' | 'oferta_30d'
+export type PosVendaStatus = 'pending' | 'ready' | 'sent' | 'dismissed'
+
+export interface PosVendaMessage {
+  id: string
+  customer: string
+  service_order?: string
+  tipo: PosVendaTipo
+  status: PosVendaStatus
+  scheduled_at?: string
+  sent_at?: string
+  texto_gerado?: string
+  wa_me_link?: string
+  channel?: string
+  created?: string
+  updated?: string
+  expand?: {
+    customer?: Customer
+    service_order?: ServiceOrder
+  }
+}
+
+export interface SystemSetting {
+  id: string
+  key: string
+  value: string
+  description?: string
   created?: string
   updated?: string
 }

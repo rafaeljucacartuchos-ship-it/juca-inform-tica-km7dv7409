@@ -13,6 +13,7 @@ import { createCustomer, updateCustomer } from '@/services/customers'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
 import { formatPhone, maskPhoneInput } from '@/lib/phones'
+import { Switch } from '@/components/ui/switch'
 import { Customer } from '@/types'
 
 interface NewCustomerModalProps {
@@ -30,6 +31,7 @@ const emptyForm = {
   celular: '',
   rg_ie: '',
   cpf_cnpj: '',
+  whatsapp_consent: true,
 }
 
 export function NewCustomerModal({
@@ -56,6 +58,7 @@ export function NewCustomerModal({
           celular: formatPhone(editCustomer.celular || editCustomer.phone || ''),
           rg_ie: editCustomer.rg_ie || '',
           cpf_cnpj: editCustomer.cpf_cnpj || '',
+          whatsapp_consent: editCustomer.whatsapp_consent !== false,
         })
       } else {
         setFormData(emptyForm)
@@ -86,6 +89,7 @@ export function NewCustomerModal({
         celular: formData.celular.trim(),
         rg_ie: formData.rg_ie.trim(),
         cpf_cnpj: formData.cpf_cnpj.trim(),
+        whatsapp_consent: formData.whatsapp_consent,
       }
 
       if (isEdit && editCustomer) {
@@ -206,6 +210,22 @@ export function NewCustomerModal({
                 className="h-9 text-xs"
               />
             </div>
+          </div>
+
+          {/* 8. Consentimento LGPD para WhatsApp */}
+          <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-50/70">
+            <div className="space-y-0.5">
+              <Label className="text-xs font-semibold text-slate-800">
+                Comunicações por WhatsApp (LGPD)
+              </Label>
+              <p className="text-[11px] text-slate-500">
+                Cliente autoriza receber avisos da O.S., notas e pós-venda pelo WhatsApp.
+              </p>
+            </div>
+            <Switch
+              checked={formData.whatsapp_consent}
+              onCheckedChange={(val) => setFormData({ ...formData, whatsapp_consent: val })}
+            />
           </div>
 
           <DialogFooter className="pt-3">

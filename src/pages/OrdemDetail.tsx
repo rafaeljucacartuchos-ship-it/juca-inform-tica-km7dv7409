@@ -54,7 +54,14 @@ import { NewEquipmentModal } from '@/components/NewEquipmentModal'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
-import { openWhatsApp, triggerWhatsAppEvaluation, buildServiceMessage } from '@/lib/whatsapp'
+import {
+  openWhatsApp,
+  triggerWhatsAppEvaluation,
+  buildServiceMessage,
+  buildOpenOrderWelcomeMessage,
+  buildOrderCompletionSummaryMessage,
+  buildWhatsAppUrl,
+} from '@/lib/whatsapp'
 
 export default function OrdemDetail() {
   const { id } = useParams<{ id: string }>()
@@ -309,11 +316,62 @@ export default function OrdemDetail() {
         toast({ title: 'Histórico salvo localmente. Será sincronizado quando houver conexão.' })
       }
       if (!upd.queued && !hist.queued) toast({ title: 'Serviço concluído com sucesso!' })
+
       const phone = getCustomerPhone(order.expand?.customer)
       const name = getCustomerDisplayName(order.expand?.customer)
       const shareUrl = `${window.location.origin}/share/${order.id}`
-      if (phone) triggerWhatsAppEvaluation(phone, name, order.number, shareUrl)
-      loadAll()
+      const equip = order.equipment || order.expand?.equipment_ref?.name || ''
+
+      // Requisito 2: Gerar resumo completo (itens executados, descrição e valor)
+      const summaryMsg = buildOrderCompletionSummaryMessage({
+        customerName: name,
+        orderNumber: order.number,
+        equipment: equip,
+        serviceReport: serviceReport,
+        items: items.map((it) => ({
+          description: it.description,
+          quantity: it.quantity || 1,
+          unitPrice: it.unit_price || 0,
+          total: it.total || 0,
+        })),
+        total: order.total || 0,
+        shareUrl,
+      })
+
+      const waLink = phone ? buildWhatsAppUrl(phone, summaryMsg) : ''
+
+      // (a) Registrar na coleção de mensagens/comunicação do cliente
+      try {
+        if (order.customer) {
+          await offlinePb.create('pos_venda_messages', {
+            customer: order.customer,
+            service_order: order.id,
+            tipo: 'resumo_finalizacao',
+            status: phone ? 'ready' : 'dismissed',
+            scheduled_at: new Date().toISOString(),
+            sent_at: phone ? new Date().toISOString() : null,
+            texto_gerado: summaryMsg,
+            wa_me_link: waLink,
+            channel: 'whatsapp',
+          })
+        }
+      } catch {
+        /* não interrompe conclusão */
+      }
+
+      // (b) Abrir/preparar o link wa.me para o técnico disparar em 1 toque
+      if (phone && waLink) {
+        window.open(waLink, '_blank')
+        toast({
+          title: 'Resumo da O.S. preparado no WhatsApp!',
+          description: 'A conversa com o cliente foi aberta com o resumo preenchido.',
+        })
+      }
+
+      // Requisito 4: Retorno automático à lista de OS ao finalizar
+      setTimeout(() => {
+        navigate('/ordens')
+      }, 700)
     } catch {
       toast({ title: 'Erro ao concluir serviço', variant: 'destructive' })
     }
@@ -341,8 +399,12 @@ export default function OrdemDetail() {
     }
     const shareUrl = `${window.location.origin}/share/${order.id}`
     const name = getCustomerDisplayName(order.expand?.customer)
-    // O.S. concluída: envia a mensagem de avaliação. Caso contrário, mensagem padrão.
-    if (order.status === 'completed') {
+    const equip = order.equipment || order.expand?.equipment_ref?.name || ''
+
+    // Requisito 1: enquanto a ordem de serviço estiver aberta, abre a conversa com texto de boas-vindas/aviso em 1 clique
+    if (order.status === 'open') {
+      openWhatsApp(phone, buildOpenOrderWelcomeMessage(name, order.number, equip))
+    } else if (order.status === 'completed') {
       triggerWhatsAppEvaluation(phone, name, order.number, shareUrl)
     } else {
       openWhatsApp(phone, buildServiceMessage(name, order.number, order.status, shareUrl))
@@ -572,9 +634,19 @@ export default function OrdemDetail() {
             variant="outline"
             size="sm"
             onClick={handleWhatsApp}
-            className="text-xs gap-1.5 h-10 sm:h-9 justify-center"
+            className={`text-xs gap-1.5 h-10 sm:h-9 justify-center ${
+              order.status === 'open'
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-bold'
+                : ''
+            }`}
+            title={
+              order.status === 'open'
+                ? 'Conversar com o cliente da OS aberta no WhatsApp'
+                : 'Enviar via WhatsApp'
+            }
           >
-            <MessageCircle className="h-4 w-4" /> WhatsApp
+            <MessageCircle className="h-4 w-4 text-emerald-600" />
+            <span>WhatsApp {order.status === 'open' ? 'Aberto' : ''}</span>
           </Button>
         </div>
       </div>

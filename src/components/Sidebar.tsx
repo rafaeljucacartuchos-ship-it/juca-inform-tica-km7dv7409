@@ -16,6 +16,8 @@ import {
   UserCog,
   ChevronDown,
   Tag,
+  MessageSquare,
+  Sparkles,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -83,6 +85,12 @@ export function Sidebar({ onNavClick }: SidebarProps) {
   const mainNavItems = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, show: true },
     { label: 'Ordens de Serviço', path: '/ordens', icon: Wrench, show: hasPermission('ordens') },
+    {
+      label: 'Pós-venda (Juquinha)',
+      path: '/pos-venda',
+      icon: Sparkles,
+      show: hasPermission('pos_venda'),
+    },
     {
       label: 'Relatórios OS',
       path: '/relatorios',

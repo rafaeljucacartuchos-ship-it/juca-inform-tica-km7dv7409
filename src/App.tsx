@@ -13,6 +13,8 @@ import Login from '@/pages/Login'
 import Dashboard from '@/pages/Dashboard'
 import OrdensDeServico from '@/pages/OrdensDeServico'
 import OrdemDetail from '@/pages/OrdemDetail'
+import OrdemAssinatura from '@/pages/OrdemAssinatura'
+import PosVendaJuquinha from '@/pages/PosVenda'
 import Clientes from '@/pages/Clientes'
 import ClienteDetail from '@/pages/ClienteDetail'
 import Servicos from '@/pages/Servicos'
@@ -78,7 +80,8 @@ const App = () => {
                 <Route element={<ProtectedRoute />}>
                   <Route element={<PermissionRoute module="ordens" />}>
                     <Route path="/ordens/:id/imprimir" element={<OrdemPrint />} />
-                  </Route>
+                    <Route path="/ordens/:id/assinatura" element={<OrdemAssinatura />} />
+                  </Route>{' '}
                   <Route element={<PermissionRoute module="relatorios" />}>
                     <Route
                       path="/relatorios/categorias/imprimir"
@@ -92,6 +95,9 @@ const App = () => {
                       <Route path="/ordens" element={<OrdensDeServico />} />
                       <Route path="/ordens/:id" element={<OrdemDetail />} />
                     </Route>
+                    <Route element={<PermissionRoute module="pos_venda" />}>
+                      <Route path="/pos-venda" element={<PosVendaJuquinha />} />
+                    </Route>{' '}
                     <Route element={<PermissionRoute module="clientes" />}>
                       <Route path="/clientes" element={<Clientes />} />
                       <Route path="/clientes/:id" element={<ClienteDetail />} />

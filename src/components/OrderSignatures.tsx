@@ -80,16 +80,24 @@ export function OrderSignatures({ order, canEdit, onSaved }: OrderSignaturesProp
             onCancel={() => setShowPad(false)}
           />
         ) : (
-          <div className="flex items-center justify-center h-24 border-2 border-dashed border-slate-200 rounded-lg bg-slate-50">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 p-3 border-2 border-dashed border-slate-200 rounded-lg bg-slate-50 min-h-[96px]">
             {canEdit ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowPad(true)}
-                className="text-xs gap-1.5 text-slate-500"
-              >
-                <Pen className="h-3.5 w-3.5" /> Coletar Assinatura
-              </Button>
+              <>
+                <a
+                  href={`/ordens/${order.id}/assinatura`}
+                  className="inline-flex items-center justify-center text-xs font-bold gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg shadow-sm"
+                >
+                  <Pen className="h-3.5 w-3.5" /> Assinar em Tela Cheia
+                </a>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowPad(true)}
+                  className="text-xs text-slate-500 hover:text-slate-700"
+                >
+                  Assinar aqui
+                </Button>
+              </>
             ) : (
               <span className="text-xs text-slate-400">Sem assinatura</span>
             )}

@@ -76,7 +76,7 @@ export default function ClienteDetail() {
                   : 'Sem celular'}
               </span>
             </div>
-            {(customer.cpf_cnpj || customer.rg_ie) && (
+            {(customer.cpf_cnpj || customer.rg_ie || customer.whatsapp_consent !== undefined) && (
               <div className="space-y-1 pt-1 border-t border-slate-100">
                 {customer.cpf_cnpj && (
                   <p className="text-slate-600">
@@ -89,6 +89,18 @@ export default function ClienteDetail() {
                     <span className="font-semibold text-slate-700">RG/IE:</span> {customer.rg_ie}
                   </p>
                 )}
+                <div className="pt-1 text-[11px] flex items-center justify-between">
+                  <span className="font-semibold text-slate-700">WhatsApp (LGPD):</span>
+                  <span
+                    className={`font-bold px-2 py-0.5 rounded text-[10px] ${
+                      customer.whatsapp_consent !== false
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-rose-100 text-rose-800'
+                    }`}
+                  >
+                    {customer.whatsapp_consent !== false ? 'Autorizado' : 'Não Autorizado'}
+                  </span>
+                </div>
               </div>
             )}
             <div className="flex items-start gap-2 text-slate-700 pt-1 border-t border-slate-100">
