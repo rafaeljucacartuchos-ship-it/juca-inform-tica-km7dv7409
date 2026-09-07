@@ -4,7 +4,7 @@ import { PosVendaMessage, SystemSetting } from '@/types'
 export const getPosVendaMessages = async (filterStr = '', sortStr = '-scheduled_at') => {
   return pb.collection('pos_venda_messages').getFullList<PosVendaMessage>({
     filter: filterStr,
-    expand: 'customer,service_order',
+    expand: 'customer,service_order,service_order.technician,service_order.equipment_ref',
     sort: sortStr,
   })
 }

@@ -415,7 +415,17 @@ export default function OrdemDetail() {
     if (order.status === 'open') {
       openWhatsApp(phone, buildOpenOrderWelcomeMessage(name, order.number, equip, techName))
     } else if (order.status === 'completed') {
-      triggerWhatsAppEvaluation(phone, name, order.number, shareUrl)
+      const itemsText = items
+        .map((i) => i.description)
+        .filter(Boolean)
+        .slice(0, 3)
+        .join(', ')
+      triggerWhatsAppEvaluation(phone, name, order.number, shareUrl, {
+        equipment: equip,
+        serviceReport: order.service_report || order.description,
+        technicianName: techName,
+        itemsSummary: itemsText,
+      })
     } else {
       openWhatsApp(phone, buildServiceMessage(name, order.number, order.status, shareUrl))
     }

@@ -22,7 +22,12 @@ import {
   Eye,
   Trash2,
   Phone,
+  ShieldAlert,
+  AlertTriangle,
+  CheckSquare,
+  Square,
 } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -60,23 +65,91 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { getFileUrl } from '@/lib/pocketbase/files'
 import heic2any from 'heic2any'
 
-// Templates criativos no tom do Juquinha
+// Templates criativos no tom do Juquinha para todos os segmentos da JUCA Informática
 const JUQUINHA_CAMPAIGN_TEMPLATES = [
+  // 1. Manutenção Preventiva (Original 1)
   {
+    category: 'Assistência Técnica',
     title: 'Manutenção Preventiva de Computadores e Notebooks',
     text: `Olá, {nome}! Tudo bem por aí? Aqui é o Juquinha da JUCA Informática! 🙋‍♂️\n\nNotamos que já faz um tempinho que cuidamos do seu equipamento com carinho. Para evitar lentidão, superaquecimento ou travamentos repentinos, preparamos uma condição super especial esta semana para uma Revisão e Limpeza Preventiva Completa!\n\nTraga seu computador ou notebook para um check-up com nossa equipe técnica de confiança. 🚀\n\nPodemos reservar um horário prioritário para você?\n\n— Juquinha — JUCA Informática\n📞 (67) 3441-4981 | (67) 99654-4981`,
   },
+  // 2. Retorno 60+ dias (Original 2)
   {
+    category: 'Geral',
     title: 'Saudades de Você! Promoção de Retorno (60+ dias)',
     text: `Oi, {nome}! Tudo bem com você? O Juquinha aqui da JUCA Informática passando para te dar um 'oi' e dizer que estamos com saudades! ✨\n\nComo faz mais de 60 dias desde a sua última visita, liberamos um cupom de cortesia exclusivo com desconto especial na sua próxima mão de obra ou na compra de periféricos e peças.\n\nSeja para formatar, fazer upgrade para SSD ou revisar impressoras, estamos prontos para te atender!\n\nVamos deixar seus aparelhos voando de novo? 💨\n\n— Juquinha — JUCA Informática\n📞 (67) 3441-4981 | (67) 99654-4981`,
   },
+  // 3. Recarga e Revisão de Impressoras (Original 3)
   {
+    category: 'Impressoras',
     title: 'Recarga de Cartuchos e Revisão de Impressoras',
     text: `Olá, {nome}! Como estão as impressões por aí? Aqui é o Juquinha da JUCA Informática! 🖨️\n\nPassando para avisar que estamos com lote novo e tinta de alta qualidade para recarga expressa de cartuchos e toners, além de higienização de cabeçotes com garantia JUCA!\n\nNão fique na mão quando mais precisar imprimir aquele documento importante.\n\nPrecisa que busquemos ou quer dar uma passadinha aqui na loja?\n\n— Juquinha — JUCA Informática\n📞 (67) 3441-4981 | (67) 99654-4981`,
   },
+  // 4. Upgrade SSD (Original 4)
   {
+    category: 'Assistência Técnica',
     title: 'Upgrade Turbinado: Troca de HD por SSD',
     text: `Fala, {nome}! Aqui é o Juquinha da JUCA Informática! ⚡\n\nSeu computador ou notebook anda demorando uma eternidade para ligar ou abrir programas? Sabia que a troca para um SSD veloz deixa ele até 10 vezes mais rápido, sem precisar comprar uma máquina nova?\n\nEstamos com estoque especial de SSDs das melhores marcas com instalação e cópia dos seus arquivos inclusas.\n\nMe conta: quer ver seu computador voando de novo?\n\n— Juquinha — JUCA Informática\n📞 (67) 3441-4981 | (67) 99654-4981`,
+  },
+  // 5. Relógio Ponto e Sistema Web
+  {
+    category: 'Automação & Ponto',
+    title: 'Relógio Ponto e Sistema Web de Gestão de Ponto',
+    text: `Olá, {nome}! Tudo bem? Aqui é o Juquinha da JUCA Informática! ⏰📊\n\nPassando para te perguntar: como está o controle de ponto e jornada da sua equipe hoje? Sabia que a JUCA fornece os melhores Relógios de Ponto homologados pelo Ministério do Trabalho (Portaria 671) integrados com Sistema Web em nuvem?\n\nChega de dor de cabeça com cartão espelho, horas extras descontroladas ou cálculo manual no fim do mês! Tenha relatórios em tempo real, aplicativo para colaboradores e suporte técnico pertinho de você em MS.\n\nPosso te enviar uma demonstração rápida sem compromisso?\n\n— Juquinha — JUCA Informática\n📞 (67) 3441-4981 | (67) 99654-4981`,
+  },
+  // 6. Catraca para Controle de Acesso
+  {
+    category: 'Controle de Acesso',
+    title: 'Catraca para Controle de Acesso (Escolas, Academias e Empresas)',
+    text: `Oi, {nome}! Aqui é o Juquinha da JUCA Informática! 🚧🔐\n\nProcurando mais segurança, organização e praticidade para controlar a entrada e saída da sua empresa, academia, condomínio ou escola?\n\nAqui na JUCA nós fornecemos e instalamos Catracas Eletrônicas completas com biometria, reconhecimento facial, cartão de proximidade ou QR Code, integradas ao software de gestão!\n\nVocê acompanha tudo em tempo real, com bloqueio automático de inadimplentes ou visitantes não autorizados.\n\nQuer receber um projeto sob medida para o seu espaço?\n\n— Juquinha — JUCA Informática\n📞 (67) 3441-4981 | (67) 99654-4981`,
+  },
+  // 7. Balanças Comerciais e Industriais
+  {
+    category: 'Automação Comercial',
+    title: 'Balanças Comerciais e Industriais (Venda, Calibração e Suporte)',
+    text: `Olá, {nome}! Como vão os negócios por aí? Juquinha da JUCA Informática por aqui! ⚖️🏬\n\nPara comércio, açougue, padaria, supermercado ou indústria, precisão na pesagem é sinônimo de lucro e conformidade com o Inmetro!\n\nTrabalhamos com balanças com impressora térmica embutida, balanças etiquetadoras, checkout e bancada das marcas líderes de mercado — além de manutenção técnica e calibração.\n\nEstá precisando renovar suas balanças ou fazer uma revisão preventiva na sua?\n\nConta comigo para garantir a melhor condição!\n\n— Juquinha — JUCA Informática\n📞 (67) 3441-4981 | (67) 99654-4981`,
+  },
+  // 8. Cadeiras e Mesas para Escritório
+  {
+    category: 'Mobiliário Corporativo',
+    title: 'Cadeiras Ergonômicas (NR-17) e Mesas para Escritório',
+    text: `Oi, {nome}! Tudo bem? Juquinha da JUCA passando para falar sobre o conforto e a saúde da sua equipe! 🪑💼\n\nVocê sabia que passar horas em uma cadeira desconfortável reduz a produtividade e pode gerar dores lombares? Aqui na JUCA temos uma linha completa de Cadeiras Ergonômicas certificadas (norma NR-17), cadeiras presidente, diretor e mesas funcionais para escritório.\n\nDesign moderno, alta durabilidade e montagem inclusa para deixar seu ambiente de trabalho impecável!\n\nQue tal um catálogo de novidades para renovar seu espaço de trabalho?\n\n— Juquinha — JUCA Informática\n📞 (67) 3441-4981 | (67) 99654-4981`,
+  },
+  // 9. Aluguel de Impressoras (Outsourcing)
+  {
+    category: 'Locação / Outsourcing',
+    title: 'Aluguel de Impressoras: Tinta, Peças e Suporte Inclusos',
+    text: `Olá, {nome}! Juquinha da JUCA Informática por aqui! 🖨️📄\n\nCansado de gastar rios de dinheiro comprando impressoras caras que quebram à toa, além de comprar cartuchos e toners todo mês?\n\nCom o Outsourcing / Aluguel de Impressoras da JUCA, sua empresa recebe impressoras modernas sem custo de aquisição: todos os suprimentos, tintas, toners, manutenção e peças estão 100% inclusos na mensalidade!\n\nSe der qualquer problema, a nossa equipe técnica troca ou conserta na hora para o seu negócio não parar.\n\nBora calcular quanto a sua empresa vai economizar este mês?\n\n— Juquinha — JUCA Informática\n📞 (67) 3441-4981 | (67) 99654-4981`,
+  },
+  // 10. Aluguel de Computadores e Notebooks
+  {
+    category: 'Locação / Outsourcing',
+    title: 'Aluguel de Computadores e Notebooks para Empresas e Eventos',
+    text: `Fala, {nome}! Tudo jóia? Aqui é o Juquinha da JUCA Informática! 💻🚀\n\nPrecisa equipar novos funcionários, montar um setor temporário, treinar equipe ou fazer um evento sem imobilizar o caixa da sua empresa?\n\nA JUCA aluga Computadores e Notebooks de alta performance (com SSD rápido e pacote office configurado) por dias, semanas ou contratos mensais!\n\nManutenção inclusa, substituição imediata e custo 100% dedutível como despesa operacional (OPEX) no seu imposto.\n\nQuantas máquinas você precisa no momento?\n\n— Juquinha — JUCA Informática\n📞 (67) 3441-4981 | (67) 99654-4981`,
+  },
+  // 11. Aluguel de Projetor (Data Show)
+  {
+    category: 'Locação / Eventos',
+    title: 'Aluguel de Projetor (Data Show) e Telão para Reuniões e Eventos',
+    text: `Olá, {nome}! Juquinha da JUCA Informática passando para te dar uma dica valiosa para o seu próximo evento! 📽️✨\n\nVai fazer uma apresentação para clientes, palestra, curso, casamento, assembleia ou reunião de diretoria? Alugue um Projetor / Data Show de alta resolução com a JUCA!\n\nEntregamos aparelhos potentes com conexões HDMI/sem fio, telão e todos os cabos necessários, prontinhos para plugar e brilhar na sua apresentação.\n\nTem algum evento ou apresentação programada para os próximos dias?\n\n— Juquinha — JUCA Informática\n📞 (67) 3441-4981 | (67) 99654-4981`,
+  },
+  // 12. Aluguel de Starlink (Internet Via Satélite)
+  {
+    category: 'Conectividade & Locação',
+    title: 'Aluguel de Starlink: Internet Rápida na Fazenda, Obras e Eventos',
+    text: `Oi, {nome}! Tudo bem? Juquinha da JUCA Informática aqui com uma novidade fantástica! 🛰️🌐\n\nPrecisa de internet ultraveloz e estável em fazenda, retiro, obra, evento rural ou local remoto onde a fibra não chega? A JUCA agora tem kit Starlink completo para Locação!\n\nVelocidade de até 200 Mbps via satélite em qualquer canto do Mato Grosso do Sul, com instalação simples e suporte dedicado da nossa equipe.\n\nQuer garantir internet de alta velocidade na sua próxima viagem, feira ou safra?\n\n— Juquinha — JUCA Informática\n📞 (67) 3441-4981 | (67) 99654-4981`,
+  },
+  // 13. Câmeras de Segurança e Instalação (CFTV)
+  {
+    category: 'Segurança Eletrônica',
+    title: 'Câmeras de Segurança e Instalação Completa (Acesso no Celular)',
+    text: `Olá, {nome}! Aqui é o Juquinha da JUCA Informática! 📹🚨\n\nComo está a segurança da sua casa ou do seu comércio? Já imaginou acompanhar tudo ao vivo pelo seu celular, de qualquer lugar do mundo, com imagens nítidas em Full HD ou 4K e visão noturna colorida?\n\nNós fazemos o projeto e a instalação completa de Câmeras de Segurança (CFTV), DVRs e gravação em nuvem com cabeamento impecável e garantia total JUCA.\n\nProteja o que é seu com quem entende de tecnologia! Posso agendar uma visita técnica gratuita para avaliação?\n\n— Juquinha — JUCA Informática\n📞 (67) 3441-4981 | (67) 99654-4981`,
+  },
+  // 14. Assistência Técnica: Manutenção, Formatação, SSD/Memória, Impressoras e Redes
+  {
+    category: 'Assistência Técnica',
+    title: 'Assistência Técnica Completa (Formatação, SSD, Impressoras, Redes e Limpeza)',
+    text: `Oi, {nome}! Tudo bem com você? Juquinha da JUCA passando para lembrar que estamos sempre aqui para te salvar! 🛠️💻\n\nSe o seu computador estiver travando, a impressora borrando, a rede Wi-Fi caindo ou precisando de uma limpeza interna profunda com troca de pasta térmica, traga para a JUCA Informática!\n\nNossos serviços de assistência técnica contam com:\n• Formatação com backup 100% seguro de fotos e documentos\n• Instalação de SSD ultrarrápido e upgrade de memória RAM\n• Desentupimento e conserto de impressoras / toners\n• Configuração e ampliação de redes Wi-Fi e cabeadas\n• Higienização química preventiva\n\nDiagnóstico ágil e peças originais com garantia. Quando puder, passa tomar um café com a gente e trazer seu aparelho!\n\n— Juquinha — JUCA Informática\n📞 (67) 3441-4981 | (67) 99654-4981`,
   },
 ]
 
@@ -118,6 +191,51 @@ export default function Campanhas() {
 
   // Modal de Histórico de Envios
   const [historyModalOpen, setHistoryModalOpen] = useState(false)
+
+  // Seleção Manual de Clientes (Checkbox)
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([])
+
+  // Trava Anti-bloqueio WhatsApp (limite diário de 50 disparos)
+  const DAILY_DISPATCH_LIMIT = 50
+  const getTodayKey = () => {
+    const today = new Date()
+    return `juca_wa_dispatches_${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  }
+
+  const [dailyDispatchesCount, setDailyDispatchesCount] = useState<number>(() => {
+    try {
+      const val = localStorage.getItem(getTodayKey())
+      return val ? parseInt(val, 10) || 0 : 0
+    } catch {
+      return 0
+    }
+  })
+
+  // Sincroniza contador caso vire o dia enquanto o app estiver aberto
+  useEffect(() => {
+    const updateCount = () => {
+      try {
+        const val = localStorage.getItem(getTodayKey())
+        setDailyDispatchesCount(val ? parseInt(val, 10) || 0 : 0)
+      } catch {
+        setDailyDispatchesCount(0)
+      }
+    }
+    updateCount()
+    const interval = setInterval(updateCount, 60000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const incrementDailyDispatch = () => {
+    const next = dailyDispatchesCount + 1
+    setDailyDispatchesCount(next)
+    try {
+      localStorage.setItem(getTodayKey(), String(next))
+    } catch {
+      /* intentionally ignored */
+    }
+    return next
+  }
 
   // Carrega dados iniciais
   const loadData = async () => {
@@ -323,16 +441,44 @@ export default function Campanhas() {
     return hours >= 8 && hours < 18
   }
 
+  // Toggle seleção individual
+  const toggleSelectCustomer = (customerId: string) => {
+    setSelectedCustomerIds((prev) =>
+      prev.includes(customerId) ? prev.filter((id) => id !== customerId) : [...prev, customerId],
+    )
+  }
+
+  // Selecionar todos os clientes visíveis no filtro atual
+  const handleSelectAllVisible = () => {
+    const allIds = segmentedCustomers.map((p) => p.customer.id)
+    setSelectedCustomerIds(allIds)
+  }
+
+  // Limpar seleção manual
+  const handleClearSelection = () => {
+    setSelectedCustomerIds([])
+  }
+
   // Disparo 1-Toque via wa.me
   const handleSendOneTouch = async (prof: CustomerSegmentProfile) => {
     if (!selectedCampaign) return
+
+    // Trava anti-bloqueio WhatsApp: limite de 50 envios/dia
+    if (dailyDispatchesCount >= DAILY_DISPATCH_LIMIT) {
+      toast({
+        title: '⛔ Limite diário de disparos atingido (50/50)',
+        description:
+          'Para proteger o número de WhatsApp da JUCA contra bloqueio pelo algoritmo da Meta, novos disparos estão suspensos até a meia-noite.',
+        variant: 'destructive',
+      })
+      return
+    }
 
     if (!isBusinessHours()) {
       toast({
         title: 'Aviso: Fora do Horário Comercial',
         description:
           'O horário recomendado para envio de marketing pelo Juquinha é das 08:00 às 18:00.',
-        variant: 'destructive',
       })
     }
 
@@ -358,12 +504,13 @@ export default function Campanhas() {
     // Abre o WhatsApp no navegador/app
     window.open(waLink, '_blank')
 
-    // Registra envio no histórico da campanha
+    // Registra envio no histórico da campanha e incrementa contador da trava
+    const currentCount = incrementDailyDispatch()
     try {
       await logCampanhaMessageSent(selectedCampaign.id, prof.customer.id, text, waLink)
       toast({
         title: 'WhatsApp aberto com sucesso!',
-        description: `Envio registrado para ${custName}.`,
+        description: `Envio ${currentCount}/${DAILY_DISPATCH_LIMIT} registrado para ${custName}. Espace alguns segundos entre envios para evitar ban!`,
       })
       loadData()
     } catch (err) {
@@ -440,23 +587,48 @@ export default function Campanhas() {
           </div>
         </div>
 
-        {/* Indicadores de Marketing */}
+        {/* Indicadores de Marketing & Trava Anti-bloqueio */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-5 pt-4 border-t border-white/10 text-xs">
           <div className="bg-white/5 rounded-xl p-3 border border-white/10">
             <span className="text-purple-200 text-[11px] block">Campanhas Ativas</span>
             <span className="text-xl font-bold font-mono text-purple-300">{campaigns.length}</span>
           </div>
           <div className="bg-white/5 rounded-xl p-3 border border-white/10">
-            <span className="text-purple-200 text-[11px] block">Público Segmentado</span>
+            <span className="text-purple-200 text-[11px] block">Público Filtrado</span>
             <span className="text-xl font-bold font-mono text-emerald-300">
               {segmentedCustomers.length} clientes
             </span>
           </div>
-          <div className="bg-white/5 rounded-xl p-3 border border-white/10">
-            <span className="text-purple-200 text-[11px] block">Total de Disparos Feitos</span>
-            <span className="text-xl font-bold font-mono text-amber-300">
-              {messagesHistory.filter((m) => m.status === 'sent').length}
-            </span>
+          <div
+            className={`rounded-xl p-3 border transition-colors ${
+              dailyDispatchesCount >= DAILY_DISPATCH_LIMIT
+                ? 'bg-rose-950/60 border-rose-500/50'
+                : dailyDispatchesCount >= DAILY_DISPATCH_LIMIT * 0.8
+                  ? 'bg-amber-950/50 border-amber-500/40'
+                  : 'bg-white/5 border-white/10'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-purple-200 text-[11px] block flex items-center gap-1">
+                <ShieldAlert className="h-3 w-3 text-emerald-400" />
+                Disparos Hoje (Anti-ban)
+              </span>
+              <span className="text-[10px] text-purple-300">Zera 00h</span>
+            </div>
+            <div className="flex items-baseline gap-1 mt-1">
+              <span
+                className={`text-xl font-bold font-mono ${
+                  dailyDispatchesCount >= DAILY_DISPATCH_LIMIT
+                    ? 'text-rose-400 font-extrabold'
+                    : dailyDispatchesCount >= DAILY_DISPATCH_LIMIT * 0.8
+                      ? 'text-amber-400'
+                      : 'text-emerald-300'
+                }`}
+              >
+                {dailyDispatchesCount}/{DAILY_DISPATCH_LIMIT}
+              </span>
+              <span className="text-[10px] text-slate-300">disparos</span>
+            </div>
           </div>
           <div className="bg-white/5 rounded-xl p-3 border border-white/10">
             <span className="text-purple-200 text-[11px] block">Horário Comercial</span>
@@ -470,6 +642,29 @@ export default function Campanhas() {
           </div>
         </div>
       </div>
+
+      {/* Alerta de Trava Anti-bloqueio atingida */}
+      {dailyDispatchesCount >= DAILY_DISPATCH_LIMIT && (
+        <div className="bg-rose-50 border-2 border-rose-400 rounded-xl p-4 flex items-start gap-3 shadow-sm">
+          <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <h4 className="text-xs font-bold text-rose-950 flex items-center gap-2">
+              Trava Anti-bloqueio WhatsApp Ativada ({dailyDispatchesCount}/{DAILY_DISPATCH_LIMIT}{' '}
+              envios hoje)
+            </h4>
+            <p className="text-xs text-rose-800">
+              O limite de segurança de <strong>50 disparos por dia</strong> foi atingido para
+              proteger a linha telefônica da JUCA Informática contra bloqueio ou banimento pelas
+              diretrizes da Meta/WhatsApp. Novos disparos estão bloqueados hoje e o contador zera
+              automaticamente à meia-noite.
+            </p>
+            <p className="text-[11px] text-rose-700 italic">
+              💡 Dica de segurança: ao retomar os envios amanhã, espace ao menos 1 a 2 minutos entre
+              cada mensagem.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Seleção de Campanha Ativa */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
@@ -640,31 +835,66 @@ export default function Campanhas() {
           </div>
         </div>
 
-        {/* Resumo do Filtro */}
-        <div className="flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-          <span className="text-slate-600">
-            <strong>{segmentedCustomers.length}</strong> clientes qualificados para esta campanha
-            (com consentimento WhatsApp).
-          </span>
-          {(filterDaysWithoutContact !== 'all' ||
-            filterFrequency !== 'all' ||
-            filterSpending !== 'all' ||
-            filterSearch) && (
+        {/* Resumo do Filtro e Barra de Ações de Seleção Manual */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-slate-600">
+              <strong>{segmentedCustomers.length}</strong> clientes qualificados (com consentimento
+              WhatsApp).
+            </span>
+            {selectedCustomerIds.length > 0 && (
+              <Badge className="bg-purple-100 text-purple-900 border-purple-200 font-bold text-[11px]">
+                {selectedCustomerIds.length} selecionado{selectedCustomerIds.length > 1 ? 's' : ''}{' '}
+                manualmente
+              </Badge>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-end">
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="sm"
-              onClick={() => {
-                setFilterDaysWithoutContact('all')
-                setFilterFrequency('all')
-                setFilterSpending('all')
-                setFilterSearch('')
-              }}
-              className="h-6 text-[11px] text-purple-700 hover:text-purple-800"
+              onClick={handleSelectAllVisible}
+              className="h-7 text-xs gap-1 border-purple-200 text-purple-700 hover:bg-purple-50"
             >
-              Limpar Filtros
+              <CheckSquare className="h-3.5 w-3.5" />
+              <span>Selecionar Todos ({segmentedCustomers.length})</span>
             </Button>
-          )}
+
+            {selectedCustomerIds.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleClearSelection}
+                className="h-7 text-xs text-slate-600 hover:text-slate-900"
+              >
+                <Square className="h-3.5 w-3.5 mr-1" />
+                Limpar Seleção
+              </Button>
+            )}
+
+            {(filterDaysWithoutContact !== 'all' ||
+              filterFrequency !== 'all' ||
+              filterSpending !== 'all' ||
+              filterSearch) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setFilterDaysWithoutContact('all')
+                  setFilterFrequency('all')
+                  setFilterSpending('all')
+                  setFilterSearch('')
+                }}
+                className="h-7 text-[11px] text-purple-700 hover:text-purple-800"
+              >
+                Limpar Filtros
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -686,51 +916,79 @@ export default function Campanhas() {
             const name = getCustomerDisplayName(cust)
             const phone = getCustomerPhone(cust)
             const alreadySent = hasCustomerReceivedCampaign(cust.id)
+            const isManuallySelected = selectedCustomerIds.includes(cust.id)
+            const isLimitReached = dailyDispatchesCount >= DAILY_DISPATCH_LIMIT
 
             return (
               <Card
                 key={cust.id}
-                className="border-slate-200 shadow-xs hover:shadow-md transition-shadow"
+                className={`border transition-all ${
+                  isManuallySelected
+                    ? 'border-purple-400 bg-purple-50/30 shadow-md ring-1 ring-purple-300'
+                    : 'border-slate-200 shadow-xs hover:shadow-md'
+                }`}
               >
                 <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div className="space-y-1 min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-bold text-slate-900 text-sm truncate">{name}</p>
-                      {alreadySent && (
-                        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 font-bold text-[10px] gap-1">
-                          <CheckCircle2 className="h-3 w-3" /> Já Enviado
-                        </Badge>
-                      )}
-                      {prof.daysSinceLastOrder >= 60 && (
-                        <Badge className="bg-amber-100 text-amber-900 border-amber-200 font-bold text-[10px]">
-                          Sem OS há {prof.daysSinceLastOrder} dias
-                        </Badge>
-                      )}
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    {/* Checkbox de Seleção Manual */}
+                    <div className="pt-0.5 shrink-0">
+                      <Checkbox
+                        id={`select-cust-${cust.id}`}
+                        checked={isManuallySelected}
+                        onCheckedChange={() => toggleSelectCustomer(cust.id)}
+                        aria-label={`Selecionar ${name}`}
+                      />
                     </div>
 
-                    <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
-                      <span className="font-mono text-[11px] flex items-center gap-1">
-                        <Phone className="h-3 w-3 text-slate-400" />
-                        {phone}
-                      </span>
-                      <span>•</span>
-                      <span>
-                        Total O.S.: <strong>{prof.totalOrders}</strong>
-                      </span>
-                      <span>•</span>
-                      <span>
-                        Total Gasto:{' '}
-                        <strong className="text-emerald-700 font-mono">
-                          R$ {prof.totalSpent.toFixed(2)}
-                        </strong>
-                      </span>
-                    </div>
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <label
+                          htmlFor={`select-cust-${cust.id}`}
+                          className="font-bold text-slate-900 text-sm truncate cursor-pointer hover:text-purple-700"
+                        >
+                          {name}
+                        </label>
+                        {isManuallySelected && (
+                          <Badge className="bg-purple-600 text-white font-bold text-[9px] uppercase tracking-wider">
+                            Marcado
+                          </Badge>
+                        )}
+                        {alreadySent && (
+                          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 font-bold text-[10px] gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Já Enviado
+                          </Badge>
+                        )}
+                        {prof.daysSinceLastOrder >= 60 && (
+                          <Badge className="bg-amber-100 text-amber-900 border-amber-200 font-bold text-[10px]">
+                            Sem OS há {prof.daysSinceLastOrder} dias
+                          </Badge>
+                        )}
+                      </div>
 
-                    {prof.serviceTypes.length > 0 && (
-                      <p className="text-[11px] text-slate-500 italic truncate">
-                        Equipamentos atendidos: {prof.serviceTypes.join(', ')}
-                      </p>
-                    )}
+                      <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                        <span className="font-mono text-[11px] flex items-center gap-1">
+                          <Phone className="h-3 w-3 text-slate-400" />
+                          {phone}
+                        </span>
+                        <span>•</span>
+                        <span>
+                          Total O.S.: <strong>{prof.totalOrders}</strong>
+                        </span>
+                        <span>•</span>
+                        <span>
+                          Total Gasto:{' '}
+                          <strong className="text-emerald-700 font-mono">
+                            R$ {prof.totalSpent.toFixed(2)}
+                          </strong>
+                        </span>
+                      </div>
+
+                      {prof.serviceTypes.length > 0 && (
+                        <p className="text-[11px] text-slate-500 italic truncate">
+                          Equipamentos atendidos: {prof.serviceTypes.join(', ')}
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
@@ -738,11 +996,30 @@ export default function Campanhas() {
                       type="button"
                       size="sm"
                       onClick={() => handleSendOneTouch(prof)}
-                      disabled={!selectedCampaign}
-                      className="h-9 px-4 text-xs font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
+                      disabled={!selectedCampaign || isLimitReached}
+                      title={
+                        isLimitReached
+                          ? 'Limite diário de 50 disparos atingido'
+                          : !selectedCampaign
+                            ? 'Selecione uma campanha'
+                            : 'Disparar WhatsApp'
+                      }
+                      className={`h-9 px-4 text-xs font-bold gap-1.5 rounded-xl shadow-xs transition-colors ${
+                        isLimitReached
+                          ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                          : isManuallySelected
+                            ? 'bg-purple-600 hover:bg-purple-700 text-white ring-2 ring-purple-300'
+                            : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      }`}
                     >
                       <Send className="h-3.5 w-3.5" />
-                      <span>{alreadySent ? 'Reenviar WhatsApp' : 'Disparar (1-Toque)'}</span>
+                      <span>
+                        {isLimitReached
+                          ? 'Limite 50/dia'
+                          : alreadySent
+                            ? 'Reenviar WhatsApp'
+                            : 'Disparar (1-Toque)'}
+                      </span>
                     </Button>
                   </div>
                 </CardContent>

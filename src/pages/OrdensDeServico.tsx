@@ -211,7 +211,13 @@ export default function OrdensDeServico() {
           const shareUrl = `${window.location.origin}/share/${changedOrder.id}`
           const name = getCustomerDisplayName(changedOrder.expand?.customer)
           if (newStatus === 'completed') {
-            triggerWhatsAppEvaluation(phone, name, changedOrder.number, shareUrl)
+            const equip = changedOrder.equipment || changedOrder.expand?.equipment_ref?.name || ''
+            const techName = changedOrder.expand?.technician?.name
+            triggerWhatsAppEvaluation(phone, name, changedOrder.number, shareUrl, {
+              equipment: equip,
+              serviceReport: changedOrder.service_report || changedOrder.description,
+              technicianName: techName,
+            })
           } else {
             openWhatsApp(phone, buildServiceMessage(name, changedOrder.number, newStatus, shareUrl))
           }

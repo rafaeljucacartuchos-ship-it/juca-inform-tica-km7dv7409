@@ -129,20 +129,43 @@ export function buildCompletionEvaluationMessage(
   customerName: string,
   orderNumber: string,
   shareUrl: string,
+  details?: {
+    equipment?: string
+    serviceReport?: string
+    technicianName?: string
+    itemsSummary?: string
+  },
 ): string {
+  const firstName = customerName.split(' ')[0] || customerName
+  const equipPart = details?.equipment
+    ? ` o seu *${details.equipment.trim()}*`
+    : ' o seu equipamento'
+  const osPart = orderNumber ? ` (O.S. *${orderNumber}*)` : ''
+  const techPart = details?.technicianName?.trim()
+    ? `cuidado com carinho pelo nosso técnico *${details.technicianName.trim()}*`
+    : `cuidado com toda dedicação pela nossa equipe técnica`
+
+  let servicePart = ''
+  if (details?.itemsSummary && details?.serviceReport) {
+    servicePart = `após ${details.serviceReport.trim()} e itens: ${details.itemsSummary.trim()}`
+  } else if (details?.itemsSummary) {
+    servicePart = `após serviço realizado com ${details.itemsSummary.trim()}`
+  } else if (details?.serviceReport) {
+    servicePart = `após ${details.serviceReport.trim()}`
+  }
+
   return (
     WHATSAPP_HEADER +
-    `Olá ${customerName}! Sua Ordem de Serviço *${orderNumber}* foi *CONCLUÍDA*! 🎉
-
-Muito obrigado pela confiança em nosso serviço! 🙏
-
-Por favor, avalie o atendimento do nosso técnico e o serviço prestado:
-${shareUrl}
-
-Gostou do serviço? Deixe também sua avaliação no Google — é rapidinho e ajuda muito:
-${GOOGLE_REVIEW_URL}
-
-Qualquer dúvida, estamos à disposição!` +
+    `Olá, *${firstName}*! Tudo bem? Aqui é o *Juquinha* da JUCA Informática! 🙋‍♂️\n\n` +
+    `Sua Ordem de Serviço *${orderNumber}* foi finalizada com sucesso! 🎉\n\n` +
+    `Agradecemos de coração pela confiança em trazer${equipPart}${osPart}, ${techPart}${servicePart ? ' (' + servicePart + ')' : ''}.\n\n` +
+    (shareUrl
+      ? `Acompanhe os detalhes da OS e o termo de conclusão pelo link:\n${shareUrl}\n\n`
+      : '') +
+    `A sua avaliação é muito importante para valorizar o trabalho do técnico e ajudar a JUCA a crescer!\n` +
+    `Dedique 30 segundinhos para nos avaliar no Google — é rapidinho e ajuda muito: ⭐⭐⭐⭐⭐\n` +
+    `${GOOGLE_REVIEW_URL}\n\n` +
+    `Qualquer dúvida, estamos sempre à disposição!` +
     WHATSAPP_FOOTER
   )
 }
@@ -156,8 +179,14 @@ export function triggerWhatsAppEvaluation(
   customerName: string,
   orderNumber: string,
   shareUrl?: string,
+  details?: {
+    equipment?: string
+    serviceReport?: string
+    technicianName?: string
+    itemsSummary?: string
+  },
 ) {
   const link = shareUrl || ''
-  const msg = buildCompletionEvaluationMessage(customerName, orderNumber, link)
+  const msg = buildCompletionEvaluationMessage(customerName, orderNumber, link, details)
   openWhatsApp(phone, msg)
 }
