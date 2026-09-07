@@ -401,9 +401,12 @@ export default function OrdemDetail() {
     const name = getCustomerDisplayName(order.expand?.customer)
     const equip = order.equipment || order.expand?.equipment_ref?.name || ''
 
+    const techName =
+      order.expand?.technician?.name || (order.technician === user?.id ? user?.name : undefined)
+
     // Requisito 1: enquanto a ordem de serviço estiver aberta, abre a conversa com texto de boas-vindas/aviso em 1 clique
     if (order.status === 'open') {
-      openWhatsApp(phone, buildOpenOrderWelcomeMessage(name, order.number, equip))
+      openWhatsApp(phone, buildOpenOrderWelcomeMessage(name, order.number, equip, techName))
     } else if (order.status === 'completed') {
       triggerWhatsAppEvaluation(phone, name, order.number, shareUrl)
     } else {

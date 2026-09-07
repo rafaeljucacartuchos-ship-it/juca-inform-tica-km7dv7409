@@ -17,22 +17,28 @@ export function buildWhatsAppUrl(phone: string, message: string): string {
 
 /**
  * Mensagem de contato inicial / boas-vindas com o cliente na OS aberta.
+ * Inclui o nome do técnico responsável para identificação pessoal.
  * O técnico abre a conversa em 1 toque sem precisar digitar nada.
  */
 export function buildOpenOrderWelcomeMessage(
   customerName: string,
   orderNumber: string,
   equipment?: string,
+  technicianName?: string,
 ): string {
+  const intro = technicianName?.trim()
+    ? `Aqui é o técnico ${technicianName.trim()}, da equipe técnica da *JUCA INFORMÁTICA*.`
+    : `Aqui é da equipe técnica da *JUCA INFORMÁTICA*.`
+
+  const equipStr = equipment?.trim() ? ` (${equipment.trim()})` : ''
+
   return (
-    WHATSAPP_HEADER +
+    `JUCA INFORMÁTICA\n\n` +
     `Olá, ${customerName}! Tudo bem?\n\n` +
-    `Aqui é da equipe técnica da *JUCA Informática*. Estamos com a sua Ordem de Serviço *${orderNumber}* aberta em nosso sistema${
-      equipment ? ' (' + equipment + ')' : ''
-    }.\n\n` +
+    `${intro} Estamos com a sua Ordem de Serviço *${orderNumber}* aberta em nosso sistema${equipStr}.\n\n` +
     `Este é o nosso canal direto para qualquer dúvida ou acompanhamento do seu atendimento!\n\n` +
-    `Como podemos te ajudar hoje?` +
-    WHATSAPP_FOOTER
+    `Juca Informática\n\n` +
+    `(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981`
   )
 }
 
