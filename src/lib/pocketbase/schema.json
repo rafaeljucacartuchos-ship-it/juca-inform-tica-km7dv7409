@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-07T02:52:33.343Z",
+  "generatedAt": "2026-09-07T22:25:35.819Z",
   "collections": [
     {
       "name": "users",
@@ -336,7 +336,10 @@
             "waiting_parts",
             "completed",
             "closed",
-            "cancelled"
+            "cancelled",
+            "aguardando_orcamento",
+            "orcamento_enviado",
+            "orcamento_rejeitado"
           ]
         },
         {
@@ -703,7 +706,10 @@
             "waiting_parts",
             "completed",
             "closed",
-            "cancelled"
+            "cancelled",
+            "aguardando_orcamento",
+            "orcamento_enviado",
+            "orcamento_rejeitado"
           ]
         },
         {
@@ -1616,6 +1622,330 @@
         "CREATE INDEX idx_camp_msg_customer ON campanha_messages (customer)",
         "CREATE INDEX idx_camp_msg_status ON campanha_messages (status)"
       ]
+    },
+    {
+      "name": "orcamentos",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "id_os",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "service_orders"
+        },
+        {
+          "name": "numero_orcamento",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "rascunho",
+            "enviado",
+            "aguardando_aprovacao",
+            "aprovado",
+            "rejeitado",
+            "substituido",
+            "faturado"
+          ]
+        },
+        {
+          "name": "validade",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "observacoes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "id_usuario_criador",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "desconto_total_valor",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "desconto_total_tipo",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["percentual", "valor"]
+        },
+        {
+          "name": "desconto_total_percentual",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "justificativa_desconto",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "forma_pagamento",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["dinheiro", "pix", "cartao_debito", "cartao_credito", "boleto", "outros"]
+        },
+        {
+          "name": "parcelas",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "entrada",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "restante",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status_pagamento",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["pendente", "parcial", "pago"]
+        },
+        {
+          "name": "assinatura_cliente",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "assinatura_tecnico",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_assinatura_cliente",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_assinatura_tecnico",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ip_dispositivo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "motivo_rejeicao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "subtotal",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "total_geral",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_orcamentos_os ON orcamentos (id_os)",
+        "CREATE INDEX idx_orcamentos_status ON orcamentos (status)",
+        "CREATE UNIQUE INDEX idx_orcamentos_numero ON orcamentos (numero_orcamento)"
+      ]
+    },
+    {
+      "name": "orcamento_itens",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "id_orcamento",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "orcamentos"
+        },
+        {
+          "name": "tipo",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["produto", "servico"]
+        },
+        {
+          "name": "id_produto",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "products"
+        },
+        {
+          "name": "descricao",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "quantidade",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "valor_unitario",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "desconto_item",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "desconto_item_tipo",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["percentual", "valor"]
+        },
+        {
+          "name": "valor_total_item",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_orc_itens_orcamento ON orcamento_itens (id_orcamento)"]
+    },
+    {
+      "name": "orcamento_anexos",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "id_orcamento",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "orcamentos"
+        },
+        {
+          "name": "tipo",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["foto_equipamento", "foto_defeito", "documento"]
+        },
+        {
+          "name": "caminho_arquivo",
+          "type": "file",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "legenda",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_orc_anexos_orcamento ON orcamento_anexos (id_orcamento)"]
     }
   ]
 }

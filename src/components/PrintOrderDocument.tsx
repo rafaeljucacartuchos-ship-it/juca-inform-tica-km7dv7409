@@ -7,11 +7,14 @@ import { useNavigate } from 'react-router-dom'
 
 const STATUS_LABELS: Record<string, string> = {
   open: 'Aberta',
+  aguardando_orcamento: 'Aguardando Orçamento',
+  orcamento_enviado: 'Orçamento Enviado',
   in_progress: 'Em Andamento',
   paused: 'Pausada',
   waiting_parts: 'Aguardando Peças',
   completed: 'Concluída',
   closed: 'Fechada',
+  orcamento_rejeitado: 'Orçamento Rejeitado',
   cancelled: 'Cancelada',
 }
 

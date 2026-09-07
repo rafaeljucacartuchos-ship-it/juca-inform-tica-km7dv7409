@@ -14,6 +14,7 @@ import {
   Search,
   Package,
   Wrench,
+  FileText,
 } from 'lucide-react'
 import { BarcodeScanner } from '@/components/BarcodeScanner'
 import { AddOrderItemModal } from '@/components/AddOrderItemModal'
@@ -45,6 +46,8 @@ import { getServiceOrder, getOrderItems, getStatusHistory } from '@/services/ser
 import { getCatalogServices } from '@/services/services_catalog'
 import { getCustomerPhone, getCustomerDisplayName } from '@/services/customers'
 import { getOrderPayments } from '@/services/payments'
+import { getActiveOrcamento, createOrcamento } from '@/services/orcamentos'
+import { Orcamento } from '@/types'
 import pb from '@/lib/pocketbase/client'
 import { offlinePb } from '@/lib/offline-pb'
 import { PaymentModal } from '@/components/PaymentModal'
@@ -71,6 +74,8 @@ export default function OrdemDetail() {
   const [order, setOrder] = useState<ServiceOrder | null>(null)
   const [items, setItems] = useState<ServiceOrderItem[]>([])
   const [orderItemsTab, setOrderItemsTab] = useState<'all' | 'products' | 'services'>('all')
+  const [activeOrcamento, setActiveOrcamento] = useState<Orcamento | null>(null)
+  const [creatingOrcamento, setCreatingOrcamento] = useState(false)
   const [history, setHistory] = useState<StatusHistory[]>([])
   const [catalog, setCatalog] = useState<CatalogService[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
@@ -97,13 +102,15 @@ export default function OrdemDetail() {
   const loadAll = async () => {
     if (!id) return
     try {
-      const [o, it, h, cat, p] = await Promise.all([
+      const [o, it, h, cat, p, orc] = await Promise.all([
         getServiceOrder(id),
         getOrderItems(id),
         getStatusHistory(id),
         getCatalogServices(),
         getOrderPayments(id),
+        getActiveOrcamento(id),
       ])
+      setActiveOrcamento(orc)
       // Recalcula o subtotal a partir da soma real dos itens carregados do banco de dados
       const subtotal = it.reduce((sum, item) => sum + (item.total || 0), 0)
       const desc = Number(o.desconto) || 0
@@ -615,7 +622,47 @@ export default function OrdemDetail() {
           </Button>
         )}
 
-        <div className="grid grid-cols-3 sm:flex sm:flex-wrap items-center gap-2">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
+          {/* Botão de Orçamento Integrado à OS */}
+          {activeOrcamento ? (
+            <Button
+              size="sm"
+              onClick={() => navigate(`/orcamentos/${activeOrcamento.id}`)}
+              className="text-xs gap-1.5 h-10 sm:h-9 justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+            >
+              <FileText className="h-4 w-4" />
+              <span>Ver Orçamento ({activeOrcamento.numero_orcamento})</span>
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={creatingOrcamento}
+              onClick={async () => {
+                setCreatingOrcamento(true)
+                try {
+                  const novo = await createOrcamento({
+                    id_os: order.id,
+                    id_usuario_criador: user?.id,
+                  })
+                  toast({
+                    title: 'Orçamento gerado com sucesso!',
+                    description: `Número: ${novo.numero_orcamento}`,
+                  })
+                  navigate(`/orcamentos/${novo.id}`)
+                } catch {
+                  toast({ title: 'Erro ao gerar orçamento', variant: 'destructive' })
+                } finally {
+                  setCreatingOrcamento(false)
+                }
+              }}
+              className="text-xs gap-1.5 h-10 sm:h-9 justify-center border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 font-bold"
+            >
+              <FileText className="h-4 w-4" />
+              <span>{creatingOrcamento ? 'Gerando...' : 'Gerar Orçamento'}</span>
+            </Button>
+          )}
+
           <Button
             variant="outline"
             size="sm"

@@ -115,11 +115,14 @@ export default function OrdensDeServico() {
 
   const columns: { status: OrderStatus; label: string; bg: string }[] = [
     { status: 'open', label: 'Abertas', bg: 'border-t-blue-500' },
+    { status: 'aguardando_orcamento', label: 'Aguardando Orçamento', bg: 'border-t-cyan-500' },
+    { status: 'orcamento_enviado', label: 'Orçamento Enviado', bg: 'border-t-indigo-500' },
     { status: 'in_progress', label: 'Em Andamento', bg: 'border-t-purple-500' },
     { status: 'paused', label: 'Pausadas', bg: 'border-t-orange-500' },
     { status: 'waiting_parts', label: 'Aguardando Peças', bg: 'border-t-amber-500' },
     { status: 'completed', label: 'Concluídas', bg: 'border-t-emerald-500' },
     { status: 'closed', label: 'Fechadas', bg: 'border-t-slate-500' },
+    { status: 'orcamento_rejeitado', label: 'Orçamento Rejeitado', bg: 'border-t-rose-500' },
     { status: 'cancelled', label: 'Canceladas', bg: 'border-t-red-500' },
   ]
 
@@ -376,6 +379,12 @@ export default function OrdensDeServico() {
               <SelectItem value="open" className="text-xs">
                 Aberto
               </SelectItem>
+              <SelectItem value="aguardando_orcamento" className="text-xs">
+                Aguardando Orçamento
+              </SelectItem>
+              <SelectItem value="orcamento_enviado" className="text-xs">
+                Orçamento Enviado
+              </SelectItem>
               <SelectItem value="in_progress" className="text-xs">
                 Em Andamento
               </SelectItem>
@@ -390,6 +399,9 @@ export default function OrdensDeServico() {
               </SelectItem>
               <SelectItem value="closed" className="text-xs">
                 Fechado
+              </SelectItem>
+              <SelectItem value="orcamento_rejeitado" className="text-xs">
+                Orçamento Rejeitado
               </SelectItem>
               <SelectItem value="cancelled" className="text-xs">
                 Cancelado

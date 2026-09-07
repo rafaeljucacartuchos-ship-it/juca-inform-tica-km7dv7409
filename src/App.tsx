@@ -14,6 +14,8 @@ import Dashboard from '@/pages/Dashboard'
 import OrdensDeServico from '@/pages/OrdensDeServico'
 import OrdemDetail from '@/pages/OrdemDetail'
 import OrdemAssinatura from '@/pages/OrdemAssinatura'
+import OrcamentoDetail from '@/pages/OrcamentoDetail'
+import OrcamentoPrint from '@/pages/OrcamentoPrint'
 import PosVendaJuquinha from '@/pages/PosVenda'
 import PedidoMercadorias from '@/pages/PedidoMercadorias'
 import Campanhas from '@/pages/Campanhas'
@@ -90,6 +92,8 @@ const App = () => {
                   <Route element={<PermissionRoute module="ordens" />}>
                     <Route path="/ordens/:id/imprimir" element={<OrdemPrint />} />
                     <Route path="/ordens/:id/assinatura" element={<OrdemAssinatura />} />
+                    <Route path="/orcamentos/:id" element={<OrcamentoDetail />} />
+                    <Route path="/orcamentos/:id/imprimir" element={<OrcamentoPrint />} />
                   </Route>{' '}
                   <Route element={<PermissionRoute module="relatorios" />}>
                     <Route

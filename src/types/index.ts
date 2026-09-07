@@ -97,6 +97,9 @@ export type OrderStatus =
   | 'completed'
   | 'closed'
   | 'cancelled'
+  | 'aguardando_orcamento'
+  | 'orcamento_enviado'
+  | 'orcamento_rejeitado'
 export type OrderPriority = 'low' | 'medium' | 'high' | 'urgent'
 
 export interface ServiceType {
@@ -352,4 +355,88 @@ export interface CampanhaMessage {
     campaign?: Campaign
     customer?: Customer
   }
+}
+
+export type OrcamentoStatus =
+  | 'rascunho'
+  | 'enviado'
+  | 'aguardando_aprovacao'
+  | 'aprovado'
+  | 'rejeitado'
+  | 'substituido'
+  | 'faturado'
+
+export type OrcamentoDescontoTipo = 'percentual' | 'valor'
+export type OrcamentoFormaPagamento =
+  | 'dinheiro'
+  | 'pix'
+  | 'cartao_debito'
+  | 'cartao_credito'
+  | 'boleto'
+  | 'outros'
+export type OrcamentoStatusPagamento = 'pendente' | 'parcial' | 'pago'
+
+export interface Orcamento {
+  id: string
+  id_os: string
+  numero_orcamento: string
+  status: OrcamentoStatus
+  validade?: number
+  observacoes?: string
+  id_usuario_criador?: string
+  desconto_total_valor?: number
+  desconto_total_tipo?: OrcamentoDescontoTipo
+  desconto_total_percentual?: number
+  justificativa_desconto?: string
+  forma_pagamento?: OrcamentoFormaPagamento
+  parcelas?: number
+  entrada?: number
+  restante?: number
+  status_pagamento?: OrcamentoStatusPagamento
+  assinatura_cliente?: string
+  assinatura_tecnico?: string
+  data_assinatura_cliente?: string
+  data_assinatura_tecnico?: string
+  ip_dispositivo?: string
+  motivo_rejeicao?: string
+  subtotal?: number
+  total_geral?: number
+  created?: string
+  updated?: string
+  expand?: {
+    id_os?: ServiceOrder
+    id_usuario_criador?: User
+  }
+}
+
+export type OrcamentoItemTipo = 'produto' | 'servico'
+
+export interface OrcamentoItem {
+  id: string
+  id_orcamento: string
+  tipo: OrcamentoItemTipo
+  id_produto?: string
+  descricao: string
+  quantidade: number
+  valor_unitario: number
+  desconto_item?: number
+  desconto_item_tipo?: OrcamentoDescontoTipo
+  valor_total_item: number
+  created?: string
+  updated?: string
+  expand?: {
+    id_produto?: Product
+  }
+}
+
+export type OrcamentoAnexoTipo = 'foto_equipamento' | 'foto_defeito' | 'documento'
+
+export interface OrcamentoAnexo {
+  id: string
+  id_orcamento: string
+  tipo: OrcamentoAnexoTipo
+  caminho_arquivo: string
+  legenda?: string
+  created?: string
+  updated?: string
 }

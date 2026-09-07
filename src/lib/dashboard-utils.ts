@@ -3,22 +3,43 @@ import { ServiceOrder, StatusHistory, Payment, OrderStatus } from '@/types'
 export type Period = 'today' | 'week' | 'month' | 'custom'
 
 export const STATUS_PRIORITY_MAP: Record<OrderStatus, number> = {
-  open: 1,
-  in_progress: 2,
-  paused: 3,
-  waiting_parts: 4,
-  completed: 5,
-  closed: 6,
-  cancelled: 7,
+  aguardando_orcamento: 1,
+  orcamento_enviado: 2,
+  open: 3,
+  in_progress: 4,
+  paused: 5,
+  waiting_parts: 6,
+  completed: 7,
+  closed: 8,
+  orcamento_rejeitado: 9,
+  cancelled: 10,
 }
 
 export const STATUS_CONFIG = [
   { value: 'open', label: 'Aberta', color: 'text-blue-600', bg: 'bg-blue-50' },
+  {
+    value: 'aguardando_orcamento',
+    label: 'Aguardando Orçamento',
+    color: 'text-cyan-600',
+    bg: 'bg-cyan-50',
+  },
+  {
+    value: 'orcamento_enviado',
+    label: 'Orçamento Enviado',
+    color: 'text-indigo-600',
+    bg: 'bg-indigo-50',
+  },
   { value: 'in_progress', label: 'Em Andamento', color: 'text-purple-600', bg: 'bg-purple-50' },
   { value: 'paused', label: 'Pausada', color: 'text-orange-600', bg: 'bg-orange-50' },
   { value: 'waiting_parts', label: 'Aguardando Peças', color: 'text-amber-600', bg: 'bg-amber-50' },
   { value: 'completed', label: 'Concluída', color: 'text-emerald-600', bg: 'bg-emerald-50' },
   { value: 'closed', label: 'Fechada', color: 'text-slate-600', bg: 'bg-slate-50' },
+  {
+    value: 'orcamento_rejeitado',
+    label: 'Orçamento Rejeitado',
+    color: 'text-rose-600',
+    bg: 'bg-rose-50',
+  },
   { value: 'cancelled', label: 'Cancelada', color: 'text-red-600', bg: 'bg-red-50' },
 ] as const
 

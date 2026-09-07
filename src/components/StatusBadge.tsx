@@ -20,6 +20,24 @@ export function StatusBadge({ status }: { status: string }) {
       )
     case 'closed':
       return <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">Fechada</Badge>
+    case 'aguardando_orcamento':
+      return (
+        <Badge className="bg-cyan-100 text-cyan-800 border-cyan-200 hover:bg-cyan-100">
+          Aguardando Orçamento
+        </Badge>
+      )
+    case 'orcamento_enviado':
+      return (
+        <Badge className="bg-indigo-100 text-indigo-800 border-indigo-200 hover:bg-indigo-100">
+          Orçamento Enviado
+        </Badge>
+      )
+    case 'orcamento_rejeitado':
+      return (
+        <Badge className="bg-rose-100 text-rose-800 border-rose-200 hover:bg-rose-100">
+          Orçamento Rejeitado
+        </Badge>
+      )
     default:
       return <Badge variant="outline">Cancelada</Badge>
   }
