@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-07T23:32:32.794Z",
+  "generatedAt": "2026-09-07T23:53:05.082Z",
   "collections": [
     {
       "name": "users",
@@ -1799,6 +1799,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "token_acesso",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
