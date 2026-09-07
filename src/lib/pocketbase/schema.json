@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-07T02:20:25.590Z",
+  "generatedAt": "2026-09-07T02:25:27.651Z",
   "collections": [
     {
       "name": "users",
@@ -1009,6 +1009,12 @@
           "required": false,
           "system": false,
           "selectValues": ["produto", "servico"]
+        },
+        {
+          "name": "fabricante",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -1467,6 +1473,148 @@
         "CREATE INDEX idx_pos_venda_status_sched ON pos_venda_messages (status, scheduled_at)",
         "CREATE INDEX idx_pos_venda_customer ON pos_venda_messages (customer)",
         "CREATE INDEX idx_pos_venda_so ON pos_venda_messages (service_order)"
+      ]
+    },
+    {
+      "name": "campaigns",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "title",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "target_audience",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "template_text",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "flyer",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["draft", "active", "archived"]
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_campaigns_status ON campaigns (status)"]
+    },
+    {
+      "name": "campanha_messages",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "campaign",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "campaigns"
+        },
+        {
+          "name": "customer",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "customers"
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["pending", "sent", "dismissed"]
+        },
+        {
+          "name": "sent_at",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "texto_gerado",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "wa_me_link",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "channel",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_camp_msg_campaign ON campanha_messages (campaign)",
+        "CREATE INDEX idx_camp_msg_customer ON campanha_messages (customer)",
+        "CREATE INDEX idx_camp_msg_status ON campanha_messages (status)"
       ]
     }
   ]

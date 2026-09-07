@@ -242,6 +242,7 @@ export interface Product {
   price?: number
   cost?: number
   category?: string
+  fabricante?: string
   type?: ProductType
   /** URL externa da foto (ex: Pexels). */
   photo?: string
@@ -318,4 +319,37 @@ export interface SystemSetting {
   description?: string
   created?: string
   updated?: string
+}
+
+export type CampaignStatus = 'draft' | 'active' | 'archived'
+
+export interface Campaign {
+  id: string
+  title: string
+  description?: string
+  target_audience?: string
+  template_text: string
+  flyer?: string
+  status: CampaignStatus
+  created?: string
+  updated?: string
+}
+
+export type CampanhaMessageStatus = 'pending' | 'sent' | 'dismissed'
+
+export interface CampanhaMessage {
+  id: string
+  campaign: string
+  customer: string
+  status: CampanhaMessageStatus
+  sent_at?: string
+  texto_gerado?: string
+  wa_me_link?: string
+  channel?: string
+  created?: string
+  updated?: string
+  expand?: {
+    campaign?: Campaign
+    customer?: Customer
+  }
 }

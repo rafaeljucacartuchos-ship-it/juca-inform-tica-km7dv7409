@@ -18,6 +18,8 @@ import {
   Tag,
   MessageSquare,
   Sparkles,
+  ShoppingCart,
+  Megaphone,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -86,10 +88,22 @@ export function Sidebar({ onNavClick }: SidebarProps) {
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, show: true },
     { label: 'Ordens de Serviço', path: '/ordens', icon: Wrench, show: hasPermission('ordens') },
     {
+      label: 'Pedido de Mercadoria',
+      path: '/pedido-mercadorias',
+      icon: ShoppingCart,
+      show: hasPermission('pedido_mercadoria'),
+    },
+    {
       label: 'Pós-venda (Juquinha)',
       path: '/pos-venda',
       icon: Sparkles,
       show: hasPermission('pos_venda'),
+    },
+    {
+      label: 'Campanhas',
+      path: '/campanhas',
+      icon: Megaphone,
+      show: hasPermission('campanhas'),
     },
     {
       label: 'Relatórios OS',

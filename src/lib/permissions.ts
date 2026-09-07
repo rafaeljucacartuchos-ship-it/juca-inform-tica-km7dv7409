@@ -6,6 +6,8 @@ export type PermissionModule =
   | 'agendamentos'
   | 'ordens'
   | 'pos_venda'
+  | 'campanhas'
+  | 'pedido_mercadoria'
   | 'tecnicos'
   | 'relatorios'
   | 'exportacoes'
@@ -23,6 +25,8 @@ export const PERMISSION_LABELS: Record<PermissionModule, string> = {
   agendamentos: 'Atendimentos / Agendamentos',
   ordens: 'Ordens de Serviço (Listagem e Detalhe)',
   pos_venda: 'Pós-venda — Juquinha',
+  campanhas: 'Campanhas de Marketing',
+  pedido_mercadoria: 'Pedido de Mercadorias e Reposição',
   tecnicos: 'Técnicos (Gerenciar Usuários)',
   relatorios: 'Relatórios',
   exportacoes: 'Exportações',
@@ -39,6 +43,8 @@ export const ALL_PERMISSION_MODULES: PermissionModule[] = [
   'agendamentos',
   'ordens',
   'pos_venda',
+  'campanhas',
+  'pedido_mercadoria',
   'tecnicos',
   'relatorios',
   'exportacoes',
@@ -58,6 +64,8 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         agendamentos: true,
         ordens: true,
         pos_venda: true,
+        campanhas: true,
+        pedido_mercadoria: true,
         tecnicos: true,
         relatorios: true,
         exportacoes: true,
@@ -74,6 +82,8 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         agendamentos: true,
         ordens: true,
         pos_venda: true,
+        campanhas: true,
+        pedido_mercadoria: true,
         tecnicos: false,
         relatorios: false,
         exportacoes: true,
@@ -90,6 +100,8 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         agendamentos: true,
         ordens: true,
         pos_venda: true,
+        campanhas: false,
+        pedido_mercadoria: false,
         tecnicos: false,
         relatorios: false,
         exportacoes: false,
@@ -106,6 +118,8 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         agendamentos: false,
         ordens: false,
         pos_venda: false,
+        campanhas: false,
+        pedido_mercadoria: false,
         tecnicos: false,
         relatorios: false,
         exportacoes: false,

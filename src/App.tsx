@@ -15,6 +15,8 @@ import OrdensDeServico from '@/pages/OrdensDeServico'
 import OrdemDetail from '@/pages/OrdemDetail'
 import OrdemAssinatura from '@/pages/OrdemAssinatura'
 import PosVendaJuquinha from '@/pages/PosVenda'
+import PedidoMercadorias from '@/pages/PedidoMercadorias'
+import Campanhas from '@/pages/Campanhas'
 import Clientes from '@/pages/Clientes'
 import ClienteDetail from '@/pages/ClienteDetail'
 import Servicos from '@/pages/Servicos'
@@ -33,6 +35,12 @@ import { offlinePb } from '@/lib/offline-pb'
 import { toast } from '@/hooks/use-toast'
 import { registerServiceWorker } from '@/lib/register-sw'
 import { StaleAppBanner } from '@/components/StaleAppBanner'
+import { useLowStockMonitor } from '@/hooks/use-low-stock-monitor'
+
+function LowStockWatcher() {
+  useLowStockMonitor()
+  return null
+}
 
 function OfflineSyncToasts() {
   useEffect(() => {
@@ -75,6 +83,7 @@ const App = () => {
               <StaleAppBanner />
               <PwaInstallHint />
               <OfflineSyncToasts />
+              <LowStockWatcher />
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route element={<ProtectedRoute />}>
@@ -95,9 +104,15 @@ const App = () => {
                       <Route path="/ordens" element={<OrdensDeServico />} />
                       <Route path="/ordens/:id" element={<OrdemDetail />} />
                     </Route>
+                    <Route element={<PermissionRoute module="pedido_mercadoria" />}>
+                      <Route path="/pedido-mercadorias" element={<PedidoMercadorias />} />
+                    </Route>
                     <Route element={<PermissionRoute module="pos_venda" />}>
                       <Route path="/pos-venda" element={<PosVendaJuquinha />} />
                     </Route>{' '}
+                    <Route element={<PermissionRoute module="campanhas" />}>
+                      <Route path="/campanhas" element={<Campanhas />} />
+                    </Route>
                     <Route element={<PermissionRoute module="clientes" />}>
                       <Route path="/clientes" element={<Clientes />} />
                       <Route path="/clientes/:id" element={<ClienteDetail />} />

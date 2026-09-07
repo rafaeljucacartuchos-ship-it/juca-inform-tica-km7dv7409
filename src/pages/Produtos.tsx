@@ -436,7 +436,14 @@ export default function Produtos() {
                         {p.sku || '-'}
                       </td>
                       <td className="py-3 px-4">
-                        <span className="font-bold text-slate-900 block">{p.name}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-slate-900">{p.name}</span>
+                          {p.fabricante && (
+                            <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                              {p.fabricante}
+                            </span>
+                          )}
+                        </div>
                         {isZeroStock && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 mt-0.5">
                             <AlertCircle className="h-2.5 w-2.5" /> Sem estoque

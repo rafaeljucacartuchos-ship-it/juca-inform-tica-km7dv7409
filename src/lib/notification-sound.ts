@@ -68,6 +68,44 @@ export function playNotificationSound() {
   }
 }
 
+/**
+ * Alerta sonoro de estoque baixo (Web Audio API - sem arquivos externos).
+ * Toca sequência dupla descendente de tom de atenção (440Hz -> 330Hz)
+ */
+export function playLowStockAlertSound() {
+  try {
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    if (!AudioContextClass) return
+    if (!sharedCtx) {
+      sharedCtx = new AudioContextClass()
+    }
+    if (sharedCtx.state === 'suspended') {
+      sharedCtx.resume()
+    }
+    const ctx = sharedCtx
+    const playTone = (freq: number, startOffset: number, duration: number) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.frequency.value = freq
+      osc.type = 'triangle'
+      gain.gain.setValueAtTime(0.35, ctx.currentTime + startOffset)
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + startOffset + duration)
+      osc.start(ctx.currentTime + startOffset)
+      osc.stop(ctx.currentTime + startOffset + duration)
+    }
+    // Primeiro bipe de aviso (440Hz), seguido de um mais grave (330Hz)
+    playTone(440, 0, 0.25)
+    playTone(330, 0.28, 0.35)
+    audioReady = true
+  } catch {
+    /* audio not available */
+  }
+}
+
 export function showBrowserNotification(title: string, body: string, tag?: string) {
   if ('Notification' in window && Notification.permission === 'granted') {
     try {

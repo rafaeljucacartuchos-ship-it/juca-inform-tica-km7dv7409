@@ -60,6 +60,7 @@ export function NewProductModal({
     sku: '',
     barcode: '',
     category: '',
+    fabricante: '',
     cost: '',
     price: '',
     photo: '',
@@ -101,6 +102,7 @@ export function NewProductModal({
           sku: editProduct.sku || '',
           barcode: editProduct.barcode || editProduct.codigo_barras || '',
           category: editProduct.category || '',
+          fabricante: editProduct.fabricante || '',
           cost: editProduct.cost != null ? String(editProduct.cost) : '',
           price: editProduct.price != null ? String(editProduct.price) : '',
           photo: editProduct.photo || '',
@@ -126,6 +128,7 @@ export function NewProductModal({
           sku: '',
           barcode: '',
           category: '',
+          fabricante: '',
           cost: '',
           price: '',
           photo: '',
@@ -208,6 +211,7 @@ export function NewProductModal({
         form.append('barcode', formData.barcode)
         form.append('codigo_barras', formData.barcode)
         form.append('category', formData.category)
+        form.append('fabricante', formData.fabricante)
         form.append('cost', String(Number(formData.cost) || 0))
         form.append('price', String(Number(formData.price) || 0))
         form.append('photo', '')
@@ -230,6 +234,7 @@ export function NewProductModal({
           barcode: formData.barcode,
           codigo_barras: formData.barcode,
           category: formData.category,
+          fabricante: formData.fabricante,
           cost: Number(formData.cost) || 0,
           price: Number(formData.price) || 0,
           photo: formData.photo,
@@ -354,7 +359,18 @@ export function NewProductModal({
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">Estoque</Label>
+              <Label className="text-xs font-semibold text-slate-700">Fabricante / Marca</Label>
+              <Input
+                placeholder="Ex: Kingston, Epson, HP..."
+                value={formData.fabricante}
+                onChange={(e) => setFormData({ ...formData, fabricante: e.target.value })}
+                className="h-9 text-xs"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">Estoque Atual</Label>
               <Input
                 type="number"
                 value={formData.stock_quantity}
@@ -362,8 +378,6 @@ export function NewProductModal({
                 className="h-9 text-xs font-mono"
               />
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-slate-700">Custo (R$)</Label>
               <Input
@@ -376,18 +390,18 @@ export function NewProductModal({
               />
               {errors.cost && <p className="text-[11px] text-red-500">{errors.cost}</p>}
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">Preço Venda (R$)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                placeholder="0.00"
-                value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                className="h-9 text-xs font-mono"
-              />
-              {errors.price && <p className="text-[11px] text-red-500">{errors.price}</p>}
-            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold text-slate-700">Preço Venda (R$)</Label>
+            <Input
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              value={formData.price}
+              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+              className="h-9 text-xs font-mono"
+            />
+            {errors.price && <p className="text-[11px] text-red-500">{errors.price}</p>}
           </div>
 
           {/* Foto do produto: captura (câmera/galeria) + busca Pexels */}
