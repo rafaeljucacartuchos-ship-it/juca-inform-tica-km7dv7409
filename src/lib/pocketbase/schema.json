@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-08T01:38:39.238Z",
+  "generatedAt": "2026-09-08T02:24:08.951Z",
   "collections": [
     {
       "name": "users",
@@ -1807,12 +1807,52 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "cliente_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "customers"
+        },
+        {
+          "name": "nome_cliente_livre",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "telefone_cliente_livre",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "responsavel_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "equipamento_independente",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "defeito_independente",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
         "CREATE INDEX idx_orcamentos_os ON orcamentos (id_os)",
         "CREATE INDEX idx_orcamentos_status ON orcamentos (status)",
-        "CREATE UNIQUE INDEX idx_orcamentos_numero ON orcamentos (numero_orcamento)"
+        "CREATE UNIQUE INDEX idx_orcamentos_numero ON orcamentos (numero_orcamento)",
+        "CREATE INDEX `idx_orcamentos_cliente` ON `orcamentos` (cliente_id)",
+        "CREATE INDEX `idx_orcamentos_responsavel` ON `orcamentos` (responsavel_id)"
       ]
     },
     {

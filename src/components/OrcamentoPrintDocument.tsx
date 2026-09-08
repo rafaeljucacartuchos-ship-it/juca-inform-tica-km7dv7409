@@ -45,9 +45,25 @@ export function OrcamentoPrintDocument({
   const navigate = useNavigate()
 
   const os = orcamento.expand?.id_os
-  const cust = os?.expand?.customer
-  const tech = os?.expand?.technician
+  const cust =
+    os?.expand?.customer ||
+    orcamento.expand?.cliente_id ||
+    (orcamento.nome_cliente_livre
+      ? ({
+          id: '',
+          name: orcamento.nome_cliente_livre,
+          celular: orcamento.telefone_cliente_livre || '',
+          phone: orcamento.telefone_cliente_livre || '',
+        } as any)
+      : undefined)
+  const tech =
+    os?.expand?.technician ||
+    orcamento.expand?.responsavel_id ||
+    orcamento.expand?.id_usuario_criador
   const equip = os?.expand?.equipment_ref
+  const equipName =
+    equip?.name || os?.equipment || orcamento.equipamento_independente || 'Não especificado'
+  const defeitoRelatado = os?.description || orcamento.defeito_independente || ''
 
   // Assinaturas do orçamento
   const custSig = orcamento.assinatura_cliente
@@ -189,13 +205,13 @@ export function OrcamentoPrintDocument({
           </div>
         </div>
 
-        {/* RESUMO INTEGRADO DA O.S. (Documento Único Orçamento + O.S.) */}
+        {/* RESUMO INTEGRADO DA O.S. OU ATENDIMENTO INDEPENDENTE */}
         <div className="mb-3.5 rounded-md border-2 border-indigo-200 bg-indigo-50/40 p-3 text-[11px]">
           <div className="mb-1.5 flex items-center justify-between border-b border-indigo-200 pb-1">
             <h3 className="text-xs font-black text-indigo-950 uppercase tracking-wide flex items-center gap-1.5">
-              <span>Resumo da Ordem de Serviço</span>
+              <span>{os ? 'Resumo da Ordem de Serviço' : 'Dados do Atendimento'}</span>
               <span className="text-[10px] font-normal text-indigo-700 lowercase">
-                (documento integrado)
+                {os ? '(documento integrado)' : '(orçamento independente)'}
               </span>
             </h3>
             <span className="font-mono text-xs font-bold text-indigo-900 bg-white px-2 py-0.5 rounded border border-indigo-200">
@@ -207,9 +223,7 @@ export function OrcamentoPrintDocument({
           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 leading-snug">
             <div>
               <strong className="text-slate-700">Equipamento:</strong>{' '}
-              <span className="font-bold text-slate-900">
-                {equip?.name || os?.equipment || 'Equipamento não especificado'}
-              </span>
+              <span className="font-bold text-slate-900">{equipName}</span>
             </div>
             <div>
               <strong className="text-slate-700">Marca / Modelo:</strong>{' '}
@@ -218,7 +232,7 @@ export function OrcamentoPrintDocument({
               </span>
             </div>
             <div>
-              <strong className="text-slate-700">Técnico Responsável:</strong>{' '}
+              <strong className="text-slate-700">Responsável:</strong>{' '}
               <span className="font-semibold text-slate-900">{tech?.name || 'Equipe JUCA'}</span>
             </div>
             <div>
@@ -229,14 +243,14 @@ export function OrcamentoPrintDocument({
                   : fmtDate(os?.created || orcamento.created)}
               </span>
             </div>
-            <div className="col-span-2 bg-white/70 p-2 rounded border border-indigo-100">
-              <strong className="text-slate-800 block text-[10px] uppercase font-bold mb-0.5">
-                Defeito Relatado pelo Cliente:
-              </strong>{' '}
-              <span className="text-slate-800">
-                {os?.description || 'Nenhum defeito relatado especificado.'}
-              </span>
-            </div>
+            {defeitoRelatado ? (
+              <div className="col-span-2 bg-white/70 p-2 rounded border border-indigo-100">
+                <strong className="text-slate-800 block text-[10px] uppercase font-bold mb-0.5">
+                  Defeito Relatado / Observação:
+                </strong>{' '}
+                <span className="text-slate-800">{defeitoRelatado}</span>
+              </div>
+            ) : null}
             {(os?.service_report || os?.diagnostic) && (
               <div className="col-span-2 bg-white/70 p-2 rounded border border-emerald-100">
                 <strong className="text-emerald-900 block text-[10px] uppercase font-bold mb-0.5">

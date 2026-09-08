@@ -38,7 +38,7 @@ routerAdd('GET', '/backend/v1/proposta/{token}', (e) => {
         started_at: osRecord.getString('started_at'),
       }
 
-      // Cliente
+      // Cliente da OS
       const custId = osRecord.getString('customer')
       if (custId) {
         try {
@@ -60,7 +60,7 @@ routerAdd('GET', '/backend/v1/proposta/{token}', (e) => {
         } catch (_) {}
       }
 
-      // Técnico
+      // Técnico da OS
       const techId = osRecord.getString('technician')
       if (techId) {
         try {
@@ -85,6 +85,75 @@ routerAdd('GET', '/backend/v1/proposta/{token}', (e) => {
             type: eqRecord.getString('type') || '',
           }
         } catch (_) {}
+      }
+    } else {
+      // Orçamento independente (sem OS):
+      // Cliente (cadastrado ou livre)
+      const directCustId = orcamento.getString('cliente_id')
+      if (directCustId) {
+        try {
+          const custRecord = $app.findRecordById('customers', directCustId)
+          customer = {
+            id: custRecord.id,
+            name:
+              custRecord.getString('razao_social') ||
+              custRecord.getString('nome_fantasia') ||
+              custRecord.getString('name') ||
+              '',
+            phone: custRecord.getString('celular') || custRecord.getString('phone') || '',
+            cpf_cnpj: custRecord.getString('cpf_cnpj') || '',
+            street: custRecord.getString('endereco') || custRecord.getString('street') || '',
+            number: custRecord.getString('number') || '',
+            city: custRecord.getString('city') || '',
+            state: custRecord.getString('state') || '',
+          }
+        } catch (_) {}
+      } else {
+        const nomeLivre = orcamento.getString('nome_cliente_livre')
+        const telLivre = orcamento.getString('telefone_cliente_livre')
+        if (nomeLivre || telLivre) {
+          customer = {
+            id: '',
+            name: nomeLivre || 'Cliente',
+            phone: telLivre || '',
+          }
+        }
+      }
+
+      // Responsável (técnico ou vendedor) do orçamento independente
+      const respId =
+        orcamento.getString('responsavel_id') || orcamento.getString('id_usuario_criador')
+      if (respId) {
+        try {
+          const respRecord = $app.findRecordById('users', respId)
+          technician = {
+            id: respRecord.id,
+            name: respRecord.getString('name') || '',
+          }
+        } catch (_) {}
+      }
+
+      // Equipamento e defeito independentes opcionais
+      const eqIndep = orcamento.getString('equipamento_independente')
+      const defIndep = orcamento.getString('defeito_independente')
+      if (eqIndep) {
+        equipment = {
+          id: '',
+          name: eqIndep,
+          brand: '',
+          model: '',
+          type: 'other',
+        }
+      }
+      if (eqIndep || defIndep) {
+        os = {
+          id: '',
+          number: '',
+          title: 'Orçamento Independente',
+          description: defIndep || '',
+          equipment: eqIndep || '',
+          status: '',
+        }
       }
     }
   } catch (_) {}

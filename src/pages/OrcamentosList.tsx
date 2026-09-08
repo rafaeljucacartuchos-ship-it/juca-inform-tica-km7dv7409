@@ -15,6 +15,7 @@ import {
   Check,
   Link as LinkIcon,
   HelpCircle,
+  Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,10 +38,11 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { Orcamento, OrcamentoStatus, ServiceOrder } from '@/types'
+import { Orcamento, OrcamentoStatus, ServiceOrder, User, Customer } from '@/types'
 import { getOrcamentos, createOrcamento } from '@/services/orcamentos'
 import { getServiceOrders } from '@/services/service_orders'
-import { getCustomerDisplayName, getCustomerPhone } from '@/services/customers'
+import { getCustomerDisplayName, getCustomerPhone, getCustomers } from '@/services/customers'
+import { getUsers } from '@/services/users'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -113,6 +115,19 @@ export default function OrcamentosList() {
   const [availableOrders, setAvailableOrders] = useState<ServiceOrder[]>([])
   const [loadingOrders, setLoadingOrders] = useState(false)
 
+  // Campos específicos de Orçamento Independente (v0.0.146)
+  const [systemUsers, setSystemUsers] = useState<User[]>([])
+  const [selectedResponsavelId, setSelectedResponsavelId] = useState<string>('')
+  const [clienteSearch, setClienteSearch] = useState('')
+  const [clienteResults, setClienteResults] = useState<Customer[]>([])
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+  const [nomeClienteLivre, setNomeClienteLivre] = useState('')
+  const [telefoneClienteLivre, setTelefoneClienteLivre] = useState('')
+  const [equipamentoIndependente, setEquipamentoIndependente] = useState('')
+  const [defeitoIndependente, setDefeitoIndependente] = useState('')
+  const [searchingClientes, setSearchingClientes] = useState(false)
+  const [showClienteDropdown, setShowClienteDropdown] = useState(false)
+
   const loadData = async () => {
     try {
       const data = await getOrcamentos()
@@ -130,7 +145,7 @@ export default function OrcamentosList() {
 
   useRealtime('orcamentos', () => loadData())
 
-  // Carrega ordens de serviço ativas para vincular
+  // Carrega ordens de serviço ativas para vincular e usuários para responsável
   useEffect(() => {
     if (createModalOpen) {
       setLoadingOrders(true)
@@ -140,8 +155,37 @@ export default function OrcamentosList() {
         })
         .catch(() => {})
         .finally(() => setLoadingOrders(false))
+
+      getUsers()
+        .then((u) => {
+          setSystemUsers(u)
+          if (!selectedResponsavelId && user?.id) {
+            setSelectedResponsavelId(user.id)
+          }
+        })
+        .catch(() => {})
     }
-  }, [createModalOpen])
+  }, [createModalOpen, user?.id, selectedResponsavelId])
+
+  // Autocomplete de clientes no modal
+  useEffect(() => {
+    if (!clienteSearch.trim() || clienteSearch.trim().length < 2) {
+      setClienteResults([])
+      return
+    }
+    const timer = setTimeout(async () => {
+      setSearchingClientes(true)
+      try {
+        const res = await getCustomers(clienteSearch.trim())
+        setClienteResults(res.slice(0, 8))
+      } catch {
+        setClienteResults([])
+      } finally {
+        setSearchingClientes(false)
+      }
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [clienteSearch])
 
   // Filtragem
   const filteredOrcamentos = useMemo(() => {
@@ -151,16 +195,28 @@ export default function OrcamentosList() {
         return false
       }
 
-      // Filtro de busca (número, cliente, observação, número da OS)
+      // Filtro de busca (número, cliente, observação, número da OS, equipamento)
       if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase().trim()
         const num = (orc.numero_orcamento || '').toLowerCase()
         const osNum = (orc.expand?.id_os?.number || '').toLowerCase()
-        const custName = getCustomerDisplayName(orc.expand?.id_os?.expand?.customer).toLowerCase()
+        const custName = (
+          orc.expand?.id_os?.expand?.customer
+            ? getCustomerDisplayName(orc.expand.id_os.expand.customer)
+            : orc.expand?.cliente_id
+              ? getCustomerDisplayName(orc.expand.cliente_id)
+              : orc.nome_cliente_livre || ''
+        ).toLowerCase()
         const obs = (orc.observacoes || '').toLowerCase()
         const equip = (
           orc.expand?.id_os?.equipment ||
           orc.expand?.id_os?.expand?.equipment_ref?.name ||
+          orc.equipamento_independente ||
+          ''
+        ).toLowerCase()
+        const respName = (
+          orc.expand?.responsavel_id?.name ||
+          orc.expand?.id_os?.expand?.technician?.name ||
           ''
         ).toLowerCase()
 
@@ -169,7 +225,8 @@ export default function OrcamentosList() {
           osNum.includes(term) ||
           custName.includes(term) ||
           obs.includes(term) ||
-          equip.includes(term)
+          equip.includes(term) ||
+          respName.includes(term)
         )
       }
 
@@ -209,11 +266,31 @@ export default function OrcamentosList() {
 
     setCreating(true)
     try {
+      const clienteIdFinal = vincularOs ? null : selectedCustomer?.id || null
+      const nomeFinal = vincularOs
+        ? undefined
+        : selectedCustomer
+          ? getCustomerDisplayName(selectedCustomer)
+          : nomeClienteLivre.trim() || undefined
+      const telefoneFinal = vincularOs
+        ? undefined
+        : selectedCustomer
+          ? getCustomerPhone(selectedCustomer) || undefined
+          : telefoneClienteLivre.trim() || undefined
+
       const created = await createOrcamento({
         id_os: vincularOs ? selectedOsId : null,
         id_usuario_criador: user?.id,
         validade: Number(validade) || 15,
         observacoes,
+        cliente_id: clienteIdFinal,
+        nome_cliente_livre: nomeFinal,
+        telefone_cliente_livre: telefoneFinal,
+        responsavel_id: vincularOs ? null : selectedResponsavelId || user?.id || null,
+        equipamento_independente: vincularOs
+          ? undefined
+          : equipamentoIndependente.trim() || undefined,
+        defeito_independente: vincularOs ? undefined : defeitoIndependente.trim() || undefined,
       })
 
       toast({
@@ -260,6 +337,13 @@ export default function OrcamentosList() {
           onClick={() => {
             setVincularOs(false)
             setSelectedOsId('')
+            setSelectedCustomer(null)
+            setClienteSearch('')
+            setNomeClienteLivre('')
+            setTelefoneClienteLivre('')
+            setSelectedResponsavelId(user?.id || '')
+            setEquipamentoIndependente('')
+            setDefeitoIndependente('')
             setValidade(15)
             setObservacoes('')
             setCreateModalOpen(true)
@@ -430,10 +514,25 @@ export default function OrcamentosList() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredOrcamentos.map((orc) => {
             const osRec = orc.expand?.id_os
-            const custRec = osRec?.expand?.customer
-            const techRec = osRec?.expand?.technician
+            const custRec =
+              osRec?.expand?.customer ||
+              orc.expand?.cliente_id ||
+              (orc.nome_cliente_livre
+                ? ({
+                    name: orc.nome_cliente_livre,
+                    celular: orc.telefone_cliente_livre || '',
+                    phone: orc.telefone_cliente_livre || '',
+                  } as Customer)
+                : null)
+            const techRec =
+              osRec?.expand?.technician ||
+              orc.expand?.responsavel_id ||
+              orc.expand?.id_usuario_criador
             const equipName =
-              osRec?.expand?.equipment_ref?.name || osRec?.equipment || 'Não especificado'
+              osRec?.expand?.equipment_ref?.name ||
+              osRec?.equipment ||
+              orc.equipamento_independente ||
+              'Não especificado'
             const cfg = STATUS_CONFIG[orc.status] || STATUS_CONFIG.rascunho
 
             return (
@@ -448,9 +547,13 @@ export default function OrcamentosList() {
                       <span className="font-mono text-sm font-extrabold text-indigo-900">
                         {orc.numero_orcamento}
                       </span>
-                      {osRec?.number && (
+                      {osRec?.number ? (
                         <span className="font-mono text-[11px] font-bold text-slate-500 bg-slate-200/70 px-1.5 py-0.5 rounded truncate">
                           {osRec.number}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                          Independente
                         </span>
                       )}
                     </div>
@@ -468,33 +571,33 @@ export default function OrcamentosList() {
                       Cliente
                     </span>
                     <p className="font-bold text-slate-900 truncate">
-                      {custRec ? getCustomerDisplayName(custRec) : 'Orçamento Independente'}
+                      {custRec ? getCustomerDisplayName(custRec) : 'Cliente não informado'}
                     </p>
                     {custRec && (
-                      <p className="text-[11px] text-slate-500">{getCustomerPhone(custRec)}</p>
+                      <p className="text-[11px] text-slate-500">
+                        {getCustomerPhone(custRec) || orc.telefone_cliente_livre || 'Sem telefone'}
+                      </p>
                     )}
                   </div>
 
-                  {osRec && (
-                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
-                      <div>
-                        <span className="text-[10px] font-semibold text-slate-400 block">
-                          Equipamento
-                        </span>
-                        <p className="font-medium text-slate-800 truncate" title={equipName}>
-                          {equipName}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-semibold text-slate-400 block">
-                          Técnico
-                        </span>
-                        <p className="font-medium text-slate-800 truncate">
-                          {techRec?.name || 'Não atribuído'}
-                        </p>
-                      </div>
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-400 block">
+                        Equipamento
+                      </span>
+                      <p className="font-medium text-slate-800 truncate" title={equipName}>
+                        {equipName}
+                      </p>
                     </div>
-                  )}
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-400 block">
+                        Responsável
+                      </span>
+                      <p className="font-medium text-slate-800 truncate">
+                        {techRec?.name || 'Não atribuído'}
+                      </p>
+                    </div>
+                  </div>
 
                   {/* Assinaturas */}
                   <div className="flex items-center gap-2 pt-1">
@@ -617,9 +720,173 @@ export default function OrcamentosList() {
             </div>
 
             {!vincularOs && (
-              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded text-slate-600 text-[11px]">
-                ℹ️ <strong>Orçamento Independente:</strong> Receberá numeração sequencial própria
-                (ex.: ORC-0001) sem vínculo obrigatório a uma O.S.
+              <div className="space-y-3 pt-1 border-t border-slate-200">
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded text-slate-600 text-[11px]">
+                  ℹ️ <strong>Orçamento Independente:</strong> Receberá numeração sequencial própria
+                  (ORC-XXXX).
+                </div>
+
+                {/* 1) Cliente: busca com autocomplete OU texto livre */}
+                <div className="space-y-1 relative">
+                  <Label className="font-semibold text-slate-800 text-xs">
+                    Cliente (Buscar cadastrado ou digitar livremente)
+                  </Label>
+                  {selectedCustomer ? (
+                    <div className="flex items-center justify-between p-2 rounded border border-emerald-300 bg-emerald-50 text-xs">
+                      <div className="min-w-0">
+                        <p className="font-bold text-slate-900 truncate">
+                          {getCustomerDisplayName(selectedCustomer)}
+                        </p>
+                        <p className="text-[11px] text-slate-500 truncate">
+                          Tel: {getCustomerPhone(selectedCustomer) || 'Sem telefone'} • CPF/CNPJ:{' '}
+                          {selectedCustomer.cpf_cnpj || '—'}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setSelectedCustomer(null)
+                          setNomeClienteLivre('')
+                          setTelefoneClienteLivre('')
+                          setClienteSearch('')
+                        }}
+                        className="h-7 text-xs text-rose-600 hover:bg-rose-100"
+                      >
+                        Trocar
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Input
+                          type="text"
+                          placeholder="Digite o nome do cliente..."
+                          value={clienteSearch || nomeClienteLivre}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setClienteSearch(val)
+                            setNomeClienteLivre(val)
+                            setShowClienteDropdown(true)
+                          }}
+                          onFocus={() => {
+                            if (clienteResults.length > 0) setShowClienteDropdown(true)
+                          }}
+                          className="h-9 text-xs"
+                        />
+                        {searchingClientes && (
+                          <Loader2 className="h-4 w-4 animate-spin absolute right-2.5 top-2.5 text-slate-400" />
+                        )}
+                      </div>
+
+                      {showClienteDropdown && clienteResults.length > 0 && (
+                        <div className="absolute z-20 left-0 right-0 mt-1 max-h-52 overflow-y-auto bg-white border border-slate-200 rounded-md shadow-lg divide-y divide-slate-100 text-xs">
+                          <div className="p-1.5 bg-slate-50 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                            Clientes Cadastrados:
+                          </div>
+                          {clienteResults.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedCustomer(c)
+                                setNomeClienteLivre(getCustomerDisplayName(c))
+                                setTelefoneClienteLivre(getCustomerPhone(c) || '')
+                                setClienteSearch('')
+                                setShowClienteDropdown(false)
+                              }}
+                              className="w-full text-left p-2 hover:bg-indigo-50 flex items-center justify-between"
+                            >
+                              <div>
+                                <div className="font-semibold text-slate-900">
+                                  {getCustomerDisplayName(c)}
+                                </div>
+                                <div className="text-[11px] text-slate-500">
+                                  {getCustomerPhone(c) || 'Sem telefone'}
+                                </div>
+                              </div>
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] border-indigo-200 text-indigo-700"
+                              >
+                                Selecionar
+                              </Badge>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      <div>
+                        <Label className="text-slate-500 block text-[11px] mb-0.5">
+                          Telefone / WhatsApp (opcional se não cadastrado):
+                        </Label>
+                        <Input
+                          type="text"
+                          placeholder="(00) 00000-0000"
+                          value={telefoneClienteLivre}
+                          onChange={(e) => setTelefoneClienteLivre(e.target.value)}
+                          className="h-8 text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2) Técnico OU Vendedor responsável */}
+                <div>
+                  <Label className="font-semibold text-slate-800 text-xs block mb-1">
+                    Técnico / Vendedor Responsável
+                  </Label>
+                  <select
+                    value={selectedResponsavelId}
+                    onChange={(e) => setSelectedResponsavelId(e.target.value)}
+                    className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 py-1 text-xs text-slate-900 shadow-xs focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">Selecione um profissional...</option>
+                    {systemUsers.map((u) => {
+                      const roleLabel =
+                        u.role === 'technician'
+                          ? 'Técnico'
+                          : u.role === 'admin'
+                            ? 'Administrador'
+                            : 'Vendedor/Atendente'
+                      return (
+                        <option key={u.id} value={u.id}>
+                          {u.name} ({roleLabel})
+                        </option>
+                      )
+                    })}
+                  </select>
+                </div>
+
+                {/* 3) Campos opcionais: Equipamento e Defeito */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+                  <div>
+                    <Label className="text-slate-600 block text-[11px] mb-0.5">
+                      Equipamento (Opcional):
+                    </Label>
+                    <Input
+                      type="text"
+                      placeholder="Ex: Notebook Lenovo"
+                      value={equipamentoIndependente}
+                      onChange={(e) => setEquipamentoIndependente(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-slate-600 block text-[11px] mb-0.5">
+                      Defeito / Obs (Opcional):
+                    </Label>
+                    <Input
+                      type="text"
+                      placeholder="Ex: Teclado falhando"
+                      value={defeitoIndependente}
+                      onChange={(e) => setDefeitoIndependente(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
               </div>
             )}
 

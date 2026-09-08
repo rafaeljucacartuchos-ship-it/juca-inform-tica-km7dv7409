@@ -85,7 +85,8 @@ export async function getOrcamentos(options?: {
     return await pb.collection('orcamentos').getFullList<Orcamento>({
       filter: filters.length > 0 ? filters.join(' && ') : undefined,
       sort: '-created',
-      expand: 'id_os,id_usuario_criador,id_os.customer,id_os.technician,id_os.equipment_ref',
+      expand:
+        'id_os,id_usuario_criador,cliente_id,responsavel_id,id_os.customer,id_os.technician,id_os.equipment_ref',
     })
   } catch {
     return []
@@ -94,7 +95,8 @@ export async function getOrcamentos(options?: {
 
 export async function getOrcamento(id: string): Promise<Orcamento> {
   const record = await pb.collection('orcamentos').getOne<Orcamento>(id, {
-    expand: 'id_os,id_usuario_criador,id_os.customer,id_os.technician,id_os.equipment_ref',
+    expand:
+      'id_os,id_usuario_criador,cliente_id,responsavel_id,id_os.customer,id_os.technician,id_os.equipment_ref',
   })
   if (!record.token_acesso) {
     try {
@@ -212,8 +214,25 @@ export async function createOrcamento(params: {
   id_usuario_criador?: string
   validade?: number
   observacoes?: string
+  cliente_id?: string | null
+  nome_cliente_livre?: string
+  telefone_cliente_livre?: string
+  responsavel_id?: string | null
+  equipamento_independente?: string
+  defeito_independente?: string
 }): Promise<Orcamento> {
-  const { id_os, id_usuario_criador, validade = 15, observacoes = '' } = params
+  const {
+    id_os,
+    id_usuario_criador,
+    validade = 15,
+    observacoes = '',
+    cliente_id,
+    nome_cliente_livre,
+    telefone_cliente_livre,
+    responsavel_id,
+    equipamento_independente,
+    defeito_independente,
+  } = params
 
   let numero_orcamento: string = ''
 
@@ -280,6 +299,14 @@ export async function createOrcamento(params: {
 
   if (id_os) {
     createPayload.id_os = id_os
+  } else {
+    // Orçamento independente: preenche campos específicos
+    if (cliente_id) createPayload.cliente_id = cliente_id
+    if (nome_cliente_livre) createPayload.nome_cliente_livre = nome_cliente_livre
+    if (telefone_cliente_livre) createPayload.telefone_cliente_livre = telefone_cliente_livre
+    if (responsavel_id) createPayload.responsavel_id = responsavel_id
+    if (equipamento_independente) createPayload.equipamento_independente = equipamento_independente
+    if (defeito_independente) createPayload.defeito_independente = defeito_independente
   }
 
   const novo = await pb.collection('orcamentos').create<Orcamento>(createPayload)
@@ -501,10 +528,52 @@ export async function updateOsStatus(
 export async function sendOrcamentoToFaturamento(
   orcamentoId: string,
   userId?: string,
-): Promise<{ success: boolean; paymentId?: string }> {
+): Promise<{ success: boolean; paymentId?: string; isReenviado?: boolean }> {
   const orc = await getOrcamento(orcamentoId)
-  if (orc.status !== 'aprovado') {
+  if (orc.status !== 'aprovado' && orc.status !== 'faturado') {
     throw new Error('O orçamento só pode ser enviado para faturamento após aprovação do cliente.')
+  }
+
+  const isReenvio = orc.status === 'faturado'
+  const totalAmount = Number(orc.total_geral) || 0
+
+  // Se for reenvio (já estava faturado):
+  // Mantém idempotência: NÃO duplica pagamento, NÃO baixa estoque novamente.
+  // Apenas registra evento no histórico da O.S. (se vinculado) e pós-venda.
+  if (isReenvio) {
+    if (orc.id_os) {
+      try {
+        await pb.collection('status_history').create({
+          service_order: orc.id_os,
+          status: 'closed',
+          note: `Reenvio de faturamento do Orçamento ${orc.numero_orcamento} realizado. Mensagem reenviada ao grupo de faturamento.`,
+          changed_by: userId,
+        })
+      } catch {
+        /* ignore */
+      }
+    }
+
+    // Registra no pós-venda / histórico
+    const customerId = orc.cliente_id || orc.expand?.id_os?.customer
+    if (customerId) {
+      try {
+        await pb.collection('pos_venda_messages').create({
+          customer: customerId,
+          service_order: orc.id_os || null,
+          tipo: 'resumo_finalizacao',
+          status: 'sent',
+          scheduled_at: new Date().toISOString(),
+          sent_at: new Date().toISOString(),
+          texto_gerado: `Reenvio de faturamento do Orçamento ${orc.numero_orcamento}.`,
+          channel: 'sistema',
+        })
+      } catch {
+        /* ignore */
+      }
+    }
+
+    return { success: true, isReenviado: true }
   }
 
   const itens = await getOrcamentoItens(orcamentoId)
@@ -520,16 +589,23 @@ export async function sendOrcamentoToFaturamento(
   }
   const paymentMethod = methodMap[orc.forma_pagamento || 'pix'] || 'pix'
 
-  // 2. Cria registro de pagamento
-  const totalAmount = Number(orc.total_geral) || 0
-  const payment = await pb.collection('payments').create({
-    service_order: orc.id_os,
-    amount: totalAmount,
-    method: paymentMethod,
-    status: orc.status_pagamento === 'pago' ? 'paid' : 'pending',
-    paid_at: orc.status_pagamento === 'pago' ? new Date().toISOString() : null,
-    notes: `Faturamento referente ao Orçamento ${orc.numero_orcamento} (${orc.parcelas || 1}x ${orc.forma_pagamento})`,
-  })
+  // 2. Cria registro de pagamento apenas se vinculado à OS (coleção payments exige service_order)
+  let paymentId: string | undefined
+  if (orc.id_os) {
+    try {
+      const payment = await pb.collection('payments').create({
+        service_order: orc.id_os,
+        amount: totalAmount,
+        method: paymentMethod,
+        status: orc.status_pagamento === 'pago' ? 'paid' : 'pending',
+        paid_at: orc.status_pagamento === 'pago' ? new Date().toISOString() : null,
+        notes: `Faturamento referente ao Orçamento ${orc.numero_orcamento} (${orc.parcelas || 1}x ${orc.forma_pagamento})`,
+      })
+      paymentId = payment.id
+    } catch (err) {
+      console.warn('Erro ao criar pagamento na O.S.:', err)
+    }
+  }
 
   // 3. Baixa de estoque nos produtos aprovados e faturados (regra de estoque)
   for (const item of itens) {
@@ -553,25 +629,27 @@ export async function sendOrcamentoToFaturamento(
     status: 'faturado',
   })
 
-  // 5. Registra no histórico da OS (Mudança 3: status da O.S. = 'closed' com histórico)
-  try {
-    await updateOsStatus(
-      orc.id_os,
-      'closed',
-      `Orçamento ${orc.numero_orcamento} faturado e O.S. finalizada com sucesso. Lançamento financeiro de R$ ${totalAmount.toFixed(2)} gerado.`,
-      userId,
-    )
-  } catch {
-    /* intentionally ignored */
+  // 5. Se vinculado a OS, registra no histórico da OS (status da O.S. = 'closed' com histórico)
+  if (orc.id_os) {
+    try {
+      await updateOsStatus(
+        orc.id_os,
+        'closed',
+        `Orçamento ${orc.numero_orcamento} faturado e O.S. finalizada com sucesso. Lançamento financeiro de R$ ${totalAmount.toFixed(2)} gerado.`,
+        userId,
+      )
+    } catch {
+      /* intentionally ignored */
+    }
   }
 
   // 6. Registra no pós-venda/histórico do cliente
-  try {
-    const osData = await pb.collection('service_orders').getOne<ServiceOrder>(orc.id_os)
-    if (osData.customer) {
+  const customerId = orc.cliente_id || orc.expand?.id_os?.customer
+  if (customerId) {
+    try {
       await pb.collection('pos_venda_messages').create({
-        customer: osData.customer,
-        service_order: osData.id,
+        customer: customerId,
+        service_order: orc.id_os || null,
         tipo: 'resumo_finalizacao',
         status: 'sent',
         scheduled_at: new Date().toISOString(),
@@ -579,10 +657,10 @@ export async function sendOrcamentoToFaturamento(
         texto_gerado: `Orçamento ${orc.numero_orcamento} aprovado e enviado para faturamento. Valor: R$ ${totalAmount.toFixed(2)}.`,
         channel: 'sistema',
       })
+    } catch {
+      /* intentionally ignored */
     }
-  } catch {
-    /* intentionally ignored */
   }
 
-  return { success: true, paymentId: payment.id }
+  return { success: true, paymentId, isReenviado: false }
 }

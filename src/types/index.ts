@@ -385,6 +385,13 @@ export interface Orcamento {
   validade?: number
   observacoes?: string
   id_usuario_criador?: string
+  // Campos para orçamentos independentes (v0.0.146)
+  cliente_id?: string
+  nome_cliente_livre?: string
+  telefone_cliente_livre?: string
+  responsavel_id?: string
+  equipamento_independente?: string
+  defeito_independente?: string
   desconto_total_valor?: number
   desconto_total_tipo?: OrcamentoDescontoTipo
   desconto_total_percentual?: number
@@ -408,6 +415,8 @@ export interface Orcamento {
   expand?: {
     id_os?: ServiceOrder
     id_usuario_criador?: User
+    cliente_id?: Customer
+    responsavel_id?: User
   }
 }
 

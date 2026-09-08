@@ -51,6 +51,8 @@ import {
   OrcamentoFormaPagamento,
   OrcamentoDescontoTipo,
   Product,
+  User,
+  Customer,
 } from '@/types'
 import {
   getOrcamento,
@@ -64,7 +66,8 @@ import {
   updateOsStatus,
 } from '@/services/orcamentos'
 import { getProduct } from '@/services/products'
-import { getCustomerPhone, getCustomerDisplayName } from '@/services/customers'
+import { getCustomerPhone, getCustomerDisplayName, getCustomers } from '@/services/customers'
+import { getUsers } from '@/services/users'
 import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
@@ -152,6 +155,13 @@ export default function OrcamentoDetail() {
   const [motivoRejeicao, setMotivoRejeicao] = useState('')
   const [printSelectOpen, setPrintSelectOpen] = useState(false)
 
+  // Usuários para seleção de responsável e clientes para busca/autocomplete
+  const [systemUsers, setSystemUsers] = useState<User[]>([])
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('')
+  const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([])
+  const [searchingCustomers, setSearchingCustomers] = useState(false)
+  const [customerSearchDropdownOpen, setCustomerSearchDropdownOpen] = useState(false)
+
   // Gerente / Limite de Desconto
   const [managerPasswordModalOpen, setManagerPasswordModalOpen] = useState(false)
   const [managerPassword, setManagerPassword] = useState('')
@@ -188,7 +198,30 @@ export default function OrcamentoDetail() {
 
   useEffect(() => {
     loadAll()
+    getUsers()
+      .then((u) => setSystemUsers(u))
+      .catch(() => {})
   }, [loadAll])
+
+  // Busca de clientes para autocomplete
+  useEffect(() => {
+    if (!customerSearchQuery.trim() || customerSearchQuery.trim().length < 2) {
+      setCustomerSearchResults([])
+      return
+    }
+    const timer = setTimeout(async () => {
+      setSearchingCustomers(true)
+      try {
+        const res = await getCustomers(customerSearchQuery.trim())
+        setCustomerSearchResults(res.slice(0, 8))
+      } catch {
+        setCustomerSearchResults([])
+      } finally {
+        setSearchingCustomers(false)
+      }
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [customerSearchQuery])
 
   useRealtime('orcamentos', (e) => {
     // Evita sobrescrever estado local se usuário estiver digitando
@@ -356,27 +389,87 @@ export default function OrcamentoDetail() {
     }
   }
 
+  // Helpers para resolver cliente e responsável independente vs vinculado
+  const activeCustomer = useMemo(() => {
+    if (!orcamento) return null
+    if (orcamento.id_os) {
+      return orcamento.expand?.id_os?.expand?.customer || null
+    }
+    if (orcamento.cliente_id && orcamento.expand?.cliente_id) {
+      return orcamento.expand.cliente_id
+    }
+    if (orcamento.nome_cliente_livre) {
+      return {
+        id: '',
+        name: orcamento.nome_cliente_livre,
+        phone: orcamento.telefone_cliente_livre || '',
+        celular: orcamento.telefone_cliente_livre || '',
+      } as Customer
+    }
+    return null
+  }, [orcamento])
+
+  const activeCustomerName = useMemo(() => {
+    if (orcamento?.id_os) {
+      return getCustomerDisplayName(orcamento.expand?.id_os?.expand?.customer)
+    }
+    if (orcamento?.expand?.cliente_id) {
+      return getCustomerDisplayName(orcamento.expand.cliente_id)
+    }
+    if (orcamento?.nome_cliente_livre) {
+      return orcamento.nome_cliente_livre
+    }
+    return 'Cliente não informado'
+  }, [orcamento])
+
+  const activeCustomerPhone = useMemo(() => {
+    if (orcamento?.id_os) {
+      return getCustomerPhone(orcamento.expand?.id_os?.expand?.customer)
+    }
+    if (orcamento?.expand?.cliente_id) {
+      return getCustomerPhone(orcamento.expand.cliente_id)
+    }
+    return orcamento?.telefone_cliente_livre || ''
+  }, [orcamento])
+
+  const activeResponsibleName = useMemo(() => {
+    if (orcamento?.id_os) {
+      return orcamento.expand?.id_os?.expand?.technician?.name || 'Não atribuído'
+    }
+    return (
+      orcamento?.expand?.responsavel_id?.name ||
+      orcamento?.expand?.id_usuario_criador?.name ||
+      'Não atribuído'
+    )
+  }, [orcamento])
+
+  const activeEquipmentName = useMemo(() => {
+    if (orcamento?.id_os) {
+      return (
+        orcamento.expand?.id_os?.expand?.equipment_ref?.name ||
+        orcamento.expand?.id_os?.equipment ||
+        'Não especificado'
+      )
+    }
+    return orcamento?.equipamento_independente || 'Não especificado'
+  }, [orcamento])
+
   // 1. WhatsApp: wa.me NÃO anexa arquivos. Solução: link do PDF do orçamento + Compartilhamento Nativo
   const handleWhatsApp = async () => {
     if (!orcamento) return
-    const cust = orcamento.expand?.id_os?.expand?.customer
-    const phone = getCustomerPhone(cust)
+    const phone = activeCustomerPhone
     if (!phone) {
       toast({ title: 'Cliente sem telefone cadastrado', variant: 'destructive' })
       return
     }
 
-    const custName = getCustomerDisplayName(cust)
+    const custName = activeCustomerName
     const token = orcamento.token_acesso || ''
     const propostaUrl = token
       ? `${window.location.origin}/proposta/${token}`
       : `${window.location.origin}/orcamentos/${orcamento.id}/imprimir`
 
-    const equipmentName =
-      orcamento.expand?.id_os?.expand?.equipment_ref?.name ||
-      orcamento.expand?.id_os?.equipment ||
-      ''
-
+    const equipmentName = activeEquipmentName
     const osNum = orcamento.expand?.id_os?.number
     const defaultMsg = buildOrcamentoPropostaMessage({
       customerName: custName,
@@ -386,12 +479,13 @@ export default function OrcamentoDetail() {
       equipment: equipmentName,
     })
 
-    // Registra no histórico do cliente / pos_venda_messages
+    // Registra no histórico do cliente / pos_venda_messages se houver cliente cadastrado
     try {
-      if (cust?.id) {
+      const custId = orcamento.cliente_id || orcamento.expand?.id_os?.customer
+      if (custId) {
         await pb.collection('pos_venda_messages').create({
-          customer: cust.id,
-          service_order: orcamento.id_os,
+          customer: custId,
+          service_order: orcamento.id_os || null,
           tipo: 'resumo_finalizacao',
           status: 'sent',
           scheduled_at: new Date().toISOString(),
@@ -409,12 +503,14 @@ export default function OrcamentoDetail() {
     if (orcamento.status === 'rascunho') {
       try {
         await updateOrcamento(orcamento.id, { status: 'enviado' })
-        await updateOsStatus(
-          orcamento.id_os,
-          'orcamento_enviado',
-          `Orçamento ${orcamento.numero_orcamento} enviado ao cliente via WhatsApp`,
-          user?.id,
-        )
+        if (orcamento.id_os) {
+          await updateOsStatus(
+            orcamento.id_os,
+            'orcamento_enviado',
+            `Orçamento ${orcamento.numero_orcamento} enviado ao cliente via WhatsApp`,
+            user?.id,
+          )
+        }
       } catch {
         /* intentionally ignored */
       }
@@ -427,12 +523,11 @@ export default function OrcamentoDetail() {
   // Enviar link da proposta online ao cliente (copia URL e abre WhatsApp)
   const handleEnviarLinkCliente = async () => {
     if (!orcamento) return
-    const cust = orcamento.expand?.id_os?.expand?.customer
-    const phone = getCustomerPhone(cust)
+    const phone = activeCustomerPhone
     if (!phone) {
       toast({
-        title: 'Cliente sem WhatsApp cadastrado',
-        description: 'Cadastre o telefone celular do cliente na O.S. antes de enviar o link.',
+        title: 'Cliente sem WhatsApp informado',
+        description: 'Informe o celular do cliente antes de enviar o link.',
         variant: 'destructive',
       })
       return
@@ -462,12 +557,8 @@ export default function OrcamentoDetail() {
       /* ignore clipboard rejection */
     }
 
-    const custName = getCustomerDisplayName(cust)
-    const equipmentName =
-      orcamento.expand?.id_os?.expand?.equipment_ref?.name ||
-      orcamento.expand?.id_os?.equipment ||
-      ''
-
+    const custName = activeCustomerName
+    const equipmentName = activeEquipmentName
     const osNum = orcamento.expand?.id_os?.number
     const msg = buildOrcamentoPropostaMessage({
       customerName: custName,
@@ -479,10 +570,11 @@ export default function OrcamentoDetail() {
 
     // Registra no histórico do cliente / pos_venda_messages
     try {
-      if (cust?.id) {
+      const custId = orcamento.cliente_id || orcamento.expand?.id_os?.customer
+      if (custId) {
         await pb.collection('pos_venda_messages').create({
-          customer: cust.id,
-          service_order: orcamento.id_os,
+          customer: custId,
+          service_order: orcamento.id_os || null,
           tipo: 'resumo_finalizacao',
           status: 'sent',
           scheduled_at: new Date().toISOString(),
@@ -500,12 +592,14 @@ export default function OrcamentoDetail() {
     if (orcamento.status === 'rascunho') {
       try {
         await updateOrcamento(orcamento.id, { status: 'enviado' })
-        await updateOsStatus(
-          orcamento.id_os,
-          'orcamento_enviado',
-          `Link da proposta online ${orcamento.numero_orcamento} enviado ao cliente via WhatsApp`,
-          user?.id,
-        )
+        if (orcamento.id_os) {
+          await updateOsStatus(
+            orcamento.id_os,
+            'orcamento_enviado',
+            `Link da proposta online ${orcamento.numero_orcamento} enviado ao cliente via WhatsApp`,
+            user?.id,
+          )
+        }
       } catch {
         /* intentionally ignored */
       }
@@ -518,8 +612,7 @@ export default function OrcamentoDetail() {
   // Compartilhamento nativo (navigator.share) para envio direto do link/arquivo
   const handleNativeShare = async () => {
     if (!orcamento) return
-    const cust = orcamento.expand?.id_os?.expand?.customer
-    const custName = getCustomerDisplayName(cust)
+    const custName = activeCustomerName
     const pdfUrl = `${window.location.origin}/orcamentos/${orcamento.id}/imprimir`
 
     const shareData = {
@@ -563,13 +656,15 @@ export default function OrcamentoDetail() {
         status: 'aprovado',
         data_assinatura_cliente: orcamento.data_assinatura_cliente || new Date().toISOString(),
       })
-      // Status da OS controlado: aprovado+assinado -> 'orcamento_aprovado'
-      await updateOsStatus(
-        orcamento.id_os,
-        'orcamento_aprovado',
-        `Orçamento ${orcamento.numero_orcamento} aprovado e assinado pelo cliente.`,
-        user?.id,
-      )
+      // Status da OS controlado (se vinculado): aprovado+assinado -> 'orcamento_aprovado'
+      if (orcamento.id_os) {
+        await updateOsStatus(
+          orcamento.id_os,
+          'orcamento_aprovado',
+          `Orçamento ${orcamento.numero_orcamento} aprovado e assinado pelo cliente.`,
+          user?.id,
+        )
+      }
       toast({
         title: 'Orçamento aprovado!',
         description: 'Orçamento assinado e aprovado pelo cliente com sucesso.',
@@ -597,13 +692,14 @@ export default function OrcamentoDetail() {
         status: 'rejeitado',
         motivo_rejeicao: motivoRejeicao.trim(),
       })
-      // Status da OS: orcamento_rejeitado
-      await updateOsStatus(
-        orcamento.id_os,
-        'orcamento_rejeitado',
-        `Orçamento ${orcamento.numero_orcamento} rejeitado. Motivo: ${motivoRejeicao.trim()}`,
-        user?.id,
-      )
+      if (orcamento.id_os) {
+        await updateOsStatus(
+          orcamento.id_os,
+          'orcamento_rejeitado',
+          `Orçamento ${orcamento.numero_orcamento} rejeitado. Motivo: ${motivoRejeicao.trim()}`,
+          user?.id,
+        )
+      }
       toast({ title: 'Orçamento marcado como rejeitado.' })
       setRejeicaoModalOpen(false)
       loadAll()
@@ -612,10 +708,10 @@ export default function OrcamentoDetail() {
     }
   }
 
-  // Faturamento (Mudança 3)
+  // Faturamento (Permite faturar e reenviar ao grupo sem duplicar registros)
   const handleSendToFaturamento = async () => {
     if (!orcamento) return
-    if (orcamento.status !== 'aprovado') {
+    if (orcamento.status !== 'aprovado' && orcamento.status !== 'faturado') {
       toast({
         title: 'Disponível após aprovação do cliente',
         description: 'O orçamento precisa estar com status Aprovado para ser faturado.',
@@ -625,14 +721,15 @@ export default function OrcamentoDetail() {
     }
 
     try {
-      // 1. Executa faturamento no backend (baixa de estoque, financeiro, status do orçamento = 'faturado', status O.S. = 'closed' com histórico)
-      await sendOrcamentoToFaturamento(orcamento.id, user?.id)
+      const isReenvio = orcamento.status === 'faturado'
+      // 1. Executa faturamento no backend (idempotente: se já faturado, não duplica pagamento nem baixa de estoque)
+      const res = await sendOrcamentoToFaturamento(orcamento.id, user?.id)
 
       // 2. Monta mensagem formatada com número espelhado OS-XXXX/ORC-XXXX, cliente, equipamento, itens com valores, total, forma de pagamento/parcelas
-      const osNumber = os?.number || '—'
+      const osNumber = os?.number || '— (Independente)'
       const orcNumber = orcamento.numero_orcamento || '—'
-      const clientName = getCustomerDisplayName(cust)
-      const equipName = os?.expand?.equipment_ref?.name || os?.equipment || 'Não especificado'
+      const clientName = activeCustomerName
+      const equipName = activeEquipmentName
 
       const itensLinhas =
         items.length > 0
@@ -665,22 +762,25 @@ export default function OrcamentoDetail() {
           : 'À vista'
 
       const mensagemFaturamento =
-        `📄 *FATURAMENTO CONCLUÍDO - JUCA INFORMÁTICA*\n\n` +
+        `📄 *${isReenvio ? 'REENVIO DE FATURAMENTO' : 'FATURAMENTO CONCLUÍDO'} - JUCA INFORMÁTICA*\n\n` +
         `🔢 *O.S. / Orçamento:* ${osNumber} / ${orcNumber}\n` +
         `👤 *Cliente:* ${clientName}\n` +
-        `💻 *Equipamento:* ${equipName}\n\n` +
+        `💻 *Equipamento:* ${equipName}\n` +
+        `👨‍💼 *Responsável:* ${activeResponsibleName}\n\n` +
         `📦 *Itens e Serviços:*\n` +
         `${itensLinhas}\n\n` +
         `💰 *Total Geral:* R$ ${totalFmt}\n` +
         `💳 *Forma de Pagamento:* ${formaPag} (${parcelasFmt})\n\n` +
-        `✅ *Status O.S.:* Finalizada (Closed)\n` +
+        (orcamento.id_os ? `✅ *Status O.S.:* Finalizada (Closed)\n` : '') +
         `✅ *Status Orçamento:* Faturado`
 
       // 3. Copia a mensagem para a área de transferência
       try {
         await navigator.clipboard.writeText(mensagemFaturamento)
         toast({
-          title: 'Resumo copiado para a área de transferência!',
+          title: isReenvio
+            ? 'Mensagem de reenvio copiada!'
+            : 'Resumo copiado para a área de transferência!',
           description:
             'A mensagem de faturamento foi copiada e o grupo do WhatsApp está sendo aberto.',
         })
@@ -692,9 +792,12 @@ export default function OrcamentoDetail() {
       window.open('https://chat.whatsapp.com/GfUlsLlK9SBLa7BUfxS4J3', '_blank')
 
       toast({
-        title: 'Orçamento enviado para o faturamento!',
-        description:
-          'Lançamento financeiro gerado, estoque atualizado e O.S. finalizada com sucesso.',
+        title: isReenvio
+          ? 'Faturamento reenviado ao grupo!'
+          : 'Orçamento enviado para o faturamento!',
+        description: isReenvio
+          ? 'Mensagem reenviada ao grupo de faturamento com sucesso (sem duplicar lançamentos).'
+          : 'Lançamento financeiro gerado, estoque atualizado e faturamento registrado.',
       })
       setFaturamentoConfirmOpen(false)
       loadAll()
@@ -706,7 +809,6 @@ export default function OrcamentoDetail() {
       })
     }
   }
-
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center text-xs text-slate-500">
@@ -731,7 +833,9 @@ export default function OrcamentoDetail() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate(`/ordens/${orcamento.id_os}`)}
+            onClick={() =>
+              orcamento.id_os ? navigate(`/ordens/${orcamento.id_os}`) : navigate('/orcamentos')
+            }
             className="h-9 w-9 shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -746,6 +850,14 @@ export default function OrcamentoDetail() {
               >
                 {statusCfg.label}
               </Badge>
+              {!orcamento.id_os && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] bg-slate-50 text-slate-600 border-slate-300"
+                >
+                  Orçamento Independente
+                </Badge>
+              )}
               {orcamento.status === 'substituido' && (
                 <span className="text-[11px] text-slate-400 italic">
                   (Histórico - substituído por novo orçamento)
@@ -753,7 +865,9 @@ export default function OrcamentoDetail() {
               )}
             </div>
             <p className="text-xs text-slate-500 truncate">
-              Vinculado à O.S. #{os?.number || '—'} • Cliente: {getCustomerDisplayName(cust)}
+              {orcamento.id_os
+                ? `Vinculado à O.S. #${os?.number || '—'} • Cliente: ${activeCustomerName}`
+                : `Cliente: ${activeCustomerName} • Resp: ${activeResponsibleName}`}
             </p>
           </div>
         </div>
@@ -879,54 +993,308 @@ export default function OrcamentoDetail() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          {/* Card dos Dados Principais e Resumo da OS */}
+          {/* Card dos Dados Principais e Resumo da OS / Orçamento Independente */}
           <Card className="border-slate-200 shadow-xs">
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <CardTitle className="text-sm font-bold text-slate-900">
-                Informações do Atendimento
+                {orcamento.id_os
+                  ? 'Informações do Atendimento (O.S.)'
+                  : 'Dados do Orçamento Independente'}
               </CardTitle>
+              {!orcamento.id_os && (
+                <span className="text-[11px] text-slate-500 font-medium">
+                  Sem vínculo com Ordem de Serviço
+                </span>
+              )}
             </CardHeader>
             <CardContent className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <span className="font-semibold text-slate-500">Cliente:</span>
-                  <p className="font-medium text-slate-900">{getCustomerDisplayName(cust)}</p>
-                </div>
-                <div>
-                  <span className="font-semibold text-slate-500">Equipamento:</span>
-                  <p className="font-medium text-slate-900">
-                    {os?.expand?.equipment_ref?.name || os?.equipment || 'Não especificado'}
-                  </p>
-                </div>
-                <div>
-                  <span className="font-semibold text-slate-500">Técnico Responsável:</span>
-                  <p className="font-medium text-slate-900">
-                    {os?.expand?.technician?.name || 'Não atribuído'}
-                  </p>
-                </div>
-                <div>
-                  <span className="font-semibold text-slate-500">
-                    Validade do Orçamento (dias):
-                  </span>
-                  <Input
-                    type="number"
-                    min="1"
-                    disabled={!canEdit}
-                    value={orcamento.validade || 15}
-                    onChange={(e) =>
-                      triggerAutoSave({ validade: parseInt(e.target.value, 10) || 15 })
-                    }
-                    className="h-8 w-24 text-xs font-mono mt-0.5"
-                  />
-                </div>
-              </div>
+              {orcamento.id_os ? (
+                // Orçamento VINCULADO: dados herdados da O.S. (preservados exatamente como antes)
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <span className="font-semibold text-slate-500">Cliente (da O.S.):</span>
+                      <p className="font-medium text-slate-900">{getCustomerDisplayName(cust)}</p>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-500">Equipamento:</span>
+                      <p className="font-medium text-slate-900">
+                        {os?.expand?.equipment_ref?.name || os?.equipment || 'Não especificado'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-500">Técnico Responsável:</span>
+                      <p className="font-medium text-slate-900">
+                        {os?.expand?.technician?.name || 'Não atribuído'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-500">
+                        Validade do Orçamento (dias):
+                      </span>
+                      <Input
+                        type="number"
+                        min="1"
+                        disabled={!canEdit}
+                        value={orcamento.validade || 15}
+                        onChange={(e) =>
+                          triggerAutoSave({ validade: parseInt(e.target.value, 10) || 15 })
+                        }
+                        className="h-8 w-24 text-xs font-mono mt-0.5"
+                      />
+                    </div>
+                  </div>
 
-              <div>
-                <span className="font-semibold text-slate-500">Defeito Relatado na OS:</span>
-                <p className="text-slate-700 mt-0.5 bg-slate-50 p-2 rounded border border-slate-100">
-                  {os?.description || 'Nenhuma descrição fornecida.'}
-                </p>
-              </div>
+                  <div>
+                    <span className="font-semibold text-slate-500">Defeito Relatado na OS:</span>
+                    <p className="text-slate-700 mt-0.5 bg-slate-50 p-2 rounded border border-slate-100">
+                      {os?.description || 'Nenhuma descrição fornecida.'}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                // Orçamento INDEPENDENTE (v0.0.146)
+                // 1) Cliente: autocomplete ou texto livre
+                // 2) Responsável: técnico ou vendedor
+                // 3) Defeito e Equipamento: campos opcionais
+                <div className="space-y-3.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* 1) Campo de busca / cliente */}
+                    <div className="space-y-1 relative">
+                      <label className="font-semibold text-slate-700 block">
+                        Cliente (Buscar cadastrado ou digitar livremente)
+                      </label>
+                      {orcamento.cliente_id && orcamento.expand?.cliente_id ? (
+                        <div className="flex items-center justify-between p-2 rounded border border-emerald-300 bg-emerald-50/50">
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-900 truncate">
+                              {getCustomerDisplayName(orcamento.expand.cliente_id)}
+                            </p>
+                            <p className="text-[11px] text-slate-500 truncate">
+                              Tel:{' '}
+                              {getCustomerPhone(orcamento.expand.cliente_id) || 'Não informado'} •
+                              CPF/CNPJ: {orcamento.expand.cliente_id.cpf_cnpj || '—'}
+                            </p>
+                          </div>
+                          {canEdit && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                triggerAutoSave({
+                                  cliente_id: null as any,
+                                  nome_cliente_livre: '',
+                                  telefone_cliente_livre: '',
+                                })
+                              }}
+                              className="h-7 text-xs text-rose-600 hover:bg-rose-50"
+                            >
+                              Trocar
+                            </Button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="relative">
+                            <Input
+                              type="text"
+                              disabled={!canEdit}
+                              placeholder="Digite o nome do cliente..."
+                              value={customerSearchQuery || orcamento.nome_cliente_livre || ''}
+                              onChange={(e) => {
+                                const val = e.target.value
+                                setCustomerSearchQuery(val)
+                                setCustomerSearchDropdownOpen(true)
+                                triggerAutoSave({
+                                  cliente_id: null as any,
+                                  nome_cliente_livre: val,
+                                })
+                              }}
+                              onFocus={() => {
+                                if (customerSearchResults.length > 0) {
+                                  setCustomerSearchDropdownOpen(true)
+                                }
+                              }}
+                              className="h-9 text-xs"
+                            />
+                            {searchingCustomers && (
+                              <Loader2 className="h-4 w-4 animate-spin absolute right-2.5 top-2.5 text-slate-400" />
+                            )}
+                          </div>
+
+                          {/* Dropdown de autocomplete com clientes encontrados */}
+                          {customerSearchDropdownOpen && customerSearchResults.length > 0 && (
+                            <div className="absolute z-20 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-md shadow-lg divide-y divide-slate-100 text-xs">
+                              <div className="p-1.5 bg-slate-50 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                                Clientes Cadastrados Encontrados:
+                              </div>
+                              {customerSearchResults.map((cust) => (
+                                <button
+                                  key={cust.id}
+                                  type="button"
+                                  onClick={() => {
+                                    triggerAutoSave({
+                                      cliente_id: cust.id,
+                                      nome_cliente_livre: getCustomerDisplayName(cust),
+                                      telefone_cliente_livre: getCustomerPhone(cust) || '',
+                                    })
+                                    setCustomerSearchQuery('')
+                                    setCustomerSearchDropdownOpen(false)
+                                    loadAll()
+                                  }}
+                                  className="w-full text-left p-2 hover:bg-indigo-50 transition-colors flex items-center justify-between"
+                                >
+                                  <div>
+                                    <div className="font-semibold text-slate-900">
+                                      {getCustomerDisplayName(cust)}
+                                    </div>
+                                    <div className="text-[11px] text-slate-500">
+                                      {getCustomerPhone(cust) || 'Sem telefone'} •{' '}
+                                      {cust.cpf_cnpj || 'Sem CPF/CNPJ'}
+                                    </div>
+                                  </div>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[9px] border-indigo-200 text-indigo-700"
+                                  >
+                                    Vincular
+                                  </Badge>
+                                </button>
+                              ))}
+                              <div className="p-2 bg-slate-50 text-[11px] text-slate-600 flex items-center justify-between">
+                                <span>
+                                  Não é nenhum destes? O nome digitado será salvo sem cadastro.
+                                </span>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 text-[10px]"
+                                  onClick={() => setCustomerSearchDropdownOpen(false)}
+                                >
+                                  Fechar
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Telefone do cliente livre */}
+                          <div className="pt-1">
+                            <label className="font-semibold text-slate-500 block text-[11px] mb-0.5">
+                              Telefone / WhatsApp do Cliente (opcional):
+                            </label>
+                            <Input
+                              type="text"
+                              disabled={!canEdit}
+                              placeholder="(00) 00000-0000"
+                              value={orcamento.telefone_cliente_livre || ''}
+                              onChange={(e) =>
+                                triggerAutoSave({ telefone_cliente_livre: e.target.value })
+                              }
+                              className="h-8 text-xs font-mono"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 2) Técnico OU Vendedor responsável */}
+                    <div className="space-y-1">
+                      <label className="font-semibold text-slate-700 block">
+                        Técnico / Vendedor Responsável
+                      </label>
+                      <select
+                        disabled={!canEdit}
+                        value={orcamento.responsavel_id || orcamento.id_usuario_criador || ''}
+                        onChange={(e) =>
+                          triggerAutoSave({ responsavel_id: e.target.value || (null as any) })
+                        }
+                        className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 py-1 text-xs text-slate-900 shadow-xs focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="">Selecione um responsável...</option>
+                        {systemUsers.map((u) => {
+                          const roleLabel =
+                            u.role === 'technician'
+                              ? 'Técnico'
+                              : u.role === 'admin'
+                                ? 'Administrador'
+                                : 'Vendedor/Atendente'
+                          return (
+                            <option key={u.id} value={u.id}>
+                              {u.name} ({roleLabel})
+                            </option>
+                          )
+                        })}
+                      </select>
+                      <p className="text-[11px] text-slate-400">
+                        Selecione o profissional que conduziu a negociação ou orçamento.
+                      </p>
+
+                      <div className="pt-2">
+                        <label className="font-semibold text-slate-500 block text-[11px] mb-0.5">
+                          Validade do Orçamento (dias):
+                        </label>
+                        <Input
+                          type="number"
+                          min="1"
+                          disabled={!canEdit}
+                          value={orcamento.validade || 15}
+                          onChange={(e) =>
+                            triggerAutoSave({ validade: parseInt(e.target.value, 10) || 15 })
+                          }
+                          className="h-8 w-24 text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3) Campos opcionais: Equipamento e Defeito Relacionado */}
+                  <div className="pt-2 border-t border-slate-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-slate-700">
+                        Equipamento e Defeito (Campos Opcionais)
+                      </span>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold">
+                        Opcional em orçamento independente
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-slate-500 block text-[11px] font-medium mb-1">
+                          Equipamento (Opcional):
+                        </label>
+                        <Input
+                          type="text"
+                          disabled={!canEdit}
+                          placeholder="Ex: Notebook Dell Inspiron, Impressora Epson..."
+                          value={orcamento.equipamento_independente || ''}
+                          onChange={(e) =>
+                            triggerAutoSave({ equipamento_independente: e.target.value })
+                          }
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-slate-500 block text-[11px] font-medium mb-1">
+                          Defeito / Observação do Atendimento (Opcional):
+                        </label>
+                        <Input
+                          type="text"
+                          disabled={!canEdit}
+                          placeholder="Ex: Não liga, tela trincada, orçamento balcão..."
+                          value={orcamento.defeito_independente || ''}
+                          onChange={(e) =>
+                            triggerAutoSave({ defeito_independente: e.target.value })
+                          }
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -1471,16 +1839,29 @@ export default function OrcamentoDetail() {
               <span className="truncate">Imprimir A4</span>
             </Button>
 
-            {/* Enviar para Faturamento (integrado aos pagamentos da O.S. existentes) */}
+            {/* 4) BOTÃO FATURAMENTO: mantido SEMPRE ATIVO após aprovado ou faturado (permite reenviar/faturar novamente sem bloqueio) */}
             <div className="col-span-3 sm:col-span-1">
-              {orcamento.status === 'aprovado' ? (
+              {orcamento.status === 'aprovado' || orcamento.status === 'faturado' ? (
                 <Button
                   type="button"
                   onClick={() => setFaturamentoConfirmOpen(true)}
-                  className="w-full sm:w-auto h-11 sm:h-10 px-4 text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white gap-1.5 shadow-md shadow-purple-600/20"
+                  className={`w-full sm:w-auto h-11 sm:h-10 px-4 text-xs font-bold text-white gap-1.5 shadow-md ${
+                    orcamento.status === 'faturado'
+                      ? 'bg-purple-700 hover:bg-purple-800 shadow-purple-700/25 ring-2 ring-purple-300'
+                      : 'bg-purple-600 hover:bg-purple-700 shadow-purple-600/20'
+                  }`}
+                  title={
+                    orcamento.status === 'faturado'
+                      ? 'Reenviar faturamento ao grupo de WhatsApp (não duplica lançamentos)'
+                      : 'Enviar orçamento para faturamento'
+                  }
                 >
                   <DollarSign className="h-4 w-4" />
-                  <span>Enviar para Faturamento</span>
+                  <span>
+                    {orcamento.status === 'faturado'
+                      ? 'Faturamento (Reenviar)'
+                      : 'Enviar para Faturamento'}
+                  </span>
                 </Button>
               ) : (
                 <Tooltip>
@@ -1516,21 +1897,41 @@ export default function OrcamentoDetail() {
           </DialogHeader>
           <div className="space-y-3 py-2 text-xs text-slate-600">
             <p>
-              Você está enviando o <strong>Orçamento {orcamento.numero_orcamento}</strong> para o
-              faturamento da Ordem de Serviço.
+              {orcamento.status === 'faturado'
+                ? `O Orçamento ${orcamento.numero_orcamento} já foi faturado anteriormente. Deseja reenviar os dados ao grupo de WhatsApp de Faturamento?`
+                : `Você está enviando o Orçamento ${orcamento.numero_orcamento} para o faturamento.`}
             </p>
             <div className="bg-purple-50 border border-purple-200 p-3 rounded-lg text-purple-900 space-y-1">
               <p>
-                <strong>Valor a Faturar:</strong> R$ {financialSummary.totalGeral.toFixed(2)}
+                <strong>Valor Total:</strong> R$ {financialSummary.totalGeral.toFixed(2)}
               </p>
               <p>
                 <strong>Forma de Pagamento:</strong> {orcamento.forma_pagamento?.toUpperCase()} (
                 {orcamento.parcelas || 1}x)
               </p>
-              <p className="text-[11px] text-purple-700">
-                • Será gerado um lançamento financeiro nos pagamentos da OS.
-                <br />• A baixa do estoque dos produtos aprovados será realizada.
-                <br />• O status do orçamento mudará para "Faturado".
+              <p>
+                <strong>Cliente:</strong> {activeCustomerName}
+              </p>
+              <p>
+                <strong>Responsável:</strong> {activeResponsibleName}
+              </p>
+              <p className="text-[11px] text-purple-700 pt-1">
+                {orcamento.status === 'faturado' ? (
+                  <>
+                    • <strong>Idempotência garantida:</strong> Lançamentos financeiros e baixa de
+                    estoque NÃO serão duplicados.
+                    <br />• O grupo de WhatsApp será aberto e a mensagem copiada novamente.
+                  </>
+                ) : (
+                  <>
+                    •{' '}
+                    {orcamento.id_os
+                      ? 'Lançamento financeiro gerado na O.S.'
+                      : 'Lançamento registrado.'}
+                    <br />• Baixa de estoque dos produtos aprovados.
+                    <br />• Status atualizado para "Faturado".
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -1543,7 +1944,7 @@ export default function OrcamentoDetail() {
               onClick={handleSendToFaturamento}
               className="bg-purple-600 hover:bg-purple-700 text-white font-bold"
             >
-              Confirmar e Faturar
+              {orcamento.status === 'faturado' ? 'Reenviar ao Grupo' : 'Confirmar e Faturar'}
             </Button>
           </DialogFooter>
         </DialogContent>
