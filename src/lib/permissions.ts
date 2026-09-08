@@ -5,6 +5,7 @@ export type PermissionModule =
   | 'os_create'
   | 'agendamentos'
   | 'ordens'
+  | 'os_delete'
   | 'orcamentos'
   | 'pos_venda'
   | 'campanhas'
@@ -25,6 +26,7 @@ export const PERMISSION_LABELS: Record<PermissionModule, string> = {
   os_create: 'Cadastro de Ordens de Serviço (criar OS)',
   agendamentos: 'Atendimentos / Agendamentos',
   ordens: 'Ordens de Serviço (Listagem e Detalhe)',
+  os_delete: 'Exclusão de Ordens de Serviço (Excluir OS)',
   orcamentos: 'Módulo de Orçamentos (Listagem e Criação)',
   pos_venda: 'Pós-venda — Juquinha',
   campanhas: 'Campanhas de Marketing',
@@ -44,6 +46,7 @@ export const ALL_PERMISSION_MODULES: PermissionModule[] = [
   'os_create',
   'agendamentos',
   'ordens',
+  'os_delete',
   'orcamentos',
   'pos_venda',
   'campanhas',
@@ -66,6 +69,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         os_create: true,
         agendamentos: true,
         ordens: true,
+        os_delete: true,
         orcamentos: true,
         pos_venda: true,
         campanhas: true,
@@ -85,6 +89,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         os_create: true,
         agendamentos: true,
         ordens: true,
+        os_delete: false,
         orcamentos: true,
         pos_venda: true,
         campanhas: true,
@@ -104,6 +109,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         os_create: false,
         agendamentos: true,
         ordens: true,
+        os_delete: false,
         orcamentos: true,
         pos_venda: true,
         campanhas: false,
@@ -123,6 +129,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         os_create: false,
         agendamentos: false,
         ordens: false,
+        os_delete: false,
         orcamentos: false,
         pos_venda: false,
         campanhas: false,

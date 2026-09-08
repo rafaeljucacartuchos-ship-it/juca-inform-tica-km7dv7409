@@ -44,6 +44,41 @@ export const updateOrderItem = (id: string, data: Partial<ServiceOrderItem>) =>
 
 export const deleteOrderItem = (id: string) => pb.collection('service_order_items').delete(id)
 
+export const deleteServiceOrder = async (id: string) => {
+  // Remove itens associados em cascata antes de deletar a OS para manter integridade
+  try {
+    const items = await pb.collection('service_order_items').getFullList({
+      filter: `service_order = "${id}"`,
+    })
+    await Promise.allSettled(items.map((it) => pb.collection('service_order_items').delete(it.id)))
+  } catch {
+    /* ignore */
+  }
+
+  // Remove histórico de status em cascata
+  try {
+    const history = await pb.collection('status_history').getFullList({
+      filter: `service_order = "${id}"`,
+    })
+    await Promise.allSettled(history.map((h) => pb.collection('status_history').delete(h.id)))
+  } catch {
+    /* ignore */
+  }
+
+  // Se houver pagamentos associados
+  try {
+    const pays = await pb.collection('payments').getFullList({
+      filter: `service_order = "${id}"`,
+    })
+    await Promise.allSettled(pays.map((p) => pb.collection('payments').delete(p.id)))
+  } catch {
+    /* ignore */
+  }
+
+  // Deleta o registro principal da ordem de serviço
+  return pb.collection('service_orders').delete(id)
+}
+
 export const getStatusHistory = (orderId: string) =>
   pb.collection('status_history').getFullList<StatusHistory>({
     filter: `service_order = "${orderId}"`,

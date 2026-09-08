@@ -49,8 +49,15 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
   }, [quantity])
 
   const parsedUnitPrice = useMemo(() => {
-    const norm = String(unitPrice).trim().replace(',', '.')
-    const v = parseFloat(norm)
+    let clean = String(unitPrice)
+      .trim()
+      .replace(/[R$\s]/gi, '')
+    if (clean.includes('.') && clean.includes(',')) {
+      clean = clean.replace(/\./g, '').replace(',', '.')
+    } else if (clean.includes(',')) {
+      clean = clean.replace(',', '.')
+    }
+    const v = parseFloat(clean)
     return isNaN(v) || v < 0 ? 0 : v
   }, [unitPrice])
 
@@ -382,12 +389,30 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
                     setUnitPrice(val)
                   }}
                   onBlur={() => {
-                    const norm = String(unitPrice).trim().replace(',', '.')
-                    const val = parseFloat(norm)
+                    let clean = String(unitPrice)
+                      .trim()
+                      .replace(/[R$\s]/gi, '')
+                    if (clean.includes('.') && clean.includes(',')) {
+                      clean = clean.replace(/\./g, '').replace(',', '.')
+                    } else if (clean.includes(',')) {
+                      clean = clean.replace(',', '.')
+                    }
+                    const val = parseFloat(clean)
                     if (!isNaN(val) && val >= 0) {
-                      setUnitPrice(String(val))
+                      setUnitPrice(
+                        val.toLocaleString('pt-BR', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }),
+                      )
                     } else {
-                      setUnitPrice(String(selectedItem.price || 0))
+                      const defVal = selectedItem.price || 0
+                      setUnitPrice(
+                        defVal.toLocaleString('pt-BR', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }),
+                      )
                     }
                   }}
                   onKeyDown={(e) => {

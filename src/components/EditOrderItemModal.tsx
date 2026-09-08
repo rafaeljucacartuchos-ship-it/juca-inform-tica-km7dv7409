@@ -27,6 +27,7 @@ export function EditOrderItemModal({ open, onOpenChange, item, orderId, onSaved 
   const { toast } = useToast()
   const [quantity, setQuantity] = useState<number>(1)
   const [unitPrice, setUnitPrice] = useState<number>(0)
+  const [unitPriceInput, setUnitPriceInput] = useState<string>('')
   const [description, setDescription] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const unitPriceInputRef = useRef<HTMLInputElement>(null)
@@ -34,7 +35,13 @@ export function EditOrderItemModal({ open, onOpenChange, item, orderId, onSaved 
   useEffect(() => {
     if (open && item) {
       setQuantity(item.quantity || 1)
-      setUnitPrice(item.unit_price ?? 0)
+      const up = item.unit_price ?? 0
+      setUnitPrice(up)
+      setUnitPriceInput(
+        up > 0
+          ? up.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : '',
+      )
       setDescription(item.description || '')
       const timer = setTimeout(() => {
         unitPriceInputRef.current?.focus()
@@ -161,14 +168,35 @@ export function EditOrderItemModal({ open, onOpenChange, item, orderId, onSaved 
               </label>
               <Input
                 ref={unitPriceInputRef}
-                type="number"
-                step="0.01"
-                min="0"
-                value={unitPrice === 0 ? '' : unitPrice}
+                type="text"
+                inputMode="decimal"
+                value={unitPriceInput}
                 onChange={(e) => {
-                  const val =
-                    e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value) || 0)
-                  setUnitPrice(val)
+                  const raw = e.target.value
+                  const filtered = raw.replace(/[^\d.,]/g, '')
+                  setUnitPriceInput(filtered)
+
+                  let clean = filtered.trim()
+                  if (clean.includes('.') && clean.includes(',')) {
+                    clean = clean.replace(/\./g, '').replace(',', '.')
+                  } else if (clean.includes(',')) {
+                    clean = clean.replace(',', '.')
+                  }
+                  const num = parseFloat(clean)
+                  setUnitPrice(isNaN(num) || num < 0 ? 0 : num)
+                }}
+                onBlur={() => {
+                  if (unitPrice > 0) {
+                    setUnitPriceInput(
+                      unitPrice.toLocaleString('pt-BR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      }),
+                    )
+                  } else if (!unitPriceInput.trim()) {
+                    setUnitPrice(0)
+                    setUnitPriceInput('')
+                  }
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {

@@ -47,6 +47,7 @@ export function OrcamentoItemModal({
   const [selectedProductId, setSelectedProductId] = useState<string | undefined>(undefined)
   const [quantidade, setQuantidade] = useState<string>('1')
   const [valorUnitario, setValorUnitario] = useState<number>(0)
+  const [valorUnitarioInput, setValorUnitarioInput] = useState<string>('')
   const [descontoItem, setDescontoItem] = useState<number>(0)
   const [descontoItemTipo, setDescontoItemTipo] = useState<OrcamentoDescontoTipo>('valor')
   const [saving, setSaving] = useState(false)
@@ -66,7 +67,13 @@ export function OrcamentoItemModal({
       setDescricao(itemToEdit.descricao)
       setSelectedProductId(itemToEdit.id_produto)
       setQuantidade(String(itemToEdit.quantidade ?? 1))
-      setValorUnitario(itemToEdit.valor_unitario)
+      const vu = itemToEdit.valor_unitario ?? 0
+      setValorUnitario(vu)
+      setValorUnitarioInput(
+        vu > 0
+          ? vu.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : '',
+      )
       setDescontoItem(itemToEdit.desconto_item || 0)
       setDescontoItemTipo(itemToEdit.desconto_item_tipo || 'valor')
       setQuery('')
@@ -77,6 +84,7 @@ export function OrcamentoItemModal({
       setSelectedProductId(undefined)
       setQuantidade('1')
       setValorUnitario(0)
+      setValorUnitarioInput('')
       setDescontoItem(0)
       setDescontoItemTipo('valor')
       setQuery('')
@@ -177,7 +185,13 @@ export function OrcamentoItemModal({
     setKind(res.kind === 'product' ? 'produto' : 'servico')
     setDescricao(res.name)
     setSelectedProductId(res.id)
-    setValorUnitario(res.price || 0)
+    const p = res.price || 0
+    setValorUnitario(p)
+    setValorUnitarioInput(
+      p > 0
+        ? p.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : '',
+    )
     setQuantidade('1')
     setDescontoItem(0)
     setResults([])
@@ -456,12 +470,37 @@ export function OrcamentoItemModal({
                 <Input
                   type="text"
                   inputMode="decimal"
-                  value={valorUnitario === 0 ? '' : valorUnitario}
+                  value={valorUnitarioInput}
                   onChange={(e) => {
-                    const val = e.target.value.replace(/[^0-9.,]/g, '').replace(',', '.')
-                    setValorUnitario(parseFloat(val) || 0)
+                    const raw = e.target.value
+                    // Permite digitação livre de números, pontos e vírgulas
+                    const filtered = raw.replace(/[^\d.,]/g, '')
+                    setValorUnitarioInput(filtered)
+
+                    // Converte em tempo real para número (formato brasileiro ou padrão)
+                    let clean = filtered.trim()
+                    if (clean.includes('.') && clean.includes(',')) {
+                      clean = clean.replace(/\./g, '').replace(',', '.')
+                    } else if (clean.includes(',')) {
+                      clean = clean.replace(',', '.')
+                    }
+                    const num = parseFloat(clean)
+                    setValorUnitario(isNaN(num) || num < 0 ? 0 : num)
                   }}
-                  placeholder="0.00"
+                  onBlur={() => {
+                    if (valorUnitario > 0) {
+                      setValorUnitarioInput(
+                        valorUnitario.toLocaleString('pt-BR', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }),
+                      )
+                    } else if (!valorUnitarioInput.trim()) {
+                      setValorUnitario(0)
+                      setValorUnitarioInput('')
+                    }
+                  }}
+                  placeholder="0,00"
                   className="h-9 text-xs font-mono font-bold"
                   required
                 />

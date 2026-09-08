@@ -21,6 +21,8 @@ import {
   FileBadge,
   Send,
   ArrowRightLeft,
+  Share2,
+  Copy,
 } from 'lucide-react'
 import { formatPhone } from '@/lib/phones'
 import { OrcamentoItemModal } from '@/components/OrcamentoItemModal'
@@ -38,7 +40,7 @@ import { Badge } from '@/components/ui/badge'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Textarea } from '@/components/ui/textarea'
 import { ServiceOrder, StatusHistory, OrderStatus } from '@/types'
-import { getServiceOrder, getStatusHistory } from '@/services/service_orders'
+import { getServiceOrder, getStatusHistory, deleteServiceOrder } from '@/services/service_orders'
 import { getCustomerPhone, getCustomerDisplayName } from '@/services/customers'
 import { getActiveOrcamento, getOrcamentoItens, createOrcamento } from '@/services/orcamentos'
 import { Orcamento, OrcamentoItem } from '@/types'
@@ -53,6 +55,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { OrderPhotos } from '@/components/OrderPhotos'
 import { NewEquipmentModal } from '@/components/NewEquipmentModal'
 import { TransferTechnicianModal } from '@/components/TransferTechnicianModal'
@@ -74,6 +83,7 @@ export default function OrdemDetail() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { toast } = useToast()
+  const { hasPermission } = usePermissions()
   const [order, setOrder] = useState<ServiceOrder | null>(null)
   const [activeOrcamento, setActiveOrcamento] = useState<Orcamento | null>(null)
   const [orcamentoItens, setOrcamentoItens] = useState<OrcamentoItem[]>([])
@@ -85,6 +95,17 @@ export default function OrdemDetail() {
   const [starting, setStarting] = useState(false)
   const [equipmentModalOpen, setEquipmentModalOpen] = useState(false)
   const [transferModalOpen, setTransferModalOpen] = useState(false)
+  const [confirmDeleteOsOpen, setConfirmDeleteOsOpen] = useState(false)
+  const [deletingOs, setDeletingOs] = useState(false)
+
+  // Modal Seletor de Compartilhamento do Link da OS (/share/:id)
+  const [shareChooserOpen, setShareChooserOpen] = useState(false)
+  const [shareChooserTitle, setShareChooserTitle] = useState('Compartilhar Documento da O.S.')
+  const [shareChooserDescription, setShareChooserDescription] = useState('')
+  const [pendingSharePhone, setPendingSharePhone] = useState('')
+  const [pendingShareMessage, setPendingShareMessage] = useState('')
+  const [pendingShareUrl, setPendingShareUrl] = useState('')
+  const [pendingAfterShareAction, setPendingAfterShareAction] = useState<(() => void) | null>(null)
 
   // Estados para edição inline da OS
   const [isEditingOs, setIsEditingOs] = useState(false)
@@ -102,6 +123,7 @@ export default function OrdemDetail() {
   const [savingOrcConditions, setSavingOrcConditions] = useState(false)
 
   const canEdit = user?.role === 'technician' || user?.role === 'admin'
+  const canDeleteOs = user?.role === 'admin' || hasPermission('os_delete')
   // Antes de iniciar o atendimento (started_at vazio), os campos editáveis
   // ficam bloqueados para o técnico. Após iniciar, ficam liberados.
   const isTechnician = user?.role === 'technician'
@@ -473,6 +495,79 @@ export default function OrdemDetail() {
     }
 
     return false
+  }
+
+  // Ações de compartilhamento (WhatsApp, Copiar link, Compartilhamento nativo do aparelho)
+  const handleShareToWhatsApp = () => {
+    if (!pendingSharePhone) {
+      toast({
+        title: 'Cliente sem WhatsApp informado',
+        description: 'Cadastre o celular do cliente antes de enviar via WhatsApp.',
+        variant: 'destructive',
+      })
+      return
+    }
+    copyToClipboardSync(pendingShareUrl)
+    copyToClipboardSync(pendingShareMessage)
+    openWhatsApp(pendingSharePhone, pendingShareMessage)
+    setShareChooserOpen(false)
+    toast({
+      title: 'WhatsApp aberto!',
+      description: 'Link e mensagem preparados na conversa.',
+    })
+    if (pendingAfterShareAction) {
+      const cb = pendingAfterShareAction
+      setPendingAfterShareAction(null)
+      cb()
+    }
+  }
+
+  const handleCopyShareLink = () => {
+    const success = copyToClipboardSync(pendingShareUrl)
+    if (success) {
+      toast({
+        title: 'Link copiado com sucesso!',
+        description: pendingShareUrl,
+      })
+    } else {
+      toast({
+        title: 'Não foi possível copiar automaticamente',
+        description: pendingShareUrl,
+      })
+    }
+    setShareChooserOpen(false)
+    if (pendingAfterShareAction) {
+      const cb = pendingAfterShareAction
+      setPendingAfterShareAction(null)
+      cb()
+    }
+  }
+
+  const handleNativeShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `O.S. ${order?.number || ''} - JUCA Informática`,
+          text: pendingShareMessage || `Documento da Ordem de Serviço ${order?.number || ''}`,
+          url: pendingShareUrl,
+        })
+        toast({ title: 'Compartilhado com sucesso!' })
+        setShareChooserOpen(false)
+        if (pendingAfterShareAction) {
+          const cb = pendingAfterShareAction
+          setPendingAfterShareAction(null)
+          cb()
+        }
+        return
+      } catch (err: any) {
+        if (err?.name === 'AbortError') {
+          // Usuário apenas cancelou o menu de compartilhamento
+          return
+        }
+      }
+    }
+    // Fallback: copiar para a área de transferência
+    handleCopyShareLink()
   }
 
   // Tarefa 1: Botão WhatsApp da O.S. vira só conversa (apresentação com nome do técnico responsável, SEM link)
