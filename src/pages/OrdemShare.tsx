@@ -14,13 +14,19 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { CompanyHeader } from '@/components/CompanyHeader'
 import { SignaturePad } from '@/components/SignaturePad'
 import { COMPANY_DATA } from '@/lib/company'
-import { getFileUrl } from '@/lib/pocketbase/files'
 import pb from '@/lib/pocketbase/client'
+import { PrintOrderDocument } from '@/components/PrintOrderDocument'
+import type {
+  ServiceOrder,
+  ServiceOrderItem,
+  ServiceAttachment,
+  Orcamento,
+  OrcamentoItem,
+  OrcamentoAnexo,
+} from '@/types'
 
 interface ShareItem {
   description: string
@@ -73,16 +79,27 @@ interface ShareData {
     caption: string
   }>
   evaluation?: EvaluationData | null
-}
-
-const statusLabels: Record<string, string> = {
-  open: 'Aberta',
-  in_progress: 'Em Andamento',
-  paused: 'Pausada',
-  waiting_parts: 'Aguardando Peças',
-  completed: 'Concluída',
-  closed: 'Fechada',
-  cancelled: 'Cancelada',
+  // Dados enriquecidos retornados pelo endpoint
+  attendance_date?: string
+  attendance_time?: string
+  started_at?: string
+  equipment_ref?: string
+  desconto?: number
+  acrescimo?: number
+  attendance_type_data?: { id: string; name: string } | null
+  equipment_data?: {
+    id: string
+    name: string
+    type?: string
+    brand?: string
+    model?: string
+    serial_number?: string
+    notes?: string
+    photos?: string[]
+  } | null
+  orcamento?: Orcamento | null
+  orcamento_itens?: OrcamentoItem[]
+  orcamento_anexos?: OrcamentoAnexo[]
 }
 
 const satisfactionOptions = [
@@ -246,231 +263,155 @@ export default function OrdemShare() {
 
   if (!data) return null
 
-  const sigUrl =
-    data.customer_signature && data.customer_signature !== 'signed'
-      ? `${import.meta.env.VITE_POCKETBASE_URL}/api/files/service_orders/${data.id}/${data.customer_signature}`
-      : null
+  // Mapeia os dados recebidos de `data` para o modelo `ServiceOrder` esperado por `PrintOrderDocument`
+  const mappedOrder: ServiceOrder = {
+    id: data.id,
+    number: data.number,
+    title: data.title,
+    description: data.description,
+    status: data.status as any,
+    priority: data.priority as any,
+    equipment: data.equipment,
+    service_report: data.service_report,
+    total: data.total,
+    desconto: data.desconto,
+    acrescimo: data.acrescimo,
+    customer_signature: data.customer_signature,
+    technician_signature: data.technician_signature,
+    attendance_date: data.attendance_date,
+    attendance_time: data.attendance_time,
+    started_at: data.started_at,
+    created: data.created,
+    updated: data.created,
+    expand: {
+      customer: data.customer
+        ? ({
+            id: 'share_customer',
+            name: data.customer.name,
+            phone: data.customer.phone,
+            street: data.customer.street,
+            number: data.customer.number,
+            city: data.customer.city,
+            state: data.customer.state,
+            zip: data.customer.zip,
+          } as any)
+        : undefined,
+      technician: data.technician
+        ? ({
+            id: data.technician.id || 'share_tech',
+            name: data.technician.name,
+            phone: data.technician.phone,
+          } as any)
+        : undefined,
+      attendance_type: data.attendance_type_data
+        ? ({
+            id: data.attendance_type_data.id,
+            name: data.attendance_type_data.name,
+          } as any)
+        : undefined,
+      equipment_ref: data.equipment_data
+        ? ({
+            id: data.equipment_data.id,
+            name: data.equipment_data.name,
+            type: data.equipment_data.type,
+            brand: data.equipment_data.brand,
+            model: data.equipment_data.model,
+            serial_number: data.equipment_data.serial_number,
+            notes: data.equipment_data.notes,
+            photos: data.equipment_data.photos || [],
+          } as any)
+        : undefined,
+    },
+  }
 
-  const paidTotal = data.items.reduce((s, i) => s + i.total, 0)
+  const mappedItems: ServiceOrderItem[] = (data.items || []).map((it, idx) => ({
+    id: `item_${idx}`,
+    service_order: data.id,
+    description: it.description,
+    quantity: it.quantity,
+    unit_price: it.unit_price,
+    total: it.total,
+    created: data.created,
+    updated: data.created,
+  }))
+
+  const mappedAttachments: ServiceAttachment[] = (data.attachments || []).map((a) => ({
+    id: a.id,
+    service_order: data.id,
+    file: a.file,
+    caption: a.caption,
+    created: data.created,
+    updated: data.created,
+  }))
 
   return (
-    <div className="min-h-screen bg-slate-50 py-6 px-4">
-      <div className="max-w-3xl mx-auto space-y-5">
-        <div className="no-print flex justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => window.print()}
-            className="text-xs gap-1.5"
-          >
-            <Printer className="h-4 w-4" /> Imprimir
-          </Button>
+    <div className="min-h-screen bg-slate-100/70 py-4 px-2 sm:px-4 print:p-0 print:bg-white">
+      <div className="max-w-4xl mx-auto space-y-4">
+        {/* Barra superior de ações no visualizador público */}
+        <div className="no-print flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs font-black text-slate-800 bg-slate-100 px-2 py-1 rounded">
+              OS {data.number}
+            </span>
+            <span className="text-xs text-slate-500 hidden sm:inline">
+              Documento Oficial JUCA Informática
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={() => window.print()}
+              className="gap-2 bg-blue-600 text-xs font-semibold text-white shadow-xs hover:bg-blue-700"
+            >
+              <Printer className="h-4 w-4" /> Imprimir / Salvar PDF (1 Pág)
+            </Button>
+          </div>
         </div>
-        <CompanyHeader />
 
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-lg font-bold text-slate-900 font-mono">
-                  OS {data.number}
-                </CardTitle>
-                <p className="text-xs text-slate-500 mt-0.5">{data.title}</p>
-              </div>
-              <Badge className="capitalize">{statusLabels[data.status] || data.status}</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3 text-xs">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <span className="font-semibold text-slate-500">Cliente:</span>
-                <p className="font-medium text-slate-900">{data.customer?.name || '—'}</p>
-                {data.customer?.phone && <p className="text-slate-500">{data.customer.phone}</p>}
-              </div>
-              <div>
-                <span className="font-semibold text-slate-500">Técnico:</span>
-                <p className="font-medium text-slate-900">
-                  {data.technician?.name || 'Não atribuído'}
-                </p>
-              </div>
-            </div>
-            <div>
-              <span className="font-semibold text-slate-500">Equipamento:</span>
-              <p className="text-slate-700">{data.equipment || 'Não informado'}</p>
-            </div>
-            {data.description && (
-              <div>
-                <span className="font-semibold text-slate-500">Descrição do Problema:</span>
-                <p className="text-slate-700 mt-1">{data.description}</p>
-              </div>
-            )}
-            {data.service_report && (
-              <div>
-                <span className="font-semibold text-slate-500">Relatório de Serviço:</span>
-                <p className="text-slate-700 mt-1">{data.service_report}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* DOCUMENTO OFICIAL A4 COMPACTADO (EXATAMENTE O MESMO DO SISTEMA/PDF) */}
+        <div className="overflow-x-auto print:overflow-visible">
+          <PrintOrderDocument
+            order={mappedOrder}
+            items={mappedItems}
+            attachments={mappedAttachments}
+            orcamento={data.orcamento || null}
+            orcamentoItens={data.orcamento_itens || []}
+            orcamentoAnexos={data.orcamento_anexos || []}
+            hideActions={true}
+          />
+        </div>
 
-        {data.items.length > 0 && (
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-bold text-slate-900">Itens e Serviços</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 border-y border-slate-200 text-slate-500">
-                  <tr>
-                    <th className="py-2.5 px-4">Descrição</th>
-                    <th className="py-2.5 px-4 text-center">Qtd</th>
-                    <th className="py-2.5 px-4 text-right">Un.</th>
-                    <th className="py-2.5 px-4 text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {data.items.map((item, i) => (
-                    <tr key={i}>
-                      <td className="py-2.5 px-4 font-medium">{item.description}</td>
-                      <td className="py-2.5 px-4 text-center">{item.quantity}</td>
-                      <td className="py-2.5 px-4 text-right font-mono">
-                        R$ {item.unit_price.toFixed(2)}
-                      </td>
-                      <td className="py-2.5 px-4 text-right font-mono font-bold">
-                        R$ {item.total.toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between font-bold text-sm">
-                <span>Total:</span>
-                <span className="font-mono text-indigo-600">
-                  R$ {(data.total || paidTotal).toFixed(2)}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {data.attachments && data.attachments.length > 0 && (
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-bold text-slate-900">
-                Fotos do Atendimento
+        {/* COLETAR ASSINATURA DO CLIENTE SE AINDA NÃO ASSINOU */}
+        {!signed && (
+          <Card className="no-print border-emerald-200 bg-emerald-50/40 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Pen className="h-4 w-4 text-emerald-600" />
+                Assinatura do Cliente
               </CardTitle>
+              <CardDescription className="text-xs text-slate-600">
+                Por favor, confirme o recebimento do seu equipamento e a aprovação do serviço
+                assinando abaixo:
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-3">
-                {data.attachments.map((a) => (
-                  <div key={a.id}>
-                    <img
-                      src={getFileUrl(a.id, a.file, 'service_attachments', '300x300')}
-                      alt={a.caption || ''}
-                      className="h-28 w-full rounded-lg border border-slate-200 object-cover"
-                    />
-                    {a.caption && <p className="mt-0.5 text-[10px] text-slate-600">{a.caption}</p>}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {data.status_history && data.status_history.length > 0 && (
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-bold text-slate-900">
-                Histórico de Alterações
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <table className="w-full text-left text-xs">
-                <thead className="border-y border-slate-200 bg-slate-50 text-slate-500">
-                  <tr>
-                    <th className="px-4 py-2">Status</th>
-                    <th className="px-4 py-2">Observação</th>
-                    <th className="px-4 py-2">Alterado por</th>
-                    <th className="px-4 py-2">Data</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {data.status_history.map((h, i) => (
-                    <tr key={i}>
-                      <td className="px-4 py-2">{statusLabels[h.status] || h.status}</td>
-                      <td className="px-4 py-2">{h.note || '—'}</td>
-                      <td className="px-4 py-2">{h.changed_by || '—'}</td>
-                      <td className="px-4 py-2 font-mono">
-                        {h.created?.substring(0, 10).split('-').reverse().join('/')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        )}
-
-        {data.technician_signature && (
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-bold text-slate-900">
-                Assinatura do Técnico
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <img
-                src={getFileUrl(data.id, data.technician_signature, 'service_orders')}
-                alt="Assinatura do Técnico"
-                className="h-24 w-full rounded-lg border border-slate-200 bg-white object-contain"
-              />
-            </CardContent>
-          </Card>
-        )}
-
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-bold text-slate-900">
-              Assinatura do Cliente
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {signed ? (
-              <div className="space-y-3">
-                {sigUrl && (
-                  <img
-                    src={sigUrl}
-                    alt="Assinatura"
-                    className="w-full h-28 object-contain border border-slate-200 rounded-lg bg-white"
-                  />
-                )}
-                <div className="flex items-center gap-2 text-emerald-600">
-                  <CheckCircle className="h-5 w-5" />
-                  <span className="text-sm font-medium">
-                    Ordem de serviço assinada digitalmente.
-                  </span>
+              {saving ? (
+                <div className="flex items-center justify-center h-32">
+                  <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
                 </div>
-              </div>
-            ) : saving ? (
-              <div className="flex items-center justify-center h-40">
-                <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {error && (
-                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
-                    {error}
-                  </p>
-                )}
-                <div className="flex items-center gap-2 text-slate-600 mb-2">
-                  <Pen className="h-4 w-4" />
-                  <p className="text-xs">Assine abaixo para confirmar esta ordem de serviço.</p>
+              ) : (
+                <div className="space-y-2">
+                  {error && (
+                    <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                      {error}
+                    </p>
+                  )}
+                  <SignaturePad onConfirm={handleSign} />
                 </div>
-                <SignaturePad onConfirm={handleSign} />
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* PESQUISA DE SATISFAÇÃO E GOOGLE REVIEW */}
         <Card className="border-indigo-100 shadow-sm bg-gradient-to-b from-indigo-50/50 to-white">

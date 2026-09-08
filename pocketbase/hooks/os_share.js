@@ -55,6 +55,114 @@ routerAdd('GET', '/backend/v1/os/{id}/share', (e) => {
     }
   } catch (_) {}
 
+  let attendanceType = null
+  try {
+    const attTypeId = record.getString('attendance_type')
+    if (attTypeId) {
+      const attT = $app.findRecordById('service_types', attTypeId)
+      attendanceType = {
+        id: attT.id,
+        name: attT.getString('name'),
+      }
+    }
+  } catch (_) {}
+
+  let equipmentRef = null
+  try {
+    const eqId = record.getString('equipment_ref')
+    if (eqId) {
+      const eq = $app.findRecordById('equipment', eqId)
+      let eqPhotos = []
+      try {
+        eqPhotos = eq.get('photos') || []
+      } catch (_) {}
+      equipmentRef = {
+        id: eq.id,
+        name: eq.getString('name'),
+        type: eq.getString('type'),
+        brand: eq.getString('brand'),
+        model: eq.getString('model'),
+        serial_number: eq.getString('serial_number'),
+        notes: eq.getString('notes'),
+        photos: Array.isArray(eqPhotos) ? eqPhotos : eqPhotos ? [eqPhotos] : [],
+      }
+    }
+  } catch (_) {}
+
+  // Busca orçamento vinculado ativo
+  let orcamento = null
+  let orcamentoItens = []
+  let orcamentoAnexos = []
+  try {
+    const orcs = $app.findRecordsByFilter('orcamentos', 'id_os = "' + id + '"', '-created', 1, 0)
+    if (orcs && orcs.length > 0) {
+      const o = orcs[0]
+      orcamento = {
+        id: o.id,
+        numero_orcamento: o.getString('numero_orcamento'),
+        status: o.getString('status'),
+        validade: o.getInt('validade') || 15,
+        observacoes: o.getString('observacoes'),
+        forma_pagamento: o.getString('forma_pagamento'),
+        parcelas: o.getInt('parcelas') || 1,
+        entrada: o.getFloat('entrada') || 0,
+        restante: o.getFloat('restante') || 0,
+        subtotal: o.getFloat('subtotal') || 0,
+        desconto_total_valor: o.getFloat('desconto_total_valor') || 0,
+        desconto_total_tipo: o.getString('desconto_total_tipo'),
+        desconto_total_percentual: o.getFloat('desconto_total_percentual') || 0,
+        total_geral: o.getFloat('total_geral') || 0,
+        assinatura_cliente: o.getString('assinatura_cliente'),
+        assinatura_tecnico: o.getString('assinatura_tecnico'),
+        data_assinatura_cliente: o.getString('data_assinatura_cliente'),
+        data_assinatura_tecnico: o.getString('data_assinatura_tecnico'),
+        token_acesso: o.getString('token_acesso'),
+      }
+
+      try {
+        const oItList = $app.findRecordsByFilter(
+          'orcamento_itens',
+          'id_orcamento = "' + o.id + '"',
+          'created',
+          100,
+          0,
+        )
+        orcamentoItens = oItList.map(function (it) {
+          return {
+            id: it.id,
+            id_orcamento: o.id,
+            tipo: it.getString('tipo'),
+            descricao: it.getString('descricao'),
+            quantidade: it.getFloat('quantidade') || 1,
+            valor_unitario: it.getFloat('valor_unitario') || 0,
+            desconto_item: it.getFloat('desconto_item') || 0,
+            desconto_item_tipo: it.getString('desconto_item_tipo'),
+            valor_total_item: it.getFloat('valor_total_item') || 0,
+          }
+        })
+      } catch (_) {}
+
+      try {
+        const oAnList = $app.findRecordsByFilter(
+          'orcamento_anexos',
+          'id_orcamento = "' + o.id + '"',
+          'created',
+          50,
+          0,
+        )
+        orcamentoAnexos = oAnList.map(function (an) {
+          return {
+            id: an.id,
+            id_orcamento: o.id,
+            tipo: an.getString('tipo'),
+            caminho_arquivo: an.getString('caminho_arquivo'),
+            legenda: an.getString('legenda'),
+          }
+        })
+      } catch (_) {}
+    }
+  } catch (_) {}
+
   let items = []
   try {
     items = $app.findRecordsByFilter(
@@ -176,6 +284,17 @@ routerAdd('GET', '/backend/v1/os/{id}/share', (e) => {
         caption: a.getString('caption'),
       }
     }),
+    attendance_date: record.getString('attendance_date'),
+    attendance_time: record.getString('attendance_time'),
+    started_at: record.getString('started_at'),
+    equipment_ref: record.getString('equipment_ref'),
+    desconto: record.getFloat('desconto') || 0,
+    acrescimo: record.getFloat('acrescimo') || 0,
+    attendance_type_data: attendanceType,
+    equipment_data: equipmentRef,
+    orcamento: orcamento,
+    orcamento_itens: orcamentoItens,
+    orcamento_anexos: orcamentoAnexos,
     evaluation: evaluation,
   }
 

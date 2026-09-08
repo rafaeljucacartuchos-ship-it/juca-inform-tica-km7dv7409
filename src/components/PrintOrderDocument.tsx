@@ -77,6 +77,7 @@ interface PrintOrderDocumentProps {
   orcamento?: Orcamento | null
   orcamentoItens?: OrcamentoItem[]
   orcamentoAnexos?: OrcamentoAnexo[]
+  hideActions?: boolean
   onOrcamentoChange?: (orc: Orcamento) => void
 }
 
@@ -87,6 +88,7 @@ export function PrintOrderDocument({
   orcamento,
   orcamentoItens = [],
   orcamentoAnexos = [],
+  hideActions = false,
   onOrcamentoChange,
 }: PrintOrderDocumentProps) {
   const navigate = useNavigate()
@@ -289,48 +291,56 @@ export function PrintOrderDocument({
       : Number(order.total) || 0
 
   return (
-    <div className="min-h-screen bg-slate-100/60 p-4 sm:p-6 print:bg-white print:p-0">
+    <div
+      className={
+        hideActions
+          ? 'w-full print:bg-white print:p-0'
+          : 'min-h-screen bg-slate-100/60 p-4 sm:p-6 print:bg-white print:p-0'
+      }
+    >
       {/* Barra de controle na tela (oculta na impressão) */}
-      <div className="no-print mx-auto mb-4 flex max-w-4xl items-center justify-between rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate(-1)}
-          className="gap-1.5 text-xs text-slate-600 hover:text-slate-900"
-        >
-          <ArrowLeft className="h-4 w-4" /> Voltar
-        </Button>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-          <span className="hidden sm:inline text-xs text-slate-500">
-            Documento A4 - {order.number}
-          </span>
+      {!hideActions && (
+        <div className="no-print mx-auto mb-4 flex max-w-4xl items-center justify-between rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
           <Button
+            variant="ghost"
             size="sm"
-            variant="outline"
-            onClick={handleEnviarAoCliente}
-            disabled={sendingWhatsapp}
-            className="gap-1.5 border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-xs font-bold shadow-xs"
-            title="Enviar link público do documento unificado via WhatsApp ao cliente"
+            onClick={() => navigate(-1)}
+            className="gap-1.5 text-xs text-slate-600 hover:text-slate-900"
           >
-            <Send className="h-4 w-4 text-emerald-600" />
-            <span>Enviar ao Cliente (WhatsApp)</span>
+            <ArrowLeft className="h-4 w-4" /> Voltar
           </Button>
-          <Button
-            size="sm"
-            onClick={() => window.print()}
-            className="gap-2 bg-blue-600 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
-          >
-            <Printer className="h-4 w-4" /> Imprimir / Salvar PDF
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <span className="hidden sm:inline text-xs text-slate-500">
+              Documento A4 - {order.number}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleEnviarAoCliente}
+              disabled={sendingWhatsapp}
+              className="gap-1.5 border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-xs font-bold shadow-xs"
+              title="Enviar link público do documento unificado via WhatsApp ao cliente"
+            >
+              <Send className="h-4 w-4 text-emerald-600" />
+              <span>Enviar ao Cliente (WhatsApp)</span>
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => window.print()}
+              className="gap-2 bg-blue-600 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
+            >
+              <Printer className="h-4 w-4" /> Imprimir / Salvar PDF
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Documento A4 (Modelo Oficial O.S. JUCA Informática - Folha Única) */}
-      <div className="print-document a4-single-page mx-auto max-w-4xl bg-white p-4 sm:p-5 text-slate-900 shadow-md border border-slate-200 rounded-lg print:border-0 print:shadow-none print:p-0 print:rounded-none text-[10px] leading-tight">
+      <div className="print-document a4-single-page mx-auto max-w-4xl bg-white p-3 sm:p-4 text-slate-900 shadow-md border border-slate-200 rounded-lg print:border-0 print:shadow-none print:p-0 print:rounded-none text-[9.5px] leading-tight">
         {/* CABEÇALHO COM LOGOMARCA OFICIAL JUCA (COMPACTADO PARA 1 FOLHA) */}
-        <div className="mb-1.5 flex items-center justify-between border-b-2 border-slate-900 pb-1.5">
+        <div className="mb-1 flex items-center justify-between border-b-2 border-slate-900 pb-1">
           <div className="flex items-center gap-2">
-            <div className="h-10 w-24 sm:h-11 sm:w-28 shrink-0 overflow-hidden rounded bg-slate-950 p-1 flex items-center justify-center border border-slate-800">
+            <div className="h-9 w-22 sm:h-10 sm:w-26 shrink-0 overflow-hidden rounded bg-slate-950 p-1 flex items-center justify-center border border-slate-800">
               <img
                 src={JUCA_LOGO_URL}
                 alt="JUCA Informática"
@@ -341,36 +351,36 @@ export function PrintOrderDocument({
               />
             </div>
             <div>
-              <h1 className="text-sm font-extrabold tracking-tight text-slate-900 sm:text-base leading-none">
+              <h1 className="text-xs sm:text-sm font-extrabold tracking-tight text-slate-900 leading-none">
                 {COMPANY_DATA.nomeFantasia || 'JUCA INFORMÁTICA'}
               </h1>
-              <p className="text-[9.5px] font-semibold text-slate-700 leading-tight mt-0.5">
+              <p className="text-[9px] font-semibold text-slate-700 leading-tight mt-0.5">
                 {COMPANY_DATA.razaoSocial}
               </p>
-              <p className="text-[8.5px] text-slate-600 leading-tight">{COMPANY_DATA.endereco}</p>
-              <p className="text-[8.5px] text-slate-600 leading-tight">
+              <p className="text-[8px] text-slate-600 leading-tight">{COMPANY_DATA.endereco}</p>
+              <p className="text-[8px] text-slate-600 leading-tight">
                 <strong>Telefones:</strong> {COMPANY_DATA.telefones}
               </p>
             </div>
           </div>
           <div className="text-right">
             <div className="inline-block rounded bg-slate-900 px-2 py-0.5 text-white">
-              <span className="font-mono text-sm font-black tracking-wider sm:text-base">
+              <span className="font-mono text-xs sm:text-sm font-black tracking-wider">
                 {orcamento?.numero_orcamento
                   ? `${order.number} · ${orcamento.numero_orcamento}`
                   : `OS ${order.number}`}
               </span>
             </div>
-            <p className="mt-0.5 text-[8.5px] font-medium text-slate-600 leading-tight">
+            <p className="mt-0.5 text-[8px] font-medium text-slate-600 leading-tight">
               <strong>Emissão O.S.:</strong> {fmtDate(order.created)}
             </p>
             {orcamento && (
-              <p className="text-[8.5px] text-slate-600 leading-tight">
+              <p className="text-[8px] text-slate-600 leading-tight">
                 <strong>Validade Orçamento:</strong> {orcamento.validade || 15} dias
               </p>
             )}
             {order.attendance_date && (
-              <p className="text-[8.5px] text-slate-600 leading-tight">
+              <p className="text-[8px] text-slate-600 leading-tight">
                 <strong>Atendimento:</strong> {fmtDate(order.attendance_date)}{' '}
                 {order.attendance_time || ''}
               </p>
@@ -473,8 +483,8 @@ export function PrintOrderDocument({
         </div>
 
         {/* SEÇÃO DO EQUIPAMENTO COM FOTO DE CHECK-IN E DETALHES COMPLETOS */}
-        <div className="page-break-inside-avoid mb-1.5 rounded border border-slate-200 p-1.5 text-[9.5px]">
-          <h3 className="mb-0.5 border-b border-slate-200 pb-0.5 text-[9.5px] font-bold text-slate-900 uppercase tracking-wide">
+        <div className="page-break-inside-avoid mb-1 rounded border border-slate-200 p-1.5 text-[9px]">
+          <h3 className="mb-0.5 border-b border-slate-200 pb-0.5 text-[9px] font-bold text-slate-900 uppercase tracking-wide">
             Equipamento no Check-in
           </h3>
 
@@ -533,11 +543,11 @@ export function PrintOrderDocument({
 
               {/* Descrição do problema / Diagnóstico */}
               {order.description && (
-                <div className="mt-1 rounded bg-slate-50 p-1 border border-slate-100">
-                  <strong className="text-slate-800 block text-[8.5px] uppercase font-bold">
+                <div className="mt-0.5 rounded bg-slate-50 p-1 border border-slate-100">
+                  <strong className="text-slate-800 block text-[8px] uppercase font-bold">
                     Defeito Relatado / Queixa do Cliente:
                   </strong>
-                  <p className="text-slate-700 leading-snug">{order.description}</p>
+                  <p className="text-slate-700 leading-tight">{order.description}</p>
                 </div>
               )}
             </div>
@@ -545,7 +555,7 @@ export function PrintOrderDocument({
             {/* Foto de identificação/check-in do equipamento (compacto) */}
             {checkInPhotos.length > 0 && (
               <div className="flex flex-col items-center justify-center border-t md:border-t-0 md:border-l border-slate-200 pt-1 md:pt-0 md:pl-2">
-                <span className="mb-0.5 text-[8.5px] font-bold text-slate-500 uppercase tracking-wider">
+                <span className="mb-0.5 text-[8px] font-bold text-slate-500 uppercase tracking-wider">
                   Foto do Check-in
                 </span>
                 <div className="flex flex-wrap items-center justify-center gap-1">
@@ -554,7 +564,7 @@ export function PrintOrderDocument({
                       key={idx}
                       src={photoUrl}
                       alt="Foto do Equipamento"
-                      className="h-14 w-18 rounded border border-slate-300 object-cover shadow-2xs"
+                      className="h-11 w-16 rounded border border-slate-300 object-cover shadow-2xs"
                     />
                   ))}
                 </div>
@@ -565,192 +575,202 @@ export function PrintOrderDocument({
 
         {/* RELATÓRIO DO SERVIÇO EXECUTADO (LAUDO TÉCNICO) */}
         {order.service_report && (
-          <div className="page-break-inside-avoid mb-1.5 rounded border border-slate-200 p-1.5 text-[9.5px]">
-            <h3 className="mb-0.5 text-[9.5px] font-bold text-slate-900 uppercase tracking-wide">
+          <div className="page-break-inside-avoid mb-1 rounded border border-slate-200 p-1 text-[9px]">
+            <h3 className="mb-0.5 text-[9px] font-bold text-slate-900 uppercase tracking-wide">
               Laudo Técnico / Serviço Executado
             </h3>
-            <p className="whitespace-pre-wrap text-slate-700 leading-snug">
+            <p className="whitespace-pre-wrap text-slate-700 leading-tight">
               {order.service_report}
             </p>
           </div>
         )}
 
         {/* ITENS, PRODUTOS, PEÇAS E SERVIÇOS (TABELA COMPACTA COM VALORES) */}
-        <div className="page-break-inside-avoid mb-1.5 rounded border border-slate-200 p-1.5 text-[9.5px]">
-          <div className="flex items-center justify-between mb-0.5">
-            <h3 className="text-[9.5px] font-bold text-slate-900 uppercase tracking-wide">
-              Itens, Peças e Serviços{' '}
-              {hasOrcamento ? `(Orçamento ${orcamento?.numero_orcamento})` : ''}
-            </h3>
-            {hasOrcamento && (
-              <span className="text-[8.5px] text-indigo-700 font-semibold bg-indigo-50 px-1 py-0.2 rounded border border-indigo-200">
-                Orçamento Vinculado
-              </span>
-            )}
-          </div>
+        {(() => {
+          const rawItems =
+            hasOrcamento && orcamentoItens.length > 0
+              ? orcamentoItens.map((it) => ({
+                  tipo: it.tipo || 'servico',
+                  descricao: it.descricao,
+                  quantidade: it.quantidade || 1,
+                  unitario: it.valor_unitario || 0,
+                  desconto: it.desconto_item || 0,
+                  total: it.valor_total_item || 0,
+                }))
+              : items.map((it) => ({
+                  tipo: 'servico',
+                  descricao: it.description,
+                  quantidade: it.quantity || 1,
+                  unitario: it.unit_price || 0,
+                  desconto: 0,
+                  total: it.total || 0,
+                }))
 
-          <table className="w-full border-collapse text-[9.5px]">
-            <thead>
-              <tr className="bg-slate-100 text-slate-700">
-                <th className="border border-slate-300 px-1.5 py-0.5 text-left font-bold">
-                  Item / Descrição
-                </th>
-                <th className="border border-slate-300 px-1.5 py-0.5 text-center font-bold w-12">
-                  Qtd
-                </th>
-                <th className="border border-slate-300 px-1.5 py-0.5 text-right font-bold w-20">
-                  Vlr. Unit.
-                </th>
-                <th className="border border-slate-300 px-1.5 py-0.5 text-right font-bold w-20">
-                  Total
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {hasOrcamento ? (
-                orcamentoItens.length > 0 ? (
-                  orcamentoItens.map((item, idx) => (
-                    <tr key={item.id || idx} className="even:bg-slate-50/50">
-                      <td className="border border-slate-300 px-1.5 py-0.5 text-slate-900">
-                        <span className="font-medium">{item.descricao}</span>
-                        <span className="ml-1 text-[7.5px] uppercase px-1 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                          {item.tipo}
-                        </span>
-                      </td>
-                      <td className="border border-slate-300 px-1.5 py-0.5 text-center font-mono text-slate-700">
-                        {item.quantidade || 1}
-                      </td>
-                      <td className="border border-slate-300 px-1.5 py-0.5 text-right font-mono text-slate-700">
-                        R$ {fmtCurrency(item.valor_unitario)}
-                      </td>
-                      <td className="border border-slate-300 px-1.5 py-0.5 text-right font-mono font-bold text-slate-900">
-                        R$ {fmtCurrency(item.valor_total_item)}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className="border border-slate-300 px-1.5 py-1 text-center text-slate-400 italic"
-                    >
-                      Nenhum item discriminado no orçamento vinculado.
-                    </td>
-                  </tr>
-                )
-              ) : items.length > 0 ? (
-                items.map((item, idx) => (
-                  <tr key={item.id || idx} className="even:bg-slate-50/50">
-                    <td className="border border-slate-300 px-1.5 py-0.5 text-slate-900">
-                      {item.description || 'Item de serviço'}
-                    </td>
-                    <td className="border border-slate-300 px-1.5 py-0.5 text-center font-mono text-slate-700">
-                      {item.quantity || 1}
-                    </td>
-                    <td className="border border-slate-300 px-1.5 py-0.5 text-right font-mono text-slate-700">
-                      R$ {fmtCurrency(item.unit_price)}
-                    </td>
-                    <td className="border border-slate-300 px-1.5 py-0.5 text-right font-mono font-bold text-slate-900">
-                      R$ {fmtCurrency(item.total)}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="border border-slate-300 px-1.5 py-1 text-center text-slate-400 italic"
-                  >
-                    Nenhum item ou serviço discriminado nesta ordem.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          const displayItems = rawItems.slice(0, 6)
+          const remainingItemsCount = rawItems.length - displayItems.length
 
-          {/* TOTALIZAÇÃO FINANCEIRA */}
-          <div className="mt-1 flex justify-between items-start">
-            {hasOrcamento && orcamento ? (
-              <div className="text-[8.5px] text-slate-600 max-w-sm space-y-0.5">
-                <p>
-                  <strong className="text-slate-700">Forma de Pagamento:</strong>{' '}
-                  {FORMA_PAGTO_LABELS[orcamento.forma_pagamento || 'pix'] ||
-                    orcamento.forma_pagamento}
-                </p>
-                <p>
-                  <strong className="text-slate-700">Condição:</strong>{' '}
-                  {(orcamento.parcelas || 1) > 1
-                    ? `${orcamento.parcelas}x de R$ ${fmtCurrency(orcTotalGeral / (orcamento.parcelas || 1))}`
-                    : '1x à vista'}
-                </p>
-                {Number(orcamento.entrada) > 0 && (
-                  <p>
-                    <strong className="text-slate-700">Entrada:</strong> R${' '}
-                    {fmtCurrency(orcamento.entrada)}
-                  </p>
-                )}
-                {orcamento.observacoes && (
-                  <p className="italic text-slate-500">Obs: {orcamento.observacoes}</p>
+          return (
+            <div className="page-break-inside-avoid mb-1 rounded border border-slate-200 p-1 text-[8.5px]">
+              <div className="flex items-center justify-between mb-0.5">
+                <h3 className="text-[8.5px] font-bold text-slate-900 uppercase tracking-wide">
+                  Itens, Peças e Serviços{' '}
+                  {hasOrcamento ? `(Orçamento ${orcamento?.numero_orcamento})` : ''}
+                </h3>
+                {hasOrcamento && (
+                  <span className="text-[7.5px] text-indigo-700 font-semibold bg-indigo-50 px-1 py-0.2 rounded border border-indigo-200">
+                    Orçamento Vinculado
+                  </span>
                 )}
               </div>
-            ) : (
-              <div />
-            )}
 
-            <div className="w-56 space-y-0.5 text-right text-[9.5px]">
-              {hasOrcamento ? (
-                <>
-                  <div className="flex justify-between text-slate-600">
-                    <span>Subtotal:</span>
-                    <span className="font-mono font-medium">R$ {fmtCurrency(orcSubtotal)}</span>
-                  </div>
-                  {orcDescontoTotal > 0 && (
-                    <div className="flex justify-between text-rose-600 font-medium">
-                      <span>Desconto Total:</span>
-                      <span className="font-mono">- R$ {fmtCurrency(orcDescontoTotal)}</span>
-                    </div>
+              <table className="w-full border-collapse text-[8.5px]">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-700">
+                    <th className="border border-slate-300 px-1.5 py-0.5 text-left font-bold">
+                      Item / Descrição
+                    </th>
+                    <th className="border border-slate-300 px-1.5 py-0.5 text-center font-bold w-12">
+                      Qtd
+                    </th>
+                    <th className="border border-slate-300 px-1.5 py-0.5 text-right font-bold w-20">
+                      Vlr. Unit.
+                    </th>
+                    <th className="border border-slate-300 px-1.5 py-0.5 text-right font-bold w-20">
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayItems.length > 0 ? (
+                    <>
+                      {displayItems.map((item, idx) => (
+                        <tr key={idx} className="even:bg-slate-50/50">
+                          <td className="border border-slate-300 px-1.5 py-0.5 text-slate-900">
+                            <span className="font-medium leading-tight">{item.descricao}</span>
+                            <span className="ml-1 text-[7px] uppercase px-1 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                              {item.tipo}
+                            </span>
+                          </td>
+                          <td className="border border-slate-300 px-1.5 py-0.5 text-center font-mono text-slate-700">
+                            {item.quantidade || 1}
+                          </td>
+                          <td className="border border-slate-300 px-1.5 py-0.5 text-right font-mono text-slate-700">
+                            R$ {fmtCurrency(item.unitario)}
+                          </td>
+                          <td className="border border-slate-300 px-1.5 py-0.5 text-right font-mono font-bold text-slate-900">
+                            R$ {fmtCurrency(item.total)}
+                          </td>
+                        </tr>
+                      ))}
+                      {remainingItemsCount > 0 && (
+                        <tr>
+                          <td
+                            colSpan={4}
+                            className="border border-slate-300 px-1.5 py-0.5 text-center text-[7.5px] text-slate-500 italic bg-slate-50"
+                          >
+                            + {remainingItemsCount} outro(s) item(ns) discriminado(s) no sistema
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="border border-slate-300 px-1.5 py-0.5 text-center text-slate-400 italic"
+                      >
+                        Nenhum item ou serviço discriminado nesta ordem.
+                      </td>
+                    </tr>
                   )}
-                  <div className="flex justify-between border-t border-slate-900 pt-0.5 text-[10.5px] font-black text-slate-900">
-                    <span>TOTAL:</span>
-                    <span className="font-mono text-[11px] text-indigo-900 font-bold">
-                      R$ {fmtCurrency(orcTotalGeral)}
-                    </span>
+                </tbody>
+              </table>
+
+              {/* TOTALIZAÇÃO FINANCEIRA */}
+              <div className="mt-1 flex justify-between items-start">
+                {hasOrcamento && orcamento ? (
+                  <div className="text-[8px] text-slate-600 max-w-sm space-y-0.5">
+                    <p>
+                      <strong className="text-slate-700">Forma de Pagamento:</strong>{' '}
+                      {FORMA_PAGTO_LABELS[orcamento.forma_pagamento || 'pix'] ||
+                        orcamento.forma_pagamento}
+                    </p>
+                    <p>
+                      <strong className="text-slate-700">Condição:</strong>{' '}
+                      {(orcamento.parcelas || 1) > 1
+                        ? `${orcamento.parcelas}x de R$ ${fmtCurrency(orcTotalGeral / (orcamento.parcelas || 1))}`
+                        : '1x à vista'}
+                    </p>
+                    {Number(orcamento.entrada) > 0 && (
+                      <p>
+                        <strong className="text-slate-700">Entrada:</strong> R${' '}
+                        {fmtCurrency(orcamento.entrada)}
+                      </p>
+                    )}
+                    {orcamento.observacoes && (
+                      <p className="italic text-slate-500">Obs: {orcamento.observacoes}</p>
+                    )}
                   </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex justify-between text-slate-600">
-                    <span>Subtotal dos Itens:</span>
-                    <span className="font-mono font-medium">R$ {fmtCurrency(soSubtotal)}</span>
-                  </div>
-                  {soDesconto > 0 && (
-                    <div className="flex justify-between text-rose-600 font-medium">
-                      <span>Desconto:</span>
-                      <span className="font-mono">- R$ {fmtCurrency(soDesconto)}</span>
-                    </div>
+                ) : (
+                  <div />
+                )}
+
+                <div className="w-52 space-y-0.5 text-right text-[8.5px]">
+                  {hasOrcamento ? (
+                    <>
+                      <div className="flex justify-between text-slate-600">
+                        <span>Subtotal:</span>
+                        <span className="font-mono font-medium">R$ {fmtCurrency(orcSubtotal)}</span>
+                      </div>
+                      {orcDescontoTotal > 0 && (
+                        <div className="flex justify-between text-rose-600 font-medium">
+                          <span>Desconto Total:</span>
+                          <span className="font-mono">- R$ {fmtCurrency(orcDescontoTotal)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between border-t border-slate-900 pt-0.5 text-[9.5px] font-black text-slate-900">
+                        <span>TOTAL:</span>
+                        <span className="font-mono text-[10px] text-indigo-900 font-bold">
+                          R$ {fmtCurrency(orcTotalGeral)}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between text-slate-600">
+                        <span>Subtotal dos Itens:</span>
+                        <span className="font-mono font-medium">R$ {fmtCurrency(soSubtotal)}</span>
+                      </div>
+                      {soDesconto > 0 && (
+                        <div className="flex justify-between text-rose-600 font-medium">
+                          <span>Desconto:</span>
+                          <span className="font-mono">- R$ {fmtCurrency(soDesconto)}</span>
+                        </div>
+                      )}
+                      {soAcrescimo > 0 && (
+                        <div className="flex justify-between text-emerald-600 font-medium">
+                          <span>Acréscimo:</span>
+                          <span className="font-mono">+ R$ {fmtCurrency(soAcrescimo)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between border-t border-slate-900 pt-0.5 text-[9.5px] font-black text-slate-900">
+                        <span>TOTAL GERAL:</span>
+                        <span className="font-mono text-[10px] font-bold">
+                          R$ {fmtCurrency(soTotal)}
+                        </span>
+                      </div>
+                    </>
                   )}
-                  {soAcrescimo > 0 && (
-                    <div className="flex justify-between text-emerald-600 font-medium">
-                      <span>Acréscimo:</span>
-                      <span className="font-mono">+ R$ {fmtCurrency(soAcrescimo)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between border-t border-slate-900 pt-0.5 text-[10.5px] font-black text-slate-900">
-                    <span>TOTAL GERAL:</span>
-                    <span className="font-mono text-[11px] font-bold">
-                      R$ {fmtCurrency(soTotal)}
-                    </span>
-                  </div>
-                </>
-              )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          )
+        })()}
 
         {/* REGISTROS FOTOGRÁFICOS (COMPACTO - MÁX 4 EM LINHA ÚNICA) */}
         {displayExtraPhotos.length > 0 && (
-          <div className="page-break-inside-avoid mb-1 rounded border border-slate-200 p-1 text-[8.5px]">
-            <h3 className="mb-0.5 text-[8.5px] font-bold text-slate-900 uppercase tracking-wide">
+          <div className="page-break-inside-avoid mb-1 rounded border border-slate-200 p-1 text-[8px]">
+            <h3 className="mb-0.5 text-[8px] font-bold text-slate-900 uppercase tracking-wide">
               Registros Fotográficos (Atendimento / Orçamento)
             </h3>
             <div className="grid grid-cols-4 gap-1">
@@ -759,7 +779,7 @@ export function PrintOrderDocument({
                   <img
                     src={a.url}
                     alt={a.caption || 'Foto'}
-                    className="h-10 w-full rounded border border-slate-200 object-cover"
+                    className="h-9 w-full rounded border border-slate-200 object-cover"
                   />
                   {a.caption && (
                     <p className="mt-0.5 truncate text-[7px] text-slate-500">{a.caption}</p>
@@ -770,42 +790,56 @@ export function PrintOrderDocument({
           </div>
         )}
 
+        {/* DECLARAÇÃO DE RECEBIMENTO DO CLIENTE (TEXTO LEGAL JUCA) */}
+        <div className="page-break-inside-avoid mb-1 rounded border border-slate-300 bg-slate-50/70 p-1 text-[7.5px] leading-tight text-slate-700">
+          <p className="font-bold text-slate-900 mb-0.5 text-[8px]">
+            TERMO DE RECEBIMENTO E CONCORDÂNCIA:
+          </p>
+          <p>
+            Declaro ter recebido o equipamento discriminado nesta Ordem de Serviço devidamente
+            revisado, testado e em perfeitas condições de funcionamento, com os serviços descritos
+            executados a contento e peças substituídas conforme acordado. Concordo com os valores e
+            prazos de garantia estipulados (90 dias para serviços e peças fornecidas). A garantia
+            não cobre mau uso, quedas, sobretensão ou intervenção de terceiros.
+          </p>
+        </div>
+
         {/* ASSINATURAS (COMPACTAS NO RODAPÉ DA MESMA PÁGINA) */}
-        <div className="page-break-inside-avoid mt-1 grid grid-cols-2 gap-4 text-[9px]">
+        <div className="page-break-inside-avoid mt-1 grid grid-cols-2 gap-4 text-[8.5px]">
           <div className="text-center">
-            <div className="flex h-9 items-end justify-center border-b border-slate-400 pb-0.5">
+            <div className="flex h-8 items-end justify-center border-b border-slate-400 pb-0.5">
               {techSig ? (
                 <img
                   src={techSig}
                   alt="Assinatura do Técnico"
-                  className="max-h-8 max-w-[150px] object-contain"
+                  className="max-h-7 max-w-[140px] object-contain"
                 />
               ) : (
-                <div className="text-slate-300 italic text-[8px]">Assinatura não coletada</div>
+                <div className="text-slate-300 italic text-[7.5px]">Assinatura não coletada</div>
               )}
             </div>
-            <p className="mt-0.5 font-bold text-slate-800 text-[9px] leading-tight">
+            <p className="mt-0.5 font-bold text-slate-800 text-[8.5px] leading-tight">
               {tech?.name ? `Técnico: ${tech.name}` : 'Técnico Responsável'}
             </p>
-            <p className="text-[7.5px] text-slate-500 leading-tight">{COMPANY_DATA.nomeFantasia}</p>
+            <p className="text-[7px] text-slate-500 leading-tight">{COMPANY_DATA.nomeFantasia}</p>
           </div>
 
           <div className="text-center">
-            <div className="flex h-9 items-end justify-center border-b border-slate-400 pb-0.5">
+            <div className="flex h-8 items-end justify-center border-b border-slate-400 pb-0.5">
               {custSig ? (
                 <img
                   src={custSig}
                   alt="Assinatura do Cliente"
-                  className="max-h-8 max-w-[150px] object-contain"
+                  className="max-h-7 max-w-[140px] object-contain"
                 />
               ) : (
-                <div className="text-slate-300 italic text-[8px]">Assinatura não coletada</div>
+                <div className="text-slate-300 italic text-[7.5px]">Assinatura não coletada</div>
               )}
             </div>
-            <p className="mt-0.5 font-bold text-slate-800 text-[9px] leading-tight">
+            <p className="mt-0.5 font-bold text-slate-800 text-[8.5px] leading-tight">
               {cust?.name || cust?.razao_social || 'Assinatura do Cliente'}
             </p>
-            <p className="text-[7.5px] text-slate-500 leading-tight">
+            <p className="text-[7px] text-slate-500 leading-tight">
               Declaro o recebimento e conferência do equipamento
             </p>
           </div>

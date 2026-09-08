@@ -358,9 +358,17 @@
   }
   /* Força página única estrita para documentos unificados de 1 folha sem transbordar */
   .a4-single-page {
-    max-height: 287mm !important;
+    max-height: 275mm !important;
+    box-sizing: border-box !important;
     overflow: hidden !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* Garante espaçamento e compactação precisos para que nunca exceda 1 página */
+  .a4-single-page img {
+    max-height: 100%;
   }
 }
