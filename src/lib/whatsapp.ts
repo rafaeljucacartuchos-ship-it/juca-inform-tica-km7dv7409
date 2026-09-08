@@ -191,17 +191,59 @@ export function buildOrcamentoPropostaMessage(params: {
 }): string {
   const { customerName, numeroOrcamento, propostaUrl, equipment, osNumber } = params
   const firstName = customerName.split(' ')[0] || customerName
-  const equipPart = equipment ? ` referente ao seu equipamento *${equipment}*` : ''
-  const osPart = osNumber ? ` (O.S. *${osNumber}*)` : ''
+  const equipPart = equipment ? ` para o equipamento *${equipment}*` : ''
+  const osPart = osNumber ? ` vinculado à O.S. *${osNumber}*` : ''
 
   return (
     `🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n` +
     `Olá, *${firstName}*! Tudo bem?\n\n` +
-    `Preparamos a proposta integrada (*Orçamento + Ordem de Serviço*${osPart} · *${numeroOrcamento}*)${equipPart}.\n\n` +
-    `📄 *Documento Único:* Contém o resumo completo da O.S. (equipamento, defeito relatado e técnico responsável) junto com os itens, valores, fotos e condições de pagamento do orçamento.\n\n` +
-    `Acesse o link seguro abaixo para analisar todo o documento e assinar digitalmente para aprovação:\n\n` +
+    `Preparamos o seu *Orçamento Comercial (${numeroOrcamento})*${equipPart}${osPart}.\n\n` +
+    `📋 *Modelo de Orçamento:* Contém a discriminação detalhada dos itens, produtos, peças, serviços, valores, descontos e condições de pagamento.\n\n` +
+    `Acesse o link abaixo para visualizar a proposta e assinar digitalmente para aprovação:\n\n` +
     `👉 ${propostaUrl}\n\n` +
     `Qualquer dúvida ou ajuste que precisar, estamos à sua inteira disposição!\n\n` +
+    `JUCA INFORMÁTICA\n` +
+    `(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981`
+  )
+}
+
+/**
+ * Mensagem oficial de envio da Ordem de Serviço completa ao cliente (com check-in, laudo e orçamento).
+ */
+export function buildOsDocumentMessage(params: {
+  customerName: string
+  osNumber: string
+  documentUrl: string
+  numeroOrcamento?: string
+  equipment?: string
+  technicianName?: string
+  serviceReport?: string
+}): string {
+  const {
+    customerName,
+    osNumber,
+    documentUrl,
+    numeroOrcamento,
+    equipment,
+    technicianName,
+    serviceReport,
+  } = params
+  const firstName = customerName.split(' ')[0] || customerName
+  const orcPart = numeroOrcamento ? ` · *${numeroOrcamento}*` : ''
+  const equipPart = equipment ? ` referente ao seu equipamento *${equipment}*` : ''
+  const techPart = technicianName ? `\n👨‍🔧 *Técnico Responsável:* ${technicianName}` : ''
+  const laudoPart = serviceReport
+    ? `\n🛠️ *Laudo / Execução:* ${serviceReport.slice(0, 90)}${serviceReport.length > 90 ? '...' : ''}`
+    : ''
+
+  return (
+    `🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n` +
+    `Olá, *${firstName}*! Tudo bem?\n\n` +
+    `Segue o documento oficial da sua *Ordem de Serviço (${osNumber}${orcPart})*${equipPart}.\n\n` +
+    `📄 *Documento Completo da O.S.:* Contém os dados de check-in, fotos do equipamento, laudo técnico/serviço executado, itens do orçamento vinculado e assinaturas.${techPart}${laudoPart}\n\n` +
+    `Acesse o documento oficial no link abaixo (otimizado para leitura e impressão em folha única A4):\n\n` +
+    `👉 ${documentUrl}\n\n` +
+    `Agradecemos a preferência e confiança!\n\n` +
     `JUCA INFORMÁTICA\n` +
     `(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981`
   )

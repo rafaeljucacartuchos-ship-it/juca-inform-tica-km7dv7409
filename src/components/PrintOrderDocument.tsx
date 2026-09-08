@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import { useToast } from '@/hooks/use-toast'
 import { getCustomerPhone, getCustomerDisplayName } from '@/services/customers'
 import { generateRandomToken, updateOrcamento } from '@/services/orcamentos'
-import { buildOrcamentoPropostaMessage, buildWhatsAppUrl, openWhatsApp } from '@/lib/whatsapp'
+import { buildOsDocumentMessage, buildWhatsAppUrl, openWhatsApp } from '@/lib/whatsapp'
 import { offlinePb } from '@/lib/offline-pb'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -143,50 +143,42 @@ export function PrintOrderDocument({
     const osNum = order.number
 
     // 1) DISPARO SÍNCRONO NO GESTO DO TOQUE (ANTES DE QUALQUER AWAIT) para compatibilidade Safari/iOS:
-    // Monta o link imediato com token já carregado em memória (ou orcamento.id / fallback)
-    const initialToken = orcamento?.token_acesso || orcamento?.id || order.id
-    const immediatePropostaUrl = `${window.location.origin}/proposta/${initialToken}`
-    const immediateMsg = buildOrcamentoPropostaMessage({
+    // Monta o link imediato da O.S. (o documento anexado completo gerado na rota /ordens/:id/imprimir)
+    const techName = order.expand?.technician?.name
+    const serviceRep = order.service_report
+
+    // Para o cliente abrir exatamente o documento da O.S., usamos a URL pública/impressão da O.S.
+    // Se houver proposta pública vinculada, pode ser usada ou o link direto do documento
+    const osDocumentUrl = `${window.location.origin}/ordens/${order.id}/imprimir`
+    const immediateMsg = buildOsDocumentMessage({
       customerName: name,
-      numeroOrcamento: orcamento?.numero_orcamento || `OS-${osNum}`,
       osNumber: osNum,
-      propostaUrl: immediatePropostaUrl,
+      numeroOrcamento: orcamento?.numero_orcamento,
+      documentUrl: osDocumentUrl,
       equipment: equip,
+      technicianName: techName,
+      serviceReport: serviceRep,
     })
 
     // Cópia síncrona imediata da URL e da mensagem no gesto do toque
-    copyToClipboardSync(immediatePropostaUrl)
+    copyToClipboardSync(osDocumentUrl)
     copyToClipboardSync(immediateMsg)
 
-    // Se o orçamento já tem token ou não existe orçamento vinculado, atualiza/gera
-    let token = orcamento?.token_acesso
-    if (!token && orcamento?.id) {
+    // Se o orçamento já tem token ou não existe orçamento vinculado, atualiza/gera para sincronia
+    if (orcamento?.id && !orcamento.token_acesso) {
       try {
         const generated = await generateRandomToken(32)
         const updated = await updateOrcamento(orcamento.id, { token_acesso: generated })
-        token = updated.token_acesso || generated
         if (onOrcamentoChange) {
-          onOrcamentoChange({ ...orcamento, token_acesso: token })
+          onOrcamentoChange({ ...orcamento, token_acesso: updated.token_acesso || generated })
         }
       } catch {
-        token = orcamento.id
+        /* ignore */
       }
     }
 
-    const finalPropostaUrl = `${window.location.origin}/proposta/${token || orcamento?.id || order.id}`
-    const finalMsg = buildOrcamentoPropostaMessage({
-      customerName: name,
-      numeroOrcamento: orcamento?.numero_orcamento || `OS-${osNum}`,
-      osNumber: osNum,
-      propostaUrl: finalPropostaUrl,
-      equipment: equip,
-    })
-
-    // Tenta atualizar a cópia se a URL mudou
-    if (finalPropostaUrl !== immediatePropostaUrl) {
-      copyToClipboardSync(finalPropostaUrl)
-      copyToClipboardSync(finalMsg)
-    }
+    const finalDocUrl = osDocumentUrl
+    const finalMsg = immediateMsg
 
     // Registra envio no histórico do cliente / pós-venda
     try {
@@ -212,8 +204,8 @@ export function PrintOrderDocument({
 
     openWhatsApp(phone, finalMsg)
     toast({
-      title: 'Link enviado via WhatsApp!',
-      description: 'Documento unificado preparado no WhatsApp do cliente.',
+      title: 'Documento da O.S. enviado!',
+      description: 'Documento oficial da O.S. preparado no WhatsApp do cliente.',
     })
   }
 
@@ -235,19 +227,46 @@ export function PrintOrderDocument({
   const tech = order.expand?.technician
 
   // Coleta fotos do equipamento e atendimento sem duplicação
-  const equipmentPhotos = (eq?.photos || []).map((p) =>
-    getFileUrl(eq!.id, p, 'equipment', '400x400'),
+  const rawEquipmentPhotos = (eq?.photos || []).map((p) =>
+    getFileUrl(eq!.id, p, 'equipment', '300x300'),
   )
 
   const orderAttachmentPhotos = (attachments || []).map((a) => ({
-    url: getFileUrl(a.id, a.file, 'service_attachments', '400x400'),
+    url: getFileUrl(a.id, a.file, 'service_attachments', '300x300'),
     caption: a.caption || 'Foto do Atendimento',
   }))
 
   const orcamentoPhotos = (orcamentoAnexos || []).map((a) => ({
-    url: getFileUrl(a.id, a.caminho_arquivo, 'orcamento_anexos', '400x400'),
+    url: getFileUrl(a.id, a.caminho_arquivo, 'orcamento_anexos', '300x300'),
     caption: a.legenda || (a.tipo === 'foto_defeito' ? 'Defeito' : 'Equipamento'),
   }))
+
+  // Fotos para check-in (até 2 fotos para não estourar a altura)
+  const checkInPhotos =
+    rawEquipmentPhotos.length > 0
+      ? rawEquipmentPhotos.slice(0, 2)
+      : orderAttachmentPhotos.slice(0, 2).map((a) => a.url)
+
+  // Registros fotográficos adicionais na grade inferior:
+  // Compacta para caber em 1 única folha A4 (máximo 4 miniaturas em linha única)
+  const extraPhotos: Array<{ url: string; caption?: string }> = []
+  // Se sobrou fotos do equipamento
+  if (rawEquipmentPhotos.length > 2) {
+    rawEquipmentPhotos.slice(2).forEach((url) => {
+      extraPhotos.push({ url, caption: 'Equipamento' })
+    })
+  }
+  // Fotos de orcamento/anexos
+  orcamentoPhotos.forEach((a) => {
+    extraPhotos.push(a)
+  })
+  if (orderAttachmentPhotos.length > 2) {
+    orderAttachmentPhotos.slice(2).forEach((a) => {
+      extraPhotos.push(a)
+    })
+  }
+  // Limita a 4 miniaturas em uma só linha compacta para garantir que caiba em folha única
+  const displayExtraPhotos = extraPhotos.slice(0, 4)
 
   // Cálculo financeiro unificado:
   // Se houver orçamento vinculado com itens, a discriminação financeira segue a do orçamento
@@ -307,51 +326,52 @@ export function PrintOrderDocument({
         </div>
       </div>
 
-      {/* Documento A4 */}
-      <div className="print-document mx-auto max-w-4xl bg-white p-6 text-slate-900 shadow-lg border border-slate-200 rounded-lg print:border-0 print:shadow-none print:p-0 print:rounded-none">
-        {/* CABEÇALHO COM LOGOMARCA OFICIAL JUCA */}
-        <div className="mb-4 flex items-center justify-between border-b-2 border-slate-900 pb-3">
-          <div className="flex items-center gap-3.5">
-            <div className="h-14 w-32 sm:h-16 sm:w-36 shrink-0 overflow-hidden rounded-md bg-slate-950 p-1 flex items-center justify-center border border-slate-800">
+      {/* Documento A4 (Modelo Oficial O.S. JUCA Informática - Folha Única) */}
+      <div className="print-document a4-single-page mx-auto max-w-4xl bg-white p-4 sm:p-5 text-slate-900 shadow-md border border-slate-200 rounded-lg print:border-0 print:shadow-none print:p-0 print:rounded-none text-[10px] leading-tight">
+        {/* CABEÇALHO COM LOGOMARCA OFICIAL JUCA (COMPACTADO PARA 1 FOLHA) */}
+        <div className="mb-2 flex items-center justify-between border-b-2 border-slate-900 pb-2">
+          <div className="flex items-center gap-2.5">
+            <div className="h-11 w-24 sm:h-12 sm:w-28 shrink-0 overflow-hidden rounded bg-slate-950 p-1 flex items-center justify-center border border-slate-800">
               <img
                 src={JUCA_LOGO_URL}
                 alt="JUCA Informática"
                 className="h-full w-full object-contain"
                 onError={(e) => {
-                  // Fallback para SVG se houver falha de rede
                   ;(e.target as HTMLImageElement).src = '/logo.svg'
                 }}
               />
             </div>
             <div>
-              <h1 className="text-base font-extrabold tracking-tight text-slate-900 sm:text-lg">
+              <h1 className="text-sm font-extrabold tracking-tight text-slate-900 sm:text-base leading-none">
                 {COMPANY_DATA.nomeFantasia || 'JUCA INFORMÁTICA'}
               </h1>
-              <p className="text-[11px] font-semibold text-slate-700">{COMPANY_DATA.razaoSocial}</p>
-              <p className="text-[10px] text-slate-600">{COMPANY_DATA.endereco}</p>
-              <p className="text-[10px] text-slate-600">
+              <p className="text-[10px] font-semibold text-slate-700 leading-tight mt-0.5">
+                {COMPANY_DATA.razaoSocial}
+              </p>
+              <p className="text-[9px] text-slate-600 leading-tight">{COMPANY_DATA.endereco}</p>
+              <p className="text-[9px] text-slate-600 leading-tight">
                 <strong>Telefones:</strong> {COMPANY_DATA.telefones}
               </p>
             </div>
           </div>
           <div className="text-right">
-            <div className="inline-block rounded-md bg-slate-900 px-3 py-1 text-white">
-              <span className="font-mono text-base font-black tracking-wider sm:text-lg">
+            <div className="inline-block rounded bg-slate-900 px-2 py-0.5 text-white">
+              <span className="font-mono text-sm font-black tracking-wider sm:text-base">
                 {orcamento?.numero_orcamento
                   ? `${order.number} · ${orcamento.numero_orcamento}`
                   : `OS ${order.number}`}
               </span>
             </div>
-            <p className="mt-1 text-[10px] font-medium text-slate-600">
+            <p className="mt-0.5 text-[9px] font-medium text-slate-600 leading-tight">
               <strong>Emissão O.S.:</strong> {fmtDate(order.created)}
             </p>
             {orcamento && (
-              <p className="text-[10px] text-slate-600">
+              <p className="text-[9px] text-slate-600 leading-tight">
                 <strong>Validade Orçamento:</strong> {orcamento.validade || 15} dias
               </p>
             )}
             {order.attendance_date && (
-              <p className="text-[10px] text-slate-600">
+              <p className="text-[9px] text-slate-600 leading-tight">
                 <strong>Atendimento:</strong> {fmtDate(order.attendance_date)}{' '}
                 {order.attendance_time || ''}
               </p>
@@ -360,7 +380,7 @@ export function PrintOrderDocument({
         </div>
 
         {/* FAIXA DE STATUS E IDENTIFICAÇÃO RÁPIDA */}
-        <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2 rounded-md bg-slate-50 border border-slate-200 px-3 py-1.5 text-xs">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-1.5 rounded bg-slate-50 border border-slate-200 px-2 py-1 text-[9px]">
           <div>
             <span className="text-slate-500 font-medium">Status O.S.: </span>
             <span className="font-bold text-slate-900 uppercase">
@@ -386,12 +406,12 @@ export function PrintOrderDocument({
         </div>
 
         {/* DADOS DO CLIENTE E TÉCNICO */}
-        <div className="mb-3.5 grid grid-cols-2 gap-3 text-[11px]">
-          <div className="rounded-md border border-slate-200 p-2.5">
-            <h3 className="mb-1.5 border-b border-slate-200 pb-1 text-xs font-bold text-slate-900 uppercase tracking-wide">
+        <div className="mb-2 grid grid-cols-2 gap-2 text-[10px]">
+          <div className="rounded border border-slate-200 p-2">
+            <h3 className="mb-1 border-b border-slate-200 pb-0.5 text-[10px] font-bold text-slate-900 uppercase tracking-wide">
               Dados do Cliente
             </h3>
-            <div className="space-y-0.5 leading-snug">
+            <div className="space-y-0.5 leading-tight">
               <p>
                 <strong className="text-slate-700">Razão / Nome:</strong>{' '}
                 <span className="font-semibold text-slate-900">
@@ -414,11 +434,6 @@ export function PrintOrderDocument({
                   <strong className="text-slate-700">CPF/CNPJ:</strong> {cust.cpf_cnpj}
                 </p>
               )}
-              {cust?.email && (
-                <p>
-                  <strong className="text-slate-700">E-mail:</strong> {cust.email}
-                </p>
-              )}
               <p>
                 <strong className="text-slate-700">Endereço:</strong>{' '}
                 {[
@@ -426,7 +441,6 @@ export function PrintOrderDocument({
                   cust?.number ? `Nº ${cust.number}` : '',
                   cust?.bairro ? `Bairro ${cust.bairro}` : '',
                   cust?.city ? `${cust.city}${cust?.state ? ` - ${cust.state}` : ''}` : '',
-                  cust?.zip ? `CEP: ${cust.zip}` : '',
                 ]
                   .filter(Boolean)
                   .join(', ') || '—'}
@@ -434,11 +448,11 @@ export function PrintOrderDocument({
             </div>
           </div>
 
-          <div className="rounded-md border border-slate-200 p-2.5">
-            <h3 className="mb-1.5 border-b border-slate-200 pb-1 text-xs font-bold text-slate-900 uppercase tracking-wide">
+          <div className="rounded border border-slate-200 p-2">
+            <h3 className="mb-1 border-b border-slate-200 pb-0.5 text-[10px] font-bold text-slate-900 uppercase tracking-wide">
               Atendimento Técnico
             </h3>
-            <div className="space-y-0.5 leading-snug">
+            <div className="space-y-0.5 leading-tight">
               <p>
                 <strong className="text-slate-700">Técnico Responsável:</strong>{' '}
                 <span className="font-semibold text-slate-900">
@@ -460,17 +474,17 @@ export function PrintOrderDocument({
         </div>
 
         {/* SEÇÃO DO EQUIPAMENTO COM FOTO DE CHECK-IN E DETALHES COMPLETOS */}
-        <div className="page-break-inside-avoid mb-3.5 rounded-md border border-slate-200 p-2.5 text-[11px]">
-          <h3 className="mb-1.5 border-b border-slate-200 pb-1 text-xs font-bold text-slate-900 uppercase tracking-wide">
+        <div className="page-break-inside-avoid mb-2 rounded border border-slate-200 p-2 text-[10px]">
+          <h3 className="mb-1 border-b border-slate-200 pb-0.5 text-[10px] font-bold text-slate-900 uppercase tracking-wide">
             Equipamento no Check-in
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             <div
-              className={`${equipmentPhotos.length > 0 || orderAttachmentPhotos.length > 0 ? 'md:col-span-2' : 'md:col-span-3'} space-y-1`}
+              className={`${checkInPhotos.length > 0 ? 'md:col-span-2' : 'md:col-span-3'} space-y-0.5`}
             >
               {eq ? (
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
                   <div>
                     <strong className="text-slate-700">Tipo de Atendimento:</strong>{' '}
                     <span className="font-semibold text-slate-900">
@@ -491,7 +505,7 @@ export function PrintOrderDocument({
                   <div>
                     <strong className="text-slate-700">Modelo:</strong> {eq.model || '—'}
                   </div>
-                  <div className="col-span-2">
+                  <div>
                     <strong className="text-slate-700">N° de Série:</strong>{' '}
                     <span className="font-mono font-semibold">{eq.serial_number || '—'}</span>
                   </div>
@@ -502,7 +516,7 @@ export function PrintOrderDocument({
                   )}
                 </div>
               ) : (
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   <div>
                     <strong className="text-slate-700">Tipo de Atendimento:</strong>{' '}
                     <span className="font-semibold text-slate-900">
@@ -520,88 +534,75 @@ export function PrintOrderDocument({
 
               {/* Descrição do problema / Diagnóstico */}
               {order.description && (
-                <div className="mt-2 rounded bg-slate-50 p-2 border border-slate-100">
-                  <strong className="text-slate-800 block mb-0.5">
+                <div className="mt-1 rounded bg-slate-50 p-1.5 border border-slate-100">
+                  <strong className="text-slate-800 block text-[9px] uppercase font-bold">
                     Defeito Relatado / Queixa do Cliente:
                   </strong>
-                  <p className="text-slate-700 leading-relaxed">{order.description}</p>
+                  <p className="text-slate-700 leading-snug">{order.description}</p>
                 </div>
               )}
             </div>
 
-            {/* Foto de identificação/check-in do equipamento */}
-            {(equipmentPhotos.length > 0 || orderAttachmentPhotos.length > 0) && (
-              <div className="flex flex-col items-center justify-center border-t md:border-t-0 md:border-l border-slate-200 pt-2 md:pt-0 md:pl-3">
-                <span className="mb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+            {/* Foto de identificação/check-in do equipamento (compacto) */}
+            {checkInPhotos.length > 0 && (
+              <div className="flex flex-col items-center justify-center border-t md:border-t-0 md:border-l border-slate-200 pt-1 md:pt-0 md:pl-2">
+                <span className="mb-1 text-[9px] font-bold text-slate-500 uppercase tracking-wider">
                   Foto do Check-in
                 </span>
-                {equipmentPhotos.length > 0 ? (
-                  <div className="flex flex-wrap items-center justify-center gap-1.5">
-                    {equipmentPhotos.slice(0, 2).map((photoUrl, idx) => (
-                      <img
-                        key={idx}
-                        src={photoUrl}
-                        alt="Foto do Equipamento"
-                        className="h-24 w-28 rounded border border-slate-300 object-cover shadow-2xs"
-                      />
-                    ))}
-                  </div>
-                ) : orderAttachmentPhotos.length > 0 ? (
-                  <div className="flex flex-col items-center">
+                <div className="flex flex-wrap items-center justify-center gap-1">
+                  {checkInPhotos.map((photoUrl, idx) => (
                     <img
-                      src={orderAttachmentPhotos[0].url}
-                      alt={orderAttachmentPhotos[0].caption}
-                      className="h-24 w-28 rounded border border-slate-300 object-cover shadow-2xs"
+                      key={idx}
+                      src={photoUrl}
+                      alt="Foto do Equipamento"
+                      className="h-16 w-20 rounded border border-slate-300 object-cover shadow-2xs"
                     />
-                    <span className="mt-0.5 text-[9px] text-slate-500 truncate max-w-[120px]">
-                      {orderAttachmentPhotos[0].caption}
-                    </span>
-                  </div>
-                ) : null}
+                  ))}
+                </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* RELATÓRIO DO SERVIÇO EXECUTADO */}
+        {/* RELATÓRIO DO SERVIÇO EXECUTADO (LAUDO TÉCNICO) */}
         {order.service_report && (
-          <div className="page-break-inside-avoid mb-3.5 rounded-md border border-slate-200 p-2.5 text-[11px]">
-            <h3 className="mb-1 text-xs font-bold text-slate-900 uppercase tracking-wide">
+          <div className="page-break-inside-avoid mb-2 rounded border border-slate-200 p-2 text-[10px]">
+            <h3 className="mb-0.5 text-[10px] font-bold text-slate-900 uppercase tracking-wide">
               Laudo Técnico / Serviço Executado
             </h3>
-            <p className="whitespace-pre-wrap text-slate-700 leading-relaxed">
+            <p className="whitespace-pre-wrap text-slate-700 leading-snug">
               {order.service_report}
             </p>
           </div>
         )}
 
-        {/* ITENS, PRODUTOS, PEÇAS E SERVIÇOS (TABELA UNIFICADA COM VALORES) */}
-        <div className="page-break-inside-avoid mb-3.5 rounded-md border border-slate-200 p-2.5">
-          <div className="flex items-center justify-between mb-1.5">
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+        {/* ITENS, PRODUTOS, PEÇAS E SERVIÇOS (TABELA COMPACTA COM VALORES) */}
+        <div className="page-break-inside-avoid mb-2 rounded border border-slate-200 p-2 text-[10px]">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-[10px] font-bold text-slate-900 uppercase tracking-wide">
               Itens, Peças e Serviços{' '}
               {hasOrcamento ? `(Orçamento ${orcamento?.numero_orcamento})` : ''}
             </h3>
             {hasOrcamento && (
-              <span className="text-[10px] text-indigo-700 font-semibold bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+              <span className="text-[9px] text-indigo-700 font-semibold bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200">
                 Orçamento Vinculado
               </span>
             )}
           </div>
 
-          <table className="w-full border-collapse text-[11px]">
+          <table className="w-full border-collapse text-[10px]">
             <thead>
               <tr className="bg-slate-100 text-slate-700">
-                <th className="border border-slate-300 px-2 py-1.5 text-left font-bold">
+                <th className="border border-slate-300 px-1.5 py-1 text-left font-bold">
                   Item / Descrição
                 </th>
-                <th className="border border-slate-300 px-2 py-1.5 text-center font-bold w-16">
+                <th className="border border-slate-300 px-1.5 py-1 text-center font-bold w-12">
                   Qtd
                 </th>
-                <th className="border border-slate-300 px-2 py-1.5 text-right font-bold w-24">
+                <th className="border border-slate-300 px-1.5 py-1 text-right font-bold w-20">
                   Vlr. Unit.
                 </th>
-                <th className="border border-slate-300 px-2 py-1.5 text-right font-bold w-24">
+                <th className="border border-slate-300 px-1.5 py-1 text-right font-bold w-20">
                   Total
                 </th>
               </tr>
@@ -611,19 +612,19 @@ export function PrintOrderDocument({
                 orcamentoItens.length > 0 ? (
                   orcamentoItens.map((item, idx) => (
                     <tr key={item.id || idx} className="even:bg-slate-50/50">
-                      <td className="border border-slate-300 px-2 py-1 text-slate-900">
+                      <td className="border border-slate-300 px-1.5 py-0.5 text-slate-900">
                         <span className="font-medium">{item.descricao}</span>
-                        <span className="ml-1.5 text-[9px] uppercase px-1 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                        <span className="ml-1 text-[8px] uppercase px-1 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
                           {item.tipo}
                         </span>
                       </td>
-                      <td className="border border-slate-300 px-2 py-1 text-center font-mono text-slate-700">
+                      <td className="border border-slate-300 px-1.5 py-0.5 text-center font-mono text-slate-700">
                         {item.quantidade || 1}
                       </td>
-                      <td className="border border-slate-300 px-2 py-1 text-right font-mono text-slate-700">
+                      <td className="border border-slate-300 px-1.5 py-0.5 text-right font-mono text-slate-700">
                         R$ {fmtCurrency(item.valor_unitario)}
                       </td>
-                      <td className="border border-slate-300 px-2 py-1 text-right font-mono font-bold text-slate-900">
+                      <td className="border border-slate-300 px-1.5 py-0.5 text-right font-mono font-bold text-slate-900">
                         R$ {fmtCurrency(item.valor_total_item)}
                       </td>
                     </tr>
@@ -632,7 +633,7 @@ export function PrintOrderDocument({
                   <tr>
                     <td
                       colSpan={4}
-                      className="border border-slate-300 px-2 py-2 text-center text-slate-400 italic"
+                      className="border border-slate-300 px-1.5 py-1.5 text-center text-slate-400 italic"
                     >
                       Nenhum item discriminado no orçamento vinculado.
                     </td>
@@ -641,16 +642,16 @@ export function PrintOrderDocument({
               ) : items.length > 0 ? (
                 items.map((item, idx) => (
                   <tr key={item.id || idx} className="even:bg-slate-50/50">
-                    <td className="border border-slate-300 px-2 py-1 text-slate-900">
+                    <td className="border border-slate-300 px-1.5 py-0.5 text-slate-900">
                       {item.description || 'Item de serviço'}
                     </td>
-                    <td className="border border-slate-300 px-2 py-1 text-center font-mono text-slate-700">
+                    <td className="border border-slate-300 px-1.5 py-0.5 text-center font-mono text-slate-700">
                       {item.quantity || 1}
                     </td>
-                    <td className="border border-slate-300 px-2 py-1 text-right font-mono text-slate-700">
+                    <td className="border border-slate-300 px-1.5 py-0.5 text-right font-mono text-slate-700">
                       R$ {fmtCurrency(item.unit_price)}
                     </td>
-                    <td className="border border-slate-300 px-2 py-1 text-right font-mono font-bold text-slate-900">
+                    <td className="border border-slate-300 px-1.5 py-0.5 text-right font-mono font-bold text-slate-900">
                       R$ {fmtCurrency(item.total)}
                     </td>
                   </tr>
@@ -659,7 +660,7 @@ export function PrintOrderDocument({
                 <tr>
                   <td
                     colSpan={4}
-                    className="border border-slate-300 px-2 py-2 text-center text-slate-400 italic"
+                    className="border border-slate-300 px-1.5 py-1.5 text-center text-slate-400 italic"
                   >
                     Nenhum item ou serviço discriminado nesta ordem.
                   </td>
@@ -669,9 +670,9 @@ export function PrintOrderDocument({
           </table>
 
           {/* TOTALIZAÇÃO FINANCEIRA */}
-          <div className="mt-2 flex justify-between items-start">
+          <div className="mt-1.5 flex justify-between items-start">
             {hasOrcamento && orcamento ? (
-              <div className="text-[10px] text-slate-600 max-w-sm space-y-0.5">
+              <div className="text-[9px] text-slate-600 max-w-sm space-y-0.5">
                 <p>
                   <strong className="text-slate-700">Forma de Pagamento:</strong>{' '}
                   {FORMA_PAGTO_LABELS[orcamento.forma_pagamento || 'pix'] ||
@@ -690,14 +691,14 @@ export function PrintOrderDocument({
                   </p>
                 )}
                 {orcamento.observacoes && (
-                  <p className="italic text-slate-500 pt-1">Obs: {orcamento.observacoes}</p>
+                  <p className="italic text-slate-500">Obs: {orcamento.observacoes}</p>
                 )}
               </div>
             ) : (
               <div />
             )}
 
-            <div className="w-64 space-y-1 text-right text-[11px]">
+            <div className="w-56 space-y-0.5 text-right text-[10px]">
               {hasOrcamento ? (
                 <>
                   <div className="flex justify-between text-slate-600">
@@ -710,9 +711,9 @@ export function PrintOrderDocument({
                       <span className="font-mono">- R$ {fmtCurrency(orcDescontoTotal)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between border-t-2 border-slate-900 pt-1 text-xs font-black text-slate-900">
+                  <div className="flex justify-between border-t border-slate-900 pt-0.5 text-[11px] font-black text-slate-900">
                     <span>TOTAL:</span>
-                    <span className="font-mono text-sm text-indigo-900">
+                    <span className="font-mono text-xs text-indigo-900 font-bold">
                       R$ {fmtCurrency(orcTotalGeral)}
                     </span>
                   </div>
@@ -735,9 +736,9 @@ export function PrintOrderDocument({
                       <span className="font-mono">+ R$ {fmtCurrency(soAcrescimo)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between border-t-2 border-slate-900 pt-1 text-xs font-black text-slate-900">
+                  <div className="flex justify-between border-t border-slate-900 pt-0.5 text-[11px] font-black text-slate-900">
                     <span>TOTAL GERAL:</span>
-                    <span className="font-mono text-sm">R$ {fmtCurrency(soTotal)}</span>
+                    <span className="font-mono text-xs font-bold">R$ {fmtCurrency(soTotal)}</span>
                   </div>
                 </>
               )}
@@ -745,34 +746,22 @@ export function PrintOrderDocument({
           </div>
         </div>
 
-        {/* FOTOS ADICIONAIS DO ATENDIMENTO E ORÇAMENTO */}
-        {(orderAttachmentPhotos.length > 1 || orcamentoPhotos.length > 0) && (
-          <div className="page-break-inside-avoid mb-3.5 rounded-md border border-slate-200 p-2.5">
-            <h3 className="mb-1.5 text-xs font-bold text-slate-900 uppercase tracking-wide">
+        {/* REGISTROS FOTOGRÁFICOS (COMPACTO - MÁX 4 EM LINHA ÚNICA) */}
+        {displayExtraPhotos.length > 0 && (
+          <div className="page-break-inside-avoid mb-2 rounded border border-slate-200 p-1.5 text-[9px]">
+            <h3 className="mb-1 text-[9px] font-bold text-slate-900 uppercase tracking-wide">
               Registros Fotográficos (Atendimento / Orçamento)
             </h3>
-            <div className="grid grid-cols-4 gap-2">
-              {orderAttachmentPhotos.slice(1).map((a, i) => (
-                <div key={`att-${i}`} className="text-center">
+            <div className="grid grid-cols-4 gap-1.5">
+              {displayExtraPhotos.map((a, i) => (
+                <div key={i} className="text-center">
                   <img
                     src={a.url}
-                    alt={a.caption}
-                    className="h-20 w-full rounded border border-slate-200 object-cover"
+                    alt={a.caption || 'Foto'}
+                    className="h-14 w-full rounded border border-slate-200 object-cover"
                   />
                   {a.caption && (
-                    <p className="mt-0.5 truncate text-[9px] text-slate-500">{a.caption}</p>
-                  )}
-                </div>
-              ))}
-              {orcamentoPhotos.slice(0, 4).map((a, i) => (
-                <div key={`orc-${i}`} className="text-center">
-                  <img
-                    src={a.url}
-                    alt={a.caption}
-                    className="h-20 w-full rounded border border-slate-200 object-cover"
-                  />
-                  {a.caption && (
-                    <p className="mt-0.5 truncate text-[9px] text-slate-500">{a.caption}</p>
+                    <p className="mt-0.5 truncate text-[8px] text-slate-500">{a.caption}</p>
                   )}
                 </div>
               ))}
@@ -780,49 +769,49 @@ export function PrintOrderDocument({
           </div>
         )}
 
-        {/* ASSINATURAS */}
-        <div className="page-break-inside-avoid mt-5 grid grid-cols-2 gap-8 text-[11px]">
+        {/* ASSINATURAS (COMPACTAS NO RODAPÉ DA MESMA PÁGINA) */}
+        <div className="page-break-inside-avoid mt-2 grid grid-cols-2 gap-6 text-[10px]">
           <div className="text-center">
-            <div className="flex h-16 items-end justify-center border-b border-slate-400 pb-1">
+            <div className="flex h-11 items-end justify-center border-b border-slate-400 pb-0.5">
               {techSig ? (
                 <img
                   src={techSig}
                   alt="Assinatura do Técnico"
-                  className="max-h-14 max-w-full object-contain"
+                  className="max-h-10 max-w-full object-contain"
                 />
               ) : (
-                <div className="text-slate-300 italic text-[10px]">Assinatura não coletada</div>
+                <div className="text-slate-300 italic text-[9px]">Assinatura não coletada</div>
               )}
             </div>
-            <p className="mt-1 font-bold text-slate-800">
+            <p className="mt-0.5 font-bold text-slate-800 text-[10px]">
               {tech?.name ? `Técnico: ${tech.name}` : 'Técnico Responsável'}
             </p>
-            <p className="text-[10px] text-slate-500">{COMPANY_DATA.nomeFantasia}</p>
+            <p className="text-[9px] text-slate-500">{COMPANY_DATA.nomeFantasia}</p>
           </div>
 
           <div className="text-center">
-            <div className="flex h-16 items-end justify-center border-b border-slate-400 pb-1">
+            <div className="flex h-11 items-end justify-center border-b border-slate-400 pb-0.5">
               {custSig ? (
                 <img
                   src={custSig}
                   alt="Assinatura do Cliente"
-                  className="max-h-14 max-w-full object-contain"
+                  className="max-h-10 max-w-full object-contain"
                 />
               ) : (
-                <div className="text-slate-300 italic text-[10px]">Assinatura não coletada</div>
+                <div className="text-slate-300 italic text-[9px]">Assinatura não coletada</div>
               )}
             </div>
-            <p className="mt-1 font-bold text-slate-800">
+            <p className="mt-0.5 font-bold text-slate-800 text-[10px]">
               {cust?.name || cust?.razao_social || 'Assinatura do Cliente'}
             </p>
-            <p className="text-[10px] text-slate-500">
+            <p className="text-[9px] text-slate-500">
               Declaro o recebimento e conferência do equipamento
             </p>
           </div>
         </div>
 
         {/* RODAPÉ DO DOCUMENTO */}
-        <div className="page-break-inside-avoid mt-5 border-t border-slate-200 pt-2 text-center text-[9px] text-slate-500">
+        <div className="page-break-inside-avoid mt-2 border-t border-slate-200 pt-1 text-center text-[8px] text-slate-500">
           <p className="font-bold text-slate-700">
             {COMPANY_DATA.razaoSocial} — {COMPANY_DATA.slogan}
           </p>
