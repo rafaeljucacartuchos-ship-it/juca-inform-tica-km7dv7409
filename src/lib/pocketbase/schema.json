@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-08T06:29:07.503Z",
+  "generatedAt": "2026-09-08T15:21:58.949Z",
   "collections": [
     {
       "name": "users",
@@ -1713,7 +1713,15 @@
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": ["dinheiro", "pix", "cartao_debito", "cartao_credito", "boleto", "outros"]
+          "selectValues": [
+            "dinheiro",
+            "pix",
+            "cartao_debito",
+            "cartao_credito",
+            "boleto",
+            "outros",
+            "crediario"
+          ]
         },
         {
           "name": "parcelas",

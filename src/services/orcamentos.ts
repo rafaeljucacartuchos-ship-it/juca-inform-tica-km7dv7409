@@ -601,6 +601,7 @@ export async function sendOrcamentoToFaturamento(
     cartao_credito: 'credit_card',
     cartao_debito: 'debit_card',
     boleto: 'transfer',
+    crediario: 'transfer',
     outros: 'transfer',
   }
   const paymentMethod = methodMap[orc.forma_pagamento || 'pix'] || 'pix'

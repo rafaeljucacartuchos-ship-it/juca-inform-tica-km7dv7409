@@ -14,7 +14,13 @@ import {
   ChevronDown,
   ChevronUp,
   Printer,
+  User as UserIcon,
+  Phone,
+  Mail,
+  MapPin,
+  FileBadge,
 } from 'lucide-react'
+import { formatPhone } from '@/lib/phones'
 import { OrcamentoItemModal } from '@/components/OrcamentoItemModal'
 import {
   deleteOrcamentoItem,
@@ -715,15 +721,129 @@ export default function OrdemDetail() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <span className="font-semibold text-slate-500">Cliente:</span>
-                  <p className="font-medium text-slate-900">
-                    {order.expand?.customer?.name || 'Não informado'}
-                  </p>
+              {/* Seção Completa de Dados do Cliente */}
+              <div className="p-3.5 bg-slate-50/80 border border-slate-200 rounded-lg space-y-2.5">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                    <UserIcon className="h-3.5 w-3.5 text-indigo-600" />
+                    Dados do Cliente
+                  </span>
+                  {order.customer && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate(`/clientes/${order.customer}`)}
+                      className="h-6 text-[11px] text-indigo-600 hover:text-indigo-800 p-0 font-semibold gap-1"
+                    >
+                      Ver cadastro completo
+                      <ExternalLink className="h-3 w-3" />
+                    </Button>
+                  )}
                 </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                  {/* Nome Completo */}
+                  <div className="sm:col-span-2 lg:col-span-1">
+                    <span className="text-[11px] font-semibold text-slate-500 block">
+                      Nome / Razão Social
+                    </span>
+                    <p className="font-bold text-slate-900 text-xs mt-0.5">
+                      {order.expand?.customer?.name || 'Cliente não informado'}
+                    </p>
+                  </div>
+
+                  {/* Documento (CPF / CNPJ) */}
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
+                      <FileBadge className="h-3 w-3 text-slate-400" />
+                      Documento (CPF / CNPJ)
+                    </span>
+                    <p className="font-medium font-mono text-slate-900 text-xs mt-0.5">
+                      {order.expand?.customer?.cpf_cnpj ||
+                        (order.expand?.customer as unknown as { document?: string })?.document ||
+                        'Não informado'}
+                    </p>
+                  </div>
+
+                  {/* Telefones (Celular e Fixo) */}
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
+                      <Phone className="h-3 w-3 text-slate-400" />
+                      Telefones de Contato
+                    </span>
+                    <div className="mt-0.5 space-y-0.5 font-medium text-slate-900 text-xs">
+                      {order.expand?.customer?.celular || order.expand?.customer?.phone ? (
+                        <>
+                          {order.expand?.customer?.celular && (
+                            <p className="font-mono">
+                              <span className="text-[10px] text-slate-500 font-sans mr-1">
+                                Cel:
+                              </span>
+                              {formatPhone(order.expand.customer.celular)}
+                            </p>
+                          )}
+                          {order.expand?.customer?.phone &&
+                            order.expand?.customer?.phone !== order.expand?.customer?.celular && (
+                              <p className="font-mono">
+                                <span className="text-[10px] text-slate-500 font-sans mr-1">
+                                  Tel:
+                                </span>
+                                {formatPhone(order.expand.customer.phone)}
+                              </p>
+                            )}
+                        </>
+                      ) : (
+                        <p className="text-slate-400 italic">Nenhum telefone informado</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* E-mail */}
+                  <div className="sm:col-span-2 lg:col-span-1">
+                    <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
+                      <Mail className="h-3 w-3 text-slate-400" />
+                      E-mail
+                    </span>
+                    <p className="font-medium text-slate-900 text-xs mt-0.5 break-all">
+                      {order.expand?.customer?.email || 'Não informado'}
+                    </p>
+                  </div>
+
+                  {/* Endereço Completo */}
+                  <div className="sm:col-span-2 lg:col-span-2">
+                    <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
+                      <MapPin className="h-3 w-3 text-slate-400" />
+                      Endereço Completo
+                    </span>
+                    <p className="font-medium text-slate-900 text-xs mt-0.5">
+                      {order.expand?.customer?.endereco ? (
+                        order.expand.customer.endereco
+                      ) : order.expand?.customer?.street ? (
+                        <>
+                          {order.expand.customer.street}
+                          {order.expand.customer.number
+                            ? `, nº ${order.expand.customer.number}`
+                            : ''}
+                          {order.expand.customer.bairro
+                            ? ` - Bairro ${order.expand.customer.bairro}`
+                            : ''}
+                          {order.expand.customer.city ? ` - ${order.expand.customer.city}` : ''}
+                          {order.expand.customer.state ? `/${order.expand.customer.state}` : ''}
+                          {order.expand.customer.zip ? ` (CEP: ${order.expand.customer.zip})` : ''}
+                        </>
+                      ) : (
+                        <span className="text-slate-400 italic">Endereço não informado</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Informações Operacionais da O.S. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                 <div>
-                  <span className="font-semibold text-slate-500">Técnico:</span>
+                  <span className="font-semibold text-slate-500">Técnico Responsável:</span>
                   <p className="font-medium text-slate-900">
                     {order.expand?.technician?.name || 'Não atribuído'}
                   </p>

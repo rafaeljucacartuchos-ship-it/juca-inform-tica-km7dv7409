@@ -173,11 +173,7 @@ export default function OrcamentoDetail() {
   const [searchingCustomers, setSearchingCustomers] = useState(false)
   const [customerSearchDropdownOpen, setCustomerSearchDropdownOpen] = useState(false)
 
-  // Gerente / Limite de Desconto
-  const [managerPasswordModalOpen, setManagerPasswordModalOpen] = useState(false)
-  const [managerPassword, setManagerPassword] = useState('')
-  const [pendingDiscountValue, setPendingDiscountValue] = useState<number | null>(null)
-  const [pendingDiscountType, setPendingDiscountType] = useState<OrcamentoDescontoTipo>('valor')
+  // Observação / justificativa opcional de desconto
   const [justificativaDesconto, setJustificativaDesconto] = useState('')
 
   // Permissões
@@ -293,49 +289,39 @@ export default function OrcamentoDetail() {
     }
   }, [items, orcamento])
 
-  // Validação do limite de 20% de desconto
-  const handleApplyTotalDiscount = (val: number, tipo: OrcamentoDescontoTipo) => {
-    if (!orcamento) return
-    const subtotal = financialSummary.subtotal
-    let calculatedVal = val
+  // Aplicação direta de desconto sem modal de aprovação nem limite de permissão (v0.0.157)
+  const handleApplyTotalDiscount = async (val: number, tipo: OrcamentoDescontoTipo) => {
+    if (!orcamento || !id || isLocked) return
+    const sanitizedVal = Math.max(0, isNaN(val) ? 0 : val)
+
+    let descValor = sanitizedVal
+    let descPct = 0
     if (tipo === 'percentual') {
-      calculatedVal = (subtotal * val) / 100
-    }
-    const percentualEquivalente = subtotal > 0 ? (calculatedVal / subtotal) * 100 : 0
-
-    if (percentualEquivalente > 20 && !isManagerOrAdmin) {
-      setPendingDiscountValue(val)
-      setPendingDiscountType(tipo)
-      setManagerPasswordModalOpen(true)
-      return
-    }
-
-    applyDiscountConfirmed(val, tipo, justificativaDesconto)
-  }
-
-  const applyDiscountConfirmed = async (
-    val: number,
-    tipo: OrcamentoDescontoTipo,
-    justificativa: string,
-  ) => {
-    if (!id) return
-    const payload: Partial<Orcamento> = {
-      desconto_total_tipo: tipo,
-      justificativa_desconto: justificativa,
-    }
-    if (tipo === 'percentual') {
-      payload.desconto_total_percentual = val
-      payload.desconto_total_valor = (financialSummary.totalItensComDesconto * val) / 100
+      descPct = sanitizedVal
+      descValor = (financialSummary.totalItensComDesconto * sanitizedVal) / 100
     } else {
-      payload.desconto_total_valor = val
-      payload.desconto_total_percentual =
+      descValor = sanitizedVal
+      descPct =
         financialSummary.totalItensComDesconto > 0
-          ? (val / financialSummary.totalItensComDesconto) * 100
+          ? (sanitizedVal / financialSummary.totalItensComDesconto) * 100
           : 0
     }
-    await updateOrcamento(id, payload)
-    await recalculateOrcamentoTotals(id)
-    await loadAll()
+
+    const payload: Partial<Orcamento> = {
+      desconto_total_tipo: tipo,
+      desconto_total_valor: descValor,
+      desconto_total_percentual: descPct,
+    }
+
+    setOrcamento((prev) => (prev ? { ...prev, ...payload } : prev))
+
+    try {
+      await updateOrcamento(id, payload)
+      await recalculateOrcamentoTotals(id)
+      await loadAll()
+    } catch {
+      /* best-effort */
+    }
   }
 
   // Scanner de código de barras
@@ -1740,17 +1726,17 @@ export default function OrcamentoDetail() {
                       {orcamento.desconto_total_tipo === 'percentual' ? '%' : 'R$'}
                     </span>
 
-                    {financialSummary.pctDoTotal > 20 && (
-                      <span className="text-[11px] text-amber-700 font-semibold flex items-center gap-1 bg-amber-50 px-2 py-1 rounded border border-amber-200">
-                        <AlertTriangle className="h-3 w-3" /> Desconto superior a 20%
+                    {financialSummary.pctDoTotal > 0 && (
+                      <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                        {financialSummary.pctDoTotal.toFixed(1)}% de desconto aplicado
                       </span>
                     )}
                   </div>
 
-                  {financialSummary.pctDoTotal > 20 && (
+                  {financialSummary.descTotal > 0 && (
                     <div className="space-y-1 pt-1">
                       <label className="text-[11px] font-semibold text-slate-700 block">
-                        Justificativa Obrigatória do Desconto (&gt;20%):
+                        Justificativa / Observação do Desconto (opcional):
                       </label>
                       <Input
                         value={justificativaDesconto}
@@ -1759,7 +1745,7 @@ export default function OrcamentoDetail() {
                           setJustificativaDesconto(e.target.value)
                           triggerAutoSave({ justificativa_desconto: e.target.value })
                         }}
-                        placeholder="Informe o motivo para concessão do desconto especial..."
+                        placeholder="Ex: Pagamento à vista, cortesia comercial, cliente recorrente..."
                         className="h-8 text-xs bg-slate-50"
                       />
                     </div>
@@ -1813,6 +1799,7 @@ export default function OrcamentoDetail() {
                       <SelectItem value="cartao_debito">Cartão de Débito</SelectItem>
                       <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
                       <SelectItem value="boleto">Boleto</SelectItem>
+                      <SelectItem value="crediario">Crediário</SelectItem>
                       <SelectItem value="outros">Outros</SelectItem>
                     </SelectContent>
                   </Select>
@@ -2437,96 +2424,6 @@ export default function OrcamentoDetail() {
               Imprimir Apenas Resumo da OS (A4)
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal de Senha do Gerente para Descontos > 20% */}
-      <Dialog open={managerPasswordModalOpen} onOpenChange={setManagerPasswordModalOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              Autorização de Gerente (&gt;20%)
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2 text-xs">
-            <p className="text-slate-600">
-              Descontos superiores a 20% exigem justificativa e senha do gerente ou administrador.
-            </p>
-            <div>
-              <label className="font-semibold text-slate-700 block mb-1">
-                Justificativa do Desconto *
-              </label>
-              <Input
-                value={justificativaDesconto}
-                onChange={(e) => setJustificativaDesconto(e.target.value)}
-                placeholder="Ex: Parceria de longa data, pagamento à vista no PIX..."
-                className="h-8 text-xs"
-              />
-            </div>
-            <div>
-              <label className="font-semibold text-slate-700 block mb-1">
-                Senha de Gerente / Admin
-              </label>
-              <Input
-                type="password"
-                value={managerPassword}
-                onChange={(e) => setManagerPassword(e.target.value)}
-                placeholder="Digite a senha..."
-                className="h-8 text-xs"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setManagerPasswordModalOpen(false)
-                setPendingDiscountValue(null)
-              }}
-            >
-              Cancelar
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                if (!justificativaDesconto.trim()) {
-                  toast({
-                    title: 'Justificativa obrigatória',
-                    description: 'Descreva a razão do desconto concedido.',
-                    variant: 'destructive',
-                  })
-                  return
-                }
-                // Senha padrão administrativa ou Skip@Pass
-                if (
-                  managerPassword === 'Skip@Pass' ||
-                  managerPassword === 'admin123' ||
-                  isManagerOrAdmin
-                ) {
-                  if (pendingDiscountValue !== null) {
-                    applyDiscountConfirmed(
-                      pendingDiscountValue,
-                      pendingDiscountType,
-                      justificativaDesconto,
-                    )
-                  }
-                  setManagerPasswordModalOpen(false)
-                  toast({ title: 'Desconto autorizado pelo gerente!' })
-                } else {
-                  toast({
-                    title: 'Senha incorreta',
-                    description: 'A senha informada não confere com a de gerente.',
-                    variant: 'destructive',
-                  })
-                }
-              }}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            >
-              Autorizar Desconto
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 

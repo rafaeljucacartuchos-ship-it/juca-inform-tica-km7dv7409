@@ -26,6 +26,7 @@ const FORMA_PAGTO_LABELS: Record<string, string> = {
   cartao_credito: 'Cartão de Crédito',
   cartao_debito: 'Cartão de Débito',
   boleto: 'Boleto Bancário',
+  crediario: 'Crediário',
   outros: 'A Combinar',
 }
 

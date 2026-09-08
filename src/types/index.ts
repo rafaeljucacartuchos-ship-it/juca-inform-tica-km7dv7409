@@ -374,6 +374,7 @@ export type OrcamentoFormaPagamento =
   | 'cartao_debito'
   | 'cartao_credito'
   | 'boleto'
+  | 'crediario'
   | 'outros'
 export type OrcamentoStatusPagamento = 'pendente' | 'parcial' | 'pago'
 
