@@ -19,6 +19,7 @@ import {
   X,
   Phone,
   Check,
+  Printer,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -26,6 +27,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { CompanyHeader } from '@/components/CompanyHeader'
 import { PublicSignaturePadModal } from '@/components/PublicSignaturePadModal'
+import { PropostaPrintDocument } from '@/components/PropostaPrintDocument'
 import {
   getPropostaByToken,
   aprovarPropostaByToken,
@@ -145,6 +147,12 @@ export default function PropostaPublica() {
     openWhatsApp(phoneJuca, msg)
   }
 
+  const handlePrint = () => {
+    // Dispara a impressão imediatamente no mesmo tick / contexto de gesto de toque do usuário
+    // Funciona perfeitamente em mobile (Safari iOS, Chrome Android) e desktop
+    window.print()
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
@@ -182,36 +190,60 @@ export default function PropostaPublica() {
 
   return (
     <div className="min-h-screen bg-slate-100/70 text-slate-900 pb-36 font-sans">
-      {/* Top Banner Oficial JUCA */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+      {/* Documento A4 Unificado para Impressão (visível apenas na impressão @media print) */}
+      <PropostaPrintDocument data={data} localSignatureUrl={localSignatureUrl} />
+
+      {/* Top Banner Oficial JUCA (oculto na impressão) */}
+      <div className="no-print bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-2 sm:gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <img
               src={COMPANY_DATA.logoUrl}
               alt="JUCA Informática"
-              className="h-9 sm:h-10 object-contain rounded"
+              className="h-9 sm:h-10 object-contain rounded shrink-0"
             />
-            <div>
-              <span className="font-bold text-xs sm:text-sm text-slate-900 tracking-tight block">
+            <div className="min-w-0">
+              <span className="font-bold text-xs sm:text-sm text-slate-900 tracking-tight block truncate">
                 {COMPANY_DATA.nomeFantasia}
               </span>
-              <span className="text-[10px] text-slate-500 hidden sm:block">
+              <span className="text-[10px] text-slate-500 hidden sm:block truncate">
                 {COMPANY_DATA.slogan} • Nova Andradina - MS
               </span>
             </div>
           </div>
-          <a
-            href={`tel:${COMPANY_DATA.telefonesArray[0].replace(/\D/g, '')}`}
-            className="flex items-center gap-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-full"
-          >
-            <Phone className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Falar com a JUCA</span>
-            <span className="sm:hidden">Ligar</span>
-          </a>
+
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Botão de Imprimir Documento Unificado A4 */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handlePrint}
+              onTouchEnd={(e) => {
+                // Previne delay em Safari iOS se necessário, mas o onClick já atende nativamente
+                e.preventDefault()
+                handlePrint()
+              }}
+              title="Imprimir proposta unificada A4 ou salvar em PDF"
+              className="h-9 px-2.5 sm:px-3 text-xs font-semibold text-slate-700 hover:text-indigo-700 bg-white hover:bg-slate-50 border-slate-300 rounded-full shadow-2xs gap-1.5"
+            >
+              <Printer className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+              <span>Imprimir</span>
+            </Button>
+
+            <a
+              href={`tel:${COMPANY_DATA.telefonesArray[0].replace(/\D/g, '')}`}
+              className="flex items-center gap-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-full h-9"
+            >
+              <Phone className="h-3.5 w-3.5 shrink-0" />
+              <span className="hidden sm:inline">Falar com a JUCA</span>
+              <span className="sm:hidden">Ligar</span>
+            </a>
+          </div>
         </div>
       </div>
 
-      <main className="max-w-3xl mx-auto px-4 py-5 space-y-4">
+      <main className="no-print max-w-3xl mx-auto px-4 py-5 space-y-4">
         {/* Banner de Status Especial (Aprovado, Vencido, Substituído, Rejeitado) */}
         {isApproved && (
           <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 shadow-sm flex items-start gap-3">
@@ -729,8 +761,8 @@ export default function PropostaPublica() {
         </Card>
       </main>
 
-      {/* Barra Fixa Inferior de Aprovação (Mobile-First, Botões ≥44px) */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3 sm:px-6 shadow-xl">
+      {/* Barra Fixa Inferior de Aprovação (Mobile-First, Botões ≥44px) - Oculta na impressão */}
+      <div className="no-print fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3 sm:px-6 shadow-xl">
         <div className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center justify-between w-full sm:w-auto gap-3 text-xs">
             <div>

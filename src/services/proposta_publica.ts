@@ -42,7 +42,10 @@ export interface PropostaData {
   ip_dispositivo?: string
   motivo_rejeicao?: string
   assinatura_cliente_url?: string | null
+  assinatura_tecnico_url?: string | null
+  data_assinatura_tecnico?: string
   has_customer_signature: boolean
+  has_technician_signature?: boolean
   os: {
     id: string
     number: string

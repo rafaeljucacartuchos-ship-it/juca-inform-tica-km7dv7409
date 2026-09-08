@@ -214,6 +214,14 @@ routerAdd('GET', '/backend/v1/proposta/{token}', (e) => {
       '/api/files/' + orcamento.collection().id + '/' + orcamento.id + '/' + assCli
   }
 
+  // Assinatura do técnico existente (se houver)
+  let assinaturaTecnicoUrl = null
+  const assTec = orcamento.getString('assinatura_tecnico')
+  if (assTec) {
+    assinaturaTecnicoUrl =
+      '/api/files/' + orcamento.collection().id + '/' + orcamento.id + '/' + assTec
+  }
+
   const result = {
     id: orcamento.id,
     token_acesso: token,
@@ -237,7 +245,10 @@ routerAdd('GET', '/backend/v1/proposta/{token}', (e) => {
     ip_dispositivo: orcamento.getString('ip_dispositivo'),
     motivo_rejeicao: orcamento.getString('motivo_rejeicao'),
     assinatura_cliente_url: assinaturaClienteUrl,
+    assinatura_tecnico_url: assinaturaTecnicoUrl,
+    data_assinatura_tecnico: orcamento.getString('data_assinatura_tecnico'),
     has_customer_signature: !!assCli,
+    has_technician_signature: !!assTec,
     os: os,
     customer: customer,
     technician: technician,
