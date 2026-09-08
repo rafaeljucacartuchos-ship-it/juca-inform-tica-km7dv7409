@@ -159,6 +159,7 @@ export default function OrcamentoDetail() {
     isReenvio: boolean
     osNumber: string
     orcNumber: string
+    copiedSuccessfully: boolean
   } | null>(null)
   const [rejeicaoModalOpen, setRejeicaoModalOpen] = useState(false)
   const [motivoRejeicao, setMotivoRejeicao] = useState('')
@@ -720,6 +721,39 @@ export default function OrcamentoDetail() {
   // URL fixa do grupo do WhatsApp de Faturamento da JUCA Informática
   const WHATSAPP_FATURAMENTO_GROUP_URL = 'https://chat.whatsapp.com/GfUlsLlK9SBLa7BUfxS4J3'
 
+  // Helper síncrono para cópia imediata no gesto do clique (essencial para iOS/Safari)
+  const copyToClipboardSync = (text: string): boolean => {
+    try {
+      const textArea = document.createElement('textarea')
+      textArea.value = text
+      textArea.style.position = 'fixed'
+      textArea.style.left = '-9999px'
+      textArea.style.top = '0'
+      textArea.style.opacity = '0'
+      textArea.setAttribute('readonly', '')
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      const successful = document.execCommand('copy')
+      document.body.removeChild(textArea)
+      if (successful) return true
+    } catch {
+      /* ignore */
+    }
+
+    // Tenta também navigator.clipboard.writeText síncronamente disparado no clique
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).catch(() => {})
+        return true
+      }
+    } catch {
+      /* ignore */
+    }
+
+    return false
+  }
+
   // Helper com fallback robusto de cópia para a área de transferência (mesmo em navegadores restritivos/iOS)
   const copyToClipboardWithFallback = async (text: string): Promise<boolean> => {
     try {
@@ -731,22 +765,80 @@ export default function OrcamentoDetail() {
       /* fallback to execCommand */
     }
 
-    try {
-      const textArea = document.createElement('textarea')
-      textArea.value = text
-      textArea.style.position = 'fixed'
-      textArea.style.left = '-9999px'
-      textArea.style.top = '0'
-      textArea.setAttribute('readonly', '')
-      document.body.appendChild(textArea)
-      textArea.focus()
-      textArea.select()
-      const successful = document.execCommand('copy')
-      document.body.removeChild(textArea)
-      return successful
-    } catch {
-      return false
-    }
+    return copyToClipboardSync(text)
+  }
+
+  // Montador da mensagem formatada para o grupo de faturamento do WhatsApp
+  const buildFaturamentoTextMessage = (params: {
+    isReenvio: boolean
+    osNumberDisplay: string
+    orcNumber: string
+    clientName: string
+    equipmentName: string
+    responsibleName: string
+    itensList: OrcamentoItem[]
+    totalGeral: number
+    formaPagamento?: string
+    parcelas?: number
+    isLinkedToOs: boolean
+  }): string => {
+    const {
+      isReenvio,
+      osNumberDisplay,
+      orcNumber,
+      clientName,
+      equipmentName,
+      responsibleName,
+      itensList,
+      totalGeral,
+      formaPagamento,
+      parcelas,
+      isLinkedToOs,
+    } = params
+
+    const itensLinhas =
+      itensList.length > 0
+        ? itensList
+            .map((it) => {
+              const qtd = it.quantidade || 1
+              const rawTotal =
+                typeof it.valor_total_item === 'number'
+                  ? it.valor_total_item
+                  : (it.valor_unitario || 0) * qtd
+              const vlr = rawTotal.toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })
+              return `  • ${qtd}x ${it.descricao}: R$ ${vlr}`
+            })
+            .join('\n')
+        : '  • Nenhum item listado'
+
+    const totalFmt = totalGeral.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+
+    const formaPag = (formaPagamento || 'pix').toUpperCase()
+    const numParc = parcelas || 1
+    const parcelasFmt =
+      numParc > 1
+        ? `${numParc}x de R$ ${(totalGeral / numParc).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : 'À vista'
+
+    return (
+      `📄 *${isReenvio ? 'REENVIO DE FATURAMENTO' : 'FATURAMENTO CONCLUÍDO'} - JUCA INFORMÁTICA*\n\n` +
+      `🔢 *O.S. / Orçamento:* ${osNumberDisplay} / ${orcNumber}\n` +
+      `👤 *Cliente:* ${clientName}\n` +
+      `💻 *Equipamento:* ${equipmentName}\n` +
+      `👨‍💼 *Responsável:* ${responsibleName}\n\n` +
+      `📦 *Itens e Serviços:*\n` +
+      `${itensLinhas}\n\n` +
+      `💰 *Total Geral:* R$ ${totalFmt}\n` +
+      `💳 *Forma de Pagamento:* ${formaPag} (${parcelasFmt})\n\n` +
+      (isLinkedToOs ? `✅ *Status O.S.:* Finalizada (Closed)\n` : '') +
+      `✅ *Status Orçamento:* Faturado`
+    )
   }
 
   // Faturamento (Permite faturar e reenviar ao grupo sem duplicar registros)
@@ -761,8 +853,47 @@ export default function OrcamentoDetail() {
       return
     }
 
+    const isReenvio = orcamento.status === 'faturado'
+    const osNumberInitial =
+      orcamento.expand?.id_os?.number || (orcamento.id_os ? 'O.S. Vinculada' : '— (Independente)')
+    const orcNumber = orcamento.numero_orcamento || '—'
+
+    // =========================================================================
+    // ETAPA CRÍTICA PARA iOS / SAFARI (v0.0.148):
+    // 1) DISPARO SÍNCRONO DA COPIA NO GESTO DO TOQUE (ANTES DE QUALQUER AWAIT).
+    // O Safari revoga permissão de clipboard e bloqueia popups após o primeiro await.
+    // =========================================================================
+    const immediateMessage = buildFaturamentoTextMessage({
+      isReenvio,
+      osNumberDisplay: osNumberInitial,
+      orcNumber,
+      clientName: activeCustomerName,
+      equipmentName: activeEquipmentName,
+      responsibleName: activeResponsibleName,
+      itensList: items,
+      totalGeral: financialSummary.totalGeral,
+      formaPagamento: orcamento.forma_pagamento,
+      parcelas: orcamento.parcelas,
+      isLinkedToOs: Boolean(orcamento.id_os),
+    })
+
+    // Cópia síncrona imediata no gesto do clique
+    let initialCopySuccess = copyToClipboardSync(immediateMessage)
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(immediateMessage).then(
+          () => {
+            initialCopySuccess = true
+          },
+          () => {},
+        )
+      }
+    } catch {
+      /* ignore */
+    }
+
     // DISPARO SÍNCRONO NO GESTO DO USUÁRIO (Evita bloqueio de popup no Safari / iOS):
-    // Abrimos a janela de imediato (about:blank ou direto na URL) para preservar a permissão do clique.
+    // Abrimos a janela de imediato para preservar a permissão do clique.
     let popupWindow: Window | null = null
     try {
       popupWindow = window.open(WHATSAPP_FATURAMENTO_GROUP_URL, '_blank')
@@ -771,8 +902,6 @@ export default function OrcamentoDetail() {
     }
 
     try {
-      const isReenvio = orcamento.status === 'faturado'
-
       // 1. Garante que os dados da O.S. vinculada estejam resolvidos (busca direta se expand não trouxe)
       let resolvedOsNumber = orcamento.expand?.id_os?.number || ''
       let resolvedClientName = activeCustomerName
@@ -805,57 +934,31 @@ export default function OrcamentoDetail() {
 
       const osNumberDisplay =
         resolvedOsNumber || (orcamento.id_os ? 'O.S. Vinculada' : '— (Independente)')
-      const orcNumber = orcamento.numero_orcamento || '—'
 
       // 2. Executa faturamento no backend (idempotente: se já faturado, não duplica pagamento nem baixa de estoque e fecha OS)
       await sendOrcamentoToFaturamento(orcamento.id, user?.id)
 
-      // 3. Monta mensagem formatada com número espelhado OS-XXXX/ORC-XXXX, cliente, equipamento, itens com valores, total, forma de pagamento/parcelas
-      const itensLinhas =
-        items.length > 0
-          ? items
-              .map((it) => {
-                const qtd = it.quantidade || 1
-                const rawTotal =
-                  typeof it.valor_total_item === 'number'
-                    ? it.valor_total_item
-                    : (it.valor_unitario || 0) * qtd
-                const vlr = rawTotal.toLocaleString('pt-BR', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })
-                return `  • ${qtd}x ${it.descricao}: R$ ${vlr}`
-              })
-              .join('\n')
-          : '  • Nenhum item listado'
-
-      const totalFmt = financialSummary.totalGeral.toLocaleString('pt-BR', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
+      // 3. Reconstrói a mensagem caso algum dado da OS tenha sido resolvido durante o fetch
+      const finalMessage = buildFaturamentoTextMessage({
+        isReenvio,
+        osNumberDisplay,
+        orcNumber,
+        clientName: resolvedClientName,
+        equipmentName: resolvedEquipName,
+        responsibleName: resolvedRespName,
+        itensList: items,
+        totalGeral: financialSummary.totalGeral,
+        formaPagamento: orcamento.forma_pagamento,
+        parcelas: orcamento.parcelas,
+        isLinkedToOs: Boolean(orcamento.id_os),
       })
 
-      const formaPag = (orcamento.forma_pagamento || 'pix').toUpperCase()
-      const numParc = orcamento.parcelas || 1
-      const parcelasFmt =
-        numParc > 1
-          ? `${numParc}x de R$ ${(financialSummary.totalGeral / numParc).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-          : 'À vista'
-
-      const mensagemFaturamento =
-        `📄 *${isReenvio ? 'REENVIO DE FATURAMENTO' : 'FATURAMENTO CONCLUÍDO'} - JUCA INFORMÁTICA*\n\n` +
-        `🔢 *O.S. / Orçamento:* ${osNumberDisplay} / ${orcNumber}\n` +
-        `👤 *Cliente:* ${resolvedClientName}\n` +
-        `💻 *Equipamento:* ${resolvedEquipName}\n` +
-        `👨‍💼 *Responsável:* ${resolvedRespName}\n\n` +
-        `📦 *Itens e Serviços:*\n` +
-        `${itensLinhas}\n\n` +
-        `💰 *Total Geral:* R$ ${totalFmt}\n` +
-        `💳 *Forma de Pagamento:* ${formaPag} (${parcelasFmt})\n\n` +
-        (orcamento.id_os ? `✅ *Status O.S.:* Finalizada (Closed)\n` : '') +
-        `✅ *Status Orçamento:* Faturado`
-
-      // 4. Copia a mensagem para a área de transferência com fallback
-      const copied = await copyToClipboardWithFallback(mensagemFaturamento)
+      // 4. Revalidação pós-awaits: se a mensagem final mudou ou a cópia inicial falhou, tenta copiar novamente com fallback
+      let finalCopySuccess = initialCopySuccess
+      if (finalMessage !== immediateMessage || !initialCopySuccess) {
+        const recheckOk = await copyToClipboardWithFallback(finalMessage)
+        finalCopySuccess = recheckOk || initialCopySuccess
+      }
 
       // Se a popup foi aberta com sucesso e estava em about:blank, redireciona
       if (popupWindow && !popupWindow.closed) {
@@ -868,27 +971,27 @@ export default function OrcamentoDetail() {
 
       setFaturamentoConfirmOpen(false)
 
-      // 5. Se o popup foi bloqueado (popupWindow === null ou closed) ou em mobile,
-      // exibe modal/card de confirmação com botão direto para tocar e link visível.
+      // 5. Exibe modal informativo pós-faturamento com passo a passo 1-2-3, status da cópia e botões de ação
       setFaturamentoSuccessData({
-        mensagem: mensagemFaturamento,
+        mensagem: finalMessage,
         isReenvio,
         osNumber: osNumberDisplay,
         orcNumber,
+        copiedSuccessfully: finalCopySuccess,
       })
       setFaturamentoSuccessModalOpen(true)
 
       toast({
         title: isReenvio
-          ? copied
+          ? finalCopySuccess
             ? 'Mensagem copiada e grupo pronto!'
             : 'Faturamento reenviado!'
-          : copied
+          : finalCopySuccess
             ? 'Resumo copiado e grupo pronto!'
             : 'Orçamento faturado!',
-        description: copied
+        description: finalCopySuccess
           ? 'Texto do faturamento copiado para a área de transferência. Toque no botão para abrir o grupo se o WhatsApp não abriu automaticamente.'
-          : 'Abra o grupo de faturamento e cole o resumo da ordem de serviço.',
+          : 'Toque em "Copiar Novamente" no modal e abra o grupo para colar o resumo.',
       })
 
       loadAll()
@@ -1997,33 +2100,121 @@ export default function OrcamentoDetail() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2 text-xs text-slate-600">
-            <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg text-emerald-950 space-y-1">
-              <p className="font-semibold text-emerald-900 flex items-center gap-1.5">
-                <span>📋</span>
-                <span>O resumo da O.S. foi copiado para sua área de transferência!</span>
-              </p>
-              <p className="text-[11px] text-emerald-800">
-                O.S. / Orçamento:{' '}
-                <strong>
-                  {faturamentoSuccessData?.osNumber} / {faturamentoSuccessData?.orcNumber}
-                </strong>
-                . Basta tocar no botão verde abaixo para abrir o grupo no WhatsApp e colar (Ctrl+V
-                ou segurar e colar).
-              </p>
+            {/* Indicador visual de status da cópia: verde se copiada, vermelho se pendente/falha */}
+            {faturamentoSuccessData?.copiedSuccessfully ? (
+              <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg text-emerald-950 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-600 text-white shadow-xs">
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    Mensagem copiada ✓
+                  </span>
+                  <span className="text-[11px] font-mono font-semibold text-emerald-800">
+                    O.S. / Orç: {faturamentoSuccessData?.osNumber} /{' '}
+                    {faturamentoSuccessData?.orcNumber}
+                  </span>
+                </div>
+                <p className="text-[11px] text-emerald-800 pt-1">
+                  O texto com todos os dados da O.S. e orçamento já está pronto na sua área de
+                  transferência.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-rose-50 border border-rose-200 p-3 rounded-lg text-rose-950 space-y-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-600 text-white shadow-xs">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    Falha ao copiar automaticamente
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-7 text-xs bg-rose-700 hover:bg-rose-800 text-white font-semibold gap-1"
+                    onClick={async () => {
+                      if (faturamentoSuccessData?.mensagem) {
+                        const ok = await copyToClipboardWithFallback(
+                          faturamentoSuccessData.mensagem,
+                        )
+                        if (ok) {
+                          setFaturamentoSuccessData((prev) =>
+                            prev ? { ...prev, copiedSuccessfully: true } : prev,
+                          )
+                          toast({ title: 'Mensagem copiada com sucesso!' })
+                        } else {
+                          toast({ title: 'Não foi possível copiar', variant: 'destructive' })
+                        }
+                      }
+                    }}
+                  >
+                    <Copy className="h-3 w-3" />
+                    Copiar Novamente
+                  </Button>
+                </div>
+                <p className="text-[11px] text-rose-800">
+                  O navegador restringiu a área de transferência. Toque no botão acima para copiar
+                  manualmente antes de abrir o grupo.
+                </p>
+              </div>
+            )}
+
+            {/* Instruções passo a passo claras (1 - 2 - 3) */}
+            <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg space-y-2 text-slate-800">
+              <span className="font-bold text-slate-900 block text-xs">
+                Como enviar no WhatsApp (Passo a passo):
+              </span>
+              <ol className="space-y-1.5 text-xs">
+                <li className="flex items-start gap-2">
+                  <span
+                    className={`font-mono font-bold px-1.5 py-0.2 rounded text-[11px] ${
+                      faturamentoSuccessData?.copiedSuccessfully
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    1
+                  </span>
+                  <span>
+                    <strong>
+                      {faturamentoSuccessData?.copiedSuccessfully
+                        ? 'A mensagem já está copiada ✓'
+                        : 'Copie a mensagem usando o botão "Copiar Novamente"'}
+                    </strong>
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="font-mono font-bold px-1.5 py-0.2 rounded text-[11px] bg-indigo-100 text-indigo-800">
+                    2
+                  </span>
+                  <span>
+                    <strong>Toque para abrir o grupo de faturamento</strong> no botão verde abaixo
+                    (ou pelo link direto).
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="font-mono font-bold px-1.5 py-0.2 rounded text-[11px] bg-slate-200 text-slate-800">
+                    3
+                  </span>
+                  <span>
+                    No WhatsApp, <strong>segure no campo de mensagem e Cole</strong> (ou Ctrl+V no
+                    teclado) e envie.
+                  </span>
+                </li>
+              </ol>
             </div>
 
-            {/* Botão de Ação Primária: Abrir Grupo de Faturamento */}
+            {/* Botões de Ação: Abrir Grupo de Faturamento (síncrono no clique) + Copiar Novamente */}
             <div className="flex flex-col sm:flex-row gap-2 pt-1">
-              <a
-                href={WHATSAPP_FATURAMENTO_GROUP_URL}
-                target="_blank"
-                rel="noopener noreferrer"
+              <Button
+                type="button"
                 className="flex-1 inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 px-4 rounded-md shadow-sm transition-colors text-xs text-center"
+                onClick={() => {
+                  // Abertura imediata e síncrona no clique para nunca ser barrada pelo navegador
+                  window.open(WHATSAPP_FATURAMENTO_GROUP_URL, '_blank')
+                }}
               >
                 <MessageCircle className="h-4 w-4" />
                 <span>Abrir Grupo de Faturamento no WhatsApp</span>
                 <ExternalLink className="h-3.5 w-3.5 ml-0.5 opacity-80" />
-              </a>
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -2032,6 +2223,9 @@ export default function OrcamentoDetail() {
                   if (faturamentoSuccessData?.mensagem) {
                     const ok = await copyToClipboardWithFallback(faturamentoSuccessData.mensagem)
                     if (ok) {
+                      setFaturamentoSuccessData((prev) =>
+                        prev ? { ...prev, copiedSuccessfully: true } : prev,
+                      )
                       toast({ title: 'Mensagem copiada novamente!' })
                     } else {
                       toast({ title: 'Não foi possível copiar', variant: 'destructive' })
@@ -2044,9 +2238,11 @@ export default function OrcamentoDetail() {
               </Button>
             </div>
 
-            {/* Link direto clicável caso o navegador bloqueie redirects */}
+            {/* Link direto clicável caso o navegador bloqueie redirects (Plano B anti-bloqueio) */}
             <div className="p-2.5 bg-slate-50 border border-slate-200 rounded text-[11px] text-slate-600 space-y-1">
-              <span className="font-semibold text-slate-700 block">Link direto do grupo:</span>
+              <span className="font-semibold text-slate-700 block">
+                Link direto do grupo (Plano B anti-bloqueio):
+              </span>
               <a
                 href={WHATSAPP_FATURAMENTO_GROUP_URL}
                 target="_blank"
