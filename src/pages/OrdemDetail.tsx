@@ -524,7 +524,9 @@ export default function OrdemDetail() {
       order.expand?.technician?.name || (order.technician === user?.id ? user?.name : undefined)
     const serviceRep = serviceReport || order.service_report
 
-    const osDocumentUrl = `${window.location.origin}/ordens/${order.id}/imprimir`
+    // Link enviado ao cliente aponta para a rota pública /share/:id (OrdemShare), que não exige login
+    // e inclui documento completo, fotos, assinatura digital, pesquisa de satisfação e botão imprimir.
+    const osDocumentUrl = `${window.location.origin}/share/${order.id}`
     const msg = buildOsDocumentMessage({
       customerName: name,
       osNumber: osNum,

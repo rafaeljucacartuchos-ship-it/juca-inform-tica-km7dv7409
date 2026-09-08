@@ -143,13 +143,12 @@ export function PrintOrderDocument({
     const osNum = order.number
 
     // 1) DISPARO SÍNCRONO NO GESTO DO TOQUE (ANTES DE QUALQUER AWAIT) para compatibilidade Safari/iOS:
-    // Monta o link imediato da O.S. (o documento anexado completo gerado na rota /ordens/:id/imprimir)
+    // Monta o link público imediato da O.S. (/share/:id - OrdemShare), sem exigir login do cliente,
+    // contendo documento completo, fotos, assinatura digital, pesquisa de satisfação e botão imprimir.
     const techName = order.expand?.technician?.name
     const serviceRep = order.service_report
 
-    // Para o cliente abrir exatamente o documento da O.S., usamos a URL pública/impressão da O.S.
-    // Se houver proposta pública vinculada, pode ser usada ou o link direto do documento
-    const osDocumentUrl = `${window.location.origin}/ordens/${order.id}/imprimir`
+    const osDocumentUrl = `${window.location.origin}/share/${order.id}`
     const immediateMsg = buildOsDocumentMessage({
       customerName: name,
       osNumber: osNum,
