@@ -10,6 +10,7 @@ import {
   X,
   MessageCircle,
   Calendar,
+  ArrowRightLeft,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,6 +30,7 @@ import { getCustomers, getCustomerDisplayName, getCustomerPhone } from '@/servic
 import { getTechnicians } from '@/services/users'
 import { StatusBadge } from '@/components/StatusBadge'
 import { NewOrderModal } from '@/components/NewOrderModal'
+import { TransferTechnicianModal } from '@/components/TransferTechnicianModal'
 import { useAuth } from '@/hooks/use-auth'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
@@ -42,6 +44,8 @@ export default function OrdensDeServico() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [filterText, setFilterText] = useState(searchParams.get('search') || '')
   const [newModalOpen, setNewModalOpen] = useState(false)
+  const [transferModalOpen, setTransferModalOpen] = useState(false)
+  const [orderToTransfer, setOrderToTransfer] = useState<ServiceOrder | null>(null)
   const [dateStart, setDateStart] = useState('')
   const [dateEnd, setDateEnd] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -549,6 +553,18 @@ export default function OrdensDeServico() {
                               R$ {(o.total || 0).toFixed(2)}
                             </span>
                             <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  setOrderToTransfer(o)
+                                  setTransferModalOpen(true)
+                                }}
+                                className="h-7 w-7 text-indigo-600 hover:bg-indigo-50 shrink-0"
+                                title="Transferir Técnico Responsável"
+                              >
+                                <ArrowRightLeft className="h-3.5 w-3.5" />
+                              </Button>
                               {user?.role !== 'technician' && (
                                 <Button
                                   variant="ghost"
@@ -615,9 +631,7 @@ export default function OrdensDeServico() {
                     <th className="py-3 px-4">Técnico</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Total</th>
-                    {user?.role !== 'technician' && (
-                      <th className="py-3 px-4 text-center">Ações</th>
-                    )}
+                    <th className="py-3 px-4 text-center">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -647,18 +661,33 @@ export default function OrdensDeServico() {
                       <td className="py-3 px-4 text-right font-mono font-bold">
                         R$ {(o.total || 0).toFixed(2)}
                       </td>
-                      {user?.role !== 'technician' && (
-                        <td className="py-3 px-4 text-center">
+                      <td className="py-3 px-4 text-center">
+                        <div className="flex items-center justify-center gap-1">
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleNotifyClient(o)}
-                            className="h-8 w-8 text-emerald-600 hover:bg-emerald-50"
+                            onClick={() => {
+                              setOrderToTransfer(o)
+                              setTransferModalOpen(true)
+                            }}
+                            className="h-8 w-8 text-indigo-600 hover:bg-indigo-50"
+                            title="Transferir Técnico Responsável"
                           >
-                            <MessageCircle className="h-4 w-4" />
+                            <ArrowRightLeft className="h-4 w-4" />
                           </Button>
-                        </td>
-                      )}
+                          {user?.role !== 'technician' && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleNotifyClient(o)}
+                              className="h-8 w-8 text-emerald-600 hover:bg-emerald-50"
+                              title="Notificar via WhatsApp"
+                            >
+                              <MessageCircle className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -669,6 +698,13 @@ export default function OrdensDeServico() {
       )}
 
       <NewOrderModal open={newModalOpen} onOpenChange={setNewModalOpen} onCreated={loadData} />
+
+      <TransferTechnicianModal
+        open={transferModalOpen}
+        onOpenChange={setTransferModalOpen}
+        order={orderToTransfer}
+        onTransferred={loadData}
+      />
     </div>
   )
 }

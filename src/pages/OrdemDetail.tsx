@@ -20,6 +20,7 @@ import {
   MapPin,
   FileBadge,
   Send,
+  ArrowRightLeft,
 } from 'lucide-react'
 import { formatPhone } from '@/lib/phones'
 import { OrcamentoItemModal } from '@/components/OrcamentoItemModal'
@@ -54,6 +55,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { OrderPhotos } from '@/components/OrderPhotos'
 import { NewEquipmentModal } from '@/components/NewEquipmentModal'
+import { TransferTechnicianModal } from '@/components/TransferTechnicianModal'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -82,6 +84,7 @@ export default function OrdemDetail() {
   const [serviceReport, setServiceReport] = useState('')
   const [starting, setStarting] = useState(false)
   const [equipmentModalOpen, setEquipmentModalOpen] = useState(false)
+  const [transferModalOpen, setTransferModalOpen] = useState(false)
 
   // Estados para edição inline da OS
   const [isEditingOs, setIsEditingOs] = useState(false)
@@ -790,6 +793,20 @@ export default function OrdemDetail() {
             <span>Chat Técnico</span>
           </Button>
 
+          {/* Botão Transferir Técnico Responsável */}
+          {canEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setTransferModalOpen(true)}
+              className="text-xs gap-1.5 h-10 sm:h-9 justify-center border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 font-semibold"
+              title="Transferir responsabilidade da Ordem de Serviço para outro técnico"
+            >
+              <ArrowRightLeft className="h-4 w-4 text-indigo-600" />
+              <span>Transferir Técnico</span>
+            </Button>
+          )}
+
           {/* Botão Finalizar Ordem de Serviço no cabeçalho */}
           {!isFinalizada && canEdit && !fieldsLocked && (
             <Button
@@ -1005,8 +1022,21 @@ export default function OrdemDetail() {
               {/* Informações Operacionais da O.S. */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                 <div>
-                  <span className="font-semibold text-slate-500">Técnico Responsável:</span>
-                  <p className="font-medium text-slate-900">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-slate-500">Técnico Responsável:</span>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => setTransferModalOpen(true)}
+                        className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1"
+                        title="Transferir para outro técnico"
+                      >
+                        <ArrowRightLeft className="h-3 w-3" />
+                        Transferir
+                      </button>
+                    )}
+                  </div>
+                  <p className="font-medium text-slate-900 mt-0.5">
                     {order.expand?.technician?.name || 'Não atribuído'}
                   </p>
                 </div>
@@ -1441,6 +1471,15 @@ export default function OrdemDetail() {
                   <Play className="h-4 w-4 mr-1" /> Iniciar Atendimento
                 </Button>
               )}
+              {canEdit && (
+                <Button
+                  onClick={() => setTransferModalOpen(true)}
+                  variant="outline"
+                  className="w-full justify-start text-xs h-9 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                >
+                  <ArrowRightLeft className="h-4 w-4 mr-1.5 text-indigo-600" /> Transferir Técnico
+                </Button>
+              )}
               {order.status === 'in_progress' && (
                 <Button
                   onClick={handleFinishService}
@@ -1543,6 +1582,13 @@ export default function OrdemDetail() {
         onOpenChange={setEquipmentModalOpen}
         onCreated={handleEquipmentCreated}
         defaultCustomerId={order.customer}
+      />
+
+      <TransferTechnicianModal
+        open={transferModalOpen}
+        onOpenChange={setTransferModalOpen}
+        order={order}
+        onTransferred={loadAll}
       />
 
       {activeOrcamento && (
