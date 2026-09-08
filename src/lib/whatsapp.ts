@@ -125,6 +125,53 @@ Qualquer dúvida, estamos à disposição!` +
  * Segunda mensagem separada, contendo agradecimento + link de avaliação
  * do técnico (shareUrl) + link de avaliação no Google.
  */
+/**
+ * Mensagem de envio do link da proposta online de orçamento ao cliente.
+ * Padrão: "Olá [primeiro nome]" + aguardamos clicar no link para analisar a proposta e assinar para aprovação + assinatura JUCA INFORMÁTICA.
+ */
+export function buildOrcamentoPropostaMessage(params: {
+  customerName: string
+  numeroOrcamento: string
+  propostaUrl: string
+  equipment?: string
+}): string {
+  const { customerName, numeroOrcamento, propostaUrl, equipment } = params
+  const firstName = customerName.split(' ')[0] || customerName
+  const equipPart = equipment ? ` referente ao seu equipamento *${equipment}*` : ''
+
+  return (
+    `🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n` +
+    `Olá, *${firstName}*! Tudo bem?\n\n` +
+    `Preparamos a proposta do seu orçamento *${numeroOrcamento}*${equipPart}.\n\n` +
+    `Aguardamos você clicar no link abaixo para analisar toda a proposta com detalhes e assinar digitalmente para aprovação:\n\n` +
+    `👉 ${propostaUrl}\n\n` +
+    `Qualquer dúvida ou ajuste que precisar, estamos à sua inteira disposição!\n\n` +
+    `JUCA INFORMÁTICA\n` +
+    `(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981`
+  )
+}
+
+/**
+ * Mensagem de confirmação/agradecimento enviada ao cliente após a aprovação da proposta no tom do Juquinha.
+ */
+export function buildOrcamentoAprovadoAgradecimentoMessage(params: {
+  customerName: string
+  numeroOrcamento: string
+  equipment?: string
+}): string {
+  const { customerName, numeroOrcamento, equipment } = params
+  const firstName = customerName.split(' ')[0] || customerName
+  const equipPart = equipment ? ` da sua *${equipment}*` : ''
+
+  return (
+    `🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n` +
+    `Olá, *${firstName}*! 🎉 Que alegria que a proposta *${numeroOrcamento}* foi aprovada!\n\n` +
+    `O reparo${equipPart} já está em boas mãos com a equipe JUCA. Muito obrigado pela confiança — a gente cuida de tudo pra você! 💙\n\n` +
+    `Juca Informática\n` +
+    `(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981`
+  )
+}
+
 export function buildCompletionEvaluationMessage(
   customerName: string,
   orderNumber: string,

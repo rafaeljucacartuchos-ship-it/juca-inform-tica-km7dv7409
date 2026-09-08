@@ -69,6 +69,45 @@ export function playNotificationSound() {
 }
 
 /**
+ * Alerta sonoro de orçamento aprovado pelo cliente (Web Audio API - sem arquivos externos).
+ * Toca sequência triunfal de 3 bipes ascendentes (ex: 523Hz -> 659Hz -> 784Hz / C5 -> E5 -> G5).
+ */
+export function playOrcamentoAprovadoSound() {
+  try {
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    if (!AudioContextClass) return
+    if (!sharedCtx) {
+      sharedCtx = new AudioContextClass()
+    }
+    if (sharedCtx.state === 'suspended') {
+      sharedCtx.resume()
+    }
+    const ctx = sharedCtx
+    const playTone = (freq: number, startOffset: number, duration: number) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.frequency.value = freq
+      osc.type = 'triangle'
+      gain.gain.setValueAtTime(0.35, ctx.currentTime + startOffset)
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + startOffset + duration)
+      osc.start(ctx.currentTime + startOffset)
+      osc.stop(ctx.currentTime + startOffset + duration)
+    }
+    // 3 bipes ascendentes alegres e nítidos
+    playTone(523.25, 0, 0.18) // C5
+    playTone(659.25, 0.14, 0.18) // E5
+    playTone(783.99, 0.28, 0.35) // G5
+    audioReady = true
+  } catch {
+    /* audio not available */
+  }
+}
+
+/**
  * Alerta sonoro de estoque baixo (Web Audio API - sem arquivos externos).
  * Toca sequência dupla descendente de tom de atenção (440Hz -> 330Hz)
  */

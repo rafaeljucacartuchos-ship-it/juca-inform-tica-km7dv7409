@@ -20,6 +20,8 @@ import {
   Loader2,
   FileText,
   Lock,
+  Link as LinkIcon,
+  Copy,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -71,7 +73,8 @@ import { BarcodeScanner } from '@/components/BarcodeScanner'
 import { OrcamentoItemModal } from '@/components/OrcamentoItemModal'
 import { OrcamentoPhotos } from '@/components/OrcamentoPhotos'
 import { OrcamentoAssinaturaModal } from '@/components/OrcamentoAssinaturaModal'
-import { openWhatsApp, buildWhatsAppUrl } from '@/lib/whatsapp'
+import { openWhatsApp, buildWhatsAppUrl, buildOrcamentoPropostaMessage } from '@/lib/whatsapp'
+import { generateRandomToken } from '@/services/orcamentos'
 
 const STATUS_CONFIG: Record<
   OrcamentoStatus,
@@ -221,6 +224,8 @@ export default function OrcamentoDetail() {
 
     const totalGeral = Math.max(0, totalItensComDesconto - descTotal)
     const pctDoTotal = subtotal > 0 ? ((somaDescontosItens + descTotal) / subtotal) * 100 : 0
+    const numParcelas = Math.max(1, orcamento?.parcelas || 1)
+    const valorParcela = totalGeral / numParcelas
 
     return {
       subtotal,
@@ -229,6 +234,7 @@ export default function OrcamentoDetail() {
       descTotal,
       totalGeral,
       pctDoTotal,
+      valorParcela,
     }
   }, [items, orcamento])
 
@@ -350,9 +356,22 @@ export default function OrcamentoDetail() {
     }
 
     const custName = getCustomerDisplayName(cust)
-    const pdfUrl = `${window.location.origin}/orcamentos/${orcamento.id}/imprimir`
+    const token = orcamento.token_acesso || ''
+    const propostaUrl = token
+      ? `${window.location.origin}/proposta/${token}`
+      : `${window.location.origin}/orcamentos/${orcamento.id}/imprimir`
 
-    const defaultMsg = `Olá ${custName}, segue o orçamento do seu atendimento na Juca Cartuchos e Informática. Qualquer dúvida, estamos à disposição!\n\n📄 Visualizar Orçamento: ${pdfUrl}`
+    const equipmentName =
+      orcamento.expand?.id_os?.expand?.equipment_ref?.name ||
+      orcamento.expand?.id_os?.equipment ||
+      ''
+
+    const defaultMsg = buildOrcamentoPropostaMessage({
+      customerName: custName,
+      numeroOrcamento: orcamento.numero_orcamento,
+      propostaUrl,
+      equipment: equipmentName,
+    })
 
     // Registra no histórico do cliente / pos_venda_messages
     try {
@@ -389,6 +408,95 @@ export default function OrcamentoDetail() {
     }
 
     openWhatsApp(phone, defaultMsg)
+    loadAll()
+  }
+
+  // Enviar link da proposta online ao cliente (copia URL e abre WhatsApp)
+  const handleEnviarLinkCliente = async () => {
+    if (!orcamento) return
+    const cust = orcamento.expand?.id_os?.expand?.customer
+    const phone = getCustomerPhone(cust)
+    if (!phone) {
+      toast({
+        title: 'Cliente sem WhatsApp cadastrado',
+        description: 'Cadastre o telefone celular do cliente na O.S. antes de enviar o link.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    let token = orcamento.token_acesso
+    if (!token) {
+      try {
+        const generated = await generateRandomToken(32)
+        const updated = await updateOrcamento(orcamento.id, { token_acesso: generated })
+        token = updated.token_acesso || generated
+      } catch {
+        /* fallback */
+      }
+    }
+
+    const propostaUrl = `${window.location.origin}/proposta/${token || orcamento.id}`
+
+    // Copia URL para a área de transferência
+    try {
+      await navigator.clipboard.writeText(propostaUrl)
+      toast({
+        title: 'Link da proposta copiado!',
+        description: 'URL pública copiada para a área de transferência e abrindo WhatsApp...',
+      })
+    } catch {
+      /* ignore clipboard rejection */
+    }
+
+    const custName = getCustomerDisplayName(cust)
+    const equipmentName =
+      orcamento.expand?.id_os?.expand?.equipment_ref?.name ||
+      orcamento.expand?.id_os?.equipment ||
+      ''
+
+    const msg = buildOrcamentoPropostaMessage({
+      customerName: custName,
+      numeroOrcamento: orcamento.numero_orcamento,
+      propostaUrl,
+      equipment: equipmentName,
+    })
+
+    // Registra no histórico do cliente / pos_venda_messages
+    try {
+      if (cust?.id) {
+        await pb.collection('pos_venda_messages').create({
+          customer: cust.id,
+          service_order: orcamento.id_os,
+          tipo: 'resumo_finalizacao',
+          status: 'sent',
+          scheduled_at: new Date().toISOString(),
+          sent_at: new Date().toISOString(),
+          texto_gerado: msg,
+          wa_me_link: buildWhatsAppUrl(phone, msg),
+          channel: 'whatsapp',
+        })
+      }
+    } catch {
+      /* intentionally ignored */
+    }
+
+    // Transição de status do orçamento: rascunho -> enviado
+    if (orcamento.status === 'rascunho') {
+      try {
+        await updateOrcamento(orcamento.id, { status: 'enviado' })
+        await updateOsStatus(
+          orcamento.id_os,
+          'orcamento_enviado',
+          `Link da proposta online ${orcamento.numero_orcamento} enviado ao cliente via WhatsApp`,
+          user?.id,
+        )
+      } catch {
+        /* intentionally ignored */
+      }
+    }
+
+    openWhatsApp(phone, msg)
     loadAll()
   }
 
@@ -585,6 +693,16 @@ export default function OrcamentoDetail() {
               Marcar como "Aguardando Aprovação"
             </Button>
           )}
+
+          {/* Botão Enviar link ao cliente (copia URL e abre WhatsApp) */}
+          <Button
+            size="sm"
+            onClick={handleEnviarLinkCliente}
+            className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shadow-xs font-semibold"
+            title="Copiar URL pública da proposta e abrir WhatsApp do cliente"
+          >
+            <LinkIcon className="h-3.5 w-3.5" /> Enviar link ao cliente
+          </Button>
 
           {orcamento.status !== 'aprovado' && orcamento.status !== 'faturado' && (
             <Button
@@ -967,13 +1085,42 @@ export default function OrcamentoDetail() {
                   <Input
                     type="number"
                     min="1"
+                    step="1"
                     disabled={!canEdit}
                     value={orcamento.parcelas || 1}
-                    onChange={(e) =>
-                      triggerAutoSave({ parcelas: parseInt(e.target.value, 10) || 1 })
-                    }
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10)
+                      const parcelas = isNaN(val) || val < 1 ? 1 : val
+                      triggerAutoSave({ parcelas })
+                    }}
                     className="h-8 text-xs font-mono"
                   />
+                  <span className="text-[11px] text-slate-500 mt-1 block font-mono">
+                    {(orcamento.parcelas || 1) > 1 ? (
+                      <>
+                        {orcamento.parcelas || 1}x de{' '}
+                        <strong className="text-indigo-700">
+                          R${' '}
+                          {financialSummary.valorParcela.toLocaleString('pt-BR', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </strong>
+                      </>
+                    ) : (
+                      <>
+                        1x de{' '}
+                        <strong className="text-slate-700">
+                          R${' '}
+                          {financialSummary.totalGeral.toLocaleString('pt-BR', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </strong>{' '}
+                        (à vista)
+                      </>
+                    )}
+                  </span>
                 </div>
 
                 <div>

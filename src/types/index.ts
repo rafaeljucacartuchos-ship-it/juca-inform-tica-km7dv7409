@@ -401,6 +401,7 @@ export interface Orcamento {
   motivo_rejeicao?: string
   subtotal?: number
   total_geral?: number
+  token_acesso?: string
   created?: string
   updated?: string
   expand?: {

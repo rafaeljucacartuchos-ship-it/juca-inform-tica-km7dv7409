@@ -44,10 +44,43 @@ export async function getActiveOrcamento(osId: string): Promise<Orcamento | null
 /**
  * Retorna um orçamento por ID com expansão
  */
+export async function generateRandomToken(len = 32): Promise<string> {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let res = ''
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const arr = new Uint8Array(len)
+    crypto.getRandomValues(arr)
+    for (let i = 0; i < len; i++) {
+      res += chars[arr[i] % chars.length]
+    }
+    return res
+  }
+  for (let i = 0; i < len; i++) {
+    res += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return res
+}
+
+/**
+ * Retorna um orçamento por ID com expansão.
+ * Garante que token_acesso exista para registros legados.
+ */
 export async function getOrcamento(id: string): Promise<Orcamento> {
-  return await pb.collection('orcamentos').getOne<Orcamento>(id, {
+  const record = await pb.collection('orcamentos').getOne<Orcamento>(id, {
     expand: 'id_os,id_usuario_criador,id_os.customer,id_os.technician,id_os.equipment_ref',
   })
+  if (!record.token_acesso) {
+    try {
+      const token = await generateRandomToken(32)
+      const updated = await pb.collection('orcamentos').update<Orcamento>(id, {
+        token_acesso: token,
+      })
+      record.token_acesso = updated.token_acesso || token
+    } catch {
+      /* ignore */
+    }
+  }
+  return record
 }
 
 /**
@@ -109,7 +142,8 @@ export async function createOrcamento(params: {
   // 2. Gera novo número
   const numero_orcamento = await generateNextOrcamentoNumber()
 
-  // 3. Cria o novo orçamento como rascunho
+  // 3. Cria o novo orçamento como rascunho com token de acesso
+  const token_acesso = await generateRandomToken(32)
   const novo = await pb.collection('orcamentos').create<Orcamento>({
     id_os,
     numero_orcamento,
@@ -127,6 +161,7 @@ export async function createOrcamento(params: {
     status_pagamento: 'pendente',
     subtotal: 0,
     total_geral: 0,
+    token_acesso,
   })
 
   // 4. Atualiza o status da OS para "aguardando_orcamento"

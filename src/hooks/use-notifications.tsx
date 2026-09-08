@@ -11,8 +11,12 @@ import { toast } from 'sonner'
 import { useAuth } from '@/hooks/use-auth'
 import { useRealtime } from '@/hooks/use-realtime'
 import { getNotifications, markAllNotificationsAsRead } from '@/services/notifications'
-import { playNotificationSound, showBrowserNotification } from '@/lib/notification-sound'
-import { AppNotification, ServiceOrder } from '@/types'
+import {
+  playNotificationSound,
+  playOrcamentoAprovadoSound,
+  showBrowserNotification,
+} from '@/lib/notification-sound'
+import { AppNotification, ServiceOrder, Orcamento } from '@/types'
 
 interface NotificationContextType {
   notifications: AppNotification[]
@@ -42,6 +46,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   // Track which service orders already had a customer signature, so we only
   // fire the alert on the transition (empty -> signed).
   const signedOrderIds = useRef<Set<string>>(new Set())
+  // Track approved orcamentos to avoid duplicate sounds
+  const approvedOrcamentoIds = useRef<Set<string>>(new Set())
 
   const loadNotifications = useCallback(async () => {
     if (!user) {
@@ -81,7 +87,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
             !playedSoundIds.current.has(record.id)
           ) {
             playedSoundIds.current.add(record.id)
-            playNotificationSound()
+            if (
+              record.title?.includes('Proposta Aprovada') ||
+              record.message?.includes('aprovou e assinou o orçamento')
+            ) {
+              playOrcamentoAprovadoSound()
+            } else {
+              playNotificationSound()
+            }
           }
         }
       } else if (e.action === 'update') {
@@ -123,6 +136,43 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       } else if (e.action === 'create') {
         // Nova O.S. ainda sem assinatura — apenas registra o estado inicial
         signedOrderIds.current.delete(orderId)
+      }
+    },
+    !!user,
+  )
+
+  // Realtime: alerta sonoro (3 bipes ascendentes) + toast com nome do cliente quando
+  // um orçamento é aprovado pelo cliente
+  useRealtime(
+    'orcamentos',
+    (e) => {
+      if (!user) return
+      const record = e.record as unknown as Orcamento
+      const orcId = record.id
+      const isApproved = record.status === 'aprovado'
+      const wasApproved = approvedOrcamentoIds.current.has(orcId)
+
+      if (isApproved) {
+        if (!wasApproved) {
+          approvedOrcamentoIds.current.add(orcId)
+          // 3 bipes ascendentes via Web Audio API
+          playOrcamentoAprovadoSound()
+
+          // Dispara toast e browser notification
+          const numOrc = record.numero_orcamento || 'ORC-????'
+          const toastMsg = `🎉 O cliente aprovou o orçamento ${numOrc}!`
+          toast.success(toastMsg, {
+            description: 'A proposta foi assinada e o atendimento pode ser iniciado.',
+            duration: 6000,
+          })
+          showBrowserNotification(
+            '🎉 Orçamento Aprovado pelo Cliente!',
+            `O orçamento ${numOrc} foi assinado e aprovado.`,
+            `orcamento-${orcId}`,
+          )
+        }
+      } else {
+        approvedOrcamentoIds.current.delete(orcId)
       }
     },
     !!user,
