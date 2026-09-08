@@ -1,9 +1,15 @@
+import { useState } from 'react'
 import { COMPANY_DATA, JUCA_LOGO_URL } from '@/lib/company'
 import { getFileUrl } from '@/lib/pocketbase/files'
 import { ServiceOrder, ServiceOrderItem, StatusHistory, ServiceAttachment } from '@/types'
-import { Printer, ArrowLeft } from 'lucide-react'
+import { Printer, ArrowLeft, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useNavigate } from 'react-router-dom'
+import { useToast } from '@/hooks/use-toast'
+import { getCustomerPhone, getCustomerDisplayName } from '@/services/customers'
+import { generateRandomToken, updateOrcamento } from '@/services/orcamentos'
+import { buildOrcamentoPropostaMessage, buildWhatsAppUrl, openWhatsApp } from '@/lib/whatsapp'
+import { offlinePb } from '@/lib/offline-pb'
 
 const STATUS_LABELS: Record<string, string> = {
   open: 'Aberta',
@@ -70,6 +76,7 @@ interface PrintOrderDocumentProps {
   orcamento?: Orcamento | null
   orcamentoItens?: OrcamentoItem[]
   orcamentoAnexos?: OrcamentoAnexo[]
+  onOrcamentoChange?: (orc: Orcamento) => void
 }
 
 export function PrintOrderDocument({
@@ -79,8 +86,135 @@ export function PrintOrderDocument({
   orcamento,
   orcamentoItens = [],
   orcamentoAnexos = [],
+  onOrcamentoChange,
 }: PrintOrderDocumentProps) {
   const navigate = useNavigate()
+  const { toast } = useToast()
+  const [sendingWhatsapp, setSendingWhatsapp] = useState(false)
+
+  // Helper síncrono para cópia imediata no gesto do clique (essencial para iOS/Safari)
+  const copyToClipboardSync = (text: string): boolean => {
+    try {
+      const textArea = document.createElement('textarea')
+      textArea.value = text
+      textArea.style.position = 'fixed'
+      textArea.style.left = '-9999px'
+      textArea.style.top = '0'
+      textArea.style.opacity = '0'
+      textArea.setAttribute('readonly', '')
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      const successful = document.execCommand('copy')
+      document.body.removeChild(textArea)
+      if (successful) return true
+    } catch {
+      /* ignore */
+    }
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).catch(() => {})
+        return true
+      }
+    } catch {
+      /* ignore */
+    }
+
+    return false
+  }
+
+  // Enviar link do documento unificado ao cliente via WhatsApp
+  const handleEnviarAoCliente = async () => {
+    const phone = getCustomerPhone(order.expand?.customer)
+    if (!phone) {
+      toast({
+        title: 'Cliente sem WhatsApp informado',
+        description: 'Cadastre o celular do cliente antes de enviar o link.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setSendingWhatsapp(true)
+    const name = getCustomerDisplayName(order.expand?.customer)
+    const equip = order.equipment || order.expand?.equipment_ref?.name || ''
+    const osNum = order.number
+
+    // 1) DISPARO SÍNCRONO NO GESTO DO TOQUE (ANTES DE QUALQUER AWAIT) para compatibilidade Safari/iOS:
+    // Monta o link imediato com token já carregado em memória (ou orcamento.id / fallback)
+    const initialToken = orcamento?.token_acesso || orcamento?.id || order.id
+    const immediatePropostaUrl = `${window.location.origin}/proposta/${initialToken}`
+    const immediateMsg = buildOrcamentoPropostaMessage({
+      customerName: name,
+      numeroOrcamento: orcamento?.numero_orcamento || `OS-${osNum}`,
+      osNumber: osNum,
+      propostaUrl: immediatePropostaUrl,
+      equipment: equip,
+    })
+
+    // Cópia síncrona imediata da URL e da mensagem no gesto do toque
+    copyToClipboardSync(immediatePropostaUrl)
+    copyToClipboardSync(immediateMsg)
+
+    // Se o orçamento já tem token ou não existe orçamento vinculado, atualiza/gera
+    let token = orcamento?.token_acesso
+    if (!token && orcamento?.id) {
+      try {
+        const generated = await generateRandomToken(32)
+        const updated = await updateOrcamento(orcamento.id, { token_acesso: generated })
+        token = updated.token_acesso || generated
+        if (onOrcamentoChange) {
+          onOrcamentoChange({ ...orcamento, token_acesso: token })
+        }
+      } catch {
+        token = orcamento.id
+      }
+    }
+
+    const finalPropostaUrl = `${window.location.origin}/proposta/${token || orcamento?.id || order.id}`
+    const finalMsg = buildOrcamentoPropostaMessage({
+      customerName: name,
+      numeroOrcamento: orcamento?.numero_orcamento || `OS-${osNum}`,
+      osNumber: osNum,
+      propostaUrl: finalPropostaUrl,
+      equipment: equip,
+    })
+
+    // Tenta atualizar a cópia se a URL mudou
+    if (finalPropostaUrl !== immediatePropostaUrl) {
+      copyToClipboardSync(finalPropostaUrl)
+      copyToClipboardSync(finalMsg)
+    }
+
+    // Registra envio no histórico do cliente / pós-venda
+    try {
+      const custId = order.customer || order.expand?.customer?.id
+      if (custId) {
+        await offlinePb.create('pos_venda_messages', {
+          customer: custId,
+          service_order: order.id,
+          tipo: 'resumo_finalizacao',
+          status: 'sent',
+          scheduled_at: new Date().toISOString(),
+          sent_at: new Date().toISOString(),
+          texto_gerado: finalMsg,
+          wa_me_link: buildWhatsAppUrl(phone, finalMsg),
+          channel: 'whatsapp',
+        })
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setSendingWhatsapp(false)
+    }
+
+    openWhatsApp(phone, finalMsg)
+    toast({
+      title: 'Link enviado via WhatsApp!',
+      description: 'Documento unificado preparado no WhatsApp do cliente.',
+    })
+  }
 
   // Assinaturas unificadas: usa assinatura do orçamento se existir, fallback para a da O.S.
   const techSig = orcamento?.assinatura_tecnico
@@ -147,8 +281,21 @@ export function PrintOrderDocument({
         >
           <ArrowLeft className="h-4 w-4" /> Voltar
         </Button>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">Impressão O.S. A4 - {order.number}</span>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <span className="hidden sm:inline text-xs text-slate-500">
+            Documento A4 - {order.number}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleEnviarAoCliente}
+            disabled={sendingWhatsapp}
+            className="gap-1.5 border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-xs font-bold shadow-xs"
+            title="Enviar link público do documento unificado via WhatsApp ao cliente"
+          >
+            <Send className="h-4 w-4 text-emerald-600" />
+            <span>Enviar ao Cliente (WhatsApp)</span>
+          </Button>
           <Button
             size="sm"
             onClick={() => window.print()}

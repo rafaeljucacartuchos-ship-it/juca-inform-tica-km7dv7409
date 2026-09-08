@@ -89,6 +89,7 @@ export default function OrdemPrint() {
       orcamento={orcamento}
       orcamentoItens={orcamentoItens}
       orcamentoAnexos={orcamentoAnexos}
+      onOrcamentoChange={setOrcamento}
     />
   )
 }

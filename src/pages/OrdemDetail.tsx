@@ -6,7 +6,6 @@ import {
   Play,
   CheckCircle,
   MessageCircle,
-  Share2,
   FileText,
   ExternalLink,
   Plus,
@@ -14,7 +13,6 @@ import {
   Trash2,
   ChevronDown,
   ChevronUp,
-  Send,
   Printer,
 } from 'lucide-react'
 import { OrcamentoItemModal } from '@/components/OrcamentoItemModal'
@@ -22,7 +20,6 @@ import {
   deleteOrcamentoItem,
   recalculateOrcamentoTotals,
   updateOrcamento,
-  generateRandomToken,
 } from '@/services/orcamentos'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -51,7 +48,6 @@ import {
   buildServiceMessage,
   buildOrderCompletionSummaryMessage,
   buildTechnicianPresentationMessage,
-  buildOrcamentoPropostaMessage,
   buildWhatsAppUrl,
 } from '@/lib/whatsapp'
 
@@ -421,102 +417,9 @@ export default function OrdemDetail() {
     })
   }
 
-  // Tarefa 2: Botão "Enviar ao Cliente" — envia o link do documento unificado da proposta (O.S. + orçamento)
-  const handleEnviarAoCliente = async () => {
-    const phone = getCustomerPhone(order.expand?.customer)
-    if (!phone) {
-      toast({
-        title: 'Cliente sem WhatsApp informado',
-        description: 'Cadastre o celular do cliente antes de enviar o link.',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    const name = getCustomerDisplayName(order.expand?.customer)
-    const equip = order.equipment || order.expand?.equipment_ref?.name || ''
-    const osNum = order.number
-
-    // 1) DISPARO SÍNCRONO NO GESTO DO TOQUE (ANTES DE QUALQUER AWAIT) para compatibilidade Safari/iOS:
-    // Monta o link imediato com token já carregado em memória (ou orcamento.id / fallback)
-    const initialToken = activeOrcamento?.token_acesso || activeOrcamento?.id || order.id
-    const immediatePropostaUrl = `${window.location.origin}/proposta/${initialToken}`
-    const immediateMsg = buildOrcamentoPropostaMessage({
-      customerName: name,
-      numeroOrcamento: activeOrcamento?.numero_orcamento || `OS-${osNum}`,
-      osNumber: osNum,
-      propostaUrl: immediatePropostaUrl,
-      equipment: equip,
-    })
-
-    // Cópia síncrona imediata da URL e da mensagem no gesto do toque
-    copyToClipboardSync(immediatePropostaUrl)
-    copyToClipboardSync(immediateMsg)
-
-    // Se o orçamento já tem token ou não existe orçamento vinculado, abre imediatamente
-    let token = activeOrcamento?.token_acesso
-    if (!token && activeOrcamento?.id) {
-      try {
-        const generated = await generateRandomToken(32)
-        const updated = await updateOrcamento(activeOrcamento.id, { token_acesso: generated })
-        token = updated.token_acesso || generated
-        setActiveOrcamento((prev) => (prev ? { ...prev, token_acesso: token } : prev))
-      } catch {
-        token = activeOrcamento.id
-      }
-    }
-
-    const finalPropostaUrl = `${window.location.origin}/proposta/${token || activeOrcamento?.id || order.id}`
-    const finalMsg = buildOrcamentoPropostaMessage({
-      customerName: name,
-      numeroOrcamento: activeOrcamento?.numero_orcamento || `OS-${osNum}`,
-      osNumber: osNum,
-      propostaUrl: finalPropostaUrl,
-      equipment: equip,
-    })
-
-    // Tenta atualizar a cópia se a URL mudou
-    if (finalPropostaUrl !== immediatePropostaUrl) {
-      copyToClipboardSync(finalPropostaUrl)
-      copyToClipboardSync(finalMsg)
-    }
-
-    // Registra envio no histórico do cliente / pós-venda
-    try {
-      const custId = order.customer || order.expand?.customer?.id
-      if (custId) {
-        await offlinePb.create('pos_venda_messages', {
-          customer: custId,
-          service_order: order.id,
-          tipo: 'resumo_finalizacao',
-          status: 'sent',
-          scheduled_at: new Date().toISOString(),
-          sent_at: new Date().toISOString(),
-          texto_gerado: finalMsg,
-          wa_me_link: buildWhatsAppUrl(phone, finalMsg),
-          channel: 'whatsapp',
-        })
-      }
-    } catch {
-      /* ignore */
-    }
-
-    openWhatsApp(phone, finalMsg)
-    toast({
-      title: 'Link enviado via WhatsApp!',
-      description: 'Documento unificado preparado no WhatsApp do cliente.',
-    })
-  }
-
   const handlePrintOrder = () => {
     if (!order?.id) return
     navigate(`/ordens/${order.id}/imprimir`)
-  }
-
-  const handleShare = () => {
-    const shareUrl = `${window.location.origin}/share/${order.id}`
-    navigator.clipboard.writeText(shareUrl)
-    toast({ title: 'Link de compartilhamento copiado!' })
   }
 
   const handleSaveOsInfo = async () => {
@@ -721,24 +624,6 @@ export default function OrdemDetail() {
           >
             <Printer className="h-4 w-4" />
             <span>Imprimir PDF</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleEnviarAoCliente}
-            className="text-xs gap-1.5 h-10 sm:h-9 justify-center border-indigo-200 bg-indigo-50/50 text-indigo-700 hover:bg-indigo-100 font-semibold"
-            title="Enviar link do documento unificado (O.S. + orçamento) via WhatsApp ao cliente"
-          >
-            <Send className="h-4 w-4 text-indigo-600" />
-            <span>Enviar ao Cliente</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleShare}
-            className="text-xs gap-1.5 h-10 sm:h-9 justify-center"
-          >
-            <Share2 className="h-4 w-4" /> Compartilhar
           </Button>
           <Button
             variant="outline"
