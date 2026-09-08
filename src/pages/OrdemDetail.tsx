@@ -23,6 +23,7 @@ import {
   ArrowRightLeft,
   Share2,
   Copy,
+  ArrowRight,
 } from 'lucide-react'
 import { formatPhone } from '@/lib/phones'
 import { OrcamentoItemModal } from '@/components/OrcamentoItemModal'
@@ -66,6 +67,7 @@ import { OrderPhotos } from '@/components/OrderPhotos'
 import { NewEquipmentModal } from '@/components/NewEquipmentModal'
 import { TransferTechnicianModal } from '@/components/TransferTechnicianModal'
 import { useAuth } from '@/hooks/use-auth'
+import { usePermissions } from '@/hooks/use-permissions'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
 import {
@@ -98,6 +100,28 @@ export default function OrdemDetail() {
   const [confirmDeleteOsOpen, setConfirmDeleteOsOpen] = useState(false)
   const [deletingOs, setDeletingOs] = useState(false)
 
+  const handleDeleteOs = async () => {
+    if (!order?.id) return
+    setDeletingOs(true)
+    try {
+      await deleteServiceOrder(order.id)
+      toast({
+        title: 'Ordem de Serviço excluída com sucesso!',
+        description: `O.S. ${order.number} removida.`,
+      })
+      navigate('/ordens')
+    } catch {
+      toast({
+        title: 'Erro ao excluir ordem de serviço',
+        description: 'Verifique se você tem permissão de exclusão ou se há pendências vinculadas.',
+        variant: 'destructive',
+      })
+    } finally {
+      setDeletingOs(false)
+      setConfirmDeleteOsOpen(false)
+    }
+  }
+
   // Modal Seletor de Compartilhamento do Link da OS (/share/:id)
   const [shareChooserOpen, setShareChooserOpen] = useState(false)
   const [shareChooserTitle, setShareChooserTitle] = useState('Compartilhar Documento da O.S.')
@@ -106,6 +130,23 @@ export default function OrdemDetail() {
   const [pendingShareMessage, setPendingShareMessage] = useState('')
   const [pendingShareUrl, setPendingShareUrl] = useState('')
   const [pendingAfterShareAction, setPendingAfterShareAction] = useState<(() => void) | null>(null)
+
+  const openShareChooser = (params: {
+    title?: string
+    description?: string
+    phone?: string
+    message: string
+    url: string
+    afterShareAction?: () => void
+  }) => {
+    setShareChooserTitle(params.title || 'Compartilhar Documento da O.S.')
+    setShareChooserDescription(params.description || '')
+    setPendingSharePhone(params.phone || '')
+    setPendingShareMessage(params.message)
+    setPendingShareUrl(params.url)
+    setPendingAfterShareAction(params.afterShareAction ? () => params.afterShareAction! : null)
+    setShareChooserOpen(true)
+  }
 
   // Estados para edição inline da OS
   const [isEditingOs, setIsEditingOs] = useState(false)
@@ -237,20 +278,30 @@ export default function OrdemDetail() {
             : 'O.S. concluída.',
       })
 
-      const phone = getCustomerPhone(order.expand?.customer)
-      if (phone && canEdit) {
-        const shareUrl = `${window.location.origin}/share/${order.id}`
-        openWhatsApp(
-          phone,
-          buildServiceMessage(
-            getCustomerDisplayName(order.expand?.customer),
-            order.number,
-            'completed',
-            shareUrl,
-          ),
-        )
-      }
       setConfirmFinalizarOpen(false)
+
+      const phone = getCustomerPhone(order.expand?.customer) || ''
+      const shareUrl = `${window.location.origin}/share/${order.id}`
+      const completionMsg = buildServiceMessage(
+        getCustomerDisplayName(order.expand?.customer),
+        order.number,
+        'completed',
+        shareUrl,
+      )
+
+      // Abre o seletor de compartilhamento (WhatsApp, Copiar link, Compartilhamento nativo)
+      openShareChooser({
+        title: 'Compartilhar Documento da O.S. Finalizada',
+        description:
+          'Escolha o canal para enviar o link do documento público ao cliente ou à equipe.',
+        phone,
+        message: completionMsg,
+        url: shareUrl,
+        afterShareAction: () => {
+          loadAll()
+        },
+      })
+
       loadAll()
     } catch {
       toast({ title: 'Erro ao finalizar ordem de serviço', variant: 'destructive' })
@@ -433,19 +484,20 @@ export default function OrdemDetail() {
         /* não interrompe conclusão */
       }
 
-      // (b) Abrir/preparar o link wa.me para o técnico disparar em 1 toque
-      if (phone && waLink) {
-        window.open(waLink, '_blank')
-        toast({
-          title: 'Resumo da O.S. preparado no WhatsApp!',
-          description: 'A conversa com o cliente foi aberta com o resumo preenchido.',
-        })
-      }
-
-      // Requisito 4: Retorno automático à lista de OS ao finalizar
-      setTimeout(() => {
-        navigate('/ordens')
-      }, 700)
+      // (b) Exibir seletor de compartilhamento (WhatsApp, Copiar link, Nativo)
+      openShareChooser({
+        title: 'Compartilhar Conclusão do Serviço',
+        description:
+          'Escolha o canal para enviar o resumo da conclusão e o link do documento da O.S.:',
+        phone,
+        message: summaryMsg,
+        url: shareUrl,
+        afterShareAction: () => {
+          setTimeout(() => {
+            navigate('/ordens')
+          }, 500)
+        },
+      })
     } catch {
       toast({ title: 'Erro ao concluir serviço', variant: 'destructive' })
     }
@@ -603,18 +655,9 @@ export default function OrdemDetail() {
     navigate(`/ordens/${order.id}/imprimir`)
   }
 
-  // Enviar Documento Oficial da O.S. (modelo técnico do PDF anexado) diretamente ao cliente via WhatsApp
-  const handleEnviarDocumentoOsWhatsApp = async () => {
-    const phone = getCustomerPhone(order.expand?.customer)
-    if (!phone) {
-      toast({
-        title: 'Cliente sem WhatsApp informado',
-        description: 'Cadastre o celular do cliente antes de enviar o documento.',
-        variant: 'destructive',
-      })
-      return
-    }
-
+  // Enviar Documento Oficial da O.S. (modelo técnico com link público /share/:id)
+  const handleEnviarDocumentoOs = async () => {
+    const phone = getCustomerPhone(order.expand?.customer) || ''
     const name = getCustomerDisplayName(order.expand?.customer)
     const equip = order.equipment || order.expand?.equipment_ref?.name || ''
     const osNum = order.number
@@ -622,7 +665,7 @@ export default function OrdemDetail() {
       order.expand?.technician?.name || (order.technician === user?.id ? user?.name : undefined)
     const serviceRep = serviceReport || order.service_report
 
-    // Link enviado ao cliente aponta para a rota pública /share/:id (OrdemShare), que não exige login
+    // Link enviado aponta para a rota pública /share/:id (OrdemShare), que não exige login
     // e inclui documento completo, fotos, assinatura digital, pesquisa de satisfação e botão imprimir.
     const osDocumentUrl = `${window.location.origin}/share/${order.id}`
     const msg = buildOsDocumentMessage({
@@ -635,9 +678,7 @@ export default function OrdemDetail() {
       serviceReport: serviceRep,
     })
 
-    copyToClipboardSync(osDocumentUrl)
-    copyToClipboardSync(msg)
-
+    // Registra tentativa no pós-venda/comunicação se houver cliente
     try {
       const custId = order.customer || order.expand?.customer?.id
       if (custId) {
@@ -645,11 +686,11 @@ export default function OrdemDetail() {
           customer: custId,
           service_order: order.id,
           tipo: 'resumo_finalizacao',
-          status: 'sent',
+          status: phone ? 'sent' : 'ready',
           scheduled_at: new Date().toISOString(),
           sent_at: new Date().toISOString(),
           texto_gerado: msg,
-          wa_me_link: buildWhatsAppUrl(phone, msg),
+          wa_me_link: phone ? buildWhatsAppUrl(phone, msg) : '',
           channel: 'whatsapp',
         })
       }
@@ -657,10 +698,14 @@ export default function OrdemDetail() {
       /* ignore */
     }
 
-    openWhatsApp(phone, msg)
-    toast({
-      title: 'Documento da O.S. enviado!',
-      description: 'Documento oficial da O.S. preparado no WhatsApp do cliente.',
+    // Abre o Seletor de Compartilhamento (WhatsApp, Copiar link, Compartilhamento nativo)
+    openShareChooser({
+      title: 'Enviar Documento da O.S. ao Cliente',
+      description:
+        'Escolha como deseja enviar o link do documento público da ordem de serviço (/share):',
+      phone,
+      message: msg,
+      url: osDocumentUrl,
     })
   }
 
@@ -780,29 +825,46 @@ export default function OrdemDetail() {
       <CompanyHeader />
 
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/ordens')}
-            className="h-9 w-9 shrink-0"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 font-mono">
-                {order.number}
-              </h1>
-              <StatusBadge status={order.status} />
-              {serviceInProgress && (
-                <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-[10px] gap-1">
-                  <Play className="h-3 w-3" /> Atendimento em andamento
-                </Badge>
-              )}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/ordens')}
+              className="h-9 gap-1.5 shrink-0 text-xs font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 shadow-xs"
+              title="Voltar para a listagem de Ordens de Serviço"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Voltar</span>
+            </Button>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 font-mono">
+                  {order.number}
+                </h1>
+                <StatusBadge status={order.status} />
+                {serviceInProgress && (
+                  <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-[10px] gap-1">
+                    <Play className="h-3 w-3" /> Atendimento em andamento
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 truncate">{order.title}</p>
             </div>
-            <p className="text-xs text-slate-500 truncate">{order.title}</p>
           </div>
+
+          {canDeleteOs && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConfirmDeleteOsOpen(true)}
+              className="h-9 text-xs font-semibold border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 gap-1.5 shadow-xs"
+              title="Excluir Ordem de Serviço (Ação administrativa / com permissão)"
+            >
+              <Trash2 className="h-4 w-4 text-rose-600" />
+              <span>Excluir O.S.</span>
+            </Button>
+          )}
         </div>
 
         {canStartService && (
@@ -870,12 +932,12 @@ export default function OrdemDetail() {
           <Button
             variant="outline"
             size="sm"
-            onClick={handleEnviarDocumentoOsWhatsApp}
+            onClick={handleEnviarDocumentoOs}
             className="text-xs gap-1.5 h-10 sm:h-9 justify-center border-emerald-400 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-bold shadow-xs"
-            title="Enviar o documento técnico da O.S. ao cliente via WhatsApp (com check-in, laudo e orçamento)"
+            title="Enviar o documento técnico da O.S. ao cliente com seletor de compartilhamento (WhatsApp, Copiar link, Aparelho)"
           >
-            <Send className="h-4 w-4 text-emerald-600" />
-            <span>Enviar ao Cliente (WhatsApp)</span>
+            <Share2 className="h-4 w-4 text-emerald-600" />
+            <span>Enviar ao Cliente</span>
           </Button>
           <Button
             variant="ghost"
@@ -913,6 +975,20 @@ export default function OrdemDetail() {
             >
               <CheckCircle2 className="h-4 w-4" />
               <span>Finalizar Ordem de Serviço</span>
+            </Button>
+          )}
+
+          {/* Botão Excluir O.S. (Administrador ou com permissão os_delete) */}
+          {canDeleteOs && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConfirmDeleteOsOpen(true)}
+              className="text-xs gap-1.5 h-10 sm:h-9 justify-center border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 font-semibold"
+              title="Excluir Ordem de Serviço permanentemente"
+            >
+              <Trash2 className="h-4 w-4 text-rose-600" />
+              <span>Excluir O.S.</span>
             </Button>
           )}
         </div>
@@ -1617,6 +1693,15 @@ export default function OrdemDetail() {
                   <CheckCircle2 className="h-4 w-4 mr-1.5" /> Finalizar Ordem de Serviço
                 </Button>
               )}
+              {canDeleteOs && (
+                <Button
+                  onClick={() => setConfirmDeleteOsOpen(true)}
+                  variant="outline"
+                  className="w-full justify-start text-xs h-9 border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 font-semibold"
+                >
+                  <Trash2 className="h-4 w-4 mr-1.5 text-rose-600" /> Excluir Ordem de Serviço
+                </Button>
+              )}
             </CardContent>
           </Card>
 
@@ -1672,6 +1757,38 @@ export default function OrdemDetail() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Confirmação de Exclusão da Ordem de Serviço com exclusão em cascata */}
+      <AlertDialog open={confirmDeleteOsOpen} onOpenChange={setConfirmDeleteOsOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-rose-600 flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Excluir Ordem de Serviço?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2 text-slate-600">
+              <span className="block">
+                Tem certeza de que deseja excluir permanentemente a Ordem de Serviço{' '}
+                <strong className="font-mono text-slate-900">{order.number}</strong>?
+              </span>
+              <span className="block text-xs text-rose-600 font-semibold bg-rose-50 p-2.5 rounded border border-rose-200">
+                Atenção: Esta ação é irreversível. Todos os itens lançados, histórico de alterações,
+                fotos e registros vinculados serão excluídos em cascata.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingOs}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteOs}
+              disabled={deletingOs}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
+            >
+              {deletingOs ? 'Excluindo...' : 'Sim, Excluir O.S.'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <NewEquipmentModal
         open={equipmentModalOpen}
         onOpenChange={setEquipmentModalOpen}
@@ -1695,6 +1812,199 @@ export default function OrdemDetail() {
           onSaved={loadAll}
         />
       )}
+
+      {/* Modal Seletor de Compartilhamento do Link do Documento (/share/:id) */}
+      <Dialog
+        open={shareChooserOpen}
+        onOpenChange={(open) => {
+          setShareChooserOpen(open)
+          if (!open && pendingAfterShareAction) {
+            const action = pendingAfterShareAction
+            setPendingAfterShareAction(null)
+            action()
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-900 font-bold">
+              <Share2 className="h-5 w-5 text-indigo-600" />
+              {shareChooserTitle}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              {shareChooserDescription ||
+                'Escolha por onde deseja compartilhar o link do documento público da O.S.:'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            {/* WhatsApp */}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const phone = pendingSharePhone
+                if (phone) {
+                  openWhatsApp(phone, pendingShareMessage)
+                  toast({
+                    title: 'WhatsApp aberto!',
+                    description: `Enviando para ${phone}. Link público anexado.`,
+                  })
+                } else {
+                  // Fallback se cliente não tiver telefone cadastrado: abre WhatsApp Web com o texto
+                  window.open(
+                    `https://api.whatsapp.com/send?text=${encodeURIComponent(pendingShareMessage)}`,
+                    '_blank',
+                  )
+                  toast({
+                    title: 'WhatsApp aberto!',
+                    description: 'Escolha o contato para enviar a mensagem.',
+                  })
+                }
+                setShareChooserOpen(false)
+                if (pendingAfterShareAction) {
+                  const act = pendingAfterShareAction
+                  setPendingAfterShareAction(null)
+                  act()
+                }
+              }}
+              className="w-full justify-between h-auto py-3 px-4 border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100/70 text-emerald-900 font-semibold"
+            >
+              <div className="flex items-center gap-3 text-left">
+                <div className="h-9 w-9 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Send className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold">WhatsApp</div>
+                  <div className="text-[11px] font-normal text-emerald-700">
+                    {pendingSharePhone
+                      ? `Enviar direto para ${pendingSharePhone}`
+                      : 'Abrir no WhatsApp e escolher contato'}
+                  </div>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-emerald-700 shrink-0" />
+            </Button>
+
+            {/* Copiar Link para a Área de Transferência */}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={async () => {
+                const url = pendingShareUrl || `${window.location.origin}/share/${order.id}`
+                copyToClipboardSync(url)
+                try {
+                  if (navigator?.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(url)
+                  }
+                } catch {
+                  /* fallback já executado */
+                }
+                toast({
+                  title: 'Link copiado com sucesso!',
+                  description:
+                    'O link do documento público foi copiado para a área de transferência.',
+                })
+                setShareChooserOpen(false)
+                if (pendingAfterShareAction) {
+                  const act = pendingAfterShareAction
+                  setPendingAfterShareAction(null)
+                  act()
+                }
+              }}
+              className="w-full justify-between h-auto py-3 px-4 border-slate-200 hover:bg-slate-50 text-slate-800 font-semibold"
+            >
+              <div className="flex items-center gap-3 text-left">
+                <div className="h-9 w-9 rounded-full bg-slate-800 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Copy className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold">Copiar Link</div>
+                  <div className="text-[11px] font-normal text-slate-500">
+                    Copiar URL pública ({pendingShareUrl || `/share/${order.id}`})
+                  </div>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-slate-400 shrink-0" />
+            </Button>
+
+            {/* Compartilhamento nativo do aparelho (quando suportado) */}
+            {typeof navigator !== 'undefined' && 'share' in navigator && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={async () => {
+                  const url = pendingShareUrl || `${window.location.origin}/share/${order.id}`
+                  try {
+                    await navigator.share({
+                      title: `O.S. ${order.number} - JUCA INFORMÁTICA`,
+                      text: pendingShareMessage,
+                      url: url,
+                    })
+                    toast({
+                      title: 'Compartilhado com sucesso!',
+                    })
+                  } catch (err: unknown) {
+                    // Cancelamento pelo usuário é normal no navigator.share (AbortError)
+                    if (
+                      err &&
+                      typeof err === 'object' &&
+                      'name' in err &&
+                      (err as { name: string }).name !== 'AbortError'
+                    ) {
+                      toast({
+                        title: 'Não foi possível compartilhar',
+                        description: 'Tente copiar o link ou enviar por WhatsApp.',
+                        variant: 'destructive',
+                      })
+                    }
+                  } finally {
+                    setShareChooserOpen(false)
+                    if (pendingAfterShareAction) {
+                      const act = pendingAfterShareAction
+                      setPendingAfterShareAction(null)
+                      act()
+                    }
+                  }
+                }}
+                className="w-full justify-between h-auto py-3 px-4 border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100/50 text-indigo-900 font-semibold"
+              >
+                <div className="flex items-center gap-3 text-left">
+                  <div className="h-9 w-9 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <Share2 className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold">Compartilhar no Aparelho</div>
+                    <div className="text-[11px] font-normal text-indigo-700">
+                      Menu nativo (outros apps, e-mail, Telegram, Bluetooth)
+                    </div>
+                  </div>
+                </div>
+                <ArrowRight className="h-4 w-4 text-indigo-600 shrink-0" />
+              </Button>
+            )}
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setShareChooserOpen(false)
+                if (pendingAfterShareAction) {
+                  const act = pendingAfterShareAction
+                  setPendingAfterShareAction(null)
+                  act()
+                }
+              }}
+              className="text-xs text-slate-600 hover:text-slate-900"
+            >
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

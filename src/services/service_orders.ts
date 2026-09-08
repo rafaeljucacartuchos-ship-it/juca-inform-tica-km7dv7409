@@ -75,6 +75,40 @@ export const deleteServiceOrder = async (id: string) => {
     /* ignore */
   }
 
+  // Se houver anexos/fotos associados
+  try {
+    const attachments = await pb.collection('service_attachments').getFullList({
+      filter: `service_order = "${id}"`,
+    })
+    await Promise.allSettled(
+      attachments.map((att) => pb.collection('service_attachments').delete(att.id)),
+    )
+  } catch {
+    /* ignore */
+  }
+
+  // Se houver avaliações associadas
+  try {
+    const evals = await pb.collection('evaluations').getFullList({
+      filter: `service_order = "${id}"`,
+    })
+    await Promise.allSettled(evals.map((ev) => pb.collection('evaluations').delete(ev.id)))
+  } catch {
+    /* ignore */
+  }
+
+  // Se houver mensagens de pós-venda da OS associadas
+  try {
+    const posMessages = await pb.collection('pos_venda_messages').getFullList({
+      filter: `service_order = "${id}"`,
+    })
+    await Promise.allSettled(
+      posMessages.map((pm) => pb.collection('pos_venda_messages').delete(pm.id)),
+    )
+  } catch {
+    /* ignore */
+  }
+
   // Deleta o registro principal da ordem de serviço
   return pb.collection('service_orders').delete(id)
 }
