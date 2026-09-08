@@ -539,16 +539,32 @@ export async function sendOrcamentoToFaturamento(
 
   // Se for reenvio (já estava faturado):
   // Mantém idempotência: NÃO duplica pagamento, NÃO baixa estoque novamente.
-  // Apenas registra evento no histórico da O.S. (se vinculado) e pós-venda.
+  // Garante que a O.S. vinculada esteja com status 'closed' (se ainda não estiver, fecha via updateOsStatus).
   if (isReenvio) {
     if (orc.id_os) {
       try {
-        await pb.collection('status_history').create({
-          service_order: orc.id_os,
-          status: 'closed',
-          note: `Reenvio de faturamento do Orçamento ${orc.numero_orcamento} realizado. Mensagem reenviada ao grupo de faturamento.`,
-          changed_by: userId,
-        })
+        const currentOs = await pb
+          .collection('service_orders')
+          .getOne<{ status: string }>(orc.id_os, {
+            fields: 'id,status',
+          })
+        if (currentOs.status !== 'closed') {
+          // Atualiza o status real da OS para 'closed' e registra no status_history
+          await updateOsStatus(
+            orc.id_os,
+            'closed',
+            `Reenvio de faturamento do Orçamento ${orc.numero_orcamento} realizado. O.S. finalizada com sucesso.`,
+            userId,
+          )
+        } else {
+          // Já estava fechada: registra apenas o log do reenvio sem alterar o status da OS
+          await pb.collection('status_history').create({
+            service_order: orc.id_os,
+            status: 'closed',
+            note: `Reenvio de faturamento do Orçamento ${orc.numero_orcamento} realizado. Mensagem reenviada ao grupo de faturamento.`,
+            changed_by: userId,
+          })
+        }
       } catch {
         /* ignore */
       }
