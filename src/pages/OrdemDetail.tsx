@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronUp,
   Send,
+  Printer,
 } from 'lucide-react'
 import { OrcamentoItemModal } from '@/components/OrcamentoItemModal'
 import {
@@ -507,6 +508,11 @@ export default function OrdemDetail() {
     })
   }
 
+  const handlePrintOrder = () => {
+    if (!order?.id) return
+    navigate(`/ordens/${order.id}/imprimir`)
+  }
+
   const handleShare = () => {
     const shareUrl = `${window.location.origin}/share/${order.id}`
     navigator.clipboard.writeText(shareUrl)
@@ -706,6 +712,16 @@ export default function OrdemDetail() {
             </Button>
           )}
 
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePrintOrder}
+            className="text-xs gap-1.5 h-10 sm:h-9 justify-center"
+            title="Imprimir documento unificado A4 da Ordem de Serviço"
+          >
+            <Printer className="h-4 w-4" />
+            <span>Imprimir PDF</span>
+          </Button>
           <Button
             variant="outline"
             size="sm"
