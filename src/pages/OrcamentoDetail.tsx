@@ -563,10 +563,10 @@ export default function OrcamentoDetail() {
         status: 'aprovado',
         data_assinatura_cliente: orcamento.data_assinatura_cliente || new Date().toISOString(),
       })
-      // Status da OS controlado: aprovado+assinado -> "aguardando peças" ou "em execução"
+      // Status da OS controlado: aprovado+assinado -> 'orcamento_aprovado'
       await updateOsStatus(
         orcamento.id_os,
-        'in_progress',
+        'orcamento_aprovado',
         `Orçamento ${orcamento.numero_orcamento} aprovado e assinado pelo cliente.`,
         user?.id,
       )
@@ -612,7 +612,7 @@ export default function OrcamentoDetail() {
     }
   }
 
-  // Faturamento
+  // Faturamento (Mudança 3)
   const handleSendToFaturamento = async () => {
     if (!orcamento) return
     if (orcamento.status !== 'aprovado') {
@@ -625,10 +625,76 @@ export default function OrcamentoDetail() {
     }
 
     try {
+      // 1. Executa faturamento no backend (baixa de estoque, financeiro, status do orçamento = 'faturado', status O.S. = 'closed' com histórico)
       await sendOrcamentoToFaturamento(orcamento.id, user?.id)
+
+      // 2. Monta mensagem formatada com número espelhado OS-XXXX/ORC-XXXX, cliente, equipamento, itens com valores, total, forma de pagamento/parcelas
+      const osNumber = os?.number || '—'
+      const orcNumber = orcamento.numero_orcamento || '—'
+      const clientName = getCustomerDisplayName(cust)
+      const equipName = os?.expand?.equipment_ref?.name || os?.equipment || 'Não especificado'
+
+      const itensLinhas =
+        items.length > 0
+          ? items
+              .map((it) => {
+                const qtd = it.quantidade || 1
+                const rawTotal =
+                  typeof it.valor_total_item === 'number'
+                    ? it.valor_total_item
+                    : (it.valor_unitario || 0) * qtd
+                const vlr = rawTotal.toLocaleString('pt-BR', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })
+                return `  • ${qtd}x ${it.descricao}: R$ ${vlr}`
+              })
+              .join('\n')
+          : '  • Nenhum item listado'
+
+      const totalFmt = financialSummary.totalGeral.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+
+      const formaPag = (orcamento.forma_pagamento || 'pix').toUpperCase()
+      const numParc = orcamento.parcelas || 1
+      const parcelasFmt =
+        numParc > 1
+          ? `${numParc}x de R$ ${(financialSummary.totalGeral / numParc).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          : 'À vista'
+
+      const mensagemFaturamento =
+        `📄 *FATURAMENTO CONCLUÍDO - JUCA INFORMÁTICA*\n\n` +
+        `🔢 *O.S. / Orçamento:* ${osNumber} / ${orcNumber}\n` +
+        `👤 *Cliente:* ${clientName}\n` +
+        `💻 *Equipamento:* ${equipName}\n\n` +
+        `📦 *Itens e Serviços:*\n` +
+        `${itensLinhas}\n\n` +
+        `💰 *Total Geral:* R$ ${totalFmt}\n` +
+        `💳 *Forma de Pagamento:* ${formaPag} (${parcelasFmt})\n\n` +
+        `✅ *Status O.S.:* Finalizada (Closed)\n` +
+        `✅ *Status Orçamento:* Faturado`
+
+      // 3. Copia a mensagem para a área de transferência
+      try {
+        await navigator.clipboard.writeText(mensagemFaturamento)
+        toast({
+          title: 'Resumo copiado para a área de transferência!',
+          description:
+            'A mensagem de faturamento foi copiada e o grupo do WhatsApp está sendo aberto.',
+        })
+      } catch {
+        /* fallback se permissão negada */
+      }
+
+      // 4. Abre o link do grupo de WhatsApp
+      window.open('https://chat.whatsapp.com/GfUlsLlK9SBLa7BUfxS4J3', '_blank')
+
       toast({
-        title: 'Orçamento enviado para o faturamento',
-        description: 'Lançamento financeiro gerado e estoque atualizado com sucesso.',
+        title: 'Orçamento enviado para o faturamento!',
+        description:
+          'Lançamento financeiro gerado, estoque atualizado e O.S. finalizada com sucesso.',
       })
       setFaturamentoConfirmOpen(false)
       loadAll()

@@ -132,7 +132,7 @@ routerAdd('POST', '/backend/v1/proposta/{token}/aprovar', (e) => {
   const osId = orcamento.getString('id_os')
   const numOrc = orcamento.getString('numero_orcamento')
 
-  // Aplica efeitos na O.S. (muda status para in_progress e cria status_history)
+  // Aplica efeitos na O.S. (muda status para orcamento_aprovado e cria status_history)
   let osNumber = ''
   let custName = ''
   let equipName = ''
@@ -145,14 +145,14 @@ routerAdd('POST', '/backend/v1/proposta/{token}/aprovar', (e) => {
       equipName = osRecord.getString('equipment')
       techId = osRecord.getString('technician')
 
-      osRecord.set('status', 'in_progress')
+      osRecord.set('status', 'orcamento_aprovado')
       $app.save(osRecord)
 
       // Histórico de status
       const shCol = $app.findCollectionByNameOrId('status_history')
       const shRecord = new Record(shCol)
       shRecord.set('service_order', osId)
-      shRecord.set('status', 'in_progress')
+      shRecord.set('status', 'orcamento_aprovado')
       shRecord.set(
         'note',
         'Orçamento ' +

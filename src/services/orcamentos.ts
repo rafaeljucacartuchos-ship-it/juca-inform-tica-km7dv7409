@@ -349,13 +349,30 @@ export async function uploadOrcamentoSignature(
   const now = new Date().toISOString()
   if (field === 'assinatura_cliente') {
     formData.append('data_assinatura_cliente', now)
+    formData.append('status', 'aprovado')
   } else {
     formData.append('data_assinatura_tecnico', now)
   }
   if (ipDispositivo) {
     formData.append('ip_dispositivo', ipDispositivo)
   }
-  return await pb.collection('orcamentos').update<Orcamento>(orcamentoId, formData)
+  const updatedOrc = await pb.collection('orcamentos').update<Orcamento>(orcamentoId, formData)
+
+  // Mudança 2: na assinatura de cliente ou técnico -> status da O.S. = 'orcamento_aprovado' com registro no histórico
+  try {
+    if (updatedOrc.id_os) {
+      const signerLabel = field === 'assinatura_cliente' ? 'cliente' : 'técnico'
+      await updateOsStatus(
+        updatedOrc.id_os,
+        'orcamento_aprovado',
+        `Orçamento ${updatedOrc.numero_orcamento} com assinatura do ${signerLabel} registrada.`,
+      )
+    }
+  } catch (err) {
+    console.warn('Erro ao atualizar status da O.S. para orcamento_aprovado após assinatura:', err)
+  }
+
+  return updatedOrc
 }
 
 /**
@@ -489,12 +506,12 @@ export async function sendOrcamentoToFaturamento(
     status: 'faturado',
   })
 
-  // 5. Registra no histórico da OS
+  // 5. Registra no histórico da OS (Mudança 3: status da O.S. = 'closed' com histórico)
   try {
     await updateOsStatus(
       orc.id_os,
-      'in_progress',
-      `Orçamento ${orc.numero_orcamento} faturado com sucesso. Lançamento financeiro de R$ ${totalAmount.toFixed(2)} gerado.`,
+      'closed',
+      `Orçamento ${orc.numero_orcamento} faturado e O.S. finalizada com sucesso. Lançamento financeiro de R$ ${totalAmount.toFixed(2)} gerado.`,
       userId,
     )
   } catch {

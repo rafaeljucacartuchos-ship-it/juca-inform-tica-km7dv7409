@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
-  Plus,
-  Trash2,
   ArrowLeft,
   DollarSign,
   Play,
@@ -10,49 +8,25 @@ import {
   MessageCircle,
   Share2,
   Printer,
-  ScanLine,
-  Search,
-  Package,
-  Wrench,
   FileText,
+  ExternalLink,
+  Plus,
 } from 'lucide-react'
-import { BarcodeScanner } from '@/components/BarcodeScanner'
-import { AddOrderItemModal } from '@/components/AddOrderItemModal'
-import { EditOrderItemModal } from '@/components/EditOrderItemModal'
-import { getProduct } from '@/services/products'
-import { Product } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CompanyHeader } from '@/components/CompanyHeader'
 import { Badge } from '@/components/ui/badge'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  ServiceOrder,
-  ServiceOrderItem,
-  StatusHistory,
-  CatalogService,
-  Payment,
-  OrderStatus,
-} from '@/types'
-import { getServiceOrder, getOrderItems, getStatusHistory } from '@/services/service_orders'
-import { getCatalogServices } from '@/services/services_catalog'
+import { ServiceOrder, StatusHistory, Payment, OrderStatus } from '@/types'
+import { getServiceOrder, getStatusHistory } from '@/services/service_orders'
 import { getCustomerPhone, getCustomerDisplayName } from '@/services/customers'
 import { getOrderPayments } from '@/services/payments'
-import { getActiveOrcamento, createOrcamento } from '@/services/orcamentos'
-import { Orcamento } from '@/types'
-import pb from '@/lib/pocketbase/client'
+import { getActiveOrcamento, getOrcamentoItens, createOrcamento } from '@/services/orcamentos'
+import { Orcamento, OrcamentoItem } from '@/types'
 import { offlinePb } from '@/lib/offline-pb'
 import { PaymentModal } from '@/components/PaymentModal'
 import { OrderPhotos } from '@/components/OrderPhotos'
-import { OrderSignatures } from '@/components/OrderSignatures'
 import { NewEquipmentModal } from '@/components/NewEquipmentModal'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
@@ -72,22 +46,14 @@ export default function OrdemDetail() {
   const { user } = useAuth()
   const { toast } = useToast()
   const [order, setOrder] = useState<ServiceOrder | null>(null)
-  const [items, setItems] = useState<ServiceOrderItem[]>([])
-  const [orderItemsTab, setOrderItemsTab] = useState<'all' | 'products' | 'services'>('all')
   const [activeOrcamento, setActiveOrcamento] = useState<Orcamento | null>(null)
+  const [orcamentoItens, setOrcamentoItens] = useState<OrcamentoItem[]>([])
   const [creatingOrcamento, setCreatingOrcamento] = useState(false)
   const [history, setHistory] = useState<StatusHistory[]>([])
-  const [catalog, setCatalog] = useState<CatalogService[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
-  const [selectedCatalogId, setSelectedCatalogId] = useState('')
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [serviceReport, setServiceReport] = useState('')
   const [starting, setStarting] = useState(false)
-  const [scannerOpen, setScannerOpen] = useState(false)
-  const [addingByCode, setAddingByCode] = useState(false)
-  const [searchItemOpen, setSearchItemOpen] = useState(false)
-  const [editingItem, setEditingItem] = useState<ServiceOrderItem | null>(null)
-  const [editModalOpen, setEditModalOpen] = useState(false)
   const [equipmentModalOpen, setEquipmentModalOpen] = useState(false)
   const canEdit = user?.role === 'technician' || user?.role === 'admin'
   // Antes de iniciar o atendimento (started_at vazio), os campos editáveis
@@ -102,56 +68,26 @@ export default function OrdemDetail() {
   const loadAll = async () => {
     if (!id) return
     try {
-      const [o, it, h, cat, p, orc] = await Promise.all([
+      const [o, h, p, orc] = await Promise.all([
         getServiceOrder(id),
-        getOrderItems(id),
         getStatusHistory(id),
-        getCatalogServices(),
         getOrderPayments(id),
         getActiveOrcamento(id),
       ])
       setActiveOrcamento(orc)
-      // Recalcula o subtotal a partir da soma real dos itens carregados do banco de dados
-      const subtotal = it.reduce((sum, item) => sum + (item.total || 0), 0)
-      const desc = Number(o.desconto) || 0
-      const acresc = Number(o.acrescimo) || 0
-      const calculatedTotal = Math.max(0, subtotal + acresc - desc)
-      o.total = calculatedTotal
+      if (orc?.id) {
+        const oItens = await getOrcamentoItens(orc.id)
+        setOrcamentoItens(oItens)
+      } else {
+        setOrcamentoItens([])
+      }
 
       setOrder(o)
-      setItems(it)
       setHistory(h)
-      setCatalog(cat)
       setPayments(p)
       setServiceReport(o.service_report || '')
-
-      // Se houver divergência no banco de dados, persiste o total recalculado
-      offlinePb.update('service_orders', id, { total: calculatedTotal }).catch(() => {})
     } catch {
       /* intentionally ignored */
-    }
-  }
-
-  const handleUpdateAdjustments = async (newDesconto: number, newAcrescimo: number) => {
-    if (!order) return
-    const subtotal = items.reduce((sum, item) => sum + (item.total || 0), 0)
-    const newTotal = Math.max(0, subtotal + newAcrescimo - newDesconto)
-    try {
-      const upd = await offlinePb.update('service_orders', order.id, {
-        desconto: newDesconto,
-        acrescimo: newAcrescimo,
-        total: newTotal,
-      })
-      if (upd.queued) {
-        toast({ title: 'Ajustes salvos localmente.' })
-      } else {
-        toast({ title: 'Valores atualizados com sucesso!' })
-      }
-      setOrder((prev) =>
-        prev ? { ...prev, desconto: newDesconto, acrescimo: newAcrescimo, total: newTotal } : prev,
-      )
-    } catch {
-      toast({ title: 'Erro ao atualizar valores', variant: 'destructive' })
     }
   }
 
@@ -160,23 +96,14 @@ export default function OrdemDetail() {
   }, [id])
 
   useRealtime('service_orders', (e) => {
-    // Evita sobrescrever o estado local quando a notificação em tempo real for a atualização da própria ordem que estamos editando
     if (e.record?.id === id && e.action === 'update') {
-      const remoteTotal = Number(e.record?.total) || 0
-      setOrder((prev) => {
-        if (!prev) return prev
-        // Preserva o total calculado localmente dos itens se o evento remoto contiver total zerado ou divergente enquanto houver itens
-        return {
-          ...prev,
-          ...e.record,
-          total: remoteTotal > 0 || prev.total === 0 ? remoteTotal : prev.total,
-        }
-      })
+      setOrder((prev) => (prev ? { ...prev, ...e.record } : prev))
     } else {
       loadAll()
     }
   })
-  useRealtime('service_order_items', () => loadAll())
+  useRealtime('orcamentos', () => loadAll())
+  useRealtime('orcamento_itens', () => loadAll())
   useRealtime('status_history', () => {
     if (id)
       getStatusHistory(id)
@@ -224,7 +151,7 @@ export default function OrdemDetail() {
         toast({ title: 'Histórico salvo localmente. Será sincronizado quando houver conexão.' })
       }
       if (newStatus === 'completed') {
-        const productItems = items.filter((it) => !!it.product)
+        const productItems = orcamentoItens.filter((it) => it.tipo === 'produto')
         toast({
           title: 'Status alterado com sucesso!',
           description:
@@ -232,7 +159,7 @@ export default function OrdemDetail() {
               ? `Estoque atualizado: ${productItems.length} ${
                   productItems.length === 1 ? 'produto teve' : 'produtos tiveram'
                 } a quantidade descontada.`
-              : 'O.S. concluída — nenhum produto para baixar do estoque.',
+              : 'O.S. concluída.',
         })
       } else {
         toast({ title: 'Status alterado com sucesso!' })
@@ -335,13 +262,13 @@ export default function OrdemDetail() {
         orderNumber: order.number,
         equipment: equip,
         serviceReport: serviceReport,
-        items: items.map((it) => ({
-          description: it.description,
-          quantity: it.quantity || 1,
-          unitPrice: it.unit_price || 0,
-          total: it.total || 0,
+        items: orcamentoItens.map((it) => ({
+          description: it.descricao,
+          quantity: it.quantidade || 1,
+          unitPrice: it.valor_unitario || 0,
+          total: it.valor_total_item || 0,
         })),
-        total: order.total || 0,
+        total: activeOrcamento?.total_geral ?? order.total ?? 0,
         shareUrl,
       })
 
@@ -415,8 +342,8 @@ export default function OrdemDetail() {
     if (order.status === 'open') {
       openWhatsApp(phone, buildOpenOrderWelcomeMessage(name, order.number, equip, techName))
     } else if (order.status === 'completed') {
-      const itemsText = items
-        .map((i) => i.description)
+      const itemsText = orcamentoItens
+        .map((i) => i.descricao)
         .filter(Boolean)
         .slice(0, 3)
         .join(', ')
@@ -435,72 +362,6 @@ export default function OrdemDetail() {
     const shareUrl = `${window.location.origin}/share/${order.id}`
     navigator.clipboard.writeText(shareUrl)
     toast({ title: 'Link de compartilhamento copiado!' })
-  }
-
-  const handleOpenEditItem = (item: ServiceOrderItem) => {
-    if (fieldsLocked) return
-    setEditingItem(item)
-    setEditModalOpen(true)
-  }
-
-  const handleAddItem = async () => {
-    if (!selectedCatalogId || addingByCode) return
-    const catItem = catalog.find((c) => c.id === selectedCatalogId)
-    if (!catItem) return
-    setAddingByCode(true)
-    try {
-      const itemPrice = catItem.price || 0
-      const itemTitle = catItem.title || catItem.name || 'Serviço'
-      const res = await offlinePb.create('service_order_items', {
-        service_order: order.id,
-        service: catItem.id,
-        description: itemTitle,
-        quantity: 1,
-        unit_price: itemPrice,
-        total: itemPrice,
-      })
-      if (res.queued) {
-        toast({ title: 'Item salvo localmente. Será sincronizado quando houver conexão.' })
-      } else {
-        toast({ title: 'Item adicionado à OS' })
-      }
-      // Otimiza a UI inserindo o item local imediatamente (online ou offline).
-      setItems((prev) => [
-        ...prev,
-        {
-          id: res.id,
-          service_order: order.id,
-          service: catItem.id,
-          description: itemTitle,
-          quantity: 1,
-          unit_price: itemPrice,
-          total: itemPrice,
-          created: new Date().toISOString(),
-        },
-      ])
-      setSelectedCatalogId('')
-      await loadAll()
-    } catch {
-      toast({ title: 'Erro ao adicionar item', variant: 'destructive' })
-    } finally {
-      setAddingByCode(false)
-    }
-  }
-
-  const handleDeleteItem = async (itemId: string) => {
-    try {
-      const res = await offlinePb.delete('service_order_items', itemId)
-      if (res.queued) {
-        toast({ title: 'Item removido localmente. Será sincronizado quando houver conexão.' })
-      } else {
-        toast({ title: 'Item removido' })
-      }
-      // Remove localmente imediatamente para feedback de UI.
-      setItems((prev) => prev.filter((it) => it.id !== itemId))
-      await loadAll()
-    } catch {
-      toast({ title: 'Erro ao remover item', variant: 'destructive' })
-    }
   }
 
   const handleEquipmentCreated = async (created?: any) => {
@@ -544,50 +405,6 @@ export default function OrdemDetail() {
         title: 'Erro ao vincular equipamento à O.S.',
         variant: 'destructive',
       })
-    }
-  }
-
-  const handleScanProduct = async (code: string) => {
-    if (!order || addingByCode) return
-    setAddingByCode(true)
-    try {
-      // Busca produto pelo ID ou SKU (busca exata ou por filtro de SKU)
-      let found: Product | null = null
-      try {
-        found = await getProduct(code)
-      } catch {
-        /* não encontrou por id — tenta por sku abaixo */
-      }
-      if (!found) {
-        const trimmed = code.trim().replace(/"/g, '')
-        const results = await pb.collection('products').getFullList<Product>({
-          filter: `barcode = "${trimmed}" || codigo_barras = "${trimmed}" || sku = "${trimmed}"`,
-        })
-        found = results[0] || null
-      }
-      if (!found) {
-        toast({ title: 'Produto não cadastrado', variant: 'destructive' })
-        return
-      }
-      const unitPrice = found.price || 0
-      const res = await offlinePb.create('service_order_items', {
-        service_order: order.id,
-        product: found.id,
-        description: found.name,
-        quantity: 1,
-        unit_price: unitPrice,
-        total: unitPrice,
-      })
-      if (res.queued) {
-        toast({ title: 'Produto salvo localmente. Será sincronizado quando houver conexão.' })
-      } else {
-        toast({ title: 'Produto adicionado à OS', description: found.name })
-      }
-      await loadAll()
-    } catch {
-      toast({ title: 'Erro ao adicionar produto escaneado', variant: 'destructive' })
-    } finally {
-      setAddingByCode(false)
     }
   }
 
@@ -810,343 +627,202 @@ export default function OrdemDetail() {
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3">
-              <CardTitle className="text-sm font-bold text-slate-900">Itens e Serviços</CardTitle>
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <Select
-                  value={selectedCatalogId}
-                  onValueChange={setSelectedCatalogId}
-                  disabled={fieldsLocked}
-                >
-                  <SelectTrigger className="h-8 text-xs flex-1 sm:w-48">
-                    <SelectValue placeholder="Adicionar serviço..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {catalog.map((c) => (
-                      <SelectItem key={c.id} value={c.id} className="text-xs">
-                        {c.title || c.name || 'Serviço'} (R$ {(c.price || 0).toFixed(2)})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          {/* MUDANÇA 1: Card somente-leitura "Resumo do Orçamento Vinculado" */}
+          {activeOrcamento ? (
+            <Card className="border-slate-200 shadow-sm bg-white overflow-hidden">
+              <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 bg-slate-50/70 border-b border-slate-100">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <FileText className="h-4 w-4 text-indigo-600" />
+                  <CardTitle className="text-sm font-bold text-slate-900">
+                    Resumo do Orçamento Vinculado
+                  </CardTitle>
+                  <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                    {activeOrcamento.numero_orcamento}
+                  </span>
+                  <Badge variant="outline" className="text-xs uppercase font-semibold">
+                    {activeOrcamento.status}
+                  </Badge>
+                </div>
                 <Button
                   size="sm"
-                  onClick={handleAddItem}
-                  disabled={fieldsLocked}
-                  className="h-8 text-xs bg-indigo-600"
+                  onClick={() => navigate(`/orcamentos/${activeOrcamento.id}`)}
+                  className="h-8 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shrink-0"
                 >
-                  <Plus className="h-3.5 w-3.5" />
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Abrir Orçamento Completo
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setSearchItemOpen(true)}
-                  disabled={fieldsLocked}
-                  className="h-8 text-xs gap-1.5"
-                  title="Buscar produto ou serviço por nome"
-                >
-                  <Search className="h-3.5 w-3.5 text-indigo-600" />
-                  <span className="hidden sm:inline">Buscar Item</span>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setScannerOpen(true)}
-                  disabled={fieldsLocked || addingByCode}
-                  className="h-8 text-xs gap-1.5"
-                  title="Escanear produto por código de barras"
-                >
-                  <ScanLine className="h-3.5 w-3.5 text-indigo-600" />
-                  <span className="hidden sm:inline">Escanear Produto</span>
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              {/* Abas de visualização de Itens: Todos | Produtos | Serviços */}
-              {(() => {
-                const productItems = items.filter(
-                  (it) => !!it.product && it.expand?.product?.type !== 'servico',
-                )
-                const serviceItems = items.filter(
-                  (it) => !!it.service || it.expand?.product?.type === 'servico',
-                )
-                const totalProd = productItems.reduce((acc, it) => acc + (it.total || 0), 0)
-                const totalServ = serviceItems.reduce((acc, it) => acc + (it.total || 0), 0)
+              </CardHeader>
+              <CardContent className="p-4 space-y-4 text-xs">
+                {/* Badges de assinaturas */}
+                <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
+                  <span className="font-semibold text-slate-600 text-xs">Assinaturas:</span>
+                  <Badge
+                    className={
+                      activeOrcamento.assinatura_cliente
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-slate-100 text-slate-500 border-slate-200'
+                    }
+                  >
+                    Cliente: {activeOrcamento.assinatura_cliente ? '✓ Assinado' : 'Pendente'}
+                  </Badge>
+                  <Badge
+                    className={
+                      activeOrcamento.assinatura_tecnico
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-slate-100 text-slate-500 border-slate-200'
+                    }
+                  >
+                    Técnico: {activeOrcamento.assinatura_tecnico ? '✓ Assinado' : 'Pendente'}
+                  </Badge>
+                </div>
 
-                const displayedItems =
-                  orderItemsTab === 'products'
-                    ? productItems
-                    : orderItemsTab === 'services'
-                      ? serviceItems
-                      : items
-
-                return (
-                  <div>
-                    <div className="flex items-center justify-between px-4 py-2 border-y border-slate-100 bg-slate-50/70 text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setOrderItemsTab('all')}
-                          className={`px-2.5 py-1 rounded font-semibold transition-colors ${
-                            orderItemsTab === 'all'
-                              ? 'bg-slate-900 text-white'
-                              : 'text-slate-600 hover:bg-slate-200'
-                          }`}
-                        >
-                          Todos ({items.length})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setOrderItemsTab('products')}
-                          className={`px-2.5 py-1 rounded font-semibold flex items-center gap-1 transition-colors ${
-                            orderItemsTab === 'products'
-                              ? 'bg-indigo-600 text-white'
-                              : 'text-indigo-700 bg-indigo-50 hover:bg-indigo-100'
-                          }`}
-                        >
-                          <Package className="h-3 w-3" />
-                          Produtos ({productItems.length})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setOrderItemsTab('services')}
-                          className={`px-2.5 py-1 rounded font-semibold flex items-center gap-1 transition-colors ${
-                            orderItemsTab === 'services'
-                              ? 'bg-emerald-600 text-white'
-                              : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
-                          }`}
-                        >
-                          <Wrench className="h-3 w-3" />
-                          Serviços ({serviceItems.length})
-                        </button>
-                      </div>
-
-                      <div className="hidden sm:flex items-center gap-3 text-[11px] text-slate-500 font-medium">
-                        <span>
-                          Produtos:{' '}
-                          <strong className="font-mono text-slate-800">
-                            R$ {totalProd.toFixed(2)}
-                          </strong>
-                        </span>
-                        <span>•</span>
-                        <span>
-                          Serviços:{' '}
-                          <strong className="font-mono text-slate-800">
-                            R$ {totalServ.toFixed(2)}
-                          </strong>
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="sm:hidden divide-y divide-slate-100">
-                      {displayedItems.map((item) => {
-                        const isService = !!item.service || item.expand?.product?.type === 'servico'
-                        return (
-                          <div
-                            key={item.id}
-                            onClick={() => handleOpenEditItem(item)}
-                            className={`p-3 space-y-1.5 transition-colors ${
-                              fieldsLocked
-                                ? 'opacity-90'
-                                : 'cursor-pointer hover:bg-slate-50/80 active:bg-slate-100/70'
-                            }`}
-                            title={fieldsLocked ? undefined : 'Clique para editar o item'}
-                          >
-                            <div className="flex justify-between items-start gap-2">
-                              <div className="flex-1">
-                                <span className="font-medium text-xs text-slate-900 block group-hover:text-indigo-600">
-                                  {item.description}
-                                </span>
+                {/* Tabela de Itens (somente leitura) */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold text-slate-700 text-xs">Itens e Serviços:</span>
+                    <span className="text-slate-400 text-[11px]">
+                      {orcamentoItens.length} {orcamentoItens.length === 1 ? 'item' : 'itens'}
+                    </span>
+                  </div>
+                  {orcamentoItens.length === 0 ? (
+                    <p className="text-slate-400 italic py-3 text-center bg-slate-50 rounded">
+                      Nenhum item lançado no orçamento ainda.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto rounded border border-slate-100">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold">
+                          <tr>
+                            <th className="py-2 px-3">Tipo</th>
+                            <th className="py-2 px-3">Descrição</th>
+                            <th className="py-2 px-3 text-center w-14">Qtd</th>
+                            <th className="py-2 px-3 text-right">Unitário</th>
+                            <th className="py-2 px-3 text-right">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {orcamentoItens.map((it) => (
+                            <tr key={it.id} className="hover:bg-slate-50/50">
+                              <td className="py-2 px-3">
                                 <span
-                                  className={`inline-flex items-center text-[9px] font-bold px-1.5 py-0.2 rounded mt-0.5 ${
-                                    isService
+                                  className={`inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded capitalize ${
+                                    it.tipo === 'servico'
                                       ? 'bg-emerald-100 text-emerald-800'
                                       : 'bg-indigo-100 text-indigo-800'
                                   }`}
                                 >
-                                  {isService ? 'Serviço' : 'Produto'}
+                                  {it.tipo}
                                 </span>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleDeleteItem(item.id)
-                                }}
-                                disabled={fieldsLocked}
-                                className="h-7 w-7 shrink-0 text-red-500 hover:bg-red-50"
-                                title="Excluir item"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                            <div className="flex justify-between text-[11px] text-slate-500">
-                              <span className="flex items-center gap-1">
-                                Qtd: {item.quantity || 1} × R$ {(item.unit_price || 0).toFixed(2)}
-                                {!fieldsLocked && (
-                                  <span className="text-[10px] text-indigo-600 font-medium ml-1">
-                                    (editar)
-                                  </span>
-                                )}
-                              </span>
-                              <span className="font-bold text-slate-900 text-xs">
-                                R$ {(item.total || 0).toFixed(2)}
-                              </span>
-                            </div>
-                          </div>
-                        )
-                      })}
-                      {displayedItems.length === 0 && (
-                        <p className="py-6 text-center text-slate-400 text-xs">
-                          Nenhum item nesta aba.
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="overflow-x-auto w-full">
-                      <table className="hidden sm:table w-full text-left text-xs">
-                        <thead className="bg-slate-50 border-b border-slate-200 text-slate-500">
-                          <tr>
-                            <th className="py-2.5 px-4">Tipo</th>
-                            <th className="py-2.5 px-4">Descrição</th>
-                            <th className="py-2.5 px-4 text-center">Qtd</th>
-                            <th className="py-2.5 px-4 text-right">Un.</th>
-                            <th className="py-2.5 px-4 text-right">Total</th>
-                            <th className="py-2.5 px-4 text-right">Ações</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {displayedItems.map((item) => {
-                            const isService =
-                              !!item.service || item.expand?.product?.type === 'servico'
-                            return (
-                              <tr
-                                key={item.id}
-                                onClick={() => handleOpenEditItem(item)}
-                                className={`transition-colors group ${
-                                  fieldsLocked
-                                    ? 'opacity-90'
-                                    : 'cursor-pointer hover:bg-indigo-50/40'
-                                }`}
-                                title={
-                                  fieldsLocked
-                                    ? undefined
-                                    : 'Clique na linha para editar valor ou quantidade'
-                                }
-                              >
-                                <td className="py-2.5 px-4">
-                                  <span
-                                    className={`inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                                      isService
-                                        ? 'bg-emerald-100 text-emerald-800'
-                                        : 'bg-indigo-100 text-indigo-800'
-                                    }`}
-                                  >
-                                    {isService ? 'Serviço' : 'Produto'}
-                                  </span>
-                                </td>
-                                <td className="py-2.5 px-4 font-medium text-slate-900 group-hover:text-indigo-600 transition-colors">
-                                  <div className="flex items-center gap-1.5">
-                                    <span>{item.description || 'Item sem descrição'}</span>
-                                    {!fieldsLocked && (
-                                      <span className="opacity-0 group-hover:opacity-100 text-[10px] text-indigo-500 transition-opacity">
-                                        (clique para editar)
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="py-2.5 px-4 text-center font-semibold text-slate-800">
-                                  {item.quantity || 1}
-                                </td>
-                                <td className="py-2.5 px-4 text-right font-mono">
-                                  R$ {(item.unit_price || 0).toFixed(2)}
-                                </td>
-                                <td className="py-2.5 px-4 text-right font-mono font-bold text-slate-900">
-                                  R$ {(item.total || 0).toFixed(2)}
-                                </td>
-                                <td className="py-2.5 px-4 text-right">
-                                  <div
-                                    className="flex items-center justify-end gap-1"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => handleDeleteItem(item.id)}
-                                      disabled={fieldsLocked}
-                                      className="h-7 w-7 text-red-500 hover:bg-red-50"
-                                      title="Excluir item"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </div>
-                                </td>
-                              </tr>
-                            )
-                          })}
+                              </td>
+                              <td className="py-2 px-3 font-medium text-slate-900">
+                                {it.descricao}
+                              </td>
+                              <td className="py-2 px-3 text-center font-mono">
+                                {it.quantidade || 1}
+                              </td>
+                              <td className="py-2 px-3 text-right font-mono text-slate-600">
+                                R${' '}
+                                {(it.valor_unitario || 0).toLocaleString('pt-BR', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </td>
+                              <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
+                                R${' '}
+                                {(it.valor_total_item || 0).toLocaleString('pt-BR', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
-                  </div>
-                )
-              })()}
-              {/* Resumo Financeiro com Subtotal, Desconto, Acréscimo e Total */}
-              <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-2 text-xs">
-                <div className="flex justify-between items-center text-slate-600 font-medium">
-                  <span>Subtotal dos Itens:</span>
-                  <span className="font-mono font-bold text-slate-800">
-                    R$ {items.reduce((s, it) => s + (it.total || 0), 0).toFixed(2)}
-                  </span>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2 border-y border-slate-200/80">
-                  <div className="flex items-center gap-2">
-                    <label className="text-slate-600 font-semibold shrink-0">Desconto (R$):</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      disabled={!canEdit || fieldsLocked}
-                      value={order.desconto ?? 0}
-                      onChange={(e) => {
-                        const val = Math.max(0, parseFloat(e.target.value) || 0)
-                        handleUpdateAdjustments(val, order.acrescimo || 0)
-                      }}
-                      className="h-7 w-28 px-2 font-mono text-xs border border-slate-200 rounded bg-white text-rose-700 font-bold"
-                    />
+                {/* Resumo financeiro do orçamento (R$ 0.000,00) */}
+                <div className="bg-slate-50 p-3.5 rounded-lg border border-slate-200/80 space-y-1.5">
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>Subtotal:</span>
+                    <span className="font-mono font-semibold text-slate-800">
+                      R${' '}
+                      {(activeOrcamento.subtotal || 0).toLocaleString('pt-BR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <label className="text-slate-600 font-semibold shrink-0">Acréscimo (R$):</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      disabled={!canEdit || fieldsLocked}
-                      value={order.acrescimo ?? 0}
-                      onChange={(e) => {
-                        const val = Math.max(0, parseFloat(e.target.value) || 0)
-                        handleUpdateAdjustments(order.desconto || 0, val)
-                      }}
-                      className="h-7 w-28 px-2 font-mono text-xs border border-slate-200 rounded bg-white text-emerald-700 font-bold"
-                    />
+                  {(activeOrcamento.desconto_total_valor || 0) > 0 && (
+                    <div className="flex justify-between items-center text-rose-600">
+                      <span>Desconto Total:</span>
+                      <span className="font-mono font-semibold">
+                        -R${' '}
+                        {(activeOrcamento.desconto_total_valor || 0).toLocaleString('pt-BR', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center pt-1.5 border-t border-slate-200 text-sm font-bold">
+                    <span className="text-slate-900">Total do Orçamento:</span>
+                    <span className="font-mono text-indigo-700 text-base">
+                      R${' '}
+                      {(activeOrcamento.total_geral || 0).toLocaleString('pt-BR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
                   </div>
                 </div>
-
-                <div className="flex justify-between items-center font-bold text-sm pt-1">
-                  <span>Total da Ordem (Subtotal + Acréscimo - Desconto):</span>
-                  <span className="font-mono text-indigo-600 text-base">
-                    R$ {(order.total || 0).toFixed(2)}
-                  </span>
-                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-indigo-200 bg-indigo-50/40 shadow-sm p-6 text-center space-y-3">
+              <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center mx-auto text-indigo-600">
+                <FileText className="h-5 w-5" />
               </div>
-            </CardContent>
-          </Card>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Nenhum Orçamento Vinculado a Esta O.S.
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                  Gere um orçamento para adicionar peças, produtos e serviços com controle de
+                  aprovação, assinatura e faturamento.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                disabled={creatingOrcamento}
+                onClick={async () => {
+                  setCreatingOrcamento(true)
+                  try {
+                    const novo = await createOrcamento({
+                      id_os: order.id,
+                      id_usuario_criador: user?.id,
+                    })
+                    toast({
+                      title: 'Orçamento gerado com sucesso!',
+                      description: `Número: ${novo.numero_orcamento}`,
+                    })
+                    navigate(`/orcamentos/${novo.id}`)
+                  } catch {
+                    toast({ title: 'Erro ao gerar orçamento', variant: 'destructive' })
+                  } finally {
+                    setCreatingOrcamento(false)
+                  }
+                }}
+                className="h-9 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-sm"
+              >
+                <Plus className="h-4 w-4" />
+                {creatingOrcamento ? 'Gerando...' : 'Gerar Orçamento'}
+              </Button>
+            </Card>
+          )}
 
           <OrderPhotos orderId={order.id} canEdit={canEdit && !fieldsLocked} />
-          <OrderSignatures order={order} canEdit={canEdit && !fieldsLocked} onSaved={loadAll} />
         </div>
 
         <div className="space-y-6">
@@ -1235,28 +911,6 @@ export default function OrdemDetail() {
         onOpenChange={setPaymentModalOpen}
         orderId={order.id}
         defaultAmount={order.total}
-        onSaved={loadAll}
-      />
-
-      <BarcodeScanner
-        open={scannerOpen}
-        onOpenChange={setScannerOpen}
-        onDetected={handleScanProduct}
-      />
-
-      <AddOrderItemModal
-        open={searchItemOpen}
-        onOpenChange={setSearchItemOpen}
-        orderId={order.id}
-        currentTotal={order.total || 0}
-        onAdded={loadAll}
-      />
-
-      <EditOrderItemModal
-        open={editModalOpen}
-        onOpenChange={setEditModalOpen}
-        item={editingItem}
-        orderId={order.id}
         onSaved={loadAll}
       />
 
