@@ -16,6 +16,34 @@ export function buildWhatsAppUrl(phone: string, message: string): string {
 }
 
 /**
+ * Mensagem de apresentação da empresa e do técnico responsável para conversar com o cliente na O.S.
+ * Abre o WhatsApp SOMENTE para conversar com o cliente, SEM enviar link algum.
+ */
+export function buildTechnicianPresentationMessage(params: {
+  customerName: string
+  technicianName?: string
+  orderNumber?: string
+  equipment?: string
+}): string {
+  const { customerName, technicianName, orderNumber, equipment } = params
+  const firstName = customerName.split(' ')[0] || customerName
+  const tech = technicianName?.trim() ? technicianName.trim() : 'da equipe técnica'
+  const equipPart = equipment?.trim() ? ` (${equipment.trim()})` : ''
+  const osPart = orderNumber?.trim()
+    ? ` referente à sua O.S. *${orderNumber.trim()}*${equipPart}`
+    : ''
+
+  return (
+    `🛠️ *JUCA INFORMÁTICA*\n\n` +
+    `Olá, *${firstName}*! Tudo bem?\n\n` +
+    `Aqui é o *${tech}*, da JUCA INFORMÁTICA — estamos cuidando do seu atendimento${osPart}.\n\n` +
+    `Qualquer dúvida ou informação que precisar, pode me chamar por aqui! 🙂\n\n` +
+    `Juca Cartuchos e Informática Ltda\n` +
+    `(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981`
+  )
+}
+
+/**
  * Mensagem de contato inicial / boas-vindas com o cliente na OS aberta.
  * Inclui o nome do técnico responsável para identificação pessoal.
  * O técnico abre a conversa em 1 toque sem precisar digitar nada.
