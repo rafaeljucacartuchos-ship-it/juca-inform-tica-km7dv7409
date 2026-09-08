@@ -73,7 +73,6 @@ import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
 import {
   openWhatsApp,
-  triggerWhatsAppEvaluation,
   buildServiceMessage,
   buildOrderCompletionSummaryMessage,
   buildTechnicianPresentationMessage,
@@ -1843,32 +1842,7 @@ export default function OrdemDetail() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => {
-                const phone = pendingSharePhone
-                if (phone) {
-                  openWhatsApp(phone, pendingShareMessage)
-                  toast({
-                    title: 'WhatsApp aberto!',
-                    description: `Enviando para ${phone}. Link público anexado.`,
-                  })
-                } else {
-                  // Fallback se cliente não tiver telefone cadastrado: abre WhatsApp Web com o texto
-                  window.open(
-                    `https://api.whatsapp.com/send?text=${encodeURIComponent(pendingShareMessage)}`,
-                    '_blank',
-                  )
-                  toast({
-                    title: 'WhatsApp aberto!',
-                    description: 'Escolha o contato para enviar a mensagem.',
-                  })
-                }
-                setShareChooserOpen(false)
-                if (pendingAfterShareAction) {
-                  const act = pendingAfterShareAction
-                  setPendingAfterShareAction(null)
-                  act()
-                }
-              }}
+              onClick={handleShareToWhatsApp}
               className="w-full justify-between h-auto py-3 px-4 border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100/70 text-emerald-900 font-semibold"
             >
               <div className="flex items-center gap-3 text-left">
@@ -1891,28 +1865,7 @@ export default function OrdemDetail() {
             <Button
               type="button"
               variant="outline"
-              onClick={async () => {
-                const url = pendingShareUrl || `${window.location.origin}/share/${order.id}`
-                copyToClipboardSync(url)
-                try {
-                  if (navigator?.clipboard?.writeText) {
-                    await navigator.clipboard.writeText(url)
-                  }
-                } catch {
-                  /* fallback já executado */
-                }
-                toast({
-                  title: 'Link copiado com sucesso!',
-                  description:
-                    'O link do documento público foi copiado para a área de transferência.',
-                })
-                setShareChooserOpen(false)
-                if (pendingAfterShareAction) {
-                  const act = pendingAfterShareAction
-                  setPendingAfterShareAction(null)
-                  act()
-                }
-              }}
+              onClick={handleCopyShareLink}
               className="w-full justify-between h-auto py-3 px-4 border-slate-200 hover:bg-slate-50 text-slate-800 font-semibold"
             >
               <div className="flex items-center gap-3 text-left">
@@ -1934,40 +1887,7 @@ export default function OrdemDetail() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={async () => {
-                  const url = pendingShareUrl || `${window.location.origin}/share/${order.id}`
-                  try {
-                    await navigator.share({
-                      title: `O.S. ${order.number} - JUCA INFORMÁTICA`,
-                      text: pendingShareMessage,
-                      url: url,
-                    })
-                    toast({
-                      title: 'Compartilhado com sucesso!',
-                    })
-                  } catch (err: unknown) {
-                    // Cancelamento pelo usuário é normal no navigator.share (AbortError)
-                    if (
-                      err &&
-                      typeof err === 'object' &&
-                      'name' in err &&
-                      (err as { name: string }).name !== 'AbortError'
-                    ) {
-                      toast({
-                        title: 'Não foi possível compartilhar',
-                        description: 'Tente copiar o link ou enviar por WhatsApp.',
-                        variant: 'destructive',
-                      })
-                    }
-                  } finally {
-                    setShareChooserOpen(false)
-                    if (pendingAfterShareAction) {
-                      const act = pendingAfterShareAction
-                      setPendingAfterShareAction(null)
-                      act()
-                    }
-                  }
-                }}
+                onClick={handleNativeShare}
                 className="w-full justify-between h-auto py-3 px-4 border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100/50 text-indigo-900 font-semibold"
               >
                 <div className="flex items-center gap-3 text-left">
