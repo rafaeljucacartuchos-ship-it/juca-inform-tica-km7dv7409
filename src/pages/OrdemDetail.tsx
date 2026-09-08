@@ -11,7 +11,19 @@ import {
   FileText,
   ExternalLink,
   Plus,
+  Edit2,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
+import { OrcamentoItemModal } from '@/components/OrcamentoItemModal'
+import {
+  deleteOrcamentoItem,
+  recalculateOrcamentoTotals,
+  updateOrcamento,
+} from '@/services/orcamentos'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CompanyHeader } from '@/components/CompanyHeader'
@@ -55,6 +67,22 @@ export default function OrdemDetail() {
   const [serviceReport, setServiceReport] = useState('')
   const [starting, setStarting] = useState(false)
   const [equipmentModalOpen, setEquipmentModalOpen] = useState(false)
+
+  // Estados para edição inline da OS
+  const [isEditingOs, setIsEditingOs] = useState(false)
+  const [editOsTitle, setEditOsTitle] = useState('')
+  const [editOsDescription, setEditOsDescription] = useState('')
+  const [savingOs, setSavingOs] = useState(false)
+
+  // Estados para itens e edição do orçamento vinculado dentro da OS
+  const [orcItemModalOpen, setOrcItemModalOpen] = useState(false)
+  const [editingOrcItem, setEditingOrcItem] = useState<OrcamentoItem | null>(null)
+  const [editingOrcamentoConditions, setEditingOrcamentoConditions] = useState(false)
+  const [orcValidade, setOrcValidade] = useState<number>(15)
+  const [orcObs, setOrcObs] = useState('')
+  const [orcDesconto, setOrcDesconto] = useState<number>(0)
+  const [savingOrcConditions, setSavingOrcConditions] = useState(false)
+
   const canEdit = user?.role === 'technician' || user?.role === 'admin'
   // Antes de iniciar o atendimento (started_at vazio), os campos editáveis
   // ficam bloqueados para o técnico. Após iniciar, ficam liberados.
@@ -78,11 +106,16 @@ export default function OrdemDetail() {
       if (orc?.id) {
         const oItens = await getOrcamentoItens(orc.id)
         setOrcamentoItens(oItens)
+        setOrcValidade(orc.validade || 15)
+        setOrcObs(orc.observacoes || '')
+        setOrcDesconto(orc.desconto_total_valor || 0)
       } else {
         setOrcamentoItens([])
       }
 
       setOrder(o)
+      setEditOsTitle(o.title || '')
+      setEditOsDescription(o.description || '')
       setHistory(h)
       setPayments(p)
       setServiceReport(o.service_report || '')
@@ -364,6 +397,73 @@ export default function OrdemDetail() {
     toast({ title: 'Link de compartilhamento copiado!' })
   }
 
+  const handleSaveOsInfo = async () => {
+    if (!order) return
+    if (!editOsTitle.trim()) {
+      toast({ title: 'O título da ordem não pode ser vazio', variant: 'destructive' })
+      return
+    }
+    setSavingOs(true)
+    try {
+      const upd = await offlinePb.update('service_orders', order.id, {
+        title: editOsTitle.trim(),
+        description: editOsDescription.trim(),
+      })
+      if (upd.queued) {
+        toast({ title: 'Alterações da O.S. salvas localmente.' })
+      } else {
+        toast({ title: 'Dados da O.S. atualizados com sucesso!' })
+      }
+      setOrder((prev) =>
+        prev
+          ? {
+              ...prev,
+              title: editOsTitle.trim(),
+              description: editOsDescription.trim(),
+            }
+          : prev,
+      )
+      setIsEditingOs(false)
+    } catch {
+      toast({ title: 'Erro ao salvar alterações da O.S.', variant: 'destructive' })
+    } finally {
+      setSavingOs(false)
+    }
+  }
+
+  const handleDeleteOrcItem = async (itemId: string) => {
+    if (!activeOrcamento?.id) return
+    if (!confirm('Deseja remover este item do orçamento?')) return
+    try {
+      await deleteOrcamentoItem(itemId)
+      await recalculateOrcamentoTotals(activeOrcamento.id)
+      toast({ title: 'Item removido do orçamento!' })
+      loadAll()
+    } catch {
+      toast({ title: 'Erro ao remover item', variant: 'destructive' })
+    }
+  }
+
+  const handleSaveOrcConditions = async () => {
+    if (!activeOrcamento?.id) return
+    setSavingOrcConditions(true)
+    try {
+      await updateOrcamento(activeOrcamento.id, {
+        validade: Number(orcValidade) || 15,
+        observacoes: orcObs.trim(),
+        desconto_total_valor: Number(orcDesconto) || 0,
+      })
+      await recalculateOrcamentoTotals(activeOrcamento.id)
+      toast({ title: 'Condições do orçamento atualizadas com sucesso!' })
+      setEditingOrcamentoConditions(false)
+      loadAll()
+    } catch {
+      toast({ title: 'Erro ao salvar condições do orçamento', variant: 'destructive' })
+    } finally {
+      setSavingOrcConditions(false)
+    }
+  }
+
   const handleEquipmentCreated = async (created?: any) => {
     if (!order || !created?.id) return
     const equipmentLabel = `${created.name || 'Equipamento'}${
@@ -531,16 +631,80 @@ export default function OrdemDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="pb-3">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-sm font-bold text-slate-900">
-                Informações da Ordem
+                Informações da Ordem (O.S.)
               </CardTitle>
+              {canEdit && !fieldsLocked && (
+                <Button
+                  size="sm"
+                  variant={isEditingOs ? 'ghost' : 'outline'}
+                  onClick={() => {
+                    if (isEditingOs) {
+                      setEditOsTitle(order.title || '')
+                      setEditOsDescription(order.description || '')
+                      setIsEditingOs(false)
+                    } else {
+                      setIsEditingOs(true)
+                    }
+                  }}
+                  className="h-7 text-xs font-semibold gap-1"
+                >
+                  <Edit2 className="h-3 w-3" />
+                  {isEditingOs ? 'Cancelar Edição' : 'Editar O.S.'}
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="space-y-4 text-xs">
-              <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
-                <span className="font-semibold text-slate-500">Título da Ordem:</span>
-                <p className="font-bold text-slate-900 text-sm mt-0.5">{order.title}</p>
-              </div>
+              {isEditingOs ? (
+                <div className="space-y-3 p-3 bg-slate-50 border border-indigo-100 rounded-lg">
+                  <div>
+                    <Label className="font-bold text-slate-700 text-xs">Título da Ordem *</Label>
+                    <Input
+                      value={editOsTitle}
+                      onChange={(e) => setEditOsTitle(e.target.value)}
+                      className="h-8 text-xs bg-white mt-1"
+                      placeholder="Título ou resumo da ordem de serviço"
+                    />
+                  </div>
+                  <div>
+                    <Label className="font-bold text-slate-700 text-xs">
+                      Descrição do Problema
+                    </Label>
+                    <Textarea
+                      value={editOsDescription}
+                      onChange={(e) => setEditOsDescription(e.target.value)}
+                      rows={3}
+                      className="text-xs bg-white mt-1"
+                      placeholder="Relato detalhado do cliente sobre o problema"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setIsEditingOs(false)}
+                      className="h-7 text-xs"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={savingOs}
+                      onClick={handleSaveOsInfo}
+                      className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                    >
+                      {savingOs ? 'Salvando...' : 'Salvar Alterações'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+                  <span className="font-semibold text-slate-500">Título da Ordem:</span>
+                  <p className="font-bold text-slate-900 text-sm mt-0.5">{order.title}</p>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <span className="font-semibold text-slate-500">Cliente:</span>
@@ -596,10 +760,14 @@ export default function OrdemDetail() {
                   <p className="font-medium text-slate-900 capitalize">{order.priority}</p>
                 </div>
               </div>
-              <div>
-                <span className="font-semibold text-slate-500">Descrição do Problema:</span>
-                <p className="text-slate-700 mt-1">{order.description || 'Sem descrição.'}</p>
-              </div>
+              {!isEditingOs && (
+                <div>
+                  <span className="font-semibold text-slate-500">Descrição do Problema:</span>
+                  <p className="text-slate-700 mt-1 whitespace-pre-wrap">
+                    {order.description || 'Sem descrição.'}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -627,67 +795,182 @@ export default function OrdemDetail() {
             </CardContent>
           </Card>
 
-          {/* MUDANÇA 1: Card somente-leitura "Resumo do Orçamento Vinculado" */}
+          {/* PAINEL UNIFICADO: Orçamento Vinculado com Edição Permitida de Itens e Condições */}
           {activeOrcamento ? (
-            <Card className="border-slate-200 shadow-sm bg-white overflow-hidden">
-              <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 bg-slate-50/70 border-b border-slate-100">
+            <Card className="border-indigo-200 shadow-sm bg-white overflow-hidden">
+              <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 bg-indigo-50/60 border-b border-indigo-100">
                 <div className="flex items-center gap-2 flex-wrap">
                   <FileText className="h-4 w-4 text-indigo-600" />
                   <CardTitle className="text-sm font-bold text-slate-900">
-                    Resumo do Orçamento Vinculado
+                    Orçamento Vinculado
                   </CardTitle>
-                  <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                  <span className="font-mono text-xs font-bold text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">
                     {activeOrcamento.numero_orcamento}
                   </span>
-                  <Badge variant="outline" className="text-xs uppercase font-semibold">
+                  <Badge variant="outline" className="text-xs uppercase font-semibold bg-white">
                     {activeOrcamento.status}
                   </Badge>
                 </div>
-                <Button
-                  size="sm"
-                  onClick={() => navigate(`/orcamentos/${activeOrcamento.id}`)}
-                  className="h-8 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shrink-0"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  Abrir Orçamento Completo
-                </Button>
+
+                <div className="flex items-center gap-2">
+                  {canEdit && (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setEditingOrcItem(null)
+                        setOrcItemModalOpen(true)
+                      }}
+                      className="h-8 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Adicionar Item
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => navigate(`/orcamentos/${activeOrcamento.id}`)}
+                    className="h-8 text-xs font-medium gap-1 text-slate-700 bg-white"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Abrir Módulo
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="p-4 space-y-4 text-xs">
                 {/* Badges de assinaturas */}
-                <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
-                  <span className="font-semibold text-slate-600 text-xs">Assinaturas:</span>
-                  <Badge
-                    className={
-                      activeOrcamento.assinatura_cliente
-                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                        : 'bg-slate-100 text-slate-500 border-slate-200'
-                    }
-                  >
-                    Cliente: {activeOrcamento.assinatura_cliente ? '✓ Assinado' : 'Pendente'}
-                  </Badge>
-                  <Badge
-                    className={
-                      activeOrcamento.assinatura_tecnico
-                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                        : 'bg-slate-100 text-slate-500 border-slate-200'
-                    }
-                  >
-                    Técnico: {activeOrcamento.assinatura_tecnico ? '✓ Assinado' : 'Pendente'}
-                  </Badge>
+                <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-slate-600 text-xs">Assinaturas:</span>
+                    <Badge
+                      className={
+                        activeOrcamento.assinatura_cliente
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-slate-100 text-slate-500 border-slate-200'
+                      }
+                    >
+                      Cliente: {activeOrcamento.assinatura_cliente ? '✓ Assinado' : 'Pendente'}
+                    </Badge>
+                    <Badge
+                      className={
+                        activeOrcamento.assinatura_tecnico
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-slate-100 text-slate-500 border-slate-200'
+                      }
+                    >
+                      Técnico: {activeOrcamento.assinatura_tecnico ? '✓ Assinado' : 'Pendente'}
+                    </Badge>
+                  </div>
+
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingOrcamentoConditions(!editingOrcamentoConditions)}
+                      className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5"
+                    >
+                      {editingOrcamentoConditions
+                        ? 'Fechar Condições'
+                        : 'Editar Condições/Desconto'}
+                      {editingOrcamentoConditions ? (
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      ) : (
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  )}
                 </div>
 
-                {/* Tabela de Itens (somente leitura) */}
+                {/* Bloco de edição rápida de condições do orçamento */}
+                {editingOrcamentoConditions && (
+                  <div className="p-3 bg-slate-50 border border-indigo-200 rounded-lg space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs font-semibold text-slate-700">
+                          Validade (em dias)
+                        </Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={orcValidade}
+                          onChange={(e) => setOrcValidade(parseInt(e.target.value, 10) || 15)}
+                          className="h-8 text-xs bg-white mt-1 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold text-slate-700">
+                          Desconto Geral (R$)
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={orcDesconto}
+                          onChange={(e) => setOrcDesconto(parseFloat(e.target.value) || 0)}
+                          className="h-8 text-xs bg-white mt-1 font-mono"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs font-semibold text-slate-700">
+                        Observações do Orçamento / Garantia
+                      </Label>
+                      <Textarea
+                        value={orcObs}
+                        onChange={(e) => setOrcObs(e.target.value)}
+                        rows={2}
+                        className="text-xs bg-white mt-1"
+                        placeholder="Ex: Garantia de 90 dias nas peças aplicadas..."
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditingOrcamentoConditions(false)}
+                        className="h-7 text-xs"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={savingOrcConditions}
+                        onClick={handleSaveOrcConditions}
+                        className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                      >
+                        {savingOrcConditions ? 'Salvando...' : 'Salvar Condições'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tabela de Itens (com Ações de Edição e Exclusão) */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-bold text-slate-700 text-xs">Itens e Serviços:</span>
+                    <span className="font-bold text-slate-700 text-xs">
+                      Itens, Peças e Serviços do Orçamento:
+                    </span>
                     <span className="text-slate-400 text-[11px]">
                       {orcamentoItens.length} {orcamentoItens.length === 1 ? 'item' : 'itens'}
                     </span>
                   </div>
                   {orcamentoItens.length === 0 ? (
-                    <p className="text-slate-400 italic py-3 text-center bg-slate-50 rounded">
-                      Nenhum item lançado no orçamento ainda.
-                    </p>
+                    <div className="text-center py-6 border border-dashed border-slate-200 rounded-lg bg-slate-50/50">
+                      <p className="text-slate-400 italic text-xs mb-2">
+                        Nenhum item lançado no orçamento ainda.
+                      </p>
+                      {canEdit && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingOrcItem(null)
+                            setOrcItemModalOpen(true)
+                          }}
+                          className="h-7 text-xs border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                        >
+                          <Plus className="h-3 w-3 mr-1" /> Adicionar Primeiro Item
+                        </Button>
+                      )}
+                    </div>
                   ) : (
                     <div className="overflow-x-auto rounded border border-slate-100">
                       <table className="w-full text-left text-xs">
@@ -698,6 +981,7 @@ export default function OrdemDetail() {
                             <th className="py-2 px-3 text-center w-14">Qtd</th>
                             <th className="py-2 px-3 text-right">Unitário</th>
                             <th className="py-2 px-3 text-right">Total</th>
+                            {canEdit && <th className="py-2 px-3 text-center w-16">Ações</th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -734,6 +1018,31 @@ export default function OrdemDetail() {
                                   maximumFractionDigits: 2,
                                 })}
                               </td>
+                              {canEdit && (
+                                <td className="py-2 px-3 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingOrcItem(it)
+                                        setOrcItemModalOpen(true)
+                                      }}
+                                      className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
+                                      title="Editar item"
+                                    >
+                                      <Edit2 className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteOrcItem(it.id)}
+                                      className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
+                                      title="Excluir item"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              )}
                             </tr>
                           ))}
                         </tbody>
@@ -742,7 +1051,7 @@ export default function OrdemDetail() {
                   )}
                 </div>
 
-                {/* Resumo financeiro do orçamento (R$ 0.000,00) */}
+                {/* Resumo financeiro do orçamento */}
                 <div className="bg-slate-50 p-3.5 rounded-lg border border-slate-200/80 space-y-1.5">
                   <div className="flex justify-between items-center text-slate-600">
                     <span>Subtotal:</span>
@@ -768,7 +1077,7 @@ export default function OrdemDetail() {
                   )}
                   <div className="flex justify-between items-center pt-1.5 border-t border-slate-200 text-sm font-bold">
                     <span className="text-slate-900">Total do Orçamento:</span>
-                    <span className="font-mono text-indigo-700 text-base">
+                    <span className="font-mono text-indigo-700 text-base font-black">
                       R${' '}
                       {(activeOrcamento.total_geral || 0).toLocaleString('pt-BR', {
                         minimumFractionDigits: 2,
@@ -920,6 +1229,16 @@ export default function OrdemDetail() {
         onCreated={handleEquipmentCreated}
         defaultCustomerId={order.customer}
       />
+
+      {activeOrcamento && (
+        <OrcamentoItemModal
+          open={orcItemModalOpen}
+          onOpenChange={setOrcItemModalOpen}
+          orcamentoId={activeOrcamento.id}
+          itemToEdit={editingOrcItem}
+          onSaved={loadAll}
+        />
+      )}
     </div>
   )
 }

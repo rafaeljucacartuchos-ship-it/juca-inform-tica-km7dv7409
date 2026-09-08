@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-08T00:43:12.740Z",
+  "generatedAt": "2026-09-08T01:38:39.238Z",
   "collections": [
     {
       "name": "users",
@@ -1639,7 +1639,7 @@
         {
           "name": "id_os",
           "type": "relation",
-          "required": true,
+          "required": false,
           "system": false,
           "collectionRef": "service_orders"
         },

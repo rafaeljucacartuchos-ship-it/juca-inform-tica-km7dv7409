@@ -65,6 +65,33 @@ export async function generateRandomToken(len = 32): Promise<string> {
  * Retorna um orçamento por ID com expansão.
  * Garante que token_acesso exista para registros legados.
  */
+/**
+ * Retorna todos os orçamentos (com suporte a filtros e ordenação)
+ */
+export async function getOrcamentos(options?: {
+  status?: OrcamentoStatus | 'todos'
+  search?: string
+}): Promise<Orcamento[]> {
+  try {
+    const filters: string[] = []
+    if (options?.status && options.status !== 'todos') {
+      filters.push(`status = "${options.status}"`)
+    }
+    if (options?.search) {
+      const s = options.search.trim().replace(/"/g, '')
+      filters.push(`(numero_orcamento ~ "${s}" || observacoes ~ "${s}")`)
+    }
+
+    return await pb.collection('orcamentos').getFullList<Orcamento>({
+      filter: filters.length > 0 ? filters.join(' && ') : undefined,
+      sort: '-created',
+      expand: 'id_os,id_usuario_criador,id_os.customer,id_os.technician,id_os.equipment_ref',
+    })
+  } catch {
+    return []
+  }
+}
+
 export async function getOrcamento(id: string): Promise<Orcamento> {
   const record = await pb.collection('orcamentos').getOne<Orcamento>(id, {
     expand: 'id_os,id_usuario_criador,id_os.customer,id_os.technician,id_os.equipment_ref',
@@ -129,7 +156,8 @@ export async function generateNextOrcamentoNumber(osIdOrNumber?: string): Promis
   if (osIdOrNumber) {
     // Se veio no formato "OS-XXXX", deriva diretamente
     if (osIdOrNumber.startsWith('OS-')) {
-      return deriveOrcamentoNumberFromOs(osIdOrNumber) || 'ORC-0001'
+      const derived = deriveOrcamentoNumberFromOs(osIdOrNumber)
+      if (derived) return derived
     }
     // Caso contrário, pode ser o ID do registro de service_orders
     try {
@@ -147,14 +175,14 @@ export async function generateNextOrcamentoNumber(osIdOrNumber?: string): Promis
     }
   }
 
-  const currentYear = new Date().getFullYear()
+  // Sem vínculo com OS: gera numeração própria ORC-0001, ORC-0002...
   try {
     const records = await pb.collection('orcamentos').getFullList<Orcamento>({
       sort: '-created',
     })
 
     let maxNum = 0
-    // Aceita tanto ORC-0001 quanto ORC-0001/2026
+    // Considera apenas números no formato ORC-XXXX
     const regex = /ORC-(\d+)/
     for (const r of records) {
       const match = r.numero_orcamento?.match(regex)
@@ -171,56 +199,67 @@ export async function generateNextOrcamentoNumber(osIdOrNumber?: string): Promis
 }
 
 /**
- * Cria um novo orçamento vinculado à O.S.
- * Regra de negócio: Apenas 1 orçamento ATIVO por O.S.;
- * orçamentos ativos anteriores são marcados como "substituido".
- * O número do orçamento espelha o número da O.S. (ex.: OS-0037 -> ORC-0037).
- * Atualiza o status da O.S. para "aguardando_orcamento".
+ * Cria um novo orçamento:
+ * 1) Se houver id_os:
+ *    - Herda exatamente o número da O.S. (OS-0041 -> ORC-0041). NUNCA sequencial próprio.
+ *    - Apenas 1 orçamento ATIVO por O.S.; anteriores marcados como "substituido".
+ *    - Atualiza status da O.S. para "aguardando_orcamento".
+ * 2) Se não houver id_os (orçamento independente):
+ *    - Gera numeração própria ORC-XXXX.
  */
 export async function createOrcamento(params: {
-  id_os: string
+  id_os?: string | null
   id_usuario_criador?: string
   validade?: number
   observacoes?: string
 }): Promise<Orcamento> {
   const { id_os, id_usuario_criador, validade = 15, observacoes = '' } = params
 
-  // 1. Substitui qualquer orçamento ativo anterior
-  const existingActive = await pb.collection('orcamentos').getFullList<Orcamento>({
-    filter: `id_os = "${id_os}" && status != "substituido"`,
-  })
+  let numero_orcamento: string = ''
 
-  for (const prev of existingActive) {
-    try {
-      await pb.collection('orcamentos').update(prev.id, {
-        status: 'substituido',
-      })
-    } catch (e) {
-      console.warn('Erro ao substituir orçamento anterior:', e)
-    }
-  }
-
-  // 2. Busca número da O.S. vinculada para espelhar (OS-0037 -> ORC-0037)
-  let osNumber: string | undefined
-  try {
-    const osRec = await pb.collection('service_orders').getOne<{ number: string }>(id_os, {
-      fields: 'id,number',
+  if (id_os) {
+    // 1. Substitui qualquer orçamento ativo anterior desta O.S.
+    const existingActive = await pb.collection('orcamentos').getFullList<Orcamento>({
+      filter: `id_os = "${id_os}" && status != "substituido"`,
     })
-    osNumber = osRec?.number
-  } catch {
-    /* ignore */
-  }
 
-  // 3. Gera número do orçamento vinculado à O.S.
-  let numero_orcamento = osNumber ? deriveOrcamentoNumberFromOs(osNumber) : null
-  if (!numero_orcamento) {
-    numero_orcamento = await generateNextOrcamentoNumber(id_os)
+    for (const prev of existingActive) {
+      try {
+        await pb.collection('orcamentos').update(prev.id, {
+          status: 'substituido',
+        })
+      } catch (e) {
+        console.warn('Erro ao substituir orçamento anterior:', e)
+      }
+    }
+
+    // 2. Busca número da O.S. vinculada para espelhar obrigatoriamente (OS-0041 -> ORC-0041)
+    let osNumber: string | undefined
+    try {
+      const osRec = await pb.collection('service_orders').getOne<{ number: string }>(id_os, {
+        fields: 'id,number',
+      })
+      osNumber = osRec?.number
+    } catch {
+      /* ignore */
+    }
+
+    if (osNumber) {
+      const derived = deriveOrcamentoNumberFromOs(osNumber)
+      if (derived) numero_orcamento = derived
+    }
+
+    if (!numero_orcamento) {
+      numero_orcamento = await generateNextOrcamentoNumber(id_os)
+    }
+  } else {
+    // Orçamento independente sem OS vinculada
+    numero_orcamento = await generateNextOrcamentoNumber()
   }
 
   // 3. Cria o novo orçamento como rascunho com token de acesso
   const token_acesso = await generateRandomToken(32)
-  const novo = await pb.collection('orcamentos').create<Orcamento>({
-    id_os,
+  const createPayload: Record<string, any> = {
     numero_orcamento,
     status: 'rascunho',
     validade,
@@ -237,18 +276,26 @@ export async function createOrcamento(params: {
     subtotal: 0,
     total_geral: 0,
     token_acesso,
-  })
+  }
 
-  // 4. Atualiza o status da OS para "aguardando_orcamento"
-  try {
-    await updateOsStatus(
-      id_os,
-      'aguardando_orcamento',
-      `Orçamento ${numero_orcamento} gerado`,
-      id_usuario_criador,
-    )
-  } catch (e) {
-    console.warn('Erro ao atualizar status da OS para aguardando_orcamento:', e)
+  if (id_os) {
+    createPayload.id_os = id_os
+  }
+
+  const novo = await pb.collection('orcamentos').create<Orcamento>(createPayload)
+
+  // 4. Se vinculado a OS, atualiza o status da OS para "aguardando_orcamento"
+  if (id_os) {
+    try {
+      await updateOsStatus(
+        id_os,
+        'aguardando_orcamento',
+        `Orçamento ${numero_orcamento} gerado`,
+        id_usuario_criador,
+      )
+    } catch (e) {
+      console.warn('Erro ao atualizar status da OS para aguardando_orcamento:', e)
+    }
   }
 
   return novo

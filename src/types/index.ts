@@ -379,7 +379,7 @@ export type OrcamentoStatusPagamento = 'pendente' | 'parcial' | 'pago'
 
 export interface Orcamento {
   id: string
-  id_os: string
+  id_os?: string
   numero_orcamento: string
   status: OrcamentoStatus
   validade?: number

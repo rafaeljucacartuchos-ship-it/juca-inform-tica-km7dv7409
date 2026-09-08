@@ -51,49 +51,88 @@ const fmtCurrency = (val: number | undefined | null) => {
   return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+import { Orcamento, OrcamentoItem, OrcamentoAnexo } from '@/types'
+
+const FORMA_PAGTO_LABELS: Record<string, string> = {
+  dinheiro: 'Dinheiro em Espécie',
+  pix: 'PIX',
+  cartao_credito: 'Cartão de Crédito',
+  cartao_debito: 'Cartão de Débito',
+  boleto: 'Boleto Bancário',
+  outros: 'A Combinar',
+}
+
 interface PrintOrderDocumentProps {
   order: ServiceOrder
-  items: ServiceOrderItem[]
+  items?: ServiceOrderItem[]
   history?: StatusHistory[]
   attachments?: ServiceAttachment[]
+  orcamento?: Orcamento | null
+  orcamentoItens?: OrcamentoItem[]
+  orcamentoAnexos?: OrcamentoAnexo[]
 }
 
 export function PrintOrderDocument({
   order,
   items = [],
   attachments = [],
+  orcamento,
+  orcamentoItens = [],
+  orcamentoAnexos = [],
 }: PrintOrderDocumentProps) {
   const navigate = useNavigate()
 
-  const techSig = order.technician_signature
-    ? getFileUrl(order.id, order.technician_signature, 'service_orders')
-    : null
-  const custSig = order.customer_signature
-    ? getFileUrl(order.id, order.customer_signature, 'service_orders')
-    : null
+  // Assinaturas unificadas: usa assinatura do orçamento se existir, fallback para a da O.S.
+  const techSig = orcamento?.assinatura_tecnico
+    ? getFileUrl(orcamento.id, orcamento.assinatura_tecnico, 'orcamentos')
+    : order.technician_signature
+      ? getFileUrl(order.id, order.technician_signature, 'service_orders')
+      : null
+
+  const custSig = orcamento?.assinatura_cliente
+    ? getFileUrl(orcamento.id, orcamento.assinatura_cliente, 'orcamentos')
+    : order.customer_signature
+      ? getFileUrl(order.id, order.customer_signature, 'service_orders')
+      : null
 
   const eq = order.expand?.equipment_ref
   const cust = order.expand?.customer
   const tech = order.expand?.technician
 
-  // Coleta as fotos do equipamento (fotos cadastradas no equipamento)
+  // Coleta fotos do equipamento e atendimento sem duplicação
   const equipmentPhotos = (eq?.photos || []).map((p) =>
     getFileUrl(eq!.id, p, 'equipment', '400x400'),
   )
 
-  // Coleta as fotos dos anexos da O.S. (fotos de check-in / atendimento)
   const orderAttachmentPhotos = (attachments || []).map((a) => ({
     url: getFileUrl(a.id, a.file, 'service_attachments', '400x400'),
     caption: a.caption || 'Foto do Atendimento',
   }))
 
-  // Cálculo financeiro preciso
-  const subtotal = (items || []).reduce((acc, it) => acc + (Number(it.total) || 0), 0)
-  const desconto = Number(order.desconto) || 0
-  const acrescimo = Number(order.acrescimo) || 0
-  const calculatedTotal =
-    subtotal > 0 || (order.total ?? 0) === 0
-      ? Math.max(0, subtotal + acrescimo - desconto)
+  const orcamentoPhotos = (orcamentoAnexos || []).map((a) => ({
+    url: getFileUrl(a.id, a.caminho_arquivo, 'orcamento_anexos', '400x400'),
+    caption: a.legenda || (a.tipo === 'foto_defeito' ? 'Defeito' : 'Equipamento'),
+  }))
+
+  // Cálculo financeiro unificado:
+  // Se houver orçamento vinculado com itens, a discriminação financeira segue a do orçamento
+  const hasOrcamento = !!orcamento
+  const orcSubtotal = (orcamentoItens || []).reduce(
+    (acc, it) => acc + (it.valor_unitario || 0) * (it.quantidade || 0),
+    0,
+  )
+  const orcDescontoTotal = Number(orcamento?.desconto_total_valor) || 0
+  const orcTotalGeral =
+    orcamento?.total_geral !== undefined && orcamento.total_geral !== null
+      ? Number(orcamento.total_geral)
+      : Math.max(0, orcSubtotal - orcDescontoTotal)
+
+  const soSubtotal = (items || []).reduce((acc, it) => acc + (Number(it.total) || 0), 0)
+  const soDesconto = Number(order.desconto) || 0
+  const soAcrescimo = Number(order.acrescimo) || 0
+  const soTotal =
+    soSubtotal > 0 || (order.total ?? 0) === 0
+      ? Math.max(0, soSubtotal + soAcrescimo - soDesconto)
       : Number(order.total) || 0
 
   return (
@@ -150,12 +189,19 @@ export function PrintOrderDocument({
           <div className="text-right">
             <div className="inline-block rounded-md bg-slate-900 px-3 py-1 text-white">
               <span className="font-mono text-base font-black tracking-wider sm:text-lg">
-                OS {order.number}
+                {orcamento?.numero_orcamento
+                  ? `${order.number} · ${orcamento.numero_orcamento}`
+                  : `OS ${order.number}`}
               </span>
             </div>
             <p className="mt-1 text-[10px] font-medium text-slate-600">
-              <strong>Emissão:</strong> {fmtDate(order.created)}
+              <strong>Emissão O.S.:</strong> {fmtDate(order.created)}
             </p>
+            {orcamento && (
+              <p className="text-[10px] text-slate-600">
+                <strong>Validade Orçamento:</strong> {orcamento.validade || 15} dias
+              </p>
+            )}
             {order.attendance_date && (
               <p className="text-[10px] text-slate-600">
                 <strong>Atendimento:</strong> {fmtDate(order.attendance_date)}{' '}
@@ -168,11 +214,17 @@ export function PrintOrderDocument({
         {/* FAIXA DE STATUS E IDENTIFICAÇÃO RÁPIDA */}
         <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2 rounded-md bg-slate-50 border border-slate-200 px-3 py-1.5 text-xs">
           <div>
-            <span className="text-slate-500 font-medium">Status: </span>
+            <span className="text-slate-500 font-medium">Status O.S.: </span>
             <span className="font-bold text-slate-900 uppercase">
               {STATUS_LABELS[order.status] || order.status}
             </span>
           </div>
+          {orcamento && (
+            <div>
+              <span className="text-slate-500 font-medium">Status Orçamento: </span>
+              <span className="font-bold text-indigo-700 uppercase">{orcamento.status}</span>
+            </div>
+          )}
           <div>
             <span className="text-slate-500 font-medium">Prioridade: </span>
             <span className="font-bold text-slate-900">
@@ -180,7 +232,7 @@ export function PrintOrderDocument({
             </span>
           </div>
           <div className="min-w-0 flex-1 truncate text-right">
-            <span className="text-slate-500 font-medium">Título: </span>
+            <span className="text-slate-500 font-medium">Título / Atendimento: </span>
             <span className="font-bold text-slate-900">{order.title}</span>
           </div>
         </div>
@@ -375,11 +427,20 @@ export function PrintOrderDocument({
           </div>
         )}
 
-        {/* ITENS, PRODUTOS, PEÇAS E SERVIÇOS (TABELA COMPLETA COM VALORES) */}
+        {/* ITENS, PRODUTOS, PEÇAS E SERVIÇOS (TABELA UNIFICADA COM VALORES) */}
         <div className="page-break-inside-avoid mb-3.5 rounded-md border border-slate-200 p-2.5">
-          <h3 className="mb-1.5 text-xs font-bold text-slate-900 uppercase tracking-wide">
-            Itens, Peças e Serviços
-          </h3>
+          <div className="flex items-center justify-between mb-1.5">
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+              Itens, Peças e Serviços{' '}
+              {hasOrcamento ? `(Orçamento ${orcamento?.numero_orcamento})` : ''}
+            </h3>
+            {hasOrcamento && (
+              <span className="text-[10px] text-indigo-700 font-semibold bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                Orçamento Vinculado
+              </span>
+            )}
+          </div>
+
           <table className="w-full border-collapse text-[11px]">
             <thead>
               <tr className="bg-slate-100 text-slate-700">
@@ -398,7 +459,38 @@ export function PrintOrderDocument({
               </tr>
             </thead>
             <tbody>
-              {items.length > 0 ? (
+              {hasOrcamento ? (
+                orcamentoItens.length > 0 ? (
+                  orcamentoItens.map((item, idx) => (
+                    <tr key={item.id || idx} className="even:bg-slate-50/50">
+                      <td className="border border-slate-300 px-2 py-1 text-slate-900">
+                        <span className="font-medium">{item.descricao}</span>
+                        <span className="ml-1.5 text-[9px] uppercase px-1 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                          {item.tipo}
+                        </span>
+                      </td>
+                      <td className="border border-slate-300 px-2 py-1 text-center font-mono text-slate-700">
+                        {item.quantidade || 1}
+                      </td>
+                      <td className="border border-slate-300 px-2 py-1 text-right font-mono text-slate-700">
+                        R$ {fmtCurrency(item.valor_unitario)}
+                      </td>
+                      <td className="border border-slate-300 px-2 py-1 text-right font-mono font-bold text-slate-900">
+                        R$ {fmtCurrency(item.valor_total_item)}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="border border-slate-300 px-2 py-2 text-center text-slate-400 italic"
+                    >
+                      Nenhum item discriminado no orçamento vinculado.
+                    </td>
+                  </tr>
+                )
+              ) : items.length > 0 ? (
                 items.map((item, idx) => (
                   <tr key={item.id || idx} className="even:bg-slate-50/50">
                     <td className="border border-slate-300 px-2 py-1 text-slate-900">
@@ -429,41 +521,103 @@ export function PrintOrderDocument({
           </table>
 
           {/* TOTALIZAÇÃO FINANCEIRA */}
-          <div className="mt-2 flex justify-end">
+          <div className="mt-2 flex justify-between items-start">
+            {hasOrcamento && orcamento ? (
+              <div className="text-[10px] text-slate-600 max-w-sm space-y-0.5">
+                <p>
+                  <strong className="text-slate-700">Forma de Pagamento:</strong>{' '}
+                  {FORMA_PAGTO_LABELS[orcamento.forma_pagamento || 'pix'] ||
+                    orcamento.forma_pagamento}
+                </p>
+                <p>
+                  <strong className="text-slate-700">Condição:</strong>{' '}
+                  {(orcamento.parcelas || 1) > 1
+                    ? `${orcamento.parcelas}x de R$ ${fmtCurrency(orcTotalGeral / (orcamento.parcelas || 1))}`
+                    : '1x à vista'}
+                </p>
+                {Number(orcamento.entrada) > 0 && (
+                  <p>
+                    <strong className="text-slate-700">Entrada:</strong> R${' '}
+                    {fmtCurrency(orcamento.entrada)}
+                  </p>
+                )}
+                {orcamento.observacoes && (
+                  <p className="italic text-slate-500 pt-1">Obs: {orcamento.observacoes}</p>
+                )}
+              </div>
+            ) : (
+              <div />
+            )}
+
             <div className="w-64 space-y-1 text-right text-[11px]">
-              <div className="flex justify-between text-slate-600">
-                <span>Subtotal dos Itens:</span>
-                <span className="font-mono font-medium">R$ {fmtCurrency(subtotal)}</span>
-              </div>
-              {desconto > 0 && (
-                <div className="flex justify-between text-rose-600 font-medium">
-                  <span>Desconto:</span>
-                  <span className="font-mono">- R$ {fmtCurrency(desconto)}</span>
-                </div>
+              {hasOrcamento ? (
+                <>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Subtotal:</span>
+                    <span className="font-mono font-medium">R$ {fmtCurrency(orcSubtotal)}</span>
+                  </div>
+                  {orcDescontoTotal > 0 && (
+                    <div className="flex justify-between text-rose-600 font-medium">
+                      <span>Desconto Total:</span>
+                      <span className="font-mono">- R$ {fmtCurrency(orcDescontoTotal)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t-2 border-slate-900 pt-1 text-xs font-black text-slate-900">
+                    <span>TOTAL:</span>
+                    <span className="font-mono text-sm text-indigo-900">
+                      R$ {fmtCurrency(orcTotalGeral)}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Subtotal dos Itens:</span>
+                    <span className="font-mono font-medium">R$ {fmtCurrency(soSubtotal)}</span>
+                  </div>
+                  {soDesconto > 0 && (
+                    <div className="flex justify-between text-rose-600 font-medium">
+                      <span>Desconto:</span>
+                      <span className="font-mono">- R$ {fmtCurrency(soDesconto)}</span>
+                    </div>
+                  )}
+                  {soAcrescimo > 0 && (
+                    <div className="flex justify-between text-emerald-600 font-medium">
+                      <span>Acréscimo:</span>
+                      <span className="font-mono">+ R$ {fmtCurrency(soAcrescimo)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t-2 border-slate-900 pt-1 text-xs font-black text-slate-900">
+                    <span>TOTAL GERAL:</span>
+                    <span className="font-mono text-sm">R$ {fmtCurrency(soTotal)}</span>
+                  </div>
+                </>
               )}
-              {acrescimo > 0 && (
-                <div className="flex justify-between text-emerald-600 font-medium">
-                  <span>Acréscimo:</span>
-                  <span className="font-mono">+ R$ {fmtCurrency(acrescimo)}</span>
-                </div>
-              )}
-              <div className="flex justify-between border-t-2 border-slate-900 pt-1 text-xs font-black text-slate-900">
-                <span>TOTAL GERAL:</span>
-                <span className="font-mono text-sm">R$ {fmtCurrency(calculatedTotal)}</span>
-              </div>
             </div>
           </div>
         </div>
 
-        {/* FOTOS ADICIONAIS DO ATENDIMENTO (SE HOUVER MAIS DE UMA) */}
-        {orderAttachmentPhotos.length > 1 && (
+        {/* FOTOS ADICIONAIS DO ATENDIMENTO E ORÇAMENTO */}
+        {(orderAttachmentPhotos.length > 1 || orcamentoPhotos.length > 0) && (
           <div className="page-break-inside-avoid mb-3.5 rounded-md border border-slate-200 p-2.5">
             <h3 className="mb-1.5 text-xs font-bold text-slate-900 uppercase tracking-wide">
-              Registros Fotográficos do Atendimento
+              Registros Fotográficos (Atendimento / Orçamento)
             </h3>
             <div className="grid grid-cols-4 gap-2">
-              {orderAttachmentPhotos.map((a, i) => (
-                <div key={i} className="text-center">
+              {orderAttachmentPhotos.slice(1).map((a, i) => (
+                <div key={`att-${i}`} className="text-center">
+                  <img
+                    src={a.url}
+                    alt={a.caption}
+                    className="h-20 w-full rounded border border-slate-200 object-cover"
+                  />
+                  {a.caption && (
+                    <p className="mt-0.5 truncate text-[9px] text-slate-500">{a.caption}</p>
+                  )}
+                </div>
+              ))}
+              {orcamentoPhotos.slice(0, 4).map((a, i) => (
+                <div key={`orc-${i}`} className="text-center">
                   <img
                     src={a.url}
                     alt={a.caption}

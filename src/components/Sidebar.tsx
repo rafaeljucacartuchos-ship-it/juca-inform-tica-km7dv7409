@@ -20,6 +20,7 @@ import {
   Sparkles,
   ShoppingCart,
   Megaphone,
+  FileText,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -87,6 +88,12 @@ export function Sidebar({ onNavClick }: SidebarProps) {
   const mainNavItems = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, show: true },
     { label: 'Ordens de Serviço', path: '/ordens', icon: Wrench, show: hasPermission('ordens') },
+    {
+      label: 'Orçamentos',
+      path: '/orcamentos',
+      icon: FileText,
+      show: hasPermission('orcamentos'),
+    },
     {
       label: 'Pedido de Mercadoria',
       path: '/pedido-mercadorias',

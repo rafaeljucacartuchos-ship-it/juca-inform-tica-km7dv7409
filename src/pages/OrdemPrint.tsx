@@ -1,9 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useParams, Navigate } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
-import { ServiceOrder, ServiceOrderItem, StatusHistory, ServiceAttachment } from '@/types'
+import {
+  ServiceOrder,
+  ServiceOrderItem,
+  StatusHistory,
+  ServiceAttachment,
+  Orcamento,
+  OrcamentoItem,
+  OrcamentoAnexo,
+} from '@/types'
 import { getServiceOrder, getOrderItems, getStatusHistory } from '@/services/service_orders'
 import { getAttachments } from '@/services/service_attachments'
+import { getActiveOrcamento, getOrcamentoItens, getOrcamentoAnexos } from '@/services/orcamentos'
 import { useAuth } from '@/hooks/use-auth'
 import { PrintOrderDocument } from '@/components/PrintOrderDocument'
 
@@ -14,6 +23,9 @@ export default function OrdemPrint() {
   const [items, setItems] = useState<ServiceOrderItem[]>([])
   const [history, setHistory] = useState<StatusHistory[]>([])
   const [attachments, setAttachments] = useState<ServiceAttachment[]>([])
+  const [orcamento, setOrcamento] = useState<Orcamento | null>(null)
+  const [orcamentoItens, setOrcamentoItens] = useState<OrcamentoItem[]>([])
+  const [orcamentoAnexos, setOrcamentoAnexos] = useState<OrcamentoAnexo[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -23,8 +35,9 @@ export default function OrdemPrint() {
       getOrderItems(id).catch(() => [] as ServiceOrderItem[]),
       getStatusHistory(id).catch(() => [] as StatusHistory[]),
       getAttachments(id).catch(() => [] as ServiceAttachment[]),
+      getActiveOrcamento(id).catch(() => null),
     ])
-      .then(([o, it, hist, atts]) => {
+      .then(async ([o, it, hist, atts, orc]) => {
         // Recalcula subtotal e total consistente com a visualização da ordem
         const subtotal = (it || []).reduce((sum, item) => sum + (item.total || 0), 0)
         const desc = Number(o.desconto) || 0
@@ -36,6 +49,16 @@ export default function OrdemPrint() {
         setItems(it || [])
         setHistory(hist || [])
         setAttachments(atts || [])
+        setOrcamento(orc)
+
+        if (orc?.id) {
+          const [oIt, oAn] = await Promise.all([
+            getOrcamentoItens(orc.id).catch(() => [] as OrcamentoItem[]),
+            getOrcamentoAnexos(orc.id).catch(() => [] as OrcamentoAnexo[]),
+          ])
+          setOrcamentoItens(oIt)
+          setOrcamentoAnexos(oAn)
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -58,6 +81,14 @@ export default function OrdemPrint() {
   }
 
   return (
-    <PrintOrderDocument order={order} items={items} history={history} attachments={attachments} />
+    <PrintOrderDocument
+      order={order}
+      items={items}
+      history={history}
+      attachments={attachments}
+      orcamento={orcamento}
+      orcamentoItens={orcamentoItens}
+      orcamentoAnexos={orcamentoAnexos}
+    />
   )
 }
