@@ -377,9 +377,11 @@ export default function OrcamentoDetail() {
       orcamento.expand?.id_os?.equipment ||
       ''
 
+    const osNum = orcamento.expand?.id_os?.number
     const defaultMsg = buildOrcamentoPropostaMessage({
       customerName: custName,
       numeroOrcamento: orcamento.numero_orcamento,
+      osNumber: osNum,
       propostaUrl,
       equipment: equipmentName,
     })
@@ -466,9 +468,11 @@ export default function OrcamentoDetail() {
       orcamento.expand?.id_os?.equipment ||
       ''
 
+    const osNum = orcamento.expand?.id_os?.number
     const msg = buildOrcamentoPropostaMessage({
       customerName: custName,
       numeroOrcamento: orcamento.numero_orcamento,
+      osNumber: osNum,
       propostaUrl,
       equipment: equipmentName,
     })

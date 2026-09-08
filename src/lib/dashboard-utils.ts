@@ -5,14 +5,15 @@ export type Period = 'today' | 'week' | 'month' | 'custom'
 export const STATUS_PRIORITY_MAP: Record<OrderStatus, number> = {
   aguardando_orcamento: 1,
   orcamento_enviado: 2,
-  open: 3,
-  in_progress: 4,
-  paused: 5,
-  waiting_parts: 6,
-  completed: 7,
-  closed: 8,
-  orcamento_rejeitado: 9,
-  cancelled: 10,
+  orcamento_aprovado: 3,
+  open: 4,
+  in_progress: 5,
+  paused: 6,
+  waiting_parts: 7,
+  completed: 8,
+  closed: 9,
+  orcamento_rejeitado: 10,
+  cancelled: 11,
 }
 
 export const STATUS_CONFIG = [
@@ -28,6 +29,12 @@ export const STATUS_CONFIG = [
     label: 'Orçamento Enviado',
     color: 'text-indigo-600',
     bg: 'bg-indigo-50',
+  },
+  {
+    value: 'orcamento_aprovado',
+    label: 'Orçamento Aprovado',
+    color: 'text-emerald-600',
+    bg: 'bg-emerald-50',
   },
   { value: 'in_progress', label: 'Em Andamento', color: 'text-purple-600', bg: 'bg-purple-50' },
   { value: 'paused', label: 'Pausada', color: 'text-orange-600', bg: 'bg-orange-50' },

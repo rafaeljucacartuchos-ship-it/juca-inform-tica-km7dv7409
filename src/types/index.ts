@@ -99,6 +99,7 @@ export type OrderStatus =
   | 'cancelled'
   | 'aguardando_orcamento'
   | 'orcamento_enviado'
+  | 'orcamento_aprovado'
   | 'orcamento_rejeitado'
 export type OrderPriority = 'low' | 'medium' | 'high' | 'urgent'
 

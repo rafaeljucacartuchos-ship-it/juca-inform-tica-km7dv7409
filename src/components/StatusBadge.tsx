@@ -32,6 +32,12 @@ export function StatusBadge({ status }: { status: string }) {
           Orçamento Enviado
         </Badge>
       )
+    case 'orcamento_aprovado':
+      return (
+        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
+          Orçamento Aprovado
+        </Badge>
+      )
     case 'orcamento_rejeitado':
       return (
         <Badge className="bg-rose-100 text-rose-800 border-rose-200 hover:bg-rose-100">

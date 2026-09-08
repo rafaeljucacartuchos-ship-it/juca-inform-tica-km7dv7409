@@ -84,29 +84,89 @@ export async function getOrcamento(id: string): Promise<Orcamento> {
 }
 
 /**
- * Gera o próximo número sequencial de orçamento no formato ORC-0001/2026
+ * Utilitário para formatar a exibição unificada O.S. + Orçamento
+ * Ex: "OS-0037 · ORC-0037"
  */
-export async function generateNextOrcamentoNumber(): Promise<string> {
+export function formatOsOrcamentoLabel(
+  osNumber?: string | null,
+  orcamentoNumber?: string | null,
+): string {
+  const cleanOs = (osNumber || '').trim()
+  const cleanOrc = (orcamentoNumber || '').trim()
+
+  if (cleanOs && cleanOrc) {
+    // Se o orçamento já tem exatamente o número espelhado (ex: ORC-0037 e OS-0037)
+    return `${cleanOs} · ${cleanOrc}`
+  }
+  if (cleanOrc) return cleanOrc
+  if (cleanOs) return cleanOs
+  return 'S/N'
+}
+
+/**
+ * Converte um número de OS (ex: "OS-0037") para o número de orçamento correspondente (ex: "ORC-0037").
+ * Se já estiver no formato ORC-, retorna como está.
+ */
+export function deriveOrcamentoNumberFromOs(osNumber?: string | null): string | null {
+  if (!osNumber) return null
+  const trimmed = osNumber.trim()
+  if (trimmed.startsWith('OS-')) {
+    return trimmed.replace(/^OS-/, 'ORC-')
+  }
+  const digitsMatch = trimmed.match(/\d+/)
+  if (digitsMatch) {
+    return `ORC-${digitsMatch[0].padStart(4, '0')}`
+  }
+  return `ORC-${trimmed}`
+}
+
+/**
+ * Gera o próximo número de orçamento:
+ * Se id_os for fornecido ou houver número de OS vinculado, deriva diretamente da OS (ex: OS-0037 -> ORC-0037).
+ * Caso contrário, mantém numeração sequencial fallback para compatibilidade.
+ */
+export async function generateNextOrcamentoNumber(osIdOrNumber?: string): Promise<string> {
+  if (osIdOrNumber) {
+    // Se veio no formato "OS-XXXX", deriva diretamente
+    if (osIdOrNumber.startsWith('OS-')) {
+      return deriveOrcamentoNumberFromOs(osIdOrNumber) || 'ORC-0001'
+    }
+    // Caso contrário, pode ser o ID do registro de service_orders
+    try {
+      const osRecord = await pb
+        .collection('service_orders')
+        .getOne<{ number: string }>(osIdOrNumber, {
+          fields: 'id,number',
+        })
+      if (osRecord?.number) {
+        const derived = deriveOrcamentoNumberFromOs(osRecord.number)
+        if (derived) return derived
+      }
+    } catch {
+      // continua para fallback sequencial
+    }
+  }
+
   const currentYear = new Date().getFullYear()
   try {
     const records = await pb.collection('orcamentos').getFullList<Orcamento>({
-      filter: `numero_orcamento ~ "/${currentYear}"`,
       sort: '-created',
     })
 
     let maxNum = 0
-    const regex = new RegExp(`ORC-(\\d+)/${currentYear}`)
+    // Aceita tanto ORC-0001 quanto ORC-0001/2026
+    const regex = /ORC-(\d+)/
     for (const r of records) {
-      const match = r.numero_orcamento.match(regex)
+      const match = r.numero_orcamento?.match(regex)
       if (match && match[1]) {
         const val = parseInt(match[1], 10)
         if (val > maxNum) maxNum = val
       }
     }
     const nextSeq = String(maxNum + 1).padStart(4, '0')
-    return `ORC-${nextSeq}/${currentYear}`
+    return `ORC-${nextSeq}`
   } catch {
-    return `ORC-0001/${currentYear}`
+    return `ORC-0001`
   }
 }
 
@@ -114,6 +174,7 @@ export async function generateNextOrcamentoNumber(): Promise<string> {
  * Cria um novo orçamento vinculado à O.S.
  * Regra de negócio: Apenas 1 orçamento ATIVO por O.S.;
  * orçamentos ativos anteriores são marcados como "substituido".
+ * O número do orçamento espelha o número da O.S. (ex.: OS-0037 -> ORC-0037).
  * Atualiza o status da O.S. para "aguardando_orcamento".
  */
 export async function createOrcamento(params: {
@@ -139,8 +200,22 @@ export async function createOrcamento(params: {
     }
   }
 
-  // 2. Gera novo número
-  const numero_orcamento = await generateNextOrcamentoNumber()
+  // 2. Busca número da O.S. vinculada para espelhar (OS-0037 -> ORC-0037)
+  let osNumber: string | undefined
+  try {
+    const osRec = await pb.collection('service_orders').getOne<{ number: string }>(id_os, {
+      fields: 'id,number',
+    })
+    osNumber = osRec?.number
+  } catch {
+    /* ignore */
+  }
+
+  // 3. Gera número do orçamento vinculado à O.S.
+  let numero_orcamento = osNumber ? deriveOrcamentoNumberFromOs(osNumber) : null
+  if (!numero_orcamento) {
+    numero_orcamento = await generateNextOrcamentoNumber(id_os)
+  }
 
   // 3. Cria o novo orçamento como rascunho com token de acesso
   const token_acesso = await generateRandomToken(32)

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-08T00:15:01.803Z",
+  "generatedAt": "2026-09-08T00:43:12.740Z",
   "collections": [
     {
       "name": "users",
@@ -339,6 +339,7 @@
             "cancelled",
             "aguardando_orcamento",
             "orcamento_enviado",
+            "orcamento_aprovado",
             "orcamento_rejeitado"
           ]
         },
@@ -709,6 +710,7 @@
             "cancelled",
             "aguardando_orcamento",
             "orcamento_enviado",
+            "orcamento_aprovado",
             "orcamento_rejeitado"
           ]
         },

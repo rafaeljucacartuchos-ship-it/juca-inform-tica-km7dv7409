@@ -46,9 +46,18 @@ export interface PropostaData {
   os: {
     id: string
     number: string
-    description: string
-    equipment: string
-    status: string
+    title?: string
+    description?: string
+    equipment?: string
+    status?: string
+    diagnostic?: string
+    service_report?: string
+    notes?: string
+    priority?: string
+    created?: string
+    attendance_date?: string
+    attendance_time?: string
+    started_at?: string
   } | null
   customer: {
     id: string

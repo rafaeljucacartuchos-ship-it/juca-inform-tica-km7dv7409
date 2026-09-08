@@ -189,16 +189,25 @@ export function OrcamentoPrintDocument({
           </div>
         </div>
 
-        {/* RESUMO COMPACTO DA O.S. (6 a 8 linhas, fundo claro) */}
-        <div className="mb-3.5 rounded-md border border-slate-200 bg-slate-50/70 p-2.5 text-[11px]">
-          <h3 className="mb-1 border-b border-slate-200 pb-1 text-xs font-bold text-slate-900 uppercase tracking-wide flex items-center justify-between">
-            <span>Resumo da Ordem de Serviço</span>
-            <span className="font-mono text-indigo-700 font-bold">OS #{os?.number || '—'}</span>
-          </h3>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 leading-snug">
+        {/* RESUMO INTEGRADO DA O.S. (Documento Único Orçamento + O.S.) */}
+        <div className="mb-3.5 rounded-md border-2 border-indigo-200 bg-indigo-50/40 p-3 text-[11px]">
+          <div className="mb-1.5 flex items-center justify-between border-b border-indigo-200 pb-1">
+            <h3 className="text-xs font-black text-indigo-950 uppercase tracking-wide flex items-center gap-1.5">
+              <span>Resumo da Ordem de Serviço</span>
+              <span className="text-[10px] font-normal text-indigo-700 lowercase">
+                (documento integrado)
+              </span>
+            </h3>
+            <span className="font-mono text-xs font-bold text-indigo-900 bg-white px-2 py-0.5 rounded border border-indigo-200">
+              {os?.number
+                ? `${os.number} · ${orcamento.numero_orcamento}`
+                : orcamento.numero_orcamento}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 leading-snug">
             <div>
               <strong className="text-slate-700">Equipamento:</strong>{' '}
-              <span className="font-semibold text-slate-900">
+              <span className="font-bold text-slate-900">
                 {equip?.name || os?.equipment || 'Equipamento não especificado'}
               </span>
             </div>
@@ -210,22 +219,30 @@ export function OrcamentoPrintDocument({
             </div>
             <div>
               <strong className="text-slate-700">Técnico Responsável:</strong>{' '}
-              <span className="text-slate-900">{tech?.name || 'Não atribuído'}</span>
+              <span className="font-semibold text-slate-900">{tech?.name || 'Equipe JUCA'}</span>
             </div>
             <div>
-              <strong className="text-slate-700">Status Atual da O.S.:</strong>{' '}
-              <span className="font-bold text-slate-900 uppercase">{os?.status || '—'}</span>
-            </div>
-            <div className="col-span-2">
-              <strong className="text-slate-700">Defeito Relatado / Queixa:</strong>{' '}
-              <span className="text-slate-800">
-                {os?.description || 'Nenhum defeito registrado.'}
+              <strong className="text-slate-700">Data de Entrada:</strong>{' '}
+              <span className="text-slate-900">
+                {os?.attendance_date
+                  ? fmtDate(os.attendance_date)
+                  : fmtDate(os?.created || orcamento.created)}
               </span>
             </div>
-            {os?.diagnostic && (
-              <div className="col-span-2">
-                <strong className="text-slate-700">Diagnóstico Prévio:</strong>{' '}
-                <span className="text-slate-800">{os.diagnostic}</span>
+            <div className="col-span-2 bg-white/70 p-2 rounded border border-indigo-100">
+              <strong className="text-slate-800 block text-[10px] uppercase font-bold mb-0.5">
+                Defeito Relatado pelo Cliente:
+              </strong>{' '}
+              <span className="text-slate-800">
+                {os?.description || 'Nenhum defeito relatado especificado.'}
+              </span>
+            </div>
+            {(os?.service_report || os?.diagnostic) && (
+              <div className="col-span-2 bg-white/70 p-2 rounded border border-emerald-100">
+                <strong className="text-emerald-900 block text-[10px] uppercase font-bold mb-0.5">
+                  Serviço Executado / Diagnóstico Técnico:
+                </strong>{' '}
+                <span className="text-slate-800">{os?.service_report || os?.diagnostic}</span>
               </div>
             )}
           </div>

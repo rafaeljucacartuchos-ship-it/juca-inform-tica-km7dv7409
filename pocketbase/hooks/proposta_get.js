@@ -24,9 +24,18 @@ routerAdd('GET', '/backend/v1/proposta/{token}', (e) => {
       os = {
         id: osRecord.id,
         number: osRecord.getString('number'),
+        title: osRecord.getString('title'),
         description: osRecord.getString('description'),
         equipment: osRecord.getString('equipment'),
         status: osRecord.getString('status'),
+        diagnostic: osRecord.getString('diagnostic'),
+        service_report: osRecord.getString('service_report'),
+        notes: osRecord.getString('notes'),
+        priority: osRecord.getString('priority'),
+        created: osRecord.getString('created'),
+        attendance_date: osRecord.getString('attendance_date'),
+        attendance_time: osRecord.getString('attendance_time'),
+        started_at: osRecord.getString('started_at'),
       }
 
       // Cliente

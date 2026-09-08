@@ -362,28 +362,68 @@ export default function PropostaPublica() {
               </div>
             </div>
 
-            {/* Equipamento e Defeito Relatado */}
-            <div className="pt-3 space-y-2">
-              <div className="flex items-start gap-2">
-                <Wrench className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <span className="font-semibold text-slate-700">Equipamento:</span>
-                  <p className="font-medium text-slate-900">
-                    {data.equipment?.name || data.os?.equipment || 'Equipamento não especificado'}
-                    {data.equipment?.brand ? ` • Marca: ${data.equipment.brand}` : ''}
-                    {data.equipment?.model ? ` • Modelo: ${data.equipment.model}` : ''}
-                  </p>
+            {/* Resumo Integrado da Ordem de Serviço */}
+            <div className="pt-3">
+              <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Wrench className="h-4 w-4 text-indigo-700 shrink-0" />
+                    <span className="font-bold text-indigo-950 text-xs uppercase tracking-wide">
+                      Resumo da Ordem de Serviço
+                    </span>
+                  </div>
+                  {data.os?.number && (
+                    <Badge
+                      variant="outline"
+                      className="bg-white border-indigo-200 text-indigo-800 font-mono text-[11px]"
+                    >
+                      {data.os.number}
+                    </Badge>
+                  )}
                 </div>
-              </div>
 
-              {data.os?.description && (
-                <div className="bg-slate-50 border border-slate-200/80 p-3 rounded-lg">
-                  <span className="font-semibold text-slate-700 block text-[11px] mb-1">
-                    Defeito Relatado / Sintoma Apresentado:
-                  </span>
-                  <p className="text-slate-800 leading-relaxed">{data.os.description}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-500 block">
+                      Equipamento:
+                    </span>
+                    <p className="font-semibold text-slate-900 mt-0.5">
+                      {data.equipment?.name || data.os?.equipment || 'Equipamento não especificado'}
+                      {data.equipment?.brand ? ` • ${data.equipment.brand}` : ''}
+                      {data.equipment?.model ? ` ${data.equipment.model}` : ''}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-500 block">
+                      Técnico Responsável:
+                    </span>
+                    <p className="font-semibold text-slate-900 mt-0.5">
+                      {data.technician?.name || 'JUCA Informática'}
+                    </p>
+                  </div>
                 </div>
-              )}
+
+                {data.os?.description && (
+                  <div className="bg-white/80 border border-indigo-100/70 p-2.5 rounded-lg text-xs">
+                    <span className="font-semibold text-slate-700 block text-[11px] mb-1">
+                      Defeito Relatado pelo Cliente:
+                    </span>
+                    <p className="text-slate-800 leading-relaxed">{data.os.description}</p>
+                  </div>
+                )}
+
+                {(data.os?.service_report || data.os?.diagnostic) && (
+                  <div className="bg-white/80 border border-emerald-100 p-2.5 rounded-lg text-xs">
+                    <span className="font-semibold text-emerald-900 block text-[11px] mb-1">
+                      Diagnóstico Técnico / Serviço Executado:
+                    </span>
+                    <p className="text-slate-800 leading-relaxed">
+                      {data.os.service_report || data.os.diagnostic}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>

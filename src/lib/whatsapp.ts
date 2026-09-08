@@ -159,16 +159,19 @@ export function buildOrcamentoPropostaMessage(params: {
   numeroOrcamento: string
   propostaUrl: string
   equipment?: string
+  osNumber?: string
 }): string {
-  const { customerName, numeroOrcamento, propostaUrl, equipment } = params
+  const { customerName, numeroOrcamento, propostaUrl, equipment, osNumber } = params
   const firstName = customerName.split(' ')[0] || customerName
   const equipPart = equipment ? ` referente ao seu equipamento *${equipment}*` : ''
+  const osPart = osNumber ? ` (O.S. *${osNumber}*)` : ''
 
   return (
     `🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n` +
     `Olá, *${firstName}*! Tudo bem?\n\n` +
-    `Preparamos a proposta do seu orçamento *${numeroOrcamento}*${equipPart}.\n\n` +
-    `Aguardamos você clicar no link abaixo para analisar toda a proposta com detalhes e assinar digitalmente para aprovação:\n\n` +
+    `Preparamos a proposta integrada (*Orçamento + Ordem de Serviço*${osPart} · *${numeroOrcamento}*)${equipPart}.\n\n` +
+    `📄 *Documento Único:* Contém o resumo completo da O.S. (equipamento, defeito relatado e técnico responsável) junto com os itens, valores, fotos e condições de pagamento do orçamento.\n\n` +
+    `Acesse o link seguro abaixo para analisar todo o documento e assinar digitalmente para aprovação:\n\n` +
     `👉 ${propostaUrl}\n\n` +
     `Qualquer dúvida ou ajuste que precisar, estamos à sua inteira disposição!\n\n` +
     `JUCA INFORMÁTICA\n` +
