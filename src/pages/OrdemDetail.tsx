@@ -7,7 +7,6 @@ import {
   CheckCircle,
   MessageCircle,
   Share2,
-  Printer,
   FileText,
   ExternalLink,
   Plus,
@@ -15,12 +14,14 @@ import {
   Trash2,
   ChevronDown,
   ChevronUp,
+  Send,
 } from 'lucide-react'
 import { OrcamentoItemModal } from '@/components/OrcamentoItemModal'
 import {
   deleteOrcamentoItem,
   recalculateOrcamentoTotals,
   updateOrcamento,
+  generateRandomToken,
 } from '@/services/orcamentos'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -47,8 +48,9 @@ import {
   openWhatsApp,
   triggerWhatsAppEvaluation,
   buildServiceMessage,
-  buildOpenOrderWelcomeMessage,
   buildOrderCompletionSummaryMessage,
+  buildTechnicianPresentationMessage,
+  buildOrcamentoPropostaMessage,
   buildWhatsAppUrl,
 } from '@/lib/whatsapp'
 
@@ -358,37 +360,151 @@ export default function OrdemDetail() {
     }
   }
 
+  // Helper síncrono para cópia imediata no gesto do clique (essencial para iOS/Safari)
+  const copyToClipboardSync = (text: string): boolean => {
+    try {
+      const textArea = document.createElement('textarea')
+      textArea.value = text
+      textArea.style.position = 'fixed'
+      textArea.style.left = '-9999px'
+      textArea.style.top = '0'
+      textArea.style.opacity = '0'
+      textArea.setAttribute('readonly', '')
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      const successful = document.execCommand('copy')
+      document.body.removeChild(textArea)
+      if (successful) return true
+    } catch {
+      /* ignore */
+    }
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).catch(() => {})
+        return true
+      }
+    } catch {
+      /* ignore */
+    }
+
+    return false
+  }
+
+  // Tarefa 1: Botão WhatsApp da O.S. vira só conversa (apresentação com nome do técnico responsável, SEM link)
   const handleWhatsApp = () => {
     const phone = getCustomerPhone(order.expand?.customer)
     if (!phone) {
       toast({ title: 'Cliente sem telefone cadastrado', variant: 'destructive' })
       return
     }
-    const shareUrl = `${window.location.origin}/share/${order.id}`
     const name = getCustomerDisplayName(order.expand?.customer)
     const equip = order.equipment || order.expand?.equipment_ref?.name || ''
-
     const techName =
       order.expand?.technician?.name || (order.technician === user?.id ? user?.name : undefined)
 
-    // Requisito 1: enquanto a ordem de serviço estiver aberta, abre a conversa com texto de boas-vindas/aviso em 1 clique
-    if (order.status === 'open') {
-      openWhatsApp(phone, buildOpenOrderWelcomeMessage(name, order.number, equip, techName))
-    } else if (order.status === 'completed') {
-      const itemsText = orcamentoItens
-        .map((i) => i.descricao)
-        .filter(Boolean)
-        .slice(0, 3)
-        .join(', ')
-      triggerWhatsAppEvaluation(phone, name, order.number, shareUrl, {
-        equipment: equip,
-        serviceReport: order.service_report || order.description,
-        technicianName: techName,
-        itemsSummary: itemsText,
+    const msg = buildTechnicianPresentationMessage({
+      customerName: name,
+      technicianName: techName,
+      orderNumber: order.number,
+      equipment: equip,
+    })
+
+    // Cópia síncrona no gesto do toque antes de qualquer await (compatibilidade Safari/iOS)
+    copyToClipboardSync(msg)
+    openWhatsApp(phone, msg)
+    toast({
+      title: 'WhatsApp aberto!',
+      description: 'Mensagem de apresentação copiada e conversa aberta.',
+    })
+  }
+
+  // Tarefa 2: Botão "Enviar ao Cliente" — envia o link do documento unificado da proposta (O.S. + orçamento)
+  const handleEnviarAoCliente = async () => {
+    const phone = getCustomerPhone(order.expand?.customer)
+    if (!phone) {
+      toast({
+        title: 'Cliente sem WhatsApp informado',
+        description: 'Cadastre o celular do cliente antes de enviar o link.',
+        variant: 'destructive',
       })
-    } else {
-      openWhatsApp(phone, buildServiceMessage(name, order.number, order.status, shareUrl))
+      return
     }
+
+    const name = getCustomerDisplayName(order.expand?.customer)
+    const equip = order.equipment || order.expand?.equipment_ref?.name || ''
+    const osNum = order.number
+
+    // 1) DISPARO SÍNCRONO NO GESTO DO TOQUE (ANTES DE QUALQUER AWAIT) para compatibilidade Safari/iOS:
+    // Monta o link imediato com token já carregado em memória (ou orcamento.id / fallback)
+    const initialToken = activeOrcamento?.token_acesso || activeOrcamento?.id || order.id
+    const immediatePropostaUrl = `${window.location.origin}/proposta/${initialToken}`
+    const immediateMsg = buildOrcamentoPropostaMessage({
+      customerName: name,
+      numeroOrcamento: activeOrcamento?.numero_orcamento || `OS-${osNum}`,
+      osNumber: osNum,
+      propostaUrl: immediatePropostaUrl,
+      equipment: equip,
+    })
+
+    // Cópia síncrona imediata da URL e da mensagem no gesto do toque
+    copyToClipboardSync(immediatePropostaUrl)
+    copyToClipboardSync(immediateMsg)
+
+    // Se o orçamento já tem token ou não existe orçamento vinculado, abre imediatamente
+    let token = activeOrcamento?.token_acesso
+    if (!token && activeOrcamento?.id) {
+      try {
+        const generated = await generateRandomToken(32)
+        const updated = await updateOrcamento(activeOrcamento.id, { token_acesso: generated })
+        token = updated.token_acesso || generated
+        setActiveOrcamento((prev) => (prev ? { ...prev, token_acesso: token } : prev))
+      } catch {
+        token = activeOrcamento.id
+      }
+    }
+
+    const finalPropostaUrl = `${window.location.origin}/proposta/${token || activeOrcamento?.id || order.id}`
+    const finalMsg = buildOrcamentoPropostaMessage({
+      customerName: name,
+      numeroOrcamento: activeOrcamento?.numero_orcamento || `OS-${osNum}`,
+      osNumber: osNum,
+      propostaUrl: finalPropostaUrl,
+      equipment: equip,
+    })
+
+    // Tenta atualizar a cópia se a URL mudou
+    if (finalPropostaUrl !== immediatePropostaUrl) {
+      copyToClipboardSync(finalPropostaUrl)
+      copyToClipboardSync(finalMsg)
+    }
+
+    // Registra envio no histórico do cliente / pós-venda
+    try {
+      const custId = order.customer || order.expand?.customer?.id
+      if (custId) {
+        await offlinePb.create('pos_venda_messages', {
+          customer: custId,
+          service_order: order.id,
+          tipo: 'resumo_finalizacao',
+          status: 'sent',
+          scheduled_at: new Date().toISOString(),
+          sent_at: new Date().toISOString(),
+          texto_gerado: finalMsg,
+          wa_me_link: buildWhatsAppUrl(phone, finalMsg),
+          channel: 'whatsapp',
+        })
+      }
+    } catch {
+      /* ignore */
+    }
+
+    openWhatsApp(phone, finalMsg)
+    toast({
+      title: 'Link enviado via WhatsApp!',
+      description: 'Documento unificado preparado no WhatsApp do cliente.',
+    })
   }
 
   const handleShare = () => {
@@ -593,11 +709,12 @@ export default function OrdemDetail() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate(`/ordens/${order.id}/imprimir`)}
-            className="text-xs gap-1.5 h-10 sm:h-9 justify-center"
+            onClick={handleEnviarAoCliente}
+            className="text-xs gap-1.5 h-10 sm:h-9 justify-center border-indigo-200 bg-indigo-50/50 text-indigo-700 hover:bg-indigo-100 font-semibold"
+            title="Enviar link do documento unificado (O.S. + orçamento) via WhatsApp ao cliente"
           >
-            <Printer className="h-4 w-4" /> <span className="hidden sm:inline">Imprimir / PDF</span>
-            <span className="sm:hidden">Imprimir</span>
+            <Send className="h-4 w-4 text-indigo-600" />
+            <span>Enviar ao Cliente</span>
           </Button>
           <Button
             variant="outline"
@@ -611,19 +728,11 @@ export default function OrdemDetail() {
             variant="outline"
             size="sm"
             onClick={handleWhatsApp}
-            className={`text-xs gap-1.5 h-10 sm:h-9 justify-center ${
-              order.status === 'open'
-                ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-bold'
-                : ''
-            }`}
-            title={
-              order.status === 'open'
-                ? 'Conversar com o cliente da OS aberta no WhatsApp'
-                : 'Enviar via WhatsApp'
-            }
+            className="text-xs gap-1.5 h-10 sm:h-9 justify-center border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-bold"
+            title="Conversar com o cliente no WhatsApp (apresentação do técnico sem links)"
           >
             <MessageCircle className="h-4 w-4 text-emerald-600" />
-            <span>WhatsApp {order.status === 'open' ? 'Aberto' : ''}</span>
+            <span>WhatsApp</span>
           </Button>
         </div>
       </div>
