@@ -768,7 +768,7 @@ export default function OrcamentoDetail() {
     return copyToClipboardSync(text)
   }
 
-  // Montador da mensagem formatada para o grupo de faturamento do WhatsApp
+  // Montador da mensagem formatada para o grupo de faturamento do WhatsApp (v0.0.149: inclui link do documento online da proposta)
   const buildFaturamentoTextMessage = (params: {
     isReenvio: boolean
     osNumberDisplay: string
@@ -781,6 +781,7 @@ export default function OrcamentoDetail() {
     formaPagamento?: string
     parcelas?: number
     isLinkedToOs: boolean
+    documentoUrl?: string
   }): string => {
     const {
       isReenvio,
@@ -794,6 +795,7 @@ export default function OrcamentoDetail() {
       formaPagamento,
       parcelas,
       isLinkedToOs,
+      documentoUrl,
     } = params
 
     const itensLinhas =
@@ -826,6 +828,10 @@ export default function OrcamentoDetail() {
         ? `${numParc}x de R$ ${(totalGeral / numParc).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         : 'À vista'
 
+    const documentoLinha = documentoUrl
+      ? `\n📄 *Documento completo para conferência e impressão:*\n👉 ${documentoUrl}\n`
+      : ''
+
     return (
       `📄 *${isReenvio ? 'REENVIO DE FATURAMENTO' : 'FATURAMENTO CONCLUÍDO'} - JUCA INFORMÁTICA*\n\n` +
       `🔢 *O.S. / Orçamento:* ${osNumberDisplay} / ${orcNumber}\n` +
@@ -837,8 +843,9 @@ export default function OrcamentoDetail() {
       `💰 *Total Geral:* R$ ${totalFmt}\n` +
       `💳 *Forma de Pagamento:* ${formaPag} (${parcelasFmt})\n\n` +
       (isLinkedToOs ? `✅ *Status O.S.:* Finalizada (Closed)\n` : '') +
-      `✅ *Status Orçamento:* Faturado`
-    )
+      `✅ *Status Orçamento:* Faturado\n` +
+      documentoLinha
+    ).trimEnd()
   }
 
   // Faturamento (Permite faturar e reenviar ao grupo sem duplicar registros)
@@ -859,10 +866,15 @@ export default function OrcamentoDetail() {
     const orcNumber = orcamento.numero_orcamento || '—'
 
     // =========================================================================
-    // ETAPA CRÍTICA PARA iOS / SAFARI (v0.0.148):
+    // ETAPA CRÍTICA PARA iOS / SAFARI (v0.0.148 + v0.0.149):
     // 1) DISPARO SÍNCRONO DA COPIA NO GESTO DO TOQUE (ANTES DE QUALQUER AWAIT).
     // O Safari revoga permissão de clipboard e bloqueia popups após o primeiro await.
+    // O link público da proposta/documento é montado síncronamente a partir do token
+    // (ou id) já carregados em memória (window.location.origin + /proposta/[token]).
     // =========================================================================
+    const initialToken = orcamento.token_acesso || orcamento.id
+    const immediateDocumentoUrl = `${window.location.origin}/proposta/${initialToken}`
+
     const immediateMessage = buildFaturamentoTextMessage({
       isReenvio,
       osNumberDisplay: osNumberInitial,
@@ -875,6 +887,7 @@ export default function OrcamentoDetail() {
       formaPagamento: orcamento.forma_pagamento,
       parcelas: orcamento.parcelas,
       isLinkedToOs: Boolean(orcamento.id_os),
+      documentoUrl: immediateDocumentoUrl,
     })
 
     // Cópia síncrona imediata no gesto do clique
@@ -935,6 +948,19 @@ export default function OrcamentoDetail() {
       const osNumberDisplay =
         resolvedOsNumber || (orcamento.id_os ? 'O.S. Vinculada' : '— (Independente)')
 
+      // Garante que o orçamento tenha token_acesso persistido se ainda não tinha
+      let resolvedToken = orcamento.token_acesso
+      if (!resolvedToken) {
+        try {
+          const generated = await generateRandomToken(32)
+          const updated = await updateOrcamento(orcamento.id, { token_acesso: generated })
+          resolvedToken = updated.token_acesso || generated
+        } catch {
+          resolvedToken = orcamento.id
+        }
+      }
+      const finalDocumentoUrl = `${window.location.origin}/proposta/${resolvedToken || orcamento.id}`
+
       // 2. Executa faturamento no backend (idempotente: se já faturado, não duplica pagamento nem baixa de estoque e fecha OS)
       await sendOrcamentoToFaturamento(orcamento.id, user?.id)
 
@@ -951,6 +977,7 @@ export default function OrcamentoDetail() {
         formaPagamento: orcamento.forma_pagamento,
         parcelas: orcamento.parcelas,
         isLinkedToOs: Boolean(orcamento.id_os),
+        documentoUrl: finalDocumentoUrl,
       })
 
       // 4. Revalidação pós-awaits: se a mensagem final mudou ou a cópia inicial falhou, tenta copiar novamente com fallback
