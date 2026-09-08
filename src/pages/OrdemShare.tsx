@@ -267,6 +267,7 @@ export default function OrdemShare() {
   const mappedOrder: ServiceOrder = {
     id: data.id,
     number: data.number,
+    customer: data.customer?.name || 'share_customer',
     title: data.title,
     description: data.description,
     status: data.status as any,
