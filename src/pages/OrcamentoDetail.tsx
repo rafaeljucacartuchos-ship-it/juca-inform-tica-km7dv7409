@@ -1059,7 +1059,7 @@ export default function OrcamentoDetail() {
   const statusCfg = STATUS_CONFIG[orcamento.status] || STATUS_CONFIG.rascunho
 
   return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-6 pb-12">
       {/* Top Bar e Navegação */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
@@ -2023,102 +2023,7 @@ export default function OrcamentoDetail() {
         </div>
       </div>
 
-      {/* AÇÕES PRINCIPAIS FIXAS NO RODAPÉ (MOBILE-FIRST, BOTÕES ≥44px) */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3 sm:px-6 shadow-lg">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="hidden sm:flex items-center gap-3 text-xs">
-            <span className="font-bold text-slate-900 font-mono text-sm">
-              {orcamento.numero_orcamento}
-            </span>
-            <span>•</span>
-            <span className="text-slate-600">Total:</span>
-            <span className="font-mono font-bold text-base text-indigo-700">
-              R$ {financialSummary.totalGeral.toFixed(2)}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-3 sm:flex items-center gap-2 w-full sm:w-auto">
-            {/* WhatsApp com link PDF e registro no histórico */}
-            <Button
-              type="button"
-              onClick={handleWhatsApp}
-              className="h-11 sm:h-10 px-3 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-sm"
-              title="Enviar orçamento com link PDF pelo WhatsApp"
-            >
-              <MessageCircle className="h-4 w-4" />
-              <span className="truncate">WhatsApp</span>
-            </Button>
-
-            {/* Compartilhamento Nativo */}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleNativeShare}
-              className="h-11 sm:h-10 px-3 text-xs font-bold border-indigo-200 text-indigo-700 hover:bg-indigo-50 gap-1.5 shadow-2xs"
-              title="Compartilhamento nativo com o arquivo PDF do orçamento"
-            >
-              <Share2 className="h-4 w-4" />
-              <span className="truncate">Compartilhar</span>
-            </Button>
-
-            {/* Opções de Impressão A4 */}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setPrintSelectOpen(true)}
-              className="h-11 sm:h-10 px-3 text-xs font-bold border-slate-300 text-slate-800 hover:bg-slate-100 gap-1.5 shadow-2xs"
-            >
-              <Printer className="h-4 w-4" />
-              <span className="truncate">Imprimir A4</span>
-            </Button>
-
-            {/* 4) BOTÃO FATURAMENTO: mantido SEMPRE ATIVO após aprovado ou faturado (permite reenviar/faturar novamente sem bloqueio) */}
-            <div className="col-span-3 sm:col-span-1">
-              {orcamento.status === 'aprovado' || orcamento.status === 'faturado' ? (
-                <Button
-                  type="button"
-                  onClick={() => setFaturamentoConfirmOpen(true)}
-                  className={`w-full sm:w-auto h-11 sm:h-10 px-4 text-xs font-bold text-white gap-1.5 shadow-md ${
-                    orcamento.status === 'faturado'
-                      ? 'bg-purple-700 hover:bg-purple-800 shadow-purple-700/25 ring-2 ring-purple-300'
-                      : 'bg-purple-600 hover:bg-purple-700 shadow-purple-600/20'
-                  }`}
-                  title={
-                    orcamento.status === 'faturado'
-                      ? 'Reenviar faturamento ao grupo de WhatsApp (não duplica lançamentos)'
-                      : 'Enviar orçamento para faturamento'
-                  }
-                >
-                  <DollarSign className="h-4 w-4" />
-                  <span>
-                    {orcamento.status === 'faturado'
-                      ? 'Faturamento (Reenviar)'
-                      : 'Enviar para Faturamento'}
-                  </span>
-                </Button>
-              ) : (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-block w-full sm:w-auto">
-                      <Button
-                        type="button"
-                        disabled
-                        className="w-full sm:w-auto h-11 sm:h-10 px-4 text-xs font-bold bg-slate-200 text-slate-400 cursor-not-allowed gap-1.5"
-                      >
-                        <Lock className="h-4 w-4" />
-                        <span>Enviar para Faturamento</span>
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="text-xs">Disponível após aprovação do cliente</p>
-                  </TooltipContent>
-                </Tooltip>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Botões de rodapé (WhatsApp, Compartilhar, Imprimir A4 e Faturamento) removidos conforme solicitação */}
 
       {/* Modal de Sucesso com Abertura e Fallback do Grupo do WhatsApp de Faturamento (Refinamento v0.0.150) */}
       <Dialog open={faturamentoSuccessModalOpen} onOpenChange={setFaturamentoSuccessModalOpen}>
