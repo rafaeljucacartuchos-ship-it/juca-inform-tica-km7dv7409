@@ -134,6 +134,7 @@ export default function OrcamentoDetail() {
   const [items, setItems] = useState<OrcamentoItem[]>([])
   const [anexos, setAnexos] = useState<OrcamentoAnexo[]>([])
   const [loading, setLoading] = useState(true)
+  const [parcelasInput, setParcelasInput] = useState<string>('1')
 
   // Modais auxiliares
   const [itemModalOpen, setItemModalOpen] = useState(false)
@@ -169,6 +170,7 @@ export default function OrcamentoDetail() {
         getOrcamentoAnexos(id),
       ])
       setOrcamento(o)
+      setParcelasInput(String(Math.max(1, o.parcelas || 1)))
       setItems(it)
       setAnexos(an)
       setJustificativaDesconto(o.justificativa_desconto || '')
@@ -184,7 +186,10 @@ export default function OrcamentoDetail() {
   }, [loadAll])
 
   useRealtime('orcamentos', (e) => {
-    if (e.record?.id === id) loadAll()
+    // Evita sobrescrever estado local se usuário estiver digitando
+    if (e.record?.id === id && !autoSaveTimerRef.current) {
+      loadAll()
+    }
   })
   useRealtime('orcamento_itens', () => loadAll())
   useRealtime('orcamento_anexos', () => loadAll())
@@ -195,6 +200,7 @@ export default function OrcamentoDetail() {
     setOrcamento((prev) => (prev ? { ...prev, ...fields } : prev))
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
     autoSaveTimerRef.current = setTimeout(async () => {
+      autoSaveTimerRef.current = null
       try {
         await updateOrcamento(id, fields)
         await recalculateOrcamentoTotals(id)
@@ -1066,7 +1072,7 @@ export default function OrcamentoDetail() {
                       triggerAutoSave({ forma_pagamento: val })
                     }
                   >
-                    <SelectTrigger className="h-8 text-xs">
+                    <SelectTrigger className="h-11 sm:h-9 text-sm sm:text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1084,16 +1090,29 @@ export default function OrcamentoDetail() {
                   <label className="font-semibold text-slate-700 block mb-1">Nº de Parcelas</label>
                   <Input
                     type="number"
+                    inputMode="numeric"
                     min="1"
                     step="1"
                     disabled={!canEdit}
-                    value={orcamento.parcelas || 1}
+                    value={parcelasInput}
                     onChange={(e) => {
-                      const val = parseInt(e.target.value, 10)
-                      const parcelas = isNaN(val) || val < 1 ? 1 : val
-                      triggerAutoSave({ parcelas })
+                      const raw = e.target.value
+                      setParcelasInput(raw)
+                      const parsed = parseInt(raw, 10)
+                      if (!isNaN(parsed) && parsed >= 1) {
+                        triggerAutoSave({ parcelas: parsed })
+                      }
                     }}
-                    className="h-8 text-xs font-mono"
+                    onBlur={() => {
+                      const parsed = parseInt(parcelasInput, 10)
+                      const normalized = isNaN(parsed) || parsed < 1 ? 1 : parsed
+                      setParcelasInput(String(normalized))
+                      if (orcamento.parcelas !== normalized) {
+                        triggerAutoSave({ parcelas: normalized })
+                      }
+                    }}
+                    className="h-11 sm:h-9 text-sm sm:text-xs font-mono"
+                    placeholder="1"
                   />
                   <span className="text-[11px] text-slate-500 mt-1 block font-mono">
                     {(orcamento.parcelas || 1) > 1 ? (
@@ -1129,6 +1148,7 @@ export default function OrcamentoDetail() {
                   </label>
                   <Input
                     type="number"
+                    inputMode="decimal"
                     step="0.01"
                     min="0"
                     disabled={!canEdit}
@@ -1139,7 +1159,7 @@ export default function OrcamentoDetail() {
                       triggerAutoSave({ entrada: ent, restante: rest })
                     }}
                     placeholder="0,00"
-                    className="h-8 text-xs font-mono"
+                    className="h-11 sm:h-9 text-sm sm:text-xs font-mono"
                   />
                 </div>
               </div>

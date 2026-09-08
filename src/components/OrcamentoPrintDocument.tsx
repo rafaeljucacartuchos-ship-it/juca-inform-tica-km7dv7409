@@ -349,7 +349,18 @@ export function OrcamentoPrintDocument({
                 </div>
                 <div>
                   <strong className="text-slate-700">Parcelamento:</strong>{' '}
-                  <span>{orcamento.parcelas || 1}x</span>
+                  <span>
+                    {(orcamento.parcelas || 1) > 1
+                      ? `${orcamento.parcelas}x de R$ ${fmtCurrency(
+                          (orcamento.restante !== undefined &&
+                          orcamento.restante !== null &&
+                          Number(orcamento.restante) > 0
+                            ? Number(orcamento.restante)
+                            : totalGeral - (Number(orcamento.entrada) || 0)) /
+                            (orcamento.parcelas || 1),
+                        )}`
+                      : '1x (à vista)'}
+                  </span>
                 </div>
                 {Number(orcamento.entrada) > 0 && (
                   <div>
