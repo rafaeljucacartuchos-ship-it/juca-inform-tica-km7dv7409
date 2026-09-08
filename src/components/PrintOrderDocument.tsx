@@ -329,9 +329,9 @@ export function PrintOrderDocument({
       {/* Documento A4 (Modelo Oficial O.S. JUCA Informática - Folha Única) */}
       <div className="print-document a4-single-page mx-auto max-w-4xl bg-white p-4 sm:p-5 text-slate-900 shadow-md border border-slate-200 rounded-lg print:border-0 print:shadow-none print:p-0 print:rounded-none text-[10px] leading-tight">
         {/* CABEÇALHO COM LOGOMARCA OFICIAL JUCA (COMPACTADO PARA 1 FOLHA) */}
-        <div className="mb-2 flex items-center justify-between border-b-2 border-slate-900 pb-2">
-          <div className="flex items-center gap-2.5">
-            <div className="h-11 w-24 sm:h-12 sm:w-28 shrink-0 overflow-hidden rounded bg-slate-950 p-1 flex items-center justify-center border border-slate-800">
+        <div className="mb-1.5 flex items-center justify-between border-b-2 border-slate-900 pb-1.5">
+          <div className="flex items-center gap-2">
+            <div className="h-10 w-24 sm:h-11 sm:w-28 shrink-0 overflow-hidden rounded bg-slate-950 p-1 flex items-center justify-center border border-slate-800">
               <img
                 src={JUCA_LOGO_URL}
                 alt="JUCA Informática"
@@ -345,11 +345,11 @@ export function PrintOrderDocument({
               <h1 className="text-sm font-extrabold tracking-tight text-slate-900 sm:text-base leading-none">
                 {COMPANY_DATA.nomeFantasia || 'JUCA INFORMÁTICA'}
               </h1>
-              <p className="text-[10px] font-semibold text-slate-700 leading-tight mt-0.5">
+              <p className="text-[9.5px] font-semibold text-slate-700 leading-tight mt-0.5">
                 {COMPANY_DATA.razaoSocial}
               </p>
-              <p className="text-[9px] text-slate-600 leading-tight">{COMPANY_DATA.endereco}</p>
-              <p className="text-[9px] text-slate-600 leading-tight">
+              <p className="text-[8.5px] text-slate-600 leading-tight">{COMPANY_DATA.endereco}</p>
+              <p className="text-[8.5px] text-slate-600 leading-tight">
                 <strong>Telefones:</strong> {COMPANY_DATA.telefones}
               </p>
             </div>
@@ -362,16 +362,16 @@ export function PrintOrderDocument({
                   : `OS ${order.number}`}
               </span>
             </div>
-            <p className="mt-0.5 text-[9px] font-medium text-slate-600 leading-tight">
+            <p className="mt-0.5 text-[8.5px] font-medium text-slate-600 leading-tight">
               <strong>Emissão O.S.:</strong> {fmtDate(order.created)}
             </p>
             {orcamento && (
-              <p className="text-[9px] text-slate-600 leading-tight">
+              <p className="text-[8.5px] text-slate-600 leading-tight">
                 <strong>Validade Orçamento:</strong> {orcamento.validade || 15} dias
               </p>
             )}
             {order.attendance_date && (
-              <p className="text-[9px] text-slate-600 leading-tight">
+              <p className="text-[8.5px] text-slate-600 leading-tight">
                 <strong>Atendimento:</strong> {fmtDate(order.attendance_date)}{' '}
                 {order.attendance_time || ''}
               </p>
@@ -380,7 +380,7 @@ export function PrintOrderDocument({
         </div>
 
         {/* FAIXA DE STATUS E IDENTIFICAÇÃO RÁPIDA */}
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-1.5 rounded bg-slate-50 border border-slate-200 px-2 py-1 text-[9px]">
+        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1.5 rounded bg-slate-50 border border-slate-200 px-2 py-0.5 text-[8.5px]">
           <div>
             <span className="text-slate-500 font-medium">Status O.S.: </span>
             <span className="font-bold text-slate-900 uppercase">
@@ -406,9 +406,9 @@ export function PrintOrderDocument({
         </div>
 
         {/* DADOS DO CLIENTE E TÉCNICO */}
-        <div className="mb-2 grid grid-cols-2 gap-2 text-[10px]">
-          <div className="rounded border border-slate-200 p-2">
-            <h3 className="mb-1 border-b border-slate-200 pb-0.5 text-[10px] font-bold text-slate-900 uppercase tracking-wide">
+        <div className="mb-1.5 grid grid-cols-2 gap-2 text-[9.5px]">
+          <div className="rounded border border-slate-200 p-1.5">
+            <h3 className="mb-0.5 border-b border-slate-200 pb-0.5 text-[9.5px] font-bold text-slate-900 uppercase tracking-wide">
               Dados do Cliente
             </h3>
             <div className="space-y-0.5 leading-tight">
@@ -448,8 +448,8 @@ export function PrintOrderDocument({
             </div>
           </div>
 
-          <div className="rounded border border-slate-200 p-2">
-            <h3 className="mb-1 border-b border-slate-200 pb-0.5 text-[10px] font-bold text-slate-900 uppercase tracking-wide">
+          <div className="rounded border border-slate-200 p-1.5">
+            <h3 className="mb-0.5 border-b border-slate-200 pb-0.5 text-[9.5px] font-bold text-slate-900 uppercase tracking-wide">
               Atendimento Técnico
             </h3>
             <div className="space-y-0.5 leading-tight">
@@ -474,8 +474,8 @@ export function PrintOrderDocument({
         </div>
 
         {/* SEÇÃO DO EQUIPAMENTO COM FOTO DE CHECK-IN E DETALHES COMPLETOS */}
-        <div className="page-break-inside-avoid mb-2 rounded border border-slate-200 p-2 text-[10px]">
-          <h3 className="mb-1 border-b border-slate-200 pb-0.5 text-[10px] font-bold text-slate-900 uppercase tracking-wide">
+        <div className="page-break-inside-avoid mb-1.5 rounded border border-slate-200 p-1.5 text-[9.5px]">
+          <h3 className="mb-0.5 border-b border-slate-200 pb-0.5 text-[9.5px] font-bold text-slate-900 uppercase tracking-wide">
             Equipamento no Check-in
           </h3>
 
@@ -534,8 +534,8 @@ export function PrintOrderDocument({
 
               {/* Descrição do problema / Diagnóstico */}
               {order.description && (
-                <div className="mt-1 rounded bg-slate-50 p-1.5 border border-slate-100">
-                  <strong className="text-slate-800 block text-[9px] uppercase font-bold">
+                <div className="mt-1 rounded bg-slate-50 p-1 border border-slate-100">
+                  <strong className="text-slate-800 block text-[8.5px] uppercase font-bold">
                     Defeito Relatado / Queixa do Cliente:
                   </strong>
                   <p className="text-slate-700 leading-snug">{order.description}</p>
@@ -546,7 +546,7 @@ export function PrintOrderDocument({
             {/* Foto de identificação/check-in do equipamento (compacto) */}
             {checkInPhotos.length > 0 && (
               <div className="flex flex-col items-center justify-center border-t md:border-t-0 md:border-l border-slate-200 pt-1 md:pt-0 md:pl-2">
-                <span className="mb-1 text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                <span className="mb-0.5 text-[8.5px] font-bold text-slate-500 uppercase tracking-wider">
                   Foto do Check-in
                 </span>
                 <div className="flex flex-wrap items-center justify-center gap-1">
@@ -555,7 +555,7 @@ export function PrintOrderDocument({
                       key={idx}
                       src={photoUrl}
                       alt="Foto do Equipamento"
-                      className="h-16 w-20 rounded border border-slate-300 object-cover shadow-2xs"
+                      className="h-14 w-18 rounded border border-slate-300 object-cover shadow-2xs"
                     />
                   ))}
                 </div>
@@ -566,8 +566,8 @@ export function PrintOrderDocument({
 
         {/* RELATÓRIO DO SERVIÇO EXECUTADO (LAUDO TÉCNICO) */}
         {order.service_report && (
-          <div className="page-break-inside-avoid mb-2 rounded border border-slate-200 p-2 text-[10px]">
-            <h3 className="mb-0.5 text-[10px] font-bold text-slate-900 uppercase tracking-wide">
+          <div className="page-break-inside-avoid mb-1.5 rounded border border-slate-200 p-1.5 text-[9.5px]">
+            <h3 className="mb-0.5 text-[9.5px] font-bold text-slate-900 uppercase tracking-wide">
               Laudo Técnico / Serviço Executado
             </h3>
             <p className="whitespace-pre-wrap text-slate-700 leading-snug">
@@ -577,32 +577,32 @@ export function PrintOrderDocument({
         )}
 
         {/* ITENS, PRODUTOS, PEÇAS E SERVIÇOS (TABELA COMPACTA COM VALORES) */}
-        <div className="page-break-inside-avoid mb-2 rounded border border-slate-200 p-2 text-[10px]">
-          <div className="flex items-center justify-between mb-1">
-            <h3 className="text-[10px] font-bold text-slate-900 uppercase tracking-wide">
+        <div className="page-break-inside-avoid mb-1.5 rounded border border-slate-200 p-1.5 text-[9.5px]">
+          <div className="flex items-center justify-between mb-0.5">
+            <h3 className="text-[9.5px] font-bold text-slate-900 uppercase tracking-wide">
               Itens, Peças e Serviços{' '}
               {hasOrcamento ? `(Orçamento ${orcamento?.numero_orcamento})` : ''}
             </h3>
             {hasOrcamento && (
-              <span className="text-[9px] text-indigo-700 font-semibold bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200">
+              <span className="text-[8.5px] text-indigo-700 font-semibold bg-indigo-50 px-1 py-0.2 rounded border border-indigo-200">
                 Orçamento Vinculado
               </span>
             )}
           </div>
 
-          <table className="w-full border-collapse text-[10px]">
+          <table className="w-full border-collapse text-[9.5px]">
             <thead>
               <tr className="bg-slate-100 text-slate-700">
-                <th className="border border-slate-300 px-1.5 py-1 text-left font-bold">
+                <th className="border border-slate-300 px-1.5 py-0.5 text-left font-bold">
                   Item / Descrição
                 </th>
-                <th className="border border-slate-300 px-1.5 py-1 text-center font-bold w-12">
+                <th className="border border-slate-300 px-1.5 py-0.5 text-center font-bold w-12">
                   Qtd
                 </th>
-                <th className="border border-slate-300 px-1.5 py-1 text-right font-bold w-20">
+                <th className="border border-slate-300 px-1.5 py-0.5 text-right font-bold w-20">
                   Vlr. Unit.
                 </th>
-                <th className="border border-slate-300 px-1.5 py-1 text-right font-bold w-20">
+                <th className="border border-slate-300 px-1.5 py-0.5 text-right font-bold w-20">
                   Total
                 </th>
               </tr>
@@ -614,7 +614,7 @@ export function PrintOrderDocument({
                     <tr key={item.id || idx} className="even:bg-slate-50/50">
                       <td className="border border-slate-300 px-1.5 py-0.5 text-slate-900">
                         <span className="font-medium">{item.descricao}</span>
-                        <span className="ml-1 text-[8px] uppercase px-1 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                        <span className="ml-1 text-[7.5px] uppercase px-1 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
                           {item.tipo}
                         </span>
                       </td>
@@ -633,7 +633,7 @@ export function PrintOrderDocument({
                   <tr>
                     <td
                       colSpan={4}
-                      className="border border-slate-300 px-1.5 py-1.5 text-center text-slate-400 italic"
+                      className="border border-slate-300 px-1.5 py-1 text-center text-slate-400 italic"
                     >
                       Nenhum item discriminado no orçamento vinculado.
                     </td>
@@ -660,7 +660,7 @@ export function PrintOrderDocument({
                 <tr>
                   <td
                     colSpan={4}
-                    className="border border-slate-300 px-1.5 py-1.5 text-center text-slate-400 italic"
+                    className="border border-slate-300 px-1.5 py-1 text-center text-slate-400 italic"
                   >
                     Nenhum item ou serviço discriminado nesta ordem.
                   </td>
@@ -670,9 +670,9 @@ export function PrintOrderDocument({
           </table>
 
           {/* TOTALIZAÇÃO FINANCEIRA */}
-          <div className="mt-1.5 flex justify-between items-start">
+          <div className="mt-1 flex justify-between items-start">
             {hasOrcamento && orcamento ? (
-              <div className="text-[9px] text-slate-600 max-w-sm space-y-0.5">
+              <div className="text-[8.5px] text-slate-600 max-w-sm space-y-0.5">
                 <p>
                   <strong className="text-slate-700">Forma de Pagamento:</strong>{' '}
                   {FORMA_PAGTO_LABELS[orcamento.forma_pagamento || 'pix'] ||
@@ -698,7 +698,7 @@ export function PrintOrderDocument({
               <div />
             )}
 
-            <div className="w-56 space-y-0.5 text-right text-[10px]">
+            <div className="w-56 space-y-0.5 text-right text-[9.5px]">
               {hasOrcamento ? (
                 <>
                   <div className="flex justify-between text-slate-600">
@@ -711,9 +711,9 @@ export function PrintOrderDocument({
                       <span className="font-mono">- R$ {fmtCurrency(orcDescontoTotal)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between border-t border-slate-900 pt-0.5 text-[11px] font-black text-slate-900">
+                  <div className="flex justify-between border-t border-slate-900 pt-0.5 text-[10.5px] font-black text-slate-900">
                     <span>TOTAL:</span>
-                    <span className="font-mono text-xs text-indigo-900 font-bold">
+                    <span className="font-mono text-[11px] text-indigo-900 font-bold">
                       R$ {fmtCurrency(orcTotalGeral)}
                     </span>
                   </div>
@@ -736,9 +736,11 @@ export function PrintOrderDocument({
                       <span className="font-mono">+ R$ {fmtCurrency(soAcrescimo)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between border-t border-slate-900 pt-0.5 text-[11px] font-black text-slate-900">
+                  <div className="flex justify-between border-t border-slate-900 pt-0.5 text-[10.5px] font-black text-slate-900">
                     <span>TOTAL GERAL:</span>
-                    <span className="font-mono text-xs font-bold">R$ {fmtCurrency(soTotal)}</span>
+                    <span className="font-mono text-[11px] font-bold">
+                      R$ {fmtCurrency(soTotal)}
+                    </span>
                   </div>
                 </>
               )}
@@ -748,20 +750,20 @@ export function PrintOrderDocument({
 
         {/* REGISTROS FOTOGRÁFICOS (COMPACTO - MÁX 4 EM LINHA ÚNICA) */}
         {displayExtraPhotos.length > 0 && (
-          <div className="page-break-inside-avoid mb-2 rounded border border-slate-200 p-1.5 text-[9px]">
-            <h3 className="mb-1 text-[9px] font-bold text-slate-900 uppercase tracking-wide">
+          <div className="page-break-inside-avoid mb-1 rounded border border-slate-200 p-1 text-[8.5px]">
+            <h3 className="mb-0.5 text-[8.5px] font-bold text-slate-900 uppercase tracking-wide">
               Registros Fotográficos (Atendimento / Orçamento)
             </h3>
-            <div className="grid grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-4 gap-1">
               {displayExtraPhotos.map((a, i) => (
                 <div key={i} className="text-center">
                   <img
                     src={a.url}
                     alt={a.caption || 'Foto'}
-                    className="h-14 w-full rounded border border-slate-200 object-cover"
+                    className="h-10 w-full rounded border border-slate-200 object-cover"
                   />
                   {a.caption && (
-                    <p className="mt-0.5 truncate text-[8px] text-slate-500">{a.caption}</p>
+                    <p className="mt-0.5 truncate text-[7px] text-slate-500">{a.caption}</p>
                   )}
                 </div>
               ))}
@@ -770,52 +772,52 @@ export function PrintOrderDocument({
         )}
 
         {/* ASSINATURAS (COMPACTAS NO RODAPÉ DA MESMA PÁGINA) */}
-        <div className="page-break-inside-avoid mt-2 grid grid-cols-2 gap-6 text-[10px]">
+        <div className="page-break-inside-avoid mt-1 grid grid-cols-2 gap-4 text-[9px]">
           <div className="text-center">
-            <div className="flex h-11 items-end justify-center border-b border-slate-400 pb-0.5">
+            <div className="flex h-9 items-end justify-center border-b border-slate-400 pb-0.5">
               {techSig ? (
                 <img
                   src={techSig}
                   alt="Assinatura do Técnico"
-                  className="max-h-10 max-w-full object-contain"
+                  className="max-h-8 max-w-[150px] object-contain"
                 />
               ) : (
-                <div className="text-slate-300 italic text-[9px]">Assinatura não coletada</div>
+                <div className="text-slate-300 italic text-[8px]">Assinatura não coletada</div>
               )}
             </div>
-            <p className="mt-0.5 font-bold text-slate-800 text-[10px]">
+            <p className="mt-0.5 font-bold text-slate-800 text-[9px] leading-tight">
               {tech?.name ? `Técnico: ${tech.name}` : 'Técnico Responsável'}
             </p>
-            <p className="text-[9px] text-slate-500">{COMPANY_DATA.nomeFantasia}</p>
+            <p className="text-[7.5px] text-slate-500 leading-tight">{COMPANY_DATA.nomeFantasia}</p>
           </div>
 
           <div className="text-center">
-            <div className="flex h-11 items-end justify-center border-b border-slate-400 pb-0.5">
+            <div className="flex h-9 items-end justify-center border-b border-slate-400 pb-0.5">
               {custSig ? (
                 <img
                   src={custSig}
                   alt="Assinatura do Cliente"
-                  className="max-h-10 max-w-full object-contain"
+                  className="max-h-8 max-w-[150px] object-contain"
                 />
               ) : (
-                <div className="text-slate-300 italic text-[9px]">Assinatura não coletada</div>
+                <div className="text-slate-300 italic text-[8px]">Assinatura não coletada</div>
               )}
             </div>
-            <p className="mt-0.5 font-bold text-slate-800 text-[10px]">
+            <p className="mt-0.5 font-bold text-slate-800 text-[9px] leading-tight">
               {cust?.name || cust?.razao_social || 'Assinatura do Cliente'}
             </p>
-            <p className="text-[9px] text-slate-500">
+            <p className="text-[7.5px] text-slate-500 leading-tight">
               Declaro o recebimento e conferência do equipamento
             </p>
           </div>
         </div>
 
         {/* RODAPÉ DO DOCUMENTO */}
-        <div className="page-break-inside-avoid mt-2 border-t border-slate-200 pt-1 text-center text-[8px] text-slate-500">
-          <p className="font-bold text-slate-700">
+        <div className="page-break-inside-avoid mt-1 border-t border-slate-200 pt-0.5 text-center text-[7.5px] text-slate-500">
+          <p className="font-bold text-slate-700 leading-tight">
             {COMPANY_DATA.razaoSocial} — {COMPANY_DATA.slogan}
           </p>
-          <p>
+          <p className="leading-tight">
             {COMPANY_DATA.endereco} | Telefones: {COMPANY_DATA.telefones}
           </p>
         </div>

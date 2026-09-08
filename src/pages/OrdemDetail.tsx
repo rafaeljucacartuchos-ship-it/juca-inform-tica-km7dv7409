@@ -19,6 +19,7 @@ import {
   Mail,
   MapPin,
   FileBadge,
+  Send,
 } from 'lucide-react'
 import { formatPhone } from '@/lib/phones'
 import { OrcamentoItemModal } from '@/components/OrcamentoItemModal'
@@ -62,6 +63,7 @@ import {
   buildServiceMessage,
   buildOrderCompletionSummaryMessage,
   buildTechnicianPresentationMessage,
+  buildOsDocumentMessage,
   buildWhatsAppUrl,
 } from '@/lib/whatsapp'
 
@@ -503,6 +505,65 @@ export default function OrdemDetail() {
     navigate(`/ordens/${order.id}/imprimir`)
   }
 
+  // Enviar Documento Oficial da O.S. (modelo técnico do PDF anexado) diretamente ao cliente via WhatsApp
+  const handleEnviarDocumentoOsWhatsApp = async () => {
+    const phone = getCustomerPhone(order.expand?.customer)
+    if (!phone) {
+      toast({
+        title: 'Cliente sem WhatsApp informado',
+        description: 'Cadastre o celular do cliente antes de enviar o documento.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const name = getCustomerDisplayName(order.expand?.customer)
+    const equip = order.equipment || order.expand?.equipment_ref?.name || ''
+    const osNum = order.number
+    const techName =
+      order.expand?.technician?.name || (order.technician === user?.id ? user?.name : undefined)
+    const serviceRep = serviceReport || order.service_report
+
+    const osDocumentUrl = `${window.location.origin}/ordens/${order.id}/imprimir`
+    const msg = buildOsDocumentMessage({
+      customerName: name,
+      osNumber: osNum,
+      numeroOrcamento: activeOrcamento?.numero_orcamento,
+      documentUrl: osDocumentUrl,
+      equipment: equip,
+      technicianName: techName,
+      serviceReport: serviceRep,
+    })
+
+    copyToClipboardSync(osDocumentUrl)
+    copyToClipboardSync(msg)
+
+    try {
+      const custId = order.customer || order.expand?.customer?.id
+      if (custId) {
+        await offlinePb.create('pos_venda_messages', {
+          customer: custId,
+          service_order: order.id,
+          tipo: 'resumo_finalizacao',
+          status: 'sent',
+          scheduled_at: new Date().toISOString(),
+          sent_at: new Date().toISOString(),
+          texto_gerado: msg,
+          wa_me_link: buildWhatsAppUrl(phone, msg),
+          channel: 'whatsapp',
+        })
+      }
+    } catch {
+      /* ignore */
+    }
+
+    openWhatsApp(phone, msg)
+    toast({
+      title: 'Documento da O.S. enviado!',
+      description: 'Documento oficial da O.S. preparado no WhatsApp do cliente.',
+    })
+  }
+
   const handleSaveOsInfo = async () => {
     if (!order) return
     if (!editOsTitle.trim()) {
@@ -701,20 +762,30 @@ export default function OrdemDetail() {
             size="sm"
             onClick={handlePrintOrder}
             className="text-xs gap-1.5 h-10 sm:h-9 justify-center"
-            title="Imprimir documento unificado A4 da Ordem de Serviço"
+            title="Imprimir documento unificado A4 da Ordem de Serviço (modelo técnico folha única)"
           >
             <Printer className="h-4 w-4" />
-            <span>Imprimir PDF</span>
+            <span>Imprimir PDF (A4)</span>
           </Button>
           <Button
             variant="outline"
             size="sm"
+            onClick={handleEnviarDocumentoOsWhatsApp}
+            className="text-xs gap-1.5 h-10 sm:h-9 justify-center border-emerald-400 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-bold shadow-xs"
+            title="Enviar o documento técnico da O.S. ao cliente via WhatsApp (com check-in, laudo e orçamento)"
+          >
+            <Send className="h-4 w-4 text-emerald-600" />
+            <span>Enviar ao Cliente (WhatsApp)</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleWhatsApp}
-            className="text-xs gap-1.5 h-10 sm:h-9 justify-center border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-bold"
-            title="Conversar com o cliente no WhatsApp (apresentação do técnico sem links)"
+            className="text-xs gap-1.5 h-10 sm:h-9 justify-center text-slate-700 hover:bg-slate-100"
+            title="Conversar com o cliente no WhatsApp (apresentação do técnico)"
           >
             <MessageCircle className="h-4 w-4 text-emerald-600" />
-            <span>WhatsApp</span>
+            <span>Chat Técnico</span>
           </Button>
 
           {/* Botão Finalizar Ordem de Serviço no cabeçalho */}

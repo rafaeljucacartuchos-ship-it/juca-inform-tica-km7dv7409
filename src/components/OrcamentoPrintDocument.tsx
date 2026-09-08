@@ -112,11 +112,11 @@ export function OrcamentoPrintDocument({
       </div>
 
       {/* Folha de Impressão A4 (Modelo Exclusivo de Orçamento - Compacto Página Única) */}
-      <div className="print-document a4-single-page mx-auto max-w-4xl bg-white p-4 sm:p-5 text-slate-900 shadow-md border border-slate-200 rounded-lg print:border-0 print:shadow-none print:p-0 print:rounded-none text-[10px] leading-tight">
+      <div className="print-document a4-single-page mx-auto max-w-4xl bg-white p-3 sm:p-4 text-slate-900 shadow-md border border-slate-200 rounded-lg print:border-0 print:shadow-none print:p-0 print:rounded-none text-[9.5px] leading-tight">
         {/* CABEÇALHO EMPRESA COM LOGO JUCA E CONTATOS EXATOS */}
-        <div className="mb-2 flex items-center justify-between border-b-2 border-slate-900 pb-2">
-          <div className="flex items-center gap-2.5">
-            <div className="h-11 w-24 sm:h-12 sm:w-28 shrink-0 overflow-hidden rounded bg-slate-950 p-1 flex items-center justify-center border border-slate-800">
+        <div className="mb-1.5 flex items-center justify-between border-b-2 border-slate-900 pb-1.5">
+          <div className="flex items-center gap-2">
+            <div className="h-10 w-24 sm:h-11 sm:w-28 shrink-0 overflow-hidden rounded bg-slate-950 p-1 flex items-center justify-center border border-slate-800">
               <img
                 src={JUCA_LOGO_URL}
                 alt="JUCA Informática"
@@ -130,11 +130,11 @@ export function OrcamentoPrintDocument({
               <h1 className="text-sm font-extrabold tracking-tight text-slate-900 sm:text-base leading-none">
                 {COMPANY_DATA.nomeFantasia || 'JUCA CARTUCHOS E INFORMÁTICA'}
               </h1>
-              <p className="text-[10px] font-semibold text-slate-700 leading-tight mt-0.5">
+              <p className="text-[9.5px] font-semibold text-slate-700 leading-tight mt-0.5">
                 {COMPANY_DATA.razaoSocial}
               </p>
-              <p className="text-[9px] text-slate-600 leading-tight">{COMPANY_DATA.endereco}</p>
-              <p className="text-[9px] text-slate-600 leading-tight">
+              <p className="text-[8.5px] text-slate-600 leading-tight">{COMPANY_DATA.endereco}</p>
+              <p className="text-[8.5px] text-slate-600 leading-tight">
                 <strong>Telefones:</strong> (67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981
               </p>
             </div>
@@ -145,21 +145,21 @@ export function OrcamentoPrintDocument({
                 {orcamento.numero_orcamento}
               </span>
             </div>
-            <p className="mt-0.5 text-[9px] font-medium text-slate-600 leading-tight">
+            <p className="mt-0.5 text-[8.5px] font-medium text-slate-600 leading-tight">
               <strong>Emissão:</strong> {fmtDate(orcamento.created)}
             </p>
-            <p className="text-[9px] text-slate-600 leading-tight">
+            <p className="text-[8.5px] text-slate-600 leading-tight">
               <strong>Validade:</strong> {orcamento.validade || 15} dias
             </p>
-            <p className="text-[9px] font-semibold text-indigo-700 uppercase leading-tight">
+            <p className="text-[8.5px] font-semibold text-indigo-700 uppercase leading-tight">
               Status: {orcamento.status}
             </p>
           </div>
         </div>
 
         {/* DADOS DO CLIENTE */}
-        <div className="mb-2 rounded border border-slate-200 p-2 text-[10px]">
-          <h3 className="mb-0.5 border-b border-slate-200 pb-0.5 text-[10px] font-bold text-slate-900 uppercase tracking-wide">
+        <div className="mb-1.5 rounded border border-slate-200 p-1.5 text-[9.5px]">
+          <h3 className="mb-0.5 border-b border-slate-200 pb-0.5 text-[9.5px] font-bold text-slate-900 uppercase tracking-wide">
             Dados do Cliente
           </h3>
           <div className="grid grid-cols-2 gap-2 leading-tight">
@@ -204,12 +204,12 @@ export function OrcamentoPrintDocument({
         </div>
 
         {/* RESUMO MÍNIMO DO EQUIPAMENTO / O.S. (SEM SEÇÕES TÉCNICAS PESADAS) */}
-        <div className="mb-2 rounded border border-indigo-100 bg-indigo-50/30 p-1.5 text-[10px]">
-          <div className="flex items-center justify-between border-b border-indigo-100 pb-0.5 mb-1">
-            <span className="text-[10px] font-bold text-indigo-950 uppercase">
+        <div className="mb-1.5 rounded border border-indigo-100 bg-indigo-50/30 p-1 text-[9.5px]">
+          <div className="flex items-center justify-between border-b border-indigo-100 pb-0.5 mb-0.5">
+            <span className="text-[9.5px] font-bold text-indigo-950 uppercase">
               {os ? `Vínculo com O.S. ${os.number}` : 'Equipamento / Atendimento'}
             </span>
-            <span className="text-[9px] text-indigo-700 font-mono">
+            <span className="text-[8.5px] text-indigo-700 font-mono">
               {os?.attendance_date
                 ? `Atendimento: ${fmtDate(os.attendance_date)}`
                 : `Emissão: ${fmtDate(orcamento.created)}`}
@@ -422,26 +422,26 @@ export function OrcamentoPrintDocument({
         )}
 
         {/* DUAS LINHAS DE ASSINATURA LADO A LADO COM ASSINATURAS RENDERIZADAS */}
-        <div className="page-break-inside-avoid mt-2 grid grid-cols-2 gap-6 text-[10px]">
+        <div className="page-break-inside-avoid mt-1 grid grid-cols-2 gap-4 text-[9px]">
           {/* Assinatura do Cliente */}
           <div className="text-center">
-            <div className="flex h-11 items-end justify-center border-b border-slate-400 pb-0.5">
+            <div className="flex h-9 items-end justify-center border-b border-slate-400 pb-0.5">
               {custSig ? (
                 <img
                   src={custSig}
                   alt="Assinatura de Aprovação do Cliente"
-                  className="max-h-10 max-w-full object-contain"
+                  className="max-h-8 max-w-[150px] object-contain"
                 />
               ) : (
-                <div className="text-slate-300 italic text-[9px]">
+                <div className="text-slate-300 italic text-[8px]">
                   Assinatura do Cliente não coletada
                 </div>
               )}
             </div>
-            <p className="mt-0.5 font-bold text-slate-900 text-[10px]">
+            <p className="mt-0.5 font-bold text-slate-900 text-[9px] leading-tight">
               {cust?.razao_social || cust?.nome_fantasia || cust?.name || 'Aprovação do Cliente'}
             </p>
-            <p className="text-[9px] text-slate-500">
+            <p className="text-[7.5px] text-slate-500 leading-tight">
               {orcamento.data_assinatura_cliente
                 ? `Aprovado em ${fmtDate(orcamento.data_assinatura_cliente)}`
                 : 'Aprovação do Cliente'}
@@ -450,34 +450,36 @@ export function OrcamentoPrintDocument({
 
           {/* Assinatura do Técnico */}
           <div className="text-center">
-            <div className="flex h-11 items-end justify-center border-b border-slate-400 pb-0.5">
+            <div className="flex h-9 items-end justify-center border-b border-slate-400 pb-0.5">
               {techSig ? (
                 <img
                   src={techSig}
                   alt="Assinatura do Responsável Técnico"
-                  className="max-h-10 max-w-full object-contain"
+                  className="max-h-8 max-w-[150px] object-contain"
                 />
               ) : (
-                <div className="text-slate-300 italic text-[9px]">
+                <div className="text-slate-300 italic text-[8px]">
                   Assinatura do Técnico não coletada
                 </div>
               )}
             </div>
-            <p className="mt-0.5 font-bold text-slate-900 text-[10px]">
+            <p className="mt-0.5 font-bold text-slate-900 text-[9px] leading-tight">
               {tech?.name ? `Técnico: ${tech.name}` : 'Responsável Técnico'}
             </p>
-            <p className="text-[9px] text-slate-500">JUCA Cartuchos e Informática</p>
+            <p className="text-[7.5px] text-slate-500 leading-tight">
+              JUCA Cartuchos e Informática
+            </p>
           </div>
         </div>
 
         {/* RODAPÉ DO DOCUMENTO */}
-        <div className="page-break-inside-avoid mt-2 border-t border-slate-200 pt-1 text-center text-[8px] text-slate-500">
-          <p className="font-semibold text-slate-700">
+        <div className="page-break-inside-avoid mt-1 border-t border-slate-200 pt-0.5 text-center text-[7.5px] text-slate-500">
+          <p className="font-semibold text-slate-700 leading-tight">
             Documento gerado em {new Date().toLocaleDateString('pt-BR')} às{' '}
             {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} pelo
             sistema JUCA Informática
           </p>
-          <p>
+          <p className="leading-tight">
             {COMPANY_DATA.endereco} | Telefones: (67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981
           </p>
         </div>
