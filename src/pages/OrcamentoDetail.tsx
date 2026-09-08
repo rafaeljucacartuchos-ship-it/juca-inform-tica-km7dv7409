@@ -73,7 +73,12 @@ import { BarcodeScanner } from '@/components/BarcodeScanner'
 import { OrcamentoItemModal } from '@/components/OrcamentoItemModal'
 import { OrcamentoPhotos } from '@/components/OrcamentoPhotos'
 import { OrcamentoAssinaturaModal } from '@/components/OrcamentoAssinaturaModal'
-import { openWhatsApp, buildWhatsAppUrl, buildOrcamentoPropostaMessage } from '@/lib/whatsapp'
+import {
+  openWhatsApp,
+  buildWhatsAppUrl,
+  buildOrcamentoPropostaMessage,
+  buildOrcamentoAprovadoAgradecimentoMessage,
+} from '@/lib/whatsapp'
 import { generateRandomToken } from '@/services/orcamentos'
 
 const STATUS_CONFIG: Record<
@@ -709,6 +714,62 @@ export default function OrcamentoDetail() {
           >
             <LinkIcon className="h-3.5 w-3.5" /> Enviar link ao cliente
           </Button>
+
+          {/* Se aprovado ou faturado, oferece botão de enviar ou reenviar mensagem de agradecimento */}
+          {(orcamento.status === 'aprovado' || orcamento.status === 'faturado') && (
+            <Button
+              size="sm"
+              onClick={async () => {
+                const cust = orcamento.expand?.id_os?.expand?.customer
+                const phone = getCustomerPhone(cust)
+                if (!phone) {
+                  toast({
+                    title: 'Cliente sem telefone cadastrado',
+                    description: 'Cadastre o celular do cliente para enviar a mensagem.',
+                    variant: 'destructive',
+                  })
+                  return
+                }
+                const custName = getCustomerDisplayName(cust)
+                const equip =
+                  orcamento.expand?.id_os?.expand?.equipment_ref?.name ||
+                  orcamento.expand?.id_os?.equipment ||
+                  ''
+                const msg = buildOrcamentoAprovadoAgradecimentoMessage({
+                  customerName: custName,
+                  numeroOrcamento: orcamento.numero_orcamento,
+                  equipment: equip,
+                })
+                openWhatsApp(phone, msg)
+                try {
+                  if (cust?.id) {
+                    await pb.collection('pos_venda_messages').create({
+                      customer: cust.id,
+                      service_order: orcamento.id_os,
+                      tipo: 'resumo_finalizacao',
+                      status: 'sent',
+                      scheduled_at: new Date().toISOString(),
+                      sent_at: new Date().toISOString(),
+                      texto_gerado: msg,
+                      wa_me_link: buildWhatsAppUrl(phone, msg),
+                      channel: 'whatsapp',
+                    })
+                  }
+                } catch {
+                  /* ignore */
+                }
+                toast({
+                  title: 'WhatsApp aberto!',
+                  description: 'Mensagem de agradecimento pronta enviada para o cliente.',
+                })
+              }}
+              className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-bold shadow-xs"
+              title="Enviar mensagem de agradecimento ao cliente pelo WhatsApp"
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+              Enviar Agradecimento WhatsApp
+            </Button>
+          )}
 
           {orcamento.status !== 'aprovado' && orcamento.status !== 'faturado' && (
             <Button

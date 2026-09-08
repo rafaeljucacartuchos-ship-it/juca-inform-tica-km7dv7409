@@ -162,12 +162,13 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           const numOrc = record.numero_orcamento || 'ORC-????'
           const toastMsg = `🎉 O cliente aprovou o orçamento ${numOrc}!`
           toast.success(toastMsg, {
-            description: 'A proposta foi assinada e o atendimento pode ser iniciado.',
-            duration: 6000,
+            description:
+              'A proposta foi assinada e a mensagem de agradecimento ao cliente foi preparada.',
+            duration: 8000,
           })
           showBrowserNotification(
             '🎉 Orçamento Aprovado pelo Cliente!',
-            `O orçamento ${numOrc} foi assinado e aprovado.`,
+            `O orçamento ${numOrc} foi assinado. Agradecimento pronto para envio.`,
             `orcamento-${orcId}`,
           )
         }

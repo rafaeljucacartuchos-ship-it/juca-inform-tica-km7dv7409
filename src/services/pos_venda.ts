@@ -26,6 +26,19 @@ export const createPosVendaMessage = async (data: Partial<PosVendaMessage>) => {
   return pb.collection('pos_venda_messages').create<PosVendaMessage>(data)
 }
 
+/**
+ * Busca mensagens de agradecimento de proposta aprovada pendentes de envio
+ * ou prontas (status = 'ready' ou 'pending', canal = 'whatsapp').
+ */
+export const getPendingOrcamentoAgradecimentoMessages = async () => {
+  return pb.collection('pos_venda_messages').getFullList<PosVendaMessage>({
+    filter:
+      'status = "ready" && channel = "whatsapp" && texto_gerado ~ "Que alegria que a proposta"',
+    expand: 'customer,service_order,service_order.technician,service_order.equipment_ref',
+    sort: '-created',
+  })
+}
+
 export const getGoogleReviewUrl = async (): Promise<string> => {
   try {
     const records = await pb.collection('settings').getFullList<SystemSetting>({

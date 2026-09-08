@@ -174,7 +174,7 @@ routerAdd('POST', '/backend/v1/proposta/{token}/aprovar', (e) => {
             custRecord.getString('name') ||
             'Cliente'
 
-          // Registra no histórico do cliente (pos_venda_messages)
+          // Registra log do sistema no histórico do cliente (pos_venda_messages)
           const pvmCol = $app.findCollectionByNameOrId('pos_venda_messages')
           const pvmRecord = new Record(pvmCol)
           pvmRecord.set('customer', custId)
@@ -193,6 +193,44 @@ routerAdd('POST', '/backend/v1/proposta/{token}/aprovar', (e) => {
           )
           pvmRecord.set('channel', 'sistema')
           $app.save(pvmRecord)
+
+          // Prepara a mensagem de AGRADECIMENTO ao cliente (Juquinha) para disparo automático
+          // pelo painel do técnico via WhatsApp (wa.me)
+          const rawPhone = custRecord.getString('celular') || custRecord.getString('phone') || ''
+          let digits = rawPhone.replace(/\D/g, '')
+          if (digits.startsWith('0')) digits = digits.substring(1)
+          if (digits && !digits.startsWith('55')) digits = '55' + digits
+
+          const firstName = custName.split(' ')[0] || custName
+          const equipPart = equipName ? ' da sua *' + equipName + '*' : ''
+          const msgAgradecimento =
+            '🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n' +
+            'Olá, *' +
+            firstName +
+            '*! 🎉 Que alegria que a proposta *' +
+            numOrc +
+            '* foi aprovada!\n\n' +
+            'O reparo' +
+            equipPart +
+            ' já está em boas mãos com a equipe JUCA. Muito obrigado pela confiança — a gente cuida de tudo pra você! 💙\n\n' +
+            'Juca Informática\n' +
+            '(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981'
+
+          const waUrl = digits
+            ? 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msgAgradecimento)
+            : ''
+
+          const pvmAgradecimento = new Record(pvmCol)
+          pvmAgradecimento.set('customer', custId)
+          pvmAgradecimento.set('service_order', osId)
+          pvmAgradecimento.set('tipo', 'resumo_finalizacao')
+          // Status 'ready' aguardando disparo automático pelo app do técnico
+          pvmAgradecimento.set('status', 'ready')
+          pvmAgradecimento.set('scheduled_at', nowIso)
+          pvmAgradecimento.set('texto_gerado', msgAgradecimento)
+          pvmAgradecimento.set('wa_me_link', waUrl)
+          pvmAgradecimento.set('channel', 'whatsapp')
+          $app.save(pvmAgradecimento)
         } catch (_) {}
       }
     } catch (_) {}

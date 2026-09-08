@@ -4,6 +4,7 @@ import { Topbar } from '@/components/Topbar'
 import { PwaUpdateBanner } from '@/components/PwaUpdateBanner'
 import { OfflineBanner } from '@/components/OfflineBanner'
 import { PushNotificationPrompt } from '@/components/PushNotificationPrompt'
+import { AgradecimentoAprovadoBanner } from '@/components/AgradecimentoAprovadoBanner'
 
 export default function Layout() {
   return (
@@ -15,6 +16,7 @@ export default function Layout() {
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
         <PwaUpdateBanner />
         <Topbar />
+        <AgradecimentoAprovadoBanner />
         <PushNotificationPrompt />
         <OfflineBanner />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 [overscroll-behavior:none]">

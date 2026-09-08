@@ -128,20 +128,9 @@ export default function PropostaPublica() {
       })
       setData((prev) => (prev ? { ...prev, status: 'aprovado' } : prev))
 
-      // Disparo automático do WhatsApp no tom do Juquinha para o cliente (se o navegador permitir popup)
-      const phone = data?.customer?.phone
-      if (phone) {
-        const msg = buildOrcamentoAprovadoAgradecimentoMessage({
-          customerName: data?.customer?.name || 'Cliente',
-          numeroOrcamento: data?.numero_orcamento || '',
-          equipment: data?.equipment?.name || data?.os?.equipment,
-        })
-        try {
-          openWhatsApp(phone, msg)
-        } catch {
-          /* popups can be blocked */
-        }
-      }
+      // Nota de arquitetura: A mensagem oficial de agradecimento da JUCA é disparada
+      // pelo app do técnico (via realtime / fallback de 1 toque no painel JUCA).
+      // Não fazemos o cliente enviar mensagem para ele mesmo aqui.
     } catch (err: any) {
       alert(err.message || 'Erro ao aprovar proposta. Tente novamente.')
     } finally {
@@ -149,17 +138,11 @@ export default function PropostaPublica() {
     }
   }
 
-  const handleOpenWhatsAppConfirmation = () => {
-    if (!data?.customer?.phone) {
-      alert('Telefone do cliente não cadastrado na O.S.')
-      return
-    }
-    const msg = buildOrcamentoAprovadoAgradecimentoMessage({
-      customerName: data.customer.name,
-      numeroOrcamento: data.numero_orcamento,
-      equipment: data.equipment?.name || data.os?.equipment,
-    })
-    openWhatsApp(data.customer.phone, msg)
+  const handleFalarComEquipeJuca = () => {
+    // Permite que o cliente abra canal direto de atendimento com a JUCA Informática
+    const phoneJuca = '5567996544981'
+    const msg = `Olá! Acabei de aprovar a proposta do orçamento *${data?.numero_orcamento || ''}* referente à O.S. #${data?.os?.number || ''}. Aguardo orientações da equipe técnica!`
+    openWhatsApp(phoneJuca, msg)
   }
 
   if (loading) {
@@ -242,17 +225,17 @@ export default function PropostaPublica() {
                     ).toLocaleString('pt-BR')}.`
                   : 'Esta proposta já foi aprovada e está em execução pela equipe técnica.'}
               </p>
-              {data.customer?.phone && (
+              <div className="mt-3 flex flex-wrap gap-2">
                 <Button
                   type="button"
                   size="sm"
-                  onClick={handleOpenWhatsAppConfirmation}
-                  className="mt-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 h-9"
+                  onClick={handleFalarComEquipeJuca}
+                  className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 h-9"
                 >
                   <MessageCircle className="h-4 w-4" />
-                  Enviar mensagem de confirmação pelo WhatsApp
+                  Falar com a JUCA pelo WhatsApp
                 </Button>
-              )}
+              </div>
             </div>
           </div>
         )}

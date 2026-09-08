@@ -80,8 +80,33 @@ export function buildOrderCompletionSummaryMessage(params: {
   )
 }
 
-export function openWhatsApp(phone: string, message: string) {
-  window.open(buildWhatsAppUrl(phone, message), '_blank')
+/**
+ * Abre o WhatsApp (wa.me) no navegador/app.
+ *
+ * NOTA DE TRANSPARÊNCIA ARQUITETURAL:
+ * A integração via wa.me depende das APIs nativas do navegador (window.open/redirecionamento).
+ * Navegadores modernos impõem políticas estritas anti-popup: chamadas a window.open() disparadas
+ * fora de um gesto direto do usuário (como um clique ou toque de tela) são normalmente bloqueadas
+ * ou silenciadas sem autorização explícita.
+ *
+ * Para contornar essa restrição técnica sem um gateway/servidor pago de WhatsApp (ex: Evolution API,
+ * Z-API, Baileys), o sistema tenta abrir automaticamente quando a notificação em tempo real chega,
+ * e se o navegador bloquear o popup, exibe imediatamente um banner destacado de UM TOQUE ("🎉 Toque
+ * para Enviar"). Isso garante o caminho mais automático possível suportado pela web moderna.
+ *
+ * Retorna boolean indicando se o popup foi potencialmente aberto (não nulo) ou se foi bloqueado.
+ */
+export function openWhatsApp(phone: string, message: string): boolean {
+  try {
+    const url = buildWhatsAppUrl(phone, message)
+    const win = window.open(url, '_blank', 'noopener,noreferrer')
+    if (!win || win.closed || typeof win.closed === 'undefined') {
+      return false
+    }
+    return true
+  } catch {
+    return false
+  }
 }
 
 /**
