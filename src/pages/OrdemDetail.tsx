@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
   ArrowLeft,
-  DollarSign,
   Play,
   CheckCircle,
+  CheckCircle2,
   MessageCircle,
   FileText,
   ExternalLink,
@@ -35,14 +35,22 @@ import { CompanyHeader } from '@/components/CompanyHeader'
 import { Badge } from '@/components/ui/badge'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Textarea } from '@/components/ui/textarea'
-import { ServiceOrder, StatusHistory, Payment, OrderStatus } from '@/types'
+import { ServiceOrder, StatusHistory, OrderStatus } from '@/types'
 import { getServiceOrder, getStatusHistory } from '@/services/service_orders'
 import { getCustomerPhone, getCustomerDisplayName } from '@/services/customers'
-import { getOrderPayments } from '@/services/payments'
 import { getActiveOrcamento, getOrcamentoItens, createOrcamento } from '@/services/orcamentos'
 import { Orcamento, OrcamentoItem } from '@/types'
 import { offlinePb } from '@/lib/offline-pb'
-import { PaymentModal } from '@/components/PaymentModal'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { OrderPhotos } from '@/components/OrderPhotos'
 import { NewEquipmentModal } from '@/components/NewEquipmentModal'
 import { useAuth } from '@/hooks/use-auth'
@@ -67,8 +75,8 @@ export default function OrdemDetail() {
   const [orcamentoItens, setOrcamentoItens] = useState<OrcamentoItem[]>([])
   const [creatingOrcamento, setCreatingOrcamento] = useState(false)
   const [history, setHistory] = useState<StatusHistory[]>([])
-  const [payments, setPayments] = useState<Payment[]>([])
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false)
+  const [confirmFinalizarOpen, setConfirmFinalizarOpen] = useState(false)
+  const [finalizingOrder, setFinalizingOrder] = useState(false)
   const [serviceReport, setServiceReport] = useState('')
   const [starting, setStarting] = useState(false)
   const [equipmentModalOpen, setEquipmentModalOpen] = useState(false)
@@ -101,10 +109,9 @@ export default function OrdemDetail() {
   const loadAll = async () => {
     if (!id) return
     try {
-      const [o, h, p, orc] = await Promise.all([
+      const [o, h, orc] = await Promise.all([
         getServiceOrder(id),
         getStatusHistory(id),
-        getOrderPayments(id),
         getActiveOrcamento(id),
       ])
       setActiveOrcamento(orc)
@@ -122,7 +129,6 @@ export default function OrdemDetail() {
       setEditOsTitle(o.title || '')
       setEditOsDescription(o.description || '')
       setHistory(h)
-      setPayments(p)
       setServiceReport(o.service_report || '')
     } catch {
       /* intentionally ignored */
@@ -155,6 +161,75 @@ export default function OrdemDetail() {
 
   if (user?.role === 'technician' && order.technician !== user.id) {
     return <Navigate to="/ordens" replace />
+  }
+
+  const isFinalizada = order.status === 'completed' || order.status === 'closed'
+
+  const handleFinalizarOrdemConfirmada = async () => {
+    // Validação da regra de negócio: Equipamento obrigatório ao fechar/concluir a O.S.
+    const hasEquipment = Boolean(
+      order.equipment_ref || (order.equipment && order.equipment.trim().length > 0),
+    )
+    if (!hasEquipment) {
+      toast({
+        title: 'Equipamento obrigatório ao fechar a O.S.',
+        description: 'Vincule ou cadastre um equipamento na ordem de serviço antes de finalizá-la.',
+        variant: 'destructive',
+      })
+      setConfirmFinalizarOpen(false)
+      return
+    }
+
+    setFinalizingOrder(true)
+    try {
+      const upd = await offlinePb.update('service_orders', order.id, {
+        status: 'completed',
+        ...(serviceReport.trim() ? { service_report: serviceReport.trim() } : {}),
+      })
+      if (upd.queued) {
+        toast({ title: 'Status salvo localmente. Será sincronizado quando houver conexão.' })
+      }
+      const hist = await offlinePb.create('status_history', {
+        service_order: order.id,
+        status: 'completed',
+        note: 'Ordem de Serviço finalizada',
+        changed_by: user?.id,
+      })
+      if (hist.queued) {
+        toast({ title: 'Histórico salvo localmente. Será sincronizado quando houver conexão.' })
+      }
+
+      const productItems = orcamentoItens.filter((it) => it.tipo === 'produto')
+      toast({
+        title: 'Ordem de Serviço finalizada com sucesso!',
+        description:
+          productItems.length > 0
+            ? `Estoque atualizado: ${productItems.length} ${
+                productItems.length === 1 ? 'produto teve' : 'produtos tiveram'
+              } a quantidade descontada.`
+            : 'O.S. concluída.',
+      })
+
+      const phone = getCustomerPhone(order.expand?.customer)
+      if (phone && canEdit) {
+        const shareUrl = `${window.location.origin}/share/${order.id}`
+        openWhatsApp(
+          phone,
+          buildServiceMessage(
+            getCustomerDisplayName(order.expand?.customer),
+            order.number,
+            'completed',
+            shareUrl,
+          ),
+        )
+      }
+      setConfirmFinalizarOpen(false)
+      loadAll()
+    } catch {
+      toast({ title: 'Erro ao finalizar ordem de serviço', variant: 'destructive' })
+    } finally {
+      setFinalizingOrder(false)
+    }
   }
 
   const handleStatusChange = async (newStatus: OrderStatus) => {
@@ -641,6 +716,20 @@ export default function OrdemDetail() {
             <MessageCircle className="h-4 w-4 text-emerald-600" />
             <span>WhatsApp</span>
           </Button>
+
+          {/* Botão Finalizar Ordem de Serviço no cabeçalho */}
+          {!isFinalizada && canEdit && !fieldsLocked && (
+            <Button
+              size="sm"
+              onClick={() => setConfirmFinalizarOpen(true)}
+              disabled={finalizingOrder}
+              className="text-xs gap-1.5 h-10 sm:h-9 justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold col-span-2 sm:col-span-1 shadow-sm"
+              title="Finalizar esta Ordem de Serviço"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              <span>Finalizar Ordem de Serviço</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1312,12 +1401,15 @@ export default function OrdemDetail() {
               >
                 Aguardando Peças
               </Button>
-              <Button
-                onClick={() => setPaymentModalOpen(true)}
-                className="w-full justify-start text-xs h-9 bg-emerald-600 hover:bg-emerald-700"
-              >
-                <DollarSign className="h-4 w-4 mr-1" /> Registrar Pagamento
-              </Button>
+              {!isFinalizada && canEdit && !fieldsLocked && (
+                <Button
+                  onClick={() => setConfirmFinalizarOpen(true)}
+                  disabled={finalizingOrder}
+                  className="w-full justify-start text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-1.5" /> Finalizar Ordem de Serviço
+                </Button>
+              )}
             </CardContent>
           </Card>
 
@@ -1345,13 +1437,33 @@ export default function OrdemDetail() {
         </div>
       </div>
 
-      <PaymentModal
-        open={paymentModalOpen}
-        onOpenChange={setPaymentModalOpen}
-        orderId={order.id}
-        defaultAmount={order.total}
-        onSaved={loadAll}
-      />
+      <AlertDialog open={confirmFinalizarOpen} onOpenChange={setConfirmFinalizarOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Finalizar Ordem de Serviço?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span>
+                Tem certeza de que deseja finalizar a Ordem de Serviço{' '}
+                <strong className="font-mono text-slate-800">{order.number}</strong>?
+              </span>
+              <span className="block text-xs text-slate-500">
+                O status será alterado para <strong>Concluída</strong> e as baixas de estoque e
+                notificações cabíveis serão disparadas.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={finalizingOrder}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleFinalizarOrdemConfirmada}
+              disabled={finalizingOrder}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+            >
+              {finalizingOrder ? 'Finalizando...' : 'Confirmar e Finalizar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <NewEquipmentModal
         open={equipmentModalOpen}
