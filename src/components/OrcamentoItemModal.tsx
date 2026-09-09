@@ -90,8 +90,6 @@ export function OrcamentoItemModal({
       setDescontoItemTipo('valor')
       setQuery('')
       setResults([])
-      // Foco suave no campo de busca ao abrir para adicionar novo item
-      setTimeout(() => inputSearchRef.current?.focus(), 60)
     }
   }, [open, itemToEdit])
 
@@ -279,19 +277,39 @@ export function OrcamentoItemModal({
           className="flex flex-col flex-1 min-h-0 overflow-hidden"
         >
           <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-            {/* Autocomplete apenas ao adicionar novo item */}
+            {/* Aviso informativo de digitação livre */}
+            <div className="p-2.5 bg-blue-50/70 border border-blue-200 rounded-lg text-blue-900 text-[11px] leading-relaxed">
+              💡 <strong>Item livre:</strong> você pode digitar livremente a{' '}
+              <strong>Descrição</strong>, <strong>Quantidade</strong> e <strong>Valor</strong>{' '}
+              abaixo, sem precisar vincular a um produto. A busca no catálogo é opcional para
+              preenchimento rápido.
+            </div>
+
+            {/* Autocomplete opcional apenas ao adicionar novo item */}
             {!isEditing && (
               <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                <label className="font-semibold text-slate-700 block">
-                  Buscar no Catálogo (Autocomplete de Produtos e Serviços)
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-700 block">
+                    Buscar no Catálogo (Opcional - preenchimento rápido)
+                  </label>
+                  {selectedProductId && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProductId(undefined)}
+                      className="text-[10px] text-slate-500 hover:text-indigo-600 underline font-medium"
+                      title="Desvincular produto do catálogo mantendo o texto digitado"
+                    >
+                      Desvincular catálogo (Item 100% livre)
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                   <Input
                     ref={inputSearchRef}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Digite o nome, código ou peça..."
+                    placeholder="Digite para filtrar produtos/serviços cadastrados..."
                     className="pl-8 pr-8 h-9 text-xs bg-white"
                     autoComplete="off"
                   />
@@ -430,11 +448,26 @@ export function OrcamentoItemModal({
 
             {/* Descrição livre */}
             <div className="space-y-1">
-              <label className="font-semibold text-slate-700 block">Descrição do Item *</label>
+              <div className="flex items-center justify-between">
+                <label className="font-semibold text-slate-700 block">
+                  Descrição do Item (Texto livre) *
+                </label>
+                {selectedProductId && (
+                  <Badge
+                    variant="outline"
+                    className="text-[9px] text-indigo-700 bg-indigo-50 border-indigo-200"
+                  >
+                    Vinculado ao catálogo
+                  </Badge>
+                )}
+              </div>
               <Input
                 value={descricao}
-                onChange={(e) => setDescricao(e.target.value)}
-                placeholder="Ex: Formatação com backup, SSD 480GB Kingston, Troca de tela..."
+                onChange={(e) => {
+                  setDescricao(e.target.value)
+                  // Se o usuário alterar a descrição livremente, mantém o texto livre
+                }}
+                placeholder="Digite a descrição livre que desejar (Ex: Formatação, Cabo HDMI 2m, Peça importada...)"
                 className="h-9 text-xs"
                 required
               />

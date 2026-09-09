@@ -1350,37 +1350,11 @@ export default function OrdemDetail() {
                   <div className="flex flex-wrap items-center gap-2 mt-0.5">
                     {order.equipment_ref ||
                     (order.equipment && order.equipment.trim().length > 0) ? (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <p className="font-medium text-slate-900 mr-1">
-                          <span>
-                            {order.equipment ||
-                              order.expand?.equipment_ref?.name ||
-                              'Equipamento vinculado'}
-                          </span>
-                        </p>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenEquipmentModal('edit')}
-                          className="h-6 text-[11px] font-medium border-indigo-200 text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 px-2 gap-1 rounded"
-                          title="Acessar o cadastro do equipamento para editar dados ou ver histórico"
-                        >
-                          <Edit2 className="h-3 w-3" />
-                          <span>Cadastro / Editar</span>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenEquipmentModal('photos')}
-                          className="h-6 text-[11px] font-medium border-slate-200 text-slate-700 hover:bg-slate-100 px-2 gap-1 rounded"
-                          title="Abrir galeria e visualizador de imagens do equipamento"
-                        >
-                          <ImageIcon className="h-3 w-3 text-indigo-600" />
-                          <span>Abrir Imagens</span>
-                        </Button>
-                      </div>
+                      <p className="font-medium text-slate-900">
+                        {order.equipment ||
+                          order.expand?.equipment_ref?.name ||
+                          'Equipamento vinculado'}
+                      </p>
                     ) : (
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-amber-600 font-semibold italic text-xs">
