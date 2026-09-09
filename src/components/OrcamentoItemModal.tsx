@@ -159,8 +159,21 @@ export function OrcamentoItemModal({
   const parsedQuantidade = useMemo(() => {
     const normalized = String(quantidade).trim().replace(',', '.')
     const val = parseFloat(normalized)
-    return isNaN(val) ? 0 : val
+    return isNaN(val) || val <= 0 ? 0 : val
   }, [quantidade])
+
+  // Helper para interpretar valor unitário a partir do texto digitado
+  const parseValorUnitarioString = (str: string): number => {
+    let clean = str.trim().replace(/[R$\s]/gi, '')
+    if (!clean) return 0
+    if (clean.includes('.') && clean.includes(',')) {
+      clean = clean.replace(/\./g, '').replace(',', '.')
+    } else if (clean.includes(',')) {
+      clean = clean.replace(',', '.')
+    }
+    const num = parseFloat(clean)
+    return isNaN(num) || num < 0 ? 0 : num
+  }
 
   // Cálculo em tempo real do item:
   // subtotal = quantidade × valorUnitario
@@ -199,14 +212,32 @@ export function OrcamentoItemModal({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!descricao.trim()) {
-      toast({ title: 'Informe a descrição do item', variant: 'destructive' })
+    const finalDesc = descricao.trim()
+    if (!finalDesc) {
+      toast({
+        title: 'Informe a descrição do item',
+        description: 'Você pode digitar livremente qualquer descrição.',
+        variant: 'destructive',
+      })
       return
     }
-    if (parsedQuantidade <= 0) {
-      toast({ title: 'A quantidade deve ser maior que zero', variant: 'destructive' })
-      return
+
+    const finalQty = parsedQuantidade > 0 ? parsedQuantidade : 1
+
+    // Garante sincronização do valor unitário a partir do campo de texto antes de salvar
+    const finalUnitPrice =
+      valorUnitario > 0 ? valorUnitario : parseValorUnitarioString(valorUnitarioInput)
+
+    const rawTotal = finalQty * finalUnitPrice
+    let descVal = 0
+    if (descontoItem > 0) {
+      if (descontoItemTipo === 'percentual') {
+        descVal = (rawTotal * descontoItem) / 100
+      } else {
+        descVal = descontoItem
+      }
     }
+    const finalTotalItem = Math.max(0, rawTotal - descVal)
 
     setSaving(true)
     try {
@@ -214,12 +245,12 @@ export function OrcamentoItemModal({
         id_orcamento: orcamentoId,
         tipo: kind,
         id_produto: selectedProductId || undefined,
-        descricao: descricao.trim(),
-        quantidade: parsedQuantidade,
-        valor_unitario: Number(valorUnitario),
+        descricao: finalDesc,
+        quantidade: finalQty,
+        valor_unitario: finalUnitPrice,
         desconto_item: Number(descontoItem) || 0,
         desconto_item_tipo: descontoItemTipo,
-        valor_total_item: itemCalculations.finalTotal,
+        valor_total_item: finalTotalItem,
       }
 
       if (isEditing && itemToEdit) {
@@ -518,14 +549,7 @@ export function OrcamentoItemModal({
                     setValorUnitarioInput(filtered)
 
                     // Converte em tempo real para número (formato brasileiro ou padrão)
-                    let clean = filtered.trim()
-                    if (clean.includes('.') && clean.includes(',')) {
-                      clean = clean.replace(/\./g, '').replace(',', '.')
-                    } else if (clean.includes(',')) {
-                      clean = clean.replace(',', '.')
-                    }
-                    const num = parseFloat(clean)
-                    setValorUnitario(isNaN(num) || num < 0 ? 0 : num)
+                    setValorUnitario(parseValorUnitarioString(filtered))
                   }}
                   onBlur={() => {
                     if (valorUnitario > 0) {
