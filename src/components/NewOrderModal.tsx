@@ -77,8 +77,6 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
     title: '',
     description: '',
     priority: 'medium' as OrderPriority,
-    desconto: 0,
-    acrescimo: 0,
   })
 
   // Carrega clientes iniciais e técnicos ao abrir o modal
@@ -288,9 +286,9 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
         description: formData.description,
         priority: formData.priority,
         status: 'open',
-        desconto: Number(formData.desconto) || 0,
-        acrescimo: Number(formData.acrescimo) || 0,
-        total: Math.max(0, (Number(formData.acrescimo) || 0) - (Number(formData.desconto) || 0)),
+        desconto: 0,
+        acrescimo: 0,
+        total: 0,
       })
 
       const hist = await offlinePb.create('status_history', {
@@ -323,8 +321,6 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
         title: '',
         description: '',
         priority: 'medium',
-        desconto: 0,
-        acrescimo: 0,
       })
       setSelectedCustomer(null)
       onOpenChange(false)
@@ -762,56 +758,6 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
                   rows={3}
                   className="text-xs"
                 />
-              </div>
-
-              {/* Campos de Desconto e Acréscimo */}
-              <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-3">
-                <span className="text-xs font-bold text-slate-800 block">
-                  Ajustes Financeiros Iniciais
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-700">Desconto (R$)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0,00"
-                      value={formData.desconto === 0 ? '' : formData.desconto}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          desconto:
-                            e.target.value === ''
-                              ? 0
-                              : Math.max(0, parseFloat(e.target.value) || 0),
-                        })
-                      }
-                      className="h-9 text-xs font-mono bg-white"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-700">Acréscimo (R$)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0,00"
-                      value={formData.acrescimo === 0 ? '' : formData.acrescimo}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          acrescimo:
-                            e.target.value === ''
-                              ? 0
-                              : Math.max(0, parseFloat(e.target.value) || 0),
-                        })
-                      }
-                      className="h-9 text-xs font-mono bg-white"
-                    />
-                  </div>
-                </div>
               </div>
             </div>
 
