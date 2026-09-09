@@ -233,7 +233,7 @@ export default function TiposAtendimento() {
                             variant="outline"
                             size="sm"
                             className="h-7 px-2 text-[11px] font-semibold text-slate-700 bg-white border-slate-200 hover:bg-slate-100 hover:text-slate-900 gap-1 shadow-2xs"
-                            onClick={() => openEdit(st)}
+                            onClick={() => handleOpenEdit(st)}
                             title="Editar tipo de atendimento"
                           >
                             <Pencil className="h-3 w-3 text-indigo-600" />

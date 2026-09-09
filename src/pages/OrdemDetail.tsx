@@ -24,6 +24,7 @@ import {
   Share2,
   Copy,
   ArrowRight,
+  Loader2,
 } from 'lucide-react'
 import { formatPhone } from '@/lib/phones'
 import { OrcamentoItemModal } from '@/components/OrcamentoItemModal'
@@ -45,6 +46,7 @@ import { getServiceOrder, getStatusHistory, deleteServiceOrder } from '@/service
 import { getCustomerPhone, getCustomerDisplayName } from '@/services/customers'
 import { getActiveOrcamento, getOrcamentoItens, createOrcamento } from '@/services/orcamentos'
 import { Orcamento, OrcamentoItem } from '@/types'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { offlinePb } from '@/lib/offline-pb'
 import {
   AlertDialog,
@@ -304,8 +306,13 @@ export default function OrdemDetail() {
       })
 
       loadAll()
-    } catch {
-      toast({ title: 'Erro ao finalizar ordem de serviço', variant: 'destructive' })
+    } catch (err) {
+      const errDetail = getErrorMessage(err)
+      toast({
+        title: 'Erro ao finalizar ordem de serviço',
+        description: errDetail || 'Verifique se os dados estão completos e tente novamente.',
+        variant: 'destructive',
+      })
     } finally {
       setFinalizingOrder(false)
     }
@@ -737,8 +744,14 @@ export default function OrdemDetail() {
           : prev,
       )
       setIsEditingOs(false)
-    } catch {
-      toast({ title: 'Erro ao salvar alterações da O.S.', variant: 'destructive' })
+    } catch (err) {
+      const errDetail = getErrorMessage(err)
+      toast({
+        title: 'Erro ao salvar alterações da O.S.',
+        description: errDetail || 'Verifique os dados e tente novamente.',
+        variant: 'destructive',
+      })
+      // Os dados digitados em editOsTitle e editOsDescription permanecem no formulário
     } finally {
       setSavingOs(false)
     }
@@ -770,8 +783,13 @@ export default function OrdemDetail() {
       toast({ title: 'Condições do orçamento atualizadas com sucesso!' })
       setEditingOrcamentoConditions(false)
       loadAll()
-    } catch {
-      toast({ title: 'Erro ao salvar condições do orçamento', variant: 'destructive' })
+    } catch (err) {
+      const errDetail = getErrorMessage(err)
+      toast({
+        title: 'Erro ao salvar condições do orçamento',
+        description: errDetail || 'Tente novamente.',
+        variant: 'destructive',
+      })
     } finally {
       setSavingOrcConditions(false)
     }
@@ -907,16 +925,25 @@ export default function OrdemDetail() {
                     description: `Número: ${novo.numero_orcamento}`,
                   })
                   navigate(`/orcamentos/${novo.id}`)
-                } catch {
-                  toast({ title: 'Erro ao gerar orçamento', variant: 'destructive' })
+                } catch (err) {
+                  const errDetail = getErrorMessage(err)
+                  toast({
+                    title: 'Erro ao gerar orçamento',
+                    description: errDetail || 'Verifique se já existe um orçamento ativo.',
+                    variant: 'destructive',
+                  })
                 } finally {
                   setCreatingOrcamento(false)
                 }
               }}
               className="text-xs gap-1.5 h-9 justify-center border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 font-bold"
             >
-              <FileText className="h-4 w-4" />
-              <span>{creatingOrcamento ? 'Gerando...' : 'Gerar Orçamento'}</span>
+              {creatingOrcamento ? (
+                <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
+              ) : (
+                <FileText className="h-4 w-4" />
+              )}
+              <span>{creatingOrcamento ? 'Salvando...' : 'Gerar Orçamento'}</span>
             </Button>
           )}
 
@@ -1610,16 +1637,25 @@ export default function OrdemDetail() {
                       description: `Número: ${novo.numero_orcamento}`,
                     })
                     navigate(`/orcamentos/${novo.id}`)
-                  } catch {
-                    toast({ title: 'Erro ao gerar orçamento', variant: 'destructive' })
+                  } catch (err) {
+                    const errDetail = getErrorMessage(err)
+                    toast({
+                      title: 'Erro ao gerar orçamento',
+                      description: errDetail || 'Verifique se já existe um orçamento ativo.',
+                      variant: 'destructive',
+                    })
                   } finally {
                     setCreatingOrcamento(false)
                   }
                 }}
                 className="h-9 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-sm"
               >
-                <Plus className="h-4 w-4" />
-                {creatingOrcamento ? 'Gerando...' : 'Gerar Orçamento'}
+                {creatingOrcamento ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                {creatingOrcamento ? 'Salvando...' : 'Gerar Orçamento'}
               </Button>
             </Card>
           )}

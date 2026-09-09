@@ -17,6 +17,9 @@ import {
   HelpCircle,
   Loader2,
   ExternalLink,
+  Printer,
+  Share2,
+  Trash2,
 } from 'lucide-react'
 import { RecordActionsMenu, RecordActionItem } from '@/components/RecordActionsMenu'
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
@@ -280,8 +283,8 @@ export default function OrcamentosList() {
         label: 'Página pública / Proposta',
         icon: Share2,
         onClick: () => {
-          if (orc.public_token) {
-            window.open(`/proposta/${orc.public_token}`, '_blank')
+          if (orc.token_acesso) {
+            window.open(`/proposta/${orc.token_acesso}`, '_blank')
           } else {
             navigate(`/orcamentos/${orc.id}`)
           }

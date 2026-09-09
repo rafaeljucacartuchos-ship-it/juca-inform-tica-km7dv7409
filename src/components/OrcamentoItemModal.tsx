@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, Package, Wrench, X, AlertTriangle } from 'lucide-react'
+import { Search, Package, Wrench, X, AlertTriangle, Loader2 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { Product, CatalogService, OrcamentoItem, OrcamentoDescontoTipo } from '@/types'
 import { getProducts } from '@/services/products'
@@ -8,12 +8,13 @@ import {
   updateOrcamentoItem,
   recalculateOrcamentoTotals,
 } from '@/services/orcamentos'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { getServices } from '@/services/services_catalog'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
-
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 type SearchResult = {
   id: string
   kind: 'product' | 'service'
@@ -250,8 +251,14 @@ export function OrcamentoItemModal({
 
       onSaved()
       onOpenChange(false)
-    } catch {
-      toast({ title: 'Erro ao salvar item do orçamento', variant: 'destructive' })
+    } catch (err) {
+      const detailMsg = getErrorMessage(err)
+      toast({
+        title: 'Erro ao salvar item do orçamento',
+        description: detailMsg || 'Verifique os dados digitados e tente novamente.',
+        variant: 'destructive',
+      })
+      // Os dados digitados permanecem no modal e o modal permanece aberto para nova tentativa.
     } finally {
       setSaving(false)
     }
@@ -588,7 +595,16 @@ export function OrcamentoItemModal({
               disabled={saving}
               className="bg-indigo-600 hover:bg-indigo-700 text-white min-h-[44px] sm:min-h-0 px-5 text-xs font-semibold shadow-xs"
             >
-              {saving ? 'Gravando...' : isEditing ? 'Salvar Alterações' : 'Adicionar Item'}
+              {saving ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Salvando...
+                </span>
+              ) : isEditing ? (
+                'Salvar Alterações'
+              ) : (
+                'Adicionar Item'
+              )}
             </Button>
           </div>
         </form>

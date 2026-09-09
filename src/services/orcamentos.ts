@@ -237,22 +237,19 @@ export async function createOrcamento(params: {
   let numero_orcamento: string = ''
 
   if (id_os) {
-    // 1. Substitui qualquer orçamento ativo anterior desta O.S.
+    // 1. Busca orçamentos existentes desta O.S.
     const existingActive = await pb.collection('orcamentos').getFullList<Orcamento>({
-      filter: `id_os = "${id_os}" && status != "substituido"`,
+      filter: `id_os = "${id_os}"`,
+      sort: '-created',
     })
 
-    for (const prev of existingActive) {
-      try {
-        await pb.collection('orcamentos').update(prev.id, {
-          status: 'substituido',
-        })
-      } catch (e) {
-        console.warn('Erro ao substituir orçamento anterior:', e)
-      }
+    // Se já existe um orçamento rascunho para esta O.S., reaproveita em vez de criar duplicado
+    const existingDraft = existingActive.find((o) => o.status === 'rascunho')
+    if (existingDraft) {
+      return existingDraft
     }
 
-    // 2. Busca número da O.S. vinculada para espelhar obrigatoriamente (OS-0041 -> ORC-0041)
+    // Determina o número base que será usado (espelhado da O.S., ex: ORC-0056)
     let osNumber: string | undefined
     try {
       const osRec = await pb.collection('service_orders').getOne<{ number: string }>(id_os, {
@@ -271,6 +268,57 @@ export async function createOrcamento(params: {
     if (!numero_orcamento) {
       numero_orcamento = await generateNextOrcamentoNumber(id_os)
     }
+
+    // Se houver orçamentos anteriores (ativos ou anteriores) ocupando o mesmo numero_orcamento
+    // ou se qualquer registro na coleção já possuir esse numero_orcamento, renomeia com sufixo
+    // de revisão (ex: ORC-0056-REV1, ORC-0056-REV2) para liberar o número principal e satisfazer
+    // o índice único CREATE UNIQUE INDEX idx_orcamentos_numero.
+    try {
+      const conflicting = await pb.collection('orcamentos').getFullList<Orcamento>({
+        filter: `numero_orcamento = "${numero_orcamento}"`,
+      })
+
+      let revIndex = 1
+      for (const prev of conflicting) {
+        // Encontra o próximo sufixo livre
+        let revNumber = `${numero_orcamento}-REV${revIndex}`
+        while (
+          (
+            await pb.collection('orcamentos').getFullList<Orcamento>({
+              filter: `numero_orcamento = "${revNumber}"`,
+            })
+          ).length > 0
+        ) {
+          revIndex++
+          revNumber = `${numero_orcamento}-REV${revIndex}`
+        }
+
+        try {
+          await pb.collection('orcamentos').update(prev.id, {
+            status: 'substituido',
+            numero_orcamento: revNumber,
+          })
+          revIndex++
+        } catch (e) {
+          console.warn('Erro ao atualizar numero_orcamento do orçamento substituído:', e)
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao verificar conflito de numero_orcamento:', e)
+    }
+
+    // Garante que todos os outros orçamentos ativos desta O.S. sejam marcados como 'substituido'
+    for (const prev of existingActive) {
+      if (prev.status !== 'substituido') {
+        try {
+          await pb.collection('orcamentos').update(prev.id, {
+            status: 'substituido',
+          })
+        } catch (e) {
+          console.warn('Erro ao substituir orçamento anterior:', e)
+        }
+      }
+    }
   } else {
     // Orçamento independente sem OS vinculada
     numero_orcamento = await generateNextOrcamentoNumber()
@@ -281,9 +329,9 @@ export async function createOrcamento(params: {
   const createPayload: Record<string, any> = {
     numero_orcamento,
     status: 'rascunho',
-    validade,
-    observacoes,
-    id_usuario_criador,
+    validade: Number(validade) || 15,
+    observacoes: observacoes || '',
+    id_usuario_criador: id_usuario_criador || undefined,
     desconto_total_valor: 0,
     desconto_total_tipo: 'valor',
     desconto_total_percentual: 0,
@@ -358,15 +406,66 @@ export async function getOrcamentoItens(orcamentoId: string): Promise<OrcamentoI
   }
 }
 
+function sanitizeNumericValue(val: unknown, fallback: number = 0): number {
+  if (typeof val === 'number') {
+    return isNaN(val) ? fallback : val
+  }
+  if (typeof val === 'string') {
+    let clean = val.trim()
+    if (!clean) return fallback
+    if (clean.includes('.') && clean.includes(',')) {
+      clean = clean.replace(/\./g, '').replace(',', '.')
+    } else if (clean.includes(',')) {
+      clean = clean.replace(',', '.')
+    }
+    const num = parseFloat(clean)
+    return isNaN(num) ? fallback : num
+  }
+  return fallback
+}
+
+function sanitizeOrcamentoItemPayload(data: Partial<OrcamentoItem>): Record<string, any> {
+  const payload: Record<string, any> = { ...data }
+
+  // id_produto: relation com products. PocketBase recusa "" (string vazia).
+  // Deve ser enviado com ID válido ou omitido/null se vazio.
+  if ('id_produto' in payload) {
+    if (
+      !payload.id_produto ||
+      (typeof payload.id_produto === 'string' && !payload.id_produto.trim())
+    ) {
+      payload.id_produto = null
+    }
+  }
+
+  // Sanitiza campos numéricos
+  if ('quantidade' in payload) {
+    payload.quantidade = Math.max(0.01, sanitizeNumericValue(payload.quantidade, 1))
+  }
+  if ('valor_unitario' in payload) {
+    payload.valor_unitario = Math.max(0, sanitizeNumericValue(payload.valor_unitario, 0))
+  }
+  if ('desconto_item' in payload) {
+    payload.desconto_item = Math.max(0, sanitizeNumericValue(payload.desconto_item, 0))
+  }
+  if ('valor_total_item' in payload) {
+    payload.valor_total_item = Math.max(0, sanitizeNumericValue(payload.valor_total_item, 0))
+  }
+
+  return payload
+}
+
 export async function createOrcamentoItem(data: Partial<OrcamentoItem>): Promise<OrcamentoItem> {
-  return await pb.collection('orcamento_itens').create<OrcamentoItem>(data)
+  const sanitized = sanitizeOrcamentoItemPayload(data)
+  return await pb.collection('orcamento_itens').create<OrcamentoItem>(sanitized)
 }
 
 export async function updateOrcamentoItem(
   id: string,
   data: Partial<OrcamentoItem>,
 ): Promise<OrcamentoItem> {
-  return await pb.collection('orcamento_itens').update<OrcamentoItem>(id, data)
+  const sanitized = sanitizeOrcamentoItemPayload(data)
+  return await pb.collection('orcamento_itens').update<OrcamentoItem>(id, sanitized)
 }
 
 export async function deleteOrcamentoItem(id: string): Promise<boolean> {

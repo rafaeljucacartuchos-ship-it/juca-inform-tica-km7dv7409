@@ -88,13 +88,17 @@ export function usePushNotifications(userId?: string): UsePushNotificationsResul
       const existing = await reg.pushManager.getSubscription()
       setIsSubscribed(!!existing)
 
-      if (existing && userId) {
+      // Só interage com o PocketBase se o usuário estiver autenticado com token válido
+      const isAuthValid = Boolean(pb.authStore.isValid && pb.authStore.record)
+
+      if (existing && userId && isAuthValid && existing.endpoint) {
         // Confere se a subscription está registrada no backend.
         try {
+          const sanitizedEndpoint = existing.endpoint.trim()
           const rec = await pb
             .collection('push_subscriptions')
             .getFirstListItem<PushSubscriptionRecord>(
-              `endpoint = "${existing.endpoint}" && user = "${userId}"`,
+              `endpoint = "${sanitizedEndpoint}" && user = "${userId}"`,
             )
           subscriptionRecordIdRef.current = rec.id
           // Se marcada inativa no backend, reativa.
@@ -105,16 +109,22 @@ export function usePushNotifications(userId?: string): UsePushNotificationsResul
           // Não encontrada no backend: recria o registro.
           try {
             const subJson = existing.toJSON()
-            const created = await pb
-              .collection('push_subscriptions')
-              .create<PushSubscriptionRecord>({
-                user: userId,
-                endpoint: subJson.endpoint,
-                p256dh: subJson.keys?.p256dh || '',
-                auth: subJson.keys?.auth || '',
-                active: true,
-              })
-            subscriptionRecordIdRef.current = created.id
+            const endpoint = (subJson.endpoint || '').trim()
+            const p256dh = (subJson.keys?.p256dh || '').trim()
+            const auth = (subJson.keys?.auth || '').trim()
+
+            if (endpoint && p256dh && auth) {
+              const created = await pb
+                .collection('push_subscriptions')
+                .create<PushSubscriptionRecord>({
+                  user: userId,
+                  endpoint,
+                  p256dh,
+                  auth,
+                  active: true,
+                })
+              subscriptionRecordIdRef.current = created.id
+            }
           } catch {
             // ignora erro de duplicidade/etc
           }
@@ -157,38 +167,51 @@ export function usePushNotifications(userId?: string): UsePushNotificationsResul
       }
 
       const subJson = subscription.toJSON()
-      const endpoint = subJson.endpoint
-      const p256dh = subJson.keys?.p256dh || ''
-      const auth = subJson.keys?.auth || ''
+      const endpoint = (subJson.endpoint || '').trim()
+      const p256dh = (subJson.keys?.p256dh || '').trim()
+      const auth = (subJson.keys?.auth || '').trim()
 
-      // Upsert no backend: se já existe (mesmo endpoint + usuário), atualiza;
-      // senão cria. Assim múltiplos logins no mesmo dispositivo não duplicam.
+      if (!endpoint || !p256dh || !auth) {
+        console.warn('Dados de push subscription incompletos ou nulos.')
+        setIsSubscribed(true)
+        return true
+      }
+
+      // Só interage com o PocketBase se o usuário estiver autenticado
+      const isAuthValid = Boolean(pb.authStore.isValid && pb.authStore.record)
       let recId: string | null = null
-      try {
-        const rec = await pb
-          .collection('push_subscriptions')
-          .getFirstListItem<PushSubscriptionRecord>(
-            `endpoint = "${endpoint}" && user = "${userId}"`,
-          )
-        await pb.collection('push_subscriptions').update(rec.id, {
-          p256dh,
-          auth,
-          active: true,
-        })
-        recId = rec.id
-      } catch {
+
+      if (isAuthValid) {
+        // Upsert no backend: se já existe (mesmo endpoint + usuário), atualiza;
+        // senão cria. Assim múltiplos logins no mesmo dispositivo não duplicam.
         try {
-          const created = await pb.collection('push_subscriptions').create<PushSubscriptionRecord>({
-            user: userId,
-            endpoint,
+          const rec = await pb
+            .collection('push_subscriptions')
+            .getFirstListItem<PushSubscriptionRecord>(
+              `endpoint = "${endpoint}" && user = "${userId}"`,
+            )
+          await pb.collection('push_subscriptions').update(rec.id, {
             p256dh,
             auth,
             active: true,
           })
-          recId = created.id
-        } catch (err) {
-          // Pode ser unique constraint em endpoint (outro usuário) — ignora.
-          console.warn('Falha ao salvar subscription no backend:', err)
+          recId = rec.id
+        } catch {
+          try {
+            const created = await pb
+              .collection('push_subscriptions')
+              .create<PushSubscriptionRecord>({
+                user: userId,
+                endpoint,
+                p256dh,
+                auth,
+                active: true,
+              })
+            recId = created.id
+          } catch (err) {
+            // Pode ser unique constraint em endpoint (outro usuário) — ignora.
+            console.warn('Falha ao salvar subscription no backend:', err)
+          }
         }
       }
 
@@ -213,14 +236,17 @@ export function usePushNotifications(userId?: string): UsePushNotificationsResul
         await existing.unsubscribe()
       }
 
-      // Marca como inativa (ou deleta) no backend.
+      // Marca como inativa (ou deleta) no backend se autenticado.
       const recId = subscriptionRecordIdRef.current
-      if (recId) {
+      const isAuthValid = Boolean(pb.authStore.isValid && pb.authStore.record)
+      if (recId && isAuthValid) {
         try {
           await pb.collection('push_subscriptions').update(recId, { active: false })
         } catch {
           // pode já ter sido removido
         }
+        subscriptionRecordIdRef.current = null
+      } else {
         subscriptionRecordIdRef.current = null
       }
 

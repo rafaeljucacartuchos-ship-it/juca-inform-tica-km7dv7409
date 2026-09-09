@@ -39,7 +39,7 @@ import { NewEquipmentModal } from '@/components/NewEquipmentModal'
 import { NewCustomerModal } from '@/components/NewCustomerModal'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
-import { extractFieldErrors } from '@/lib/pocketbase/errors'
+import { extractFieldErrors, getErrorMessage } from '@/lib/pocketbase/errors'
 import { offlinePb } from '@/lib/offline-pb'
 
 interface NewOrderModalProps {
@@ -330,12 +330,16 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
       onOpenChange(false)
       if (onCreated) onCreated()
     } catch (err) {
-      setErrors(extractFieldErrors(err))
+      const fieldErrors = extractFieldErrors(err)
+      setErrors(fieldErrors)
+      const errorMsg = getErrorMessage(err)
       toast({
         title: 'Erro ao criar ordem de serviço',
-        description: 'Verifique os campos e tente novamente.',
+        description: errorMsg || 'Verifique os campos e tente novamente.',
         variant: 'destructive',
       })
+      // NOTA IMPORTANTE: formData NÃO é resetado e modal NÃO é fechado,
+      // preservando todos os dados digitados pelo usuário para nova tentativa sem perda de dados.
     } finally {
       setLoading(false)
     }
@@ -812,16 +816,29 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
             </div>
 
             <DialogFooter className="px-4 py-3 sm:px-6 sm:py-4 border-t border-slate-100 shrink-0 bg-slate-50/50 flex flex-row items-center justify-end gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onOpenChange(false)}
+                disabled={loading}
+              >
                 Cancelar
               </Button>
               <Button
                 type="submit"
                 size="sm"
                 disabled={loading}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white min-w-[110px]"
               >
-                {loading ? 'Criando...' : 'Criar Ordem'}
+                {loading ? (
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Salvando...
+                  </span>
+                ) : (
+                  'Criar Ordem'
+                )}
               </Button>
             </DialogFooter>
           </form>
