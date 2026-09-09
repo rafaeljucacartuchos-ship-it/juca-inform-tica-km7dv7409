@@ -6,16 +6,25 @@ import { Equipment, ServiceOrder } from '@/types'
 import { getEquipmentServiceOrders } from '@/services/equipment'
 import { getFileUrl } from '@/lib/pocketbase/files'
 
+import { Button } from '@/components/ui/button'
+import { Edit2, ImageIcon } from 'lucide-react'
+
 interface EquipmentHistoryDialogProps {
   equipment: Equipment | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  onEdit?: (equipment: Equipment) => void
+  onOpenPhotos?: (equipment: Equipment) => void
+  canEdit?: boolean
 }
 
 export function EquipmentHistoryDialog({
   equipment,
   open,
   onOpenChange,
+  onEdit,
+  onOpenPhotos,
+  canEdit = true,
 }: EquipmentHistoryDialogProps) {
   const [orders, setOrders] = useState<ServiceOrder[]>([])
 
@@ -33,8 +42,44 @@ export function EquipmentHistoryDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-bold text-slate-900">{equipment.name}</DialogTitle>
+        <DialogHeader className="flex flex-row items-center justify-between pb-2 border-b border-slate-100">
+          <div>
+            <DialogTitle className="text-lg font-bold text-slate-900">{equipment.name}</DialogTitle>
+            <p className="text-xs text-slate-500">
+              {equipment.expand?.customer?.name
+                ? `Cliente: ${equipment.expand.customer.name}`
+                : 'Histórico e detalhes do equipamento'}
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5 mr-6">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (onOpenPhotos) onOpenPhotos(equipment)
+              }}
+              className="h-8 text-xs gap-1 border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100"
+              title="Abrir galeria de imagens do equipamento"
+            >
+              <ImageIcon className="h-3.5 w-3.5" />
+              <span>Fotos ({photos.length})</span>
+            </Button>
+            {canEdit && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  if (onEdit) onEdit(equipment)
+                }}
+                className="h-8 text-xs gap-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+                title="Editar dados e fotos do equipamento"
+              >
+                <Edit2 className="h-3.5 w-3.5" />
+                <span>Editar</span>
+              </Button>
+            )}
+          </div>
         </DialogHeader>
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
@@ -56,15 +101,35 @@ export function EquipmentHistoryDialog({
             </div>
           </div>
           {photos.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {photos.map((p, i) => (
-                <img
-                  key={i}
-                  src={getFileUrl(equipment.id, p, 'equipment', '200x200')}
-                  alt=""
-                  className="w-20 h-20 object-cover rounded-lg border border-slate-200"
-                />
-              ))}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-700">
+                  Fotos cadastradas ({photos.length})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onOpenPhotos) onOpenPhotos(equipment)
+                  }}
+                  className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold"
+                >
+                  Abrir visualizador completo →
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {photos.map((p, i) => (
+                  <img
+                    key={i}
+                    src={getFileUrl(equipment.id, p, 'equipment', '200x200')}
+                    alt=""
+                    onClick={() => {
+                      if (onOpenPhotos) onOpenPhotos(equipment)
+                    }}
+                    className="w-20 h-20 object-cover rounded-lg border border-slate-200 cursor-pointer hover:opacity-90 hover:scale-105 transition-all shadow-xs"
+                    title="Clique para abrir e ampliar"
+                  />
+                ))}
+              </div>
             </div>
           )}
           <div>

@@ -10,6 +10,7 @@ import { getServiceOrders } from '@/services/service_orders'
 import { getEquipmentByCustomer } from '@/services/equipment'
 import { getFileUrl } from '@/lib/pocketbase/files'
 import { NewEquipmentModal } from '@/components/NewEquipmentModal'
+import { EditEquipmentModal } from '@/components/EditEquipmentModal'
 import { EquipmentHistoryDialog } from '@/components/EquipmentHistoryDialog'
 
 export default function ClienteDetail() {
@@ -20,6 +21,8 @@ export default function ClienteDetail() {
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedEquip, setSelectedEquip] = useState<Equipment | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [editModalTab, setEditModalTab] = useState<'edit' | 'photos'>('edit')
 
   const loadEquipment = () => {
     if (id)
@@ -227,6 +230,25 @@ export default function ClienteDetail() {
         equipment={selectedEquip}
         open={historyOpen}
         onOpenChange={setHistoryOpen}
+        onEdit={(eq) => {
+          setHistoryOpen(false)
+          setSelectedEquip(eq)
+          setEditModalTab('edit')
+          setEditModalOpen(true)
+        }}
+        onOpenPhotos={(eq) => {
+          setHistoryOpen(false)
+          setSelectedEquip(eq)
+          setEditModalTab('photos')
+          setEditModalOpen(true)
+        }}
+      />
+      <EditEquipmentModal
+        equipment={selectedEquip}
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        defaultTab={editModalTab}
+        onSaved={loadEquipment}
       />
     </div>
   )

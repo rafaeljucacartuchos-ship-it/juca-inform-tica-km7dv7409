@@ -19,7 +19,7 @@ export const getEquipmentItem = (id: string) =>
 export const createEquipment = (data: Partial<Equipment>) =>
   pb.collection('equipment').create<Equipment>(data, { expand: 'customer' })
 
-export const updateEquipment = (id: string, data: Partial<Equipment>) =>
+export const updateEquipment = (id: string, data: Partial<Equipment> | FormData) =>
   pb.collection('equipment').update<Equipment>(id, data, { expand: 'customer' })
 
 export const deleteEquipment = (id: string) => pb.collection('equipment').delete(id)

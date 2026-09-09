@@ -25,6 +25,8 @@ import {
   Copy,
   ArrowRight,
   Loader2,
+  Monitor,
+  ImageIcon,
 } from 'lucide-react'
 import { formatPhone } from '@/lib/phones'
 import { OrcamentoItemModal } from '@/components/OrcamentoItemModal'
@@ -41,11 +43,17 @@ import { CompanyHeader } from '@/components/CompanyHeader'
 import { Badge } from '@/components/ui/badge'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Textarea } from '@/components/ui/textarea'
-import { ServiceOrder, StatusHistory, OrderStatus } from '@/types'
+import {
+  ServiceOrder,
+  StatusHistory,
+  OrderStatus,
+  Equipment,
+  Orcamento,
+  OrcamentoItem,
+} from '@/types'
 import { getServiceOrder, getStatusHistory, deleteServiceOrder } from '@/services/service_orders'
 import { getCustomerPhone, getCustomerDisplayName } from '@/services/customers'
 import { getActiveOrcamento, getOrcamentoItens, createOrcamento } from '@/services/orcamentos'
-import { Orcamento, OrcamentoItem } from '@/types'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { offlinePb } from '@/lib/offline-pb'
 import {
@@ -68,7 +76,9 @@ import {
 } from '@/components/ui/dialog'
 import { OrderPhotos } from '@/components/OrderPhotos'
 import { NewEquipmentModal } from '@/components/NewEquipmentModal'
+import { EditEquipmentModal } from '@/components/EditEquipmentModal'
 import { TransferTechnicianModal } from '@/components/TransferTechnicianModal'
+import { getEquipmentItem } from '@/services/equipment'
 import { RecordActionsMenu, RecordActionItem } from '@/components/RecordActionsMenu'
 import { useAuth } from '@/hooks/use-auth'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -99,6 +109,9 @@ export default function OrdemDetail() {
   const [serviceReport, setServiceReport] = useState('')
   const [starting, setStarting] = useState(false)
   const [equipmentModalOpen, setEquipmentModalOpen] = useState(false)
+  const [editEquipmentModalOpen, setEditEquipmentModalOpen] = useState(false)
+  const [editEquipmentTab, setEditEquipmentTab] = useState<'edit' | 'photos'>('edit')
+  const [activeEquipmentDetail, setActiveEquipmentDetail] = useState<Equipment | null>(null)
   const [transferModalOpen, setTransferModalOpen] = useState(false)
   const [confirmDeleteOsOpen, setConfirmDeleteOsOpen] = useState(false)
   const [deletingOs, setDeletingOs] = useState(false)
@@ -803,6 +816,41 @@ export default function OrdemDetail() {
     }
   }
 
+  const handleOpenEquipmentModal = async (tab: 'edit' | 'photos' = 'edit') => {
+    if (!order) return
+
+    // 1) Se já temos o id do equipamento vinculado (order.equipment_ref)
+    if (order.equipment_ref) {
+      try {
+        const eq = await getEquipmentItem(order.equipment_ref)
+        setActiveEquipmentDetail(eq)
+        setEditEquipmentTab(tab)
+        setEditEquipmentModalOpen(true)
+        return
+      } catch {
+        // Se já temos no expand
+        if (order.expand?.equipment_ref) {
+          setActiveEquipmentDetail(order.expand.equipment_ref)
+          setEditEquipmentTab(tab)
+          setEditEquipmentModalOpen(true)
+          return
+        }
+      }
+    }
+
+    // 2) Se o expand já possui o equipamento
+    if (order.expand?.equipment_ref?.id) {
+      setActiveEquipmentDetail(order.expand.equipment_ref)
+      setEditEquipmentTab(tab)
+      setEditEquipmentModalOpen(true)
+      return
+    }
+
+    // 3) Se o equipamento não está cadastrado/vinculado como registro próprio
+    // abre o modal de criação/vincular equipamento
+    setEquipmentModalOpen(true)
+  }
+
   const handleEquipmentCreated = async (created?: any) => {
     if (!order || !created?.id) return
     const equipmentLabel = `${created.name || 'Equipamento'}${
@@ -838,6 +886,7 @@ export default function OrdemDetail() {
             }
           : prev,
       )
+      setActiveEquipmentDetail(created)
       loadAll()
     } catch {
       toast({
@@ -845,6 +894,29 @@ export default function OrdemDetail() {
         variant: 'destructive',
       })
     }
+  }
+
+  const handleEquipmentSaved = (updated?: Equipment) => {
+    if (!updated || !order) return
+    setActiveEquipmentDetail(updated)
+    const equipmentLabel = `${updated.name || 'Equipamento'}${
+      updated.brand ? ' - ' + updated.brand : ''
+    }${updated.model ? ' ' + updated.model : ''}`
+
+    setOrder((prev) =>
+      prev
+        ? {
+            ...prev,
+            equipment_ref: updated.id,
+            equipment: equipmentLabel,
+            expand: {
+              ...prev.expand,
+              equipment_ref: updated,
+            },
+          }
+        : prev,
+    )
+    loadAll()
   }
 
   return (
@@ -999,6 +1071,22 @@ export default function OrdemDetail() {
                 label: 'Abrir link público (/share)',
                 icon: ExternalLink,
                 onClick: () => window.open(`/share/${order.id}`, '_blank'),
+              },
+              {
+                key: 'equipment_record',
+                label: order.equipment_ref
+                  ? 'Cadastro do Equipamento (Editar/Fotos)'
+                  : 'Vincular/Cadastrar Equipamento',
+                icon: Monitor,
+                separatorBefore: true,
+                onClick: () => handleOpenEquipmentModal('edit'),
+              },
+              {
+                key: 'equipment_photos',
+                label: 'Abrir Imagens do Equipamento',
+                icon: ImageIcon,
+                hidden: !order.equipment_ref && !order.equipment,
+                onClick: () => handleOpenEquipmentModal('photos'),
               },
               {
                 key: 'transfer',
@@ -1262,13 +1350,37 @@ export default function OrdemDetail() {
                   <div className="flex flex-wrap items-center gap-2 mt-0.5">
                     {order.equipment_ref ||
                     (order.equipment && order.equipment.trim().length > 0) ? (
-                      <p className="font-medium text-slate-900">
-                        <span>
-                          {order.equipment ||
-                            order.expand?.equipment_ref?.name ||
-                            'Equipamento vinculado'}
-                        </span>
-                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <p className="font-medium text-slate-900 mr-1">
+                          <span>
+                            {order.equipment ||
+                              order.expand?.equipment_ref?.name ||
+                              'Equipamento vinculado'}
+                          </span>
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenEquipmentModal('edit')}
+                          className="h-6 text-[11px] font-medium border-indigo-200 text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 px-2 gap-1 rounded"
+                          title="Acessar o cadastro do equipamento para editar dados ou ver histórico"
+                        >
+                          <Edit2 className="h-3 w-3" />
+                          <span>Cadastro / Editar</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenEquipmentModal('photos')}
+                          className="h-6 text-[11px] font-medium border-slate-200 text-slate-700 hover:bg-slate-100 px-2 gap-1 rounded"
+                          title="Abrir galeria e visualizador de imagens do equipamento"
+                        >
+                          <ImageIcon className="h-3 w-3 text-indigo-600" />
+                          <span>Abrir Imagens</span>
+                        </Button>
+                      </div>
                     ) : (
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-amber-600 font-semibold italic text-xs">
@@ -1857,6 +1969,15 @@ export default function OrdemDetail() {
         onOpenChange={setEquipmentModalOpen}
         onCreated={handleEquipmentCreated}
         defaultCustomerId={order.customer}
+      />
+
+      <EditEquipmentModal
+        equipment={activeEquipmentDetail || order.expand?.equipment_ref || null}
+        open={editEquipmentModalOpen}
+        onOpenChange={setEditEquipmentModalOpen}
+        defaultTab={editEquipmentTab}
+        canEdit={canEdit && !fieldsLocked}
+        onSaved={handleEquipmentSaved}
       />
 
       <TransferTechnicianModal

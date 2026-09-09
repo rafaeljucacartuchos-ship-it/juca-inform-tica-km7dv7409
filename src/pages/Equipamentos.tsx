@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Search, Monitor, Laptop, Smartphone, Printer, Plus } from 'lucide-react'
+import { Search, Monitor, Laptop, Smartphone, Printer, Plus, Edit2, ImageIcon } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -8,7 +8,9 @@ import { Equipment } from '@/types'
 import { getEquipment } from '@/services/equipment'
 import { getFileUrl } from '@/lib/pocketbase/files'
 import { useRealtime } from '@/hooks/use-realtime'
+import { usePermissions } from '@/hooks/use-permissions'
 import { NewEquipmentModal } from '@/components/NewEquipmentModal'
+import { EditEquipmentModal } from '@/components/EditEquipmentModal'
 import { EquipmentHistoryDialog } from '@/components/EquipmentHistoryDialog'
 
 const typeIcons: Record<string, typeof Monitor> = {
@@ -28,6 +30,10 @@ export default function Equipamentos() {
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedEquip, setSelectedEquip] = useState<Equipment | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [editModalTab, setEditModalTab] = useState<'edit' | 'photos'>('edit')
+  const { hasPermission } = usePermissions()
+  const canEditEquip = hasPermission('equipamentos')
 
   const loadData = async () => {
     try {
@@ -56,6 +62,12 @@ export default function Equipamentos() {
   const openHistory = (e: Equipment) => {
     setSelectedEquip(e)
     setHistoryOpen(true)
+  }
+
+  const openEdit = (e: Equipment, tab: 'edit' | 'photos' = 'edit') => {
+    setSelectedEquip(e)
+    setEditModalTab(tab)
+    setEditModalOpen(true)
   }
 
   return (
@@ -134,6 +146,37 @@ export default function Equipamentos() {
                     {e.expand?.customer?.name || '-'}
                   </p>
                 </div>
+
+                {/* Ações diretas do card: Editar e Abrir Imagens */}
+                <div
+                  className="pt-2 border-t border-slate-100 flex items-center justify-end gap-1.5"
+                  onClick={(ev) => ev.stopPropagation()}
+                >
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openEdit(e, 'photos')}
+                    className="h-7 text-[11px] px-2 text-indigo-700 hover:bg-indigo-50 font-medium gap-1"
+                    title="Abrir galeria de imagens do equipamento"
+                  >
+                    <ImageIcon className="h-3 w-3" />
+                    <span>Fotos ({photos.length})</span>
+                  </Button>
+                  {canEditEquip && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEdit(e, 'edit')}
+                      className="h-7 text-[11px] px-2 border-slate-200 text-slate-700 hover:bg-slate-100 font-medium gap-1"
+                      title="Editar cadastro do equipamento"
+                    >
+                      <Edit2 className="h-3 w-3 text-slate-500" />
+                      <span>Editar</span>
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           )
@@ -150,6 +193,25 @@ export default function Equipamentos() {
         equipment={selectedEquip}
         open={historyOpen}
         onOpenChange={setHistoryOpen}
+        onEdit={(eq) => {
+          setHistoryOpen(false)
+          openEdit(eq, 'edit')
+        }}
+        onOpenPhotos={(eq) => {
+          setHistoryOpen(false)
+          openEdit(eq, 'photos')
+        }}
+        canEdit={canEditEquip}
+      />
+      <EditEquipmentModal
+        equipment={selectedEquip}
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        defaultTab={editModalTab}
+        canEdit={canEditEquip}
+        onSaved={() => {
+          loadData()
+        }}
       />
     </div>
   )
