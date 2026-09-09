@@ -249,7 +249,7 @@ export function TransferTechnicianModal({
                         : 'Atendente/Vendedor'
                   return (
                     <SelectItem key={u.id} value={u.id} disabled={isCurrent} className="text-xs">
-                      {u.name} ({roleLabel}){isCurrent ? ' — Atual' : ''}
+                      {`${u.name} (${roleLabel})${isCurrent ? ' — Atual' : ''}`}
                     </SelectItem>
                   )
                 })}
@@ -296,7 +296,7 @@ export function TransferTechnicianModal({
             className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1.5"
           >
             <ArrowRightLeft className="h-3.5 w-3.5" />
-            {submitting ? 'Transferindo...' : 'Confirmar Transferência'}
+            <span>{submitting ? 'Transferindo...' : 'Confirmar Transferência'}</span>
           </Button>
         </DialogFooter>
       </DialogContent>

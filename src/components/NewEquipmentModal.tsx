@@ -543,7 +543,7 @@ export function NewEquipmentModal({
               disabled={loading}
               className="bg-indigo-600 hover:bg-indigo-700 text-white"
             >
-              {loading ? 'Cadastrando...' : 'Cadastrar'}
+              <span>{loading ? 'Cadastrando...' : 'Cadastrar'}</span>
             </Button>
           </DialogFooter>
         </form>

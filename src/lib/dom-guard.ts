@@ -33,7 +33,11 @@ export function installDomMutationCrashGuard(): void {
     Node.prototype.removeChild = function <T extends Node>(child: T): T {
       // Se o nó a ser removido não é mais filho deste nó (por exemplo, tradutor ou extensão moveu),
       // remove-o de seu nó pai real (se ainda tiver) para satisfazer o objetivo do React sem lançar exceção.
-      if (child && child.parentNode !== this) {
+      if (!child) {
+        return child
+      }
+
+      if (child.parentNode !== this) {
         if (child.parentNode) {
           try {
             return originalRemoveChild.call(child.parentNode, child) as T
@@ -43,7 +47,30 @@ export function installDomMutationCrashGuard(): void {
         }
         return child
       }
-      return originalRemoveChild.call(this, child) as T
+
+      try {
+        return originalRemoveChild.call(this, child) as T
+      } catch (err: unknown) {
+        // Se ainda assim o DOM nativo disparar NotFoundError (ex: nó já desmontado ou manipulado assincronamente)
+        const isNotFoundError =
+          (err instanceof DOMException && err.name === 'NotFoundError') ||
+          (err instanceof Error &&
+            (err.name === 'NotFoundError' ||
+              err.message.includes('removeChild') ||
+              err.message.includes('not a child')))
+
+        if (isNotFoundError) {
+          try {
+            if (child.parentNode && child.parentNode !== this) {
+              return originalRemoveChild.call(child.parentNode, child) as T
+            }
+          } catch {
+            // Silencia para não quebrar a árvore React
+          }
+          return child
+        }
+        throw err
+      }
     }
 
     const originalInsertBefore = Node.prototype.insertBefore
@@ -63,7 +90,26 @@ export function installDomMutationCrashGuard(): void {
         }
         return originalInsertBefore.call(this, newNode, null) as T
       }
-      return originalInsertBefore.call(this, newNode, referenceNode) as T
+
+      try {
+        return originalInsertBefore.call(this, newNode, referenceNode) as T
+      } catch (err: unknown) {
+        const isNotFoundError =
+          (err instanceof DOMException && err.name === 'NotFoundError') ||
+          (err instanceof Error &&
+            (err.name === 'NotFoundError' ||
+              err.message.includes('insertBefore') ||
+              err.message.includes('not a child')))
+
+        if (isNotFoundError) {
+          try {
+            return originalInsertBefore.call(this, newNode, null) as T
+          } catch {
+            return newNode
+          }
+        }
+        throw err
+      }
     }
   } catch (err) {
     console.warn('[installDomMutationCrashGuard] Não foi possível instalar guarda de mutação:', err)

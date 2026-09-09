@@ -901,7 +901,7 @@ export default function OrdemDetail() {
             className="w-full sm:w-auto sm:self-start h-11 text-sm font-bold gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-600/20"
           >
             <Play className="h-5 w-5" />
-            {starting ? 'Iniciando...' : 'Iniciar Atendimento'}
+            <span>{starting ? 'Iniciando...' : 'Iniciar Atendimento'}</span>
           </Button>
         )}
 
@@ -1052,9 +1052,9 @@ export default function OrdemDetail() {
                   className="h-7 text-xs font-semibold gap-1"
                 >
                   <Edit2 className="h-3 w-3" />
-                  {isEditingOs ? 'Cancelar Edição' : 'Editar O.S.'}
+                  <span>{isEditingOs ? 'Cancelar Edição' : 'Editar O.S.'}</span>
                 </Button>
-              )}
+              )}{' '}
             </CardHeader>
             <CardContent className="space-y-4 text-xs">
               {isEditingOs ? (
@@ -1095,7 +1095,7 @@ export default function OrdemDetail() {
                       onClick={handleSaveOsInfo}
                       className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
                     >
-                      {savingOs ? 'Salvando...' : 'Salvar Alterações'}
+                      <span>{savingOs ? 'Salvando...' : 'Salvar Alterações'}</span>
                     </Button>
                   </div>
                 </div>
@@ -1263,12 +1263,14 @@ export default function OrdemDetail() {
                     {order.equipment_ref ||
                     (order.equipment && order.equipment.trim().length > 0) ? (
                       <p className="font-medium text-slate-900">
-                        {order.equipment ||
-                          order.expand?.equipment_ref?.name ||
-                          'Equipamento vinculado'}
+                        <span>
+                          {order.equipment ||
+                            order.expand?.equipment_ref?.name ||
+                            'Equipamento vinculado'}
+                        </span>
                       </p>
                     ) : (
-                      <>
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="text-amber-600 font-semibold italic text-xs">
                           Não vinculado (Obrigatório ao fechar)
                         </span>
@@ -1281,10 +1283,10 @@ export default function OrdemDetail() {
                             className="h-6 text-[11px] font-medium border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 px-2 gap-1 rounded"
                           >
                             <Plus className="h-3 w-3" />
-                            Vincular / Cadastrar
+                            <span>Vincular / Cadastrar</span>
                           </Button>
                         )}
-                      </>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1381,7 +1383,7 @@ export default function OrdemDetail() {
                           : 'bg-slate-100 text-slate-500 border-slate-200'
                       }
                     >
-                      Cliente: {activeOrcamento.assinatura_cliente ? '✓ Assinado' : 'Pendente'}
+                      <span>{`Cliente: ${activeOrcamento.assinatura_cliente ? '✓ Assinado' : 'Pendente'}`}</span>
                     </Badge>
                     <Badge
                       className={
@@ -1390,7 +1392,7 @@ export default function OrdemDetail() {
                           : 'bg-slate-100 text-slate-500 border-slate-200'
                       }
                     >
-                      Técnico: {activeOrcamento.assinatura_tecnico ? '✓ Assinado' : 'Pendente'}
+                      <span>{`Técnico: ${activeOrcamento.assinatura_tecnico ? '✓ Assinado' : 'Pendente'}`}</span>
                     </Badge>
                   </div>
 
@@ -1469,7 +1471,7 @@ export default function OrdemDetail() {
                         onClick={handleSaveOrcConditions}
                         className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
                       >
-                        {savingOrcConditions ? 'Salvando...' : 'Salvar Condições'}
+                        <span>{savingOrcConditions ? 'Salvando...' : 'Salvar Condições'}</span>
                       </Button>
                     </div>
                   </div>
@@ -1482,7 +1484,7 @@ export default function OrdemDetail() {
                       Itens, Peças e Serviços do Orçamento:
                     </span>
                     <span className="text-slate-400 text-[11px]">
-                      {orcamentoItens.length} {orcamentoItens.length === 1 ? 'item' : 'itens'}
+                      {`${orcamentoItens.length} ${orcamentoItens.length === 1 ? 'item' : 'itens'}`}
                     </span>
                   </div>
                   {orcamentoItens.length === 0 ? (
@@ -1498,9 +1500,10 @@ export default function OrdemDetail() {
                             setEditingOrcItem(null)
                             setOrcItemModalOpen(true)
                           }}
-                          className="h-7 text-xs border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                          className="h-7 text-xs border-indigo-300 text-indigo-700 hover:bg-indigo-50 gap-1"
                         >
-                          <Plus className="h-3 w-3 mr-1" /> Adicionar Primeiro Item
+                          <Plus className="h-3 w-3" />
+                          <span>Adicionar Primeiro Item</span>
                         </Button>
                       )}
                     </div>
@@ -1538,18 +1541,20 @@ export default function OrdemDetail() {
                                 {it.quantidade || 1}
                               </td>
                               <td className="py-2 px-3 text-right font-mono text-slate-600">
-                                R${' '}
-                                {(it.valor_unitario || 0).toLocaleString('pt-BR', {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })}
+                                <span>
+                                  {`R$ ${(it.valor_unitario || 0).toLocaleString('pt-BR', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}`}
+                                </span>
                               </td>
                               <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
-                                R${' '}
-                                {(it.valor_total_item || 0).toLocaleString('pt-BR', {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })}
+                                <span>
+                                  {`R$ ${(it.valor_total_item || 0).toLocaleString('pt-BR', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}`}
+                                </span>
                               </td>
                               {canEdit && (
                                 <td className="py-2 px-3 text-center">
@@ -1589,33 +1594,33 @@ export default function OrdemDetail() {
                   <div className="flex justify-between items-center text-slate-600">
                     <span>Subtotal:</span>
                     <span className="font-mono font-semibold text-slate-800">
-                      R${' '}
-                      {(activeOrcamento.subtotal || 0).toLocaleString('pt-BR', {
+                      {`R$ ${(activeOrcamento.subtotal || 0).toLocaleString('pt-BR', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
-                      })}
+                      })}`}
                     </span>
                   </div>
                   {(activeOrcamento.desconto_total_valor || 0) > 0 && (
                     <div className="flex justify-between items-center text-rose-600">
                       <span>Desconto Total:</span>
                       <span className="font-mono font-semibold">
-                        -R${' '}
-                        {(activeOrcamento.desconto_total_valor || 0).toLocaleString('pt-BR', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
+                        {`-R$ ${(activeOrcamento.desconto_total_valor || 0).toLocaleString(
+                          'pt-BR',
+                          {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          },
+                        )}`}
                       </span>
                     </div>
                   )}
                   <div className="flex justify-between items-center pt-1.5 border-t border-slate-200 text-sm font-bold">
                     <span className="text-slate-900">Total do Orçamento:</span>
                     <span className="font-mono text-indigo-700 text-base font-black">
-                      R${' '}
-                      {(activeOrcamento.total_geral || 0).toLocaleString('pt-BR', {
+                      {`R$ ${(activeOrcamento.total_geral || 0).toLocaleString('pt-BR', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
-                      })}
+                      })}`}
                     </span>
                   </div>
                 </div>
@@ -1668,7 +1673,7 @@ export default function OrdemDetail() {
                 ) : (
                   <Plus className="h-4 w-4" />
                 )}
-                {creatingOrcamento ? 'Salvando...' : 'Gerar Orçamento'}
+                <span>{creatingOrcamento ? 'Salvando...' : 'Gerar Orçamento'}</span>
               </Button>
             </Card>
           )}
@@ -1686,27 +1691,30 @@ export default function OrdemDetail() {
                 <Button
                   onClick={handleStartService}
                   disabled={starting || fieldsLocked}
-                  className="w-full justify-start text-xs h-9 bg-purple-600 hover:bg-purple-700"
+                  className="w-full justify-start text-xs h-9 bg-purple-600 hover:bg-purple-700 gap-1.5"
                 >
-                  <Play className="h-4 w-4 mr-1" /> Iniciar Atendimento
+                  <Play className="h-4 w-4" />
+                  <span>Iniciar Atendimento</span>
                 </Button>
               )}
               {canEdit && (
                 <Button
                   onClick={() => setTransferModalOpen(true)}
                   variant="outline"
-                  className="w-full justify-start text-xs h-9 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                  className="w-full justify-start text-xs h-9 border-indigo-200 text-indigo-700 hover:bg-indigo-50 gap-1.5"
                 >
-                  <ArrowRightLeft className="h-4 w-4 mr-1.5 text-indigo-600" /> Transferir Técnico
+                  <ArrowRightLeft className="h-4 w-4 text-indigo-600" />
+                  <span>Transferir Técnico</span>
                 </Button>
               )}
               {order.status === 'in_progress' && (
                 <Button
                   onClick={handleFinishService}
                   disabled={!serviceReport.trim()}
-                  className="w-full justify-start text-xs h-9 bg-emerald-600 hover:bg-emerald-700"
+                  className="w-full justify-start text-xs h-9 bg-emerald-600 hover:bg-emerald-700 gap-1.5"
                 >
-                  <CheckCircle className="h-4 w-4 mr-1" /> Concluir Serviço
+                  <CheckCircle className="h-4 w-4" />
+                  <span>Concluir Serviço</span>
                 </Button>
               )}
               {order.status === 'in_progress' && (
@@ -1715,15 +1723,16 @@ export default function OrdemDetail() {
                   variant="outline"
                   className="w-full justify-start text-xs h-9 border-orange-300 text-orange-700 hover:bg-orange-50"
                 >
-                  Pausar Atendimento
+                  <span>Pausar Atendimento</span>
                 </Button>
               )}
               {order.status === 'paused' && (
                 <Button
                   onClick={() => handleStatusChange('in_progress')}
-                  className="w-full justify-start text-xs h-9 bg-purple-600 hover:bg-purple-700 text-white"
+                  className="w-full justify-start text-xs h-9 bg-purple-600 hover:bg-purple-700 text-white gap-1.5"
                 >
-                  <Play className="h-4 w-4 mr-1" /> Retomar Atendimento
+                  <Play className="h-4 w-4" />
+                  <span>Retomar Atendimento</span>
                 </Button>
               )}
               <Button
@@ -1731,24 +1740,26 @@ export default function OrdemDetail() {
                 variant="outline"
                 className="w-full justify-start text-xs h-9"
               >
-                Aguardando Peças
+                <span>Aguardando Peças</span>
               </Button>
               {!isFinalizada && canEdit && !fieldsLocked && (
                 <Button
                   onClick={() => setConfirmFinalizarOpen(true)}
                   disabled={finalizingOrder}
-                  className="w-full justify-start text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                  className="w-full justify-start text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5"
                 >
-                  <CheckCircle2 className="h-4 w-4 mr-1.5" /> Finalizar Ordem de Serviço
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>Finalizar Ordem de Serviço</span>
                 </Button>
               )}
               {canDeleteOs && (
                 <Button
                   onClick={() => setConfirmDeleteOsOpen(true)}
                   variant="outline"
-                  className="w-full justify-start text-xs h-9 border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 font-semibold"
+                  className="w-full justify-start text-xs h-9 border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 font-semibold gap-1.5"
                 >
-                  <Trash2 className="h-4 w-4 mr-1.5 text-rose-600" /> Excluir Ordem de Serviço
+                  <Trash2 className="h-4 w-4 text-rose-600" />
+                  <span>Excluir Ordem de Serviço</span>
                 </Button>
               )}
             </CardContent>
@@ -1783,13 +1794,15 @@ export default function OrdemDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>Finalizar Ordem de Serviço?</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
-              <span>
-                Tem certeza de que deseja finalizar a Ordem de Serviço{' '}
-                <strong className="font-mono text-slate-800">{order.number}</strong>?
+              <span className="block">
+                {`Tem certeza de que deseja finalizar a Ordem de Serviço `}
+                <strong className="font-mono text-slate-800">{order.number}</strong>
+                {`?`}
               </span>
               <span className="block text-xs text-slate-500">
-                O status será alterado para <strong>Concluída</strong> e as baixas de estoque e
-                notificações cabíveis serão disparadas.
+                {`O status será alterado para `}
+                <strong>Concluída</strong>
+                {` e as baixas de estoque e notificações cabíveis serão disparadas.`}
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1800,7 +1813,7 @@ export default function OrdemDetail() {
               disabled={finalizingOrder}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
             >
-              {finalizingOrder ? 'Finalizando...' : 'Confirmar e Finalizar'}
+              <span>{finalizingOrder ? 'Finalizando...' : 'Confirmar e Finalizar'}</span>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1816,8 +1829,9 @@ export default function OrdemDetail() {
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-2 text-slate-600">
               <span className="block">
-                Tem certeza de que deseja excluir permanentemente a Ordem de Serviço{' '}
-                <strong className="font-mono text-slate-900">{order.number}</strong>?
+                {`Tem certeza de que deseja excluir permanentemente a Ordem de Serviço `}
+                <strong className="font-mono text-slate-900">{order.number}</strong>
+                {`?`}
               </span>
               <span className="block text-xs text-rose-600 font-semibold bg-rose-50 p-2.5 rounded border border-rose-200">
                 Atenção: Esta ação é irreversível. Todos os itens lançados, histórico de alterações,
@@ -1832,7 +1846,7 @@ export default function OrdemDetail() {
               disabled={deletingOs}
               className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
             >
-              {deletingOs ? 'Excluindo...' : 'Sim, Excluir O.S.'}
+              <span>{deletingOs ? 'Excluindo...' : 'Sim, Excluir O.S.'}</span>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

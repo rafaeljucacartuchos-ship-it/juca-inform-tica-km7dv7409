@@ -573,7 +573,7 @@ export function OrcamentoItemModal({
             <div className="flex items-center justify-between p-3 bg-indigo-50/70 rounded-lg border border-indigo-100 text-xs">
               <span className="font-semibold text-indigo-950">Valor Total do Item:</span>
               <span className="text-base font-bold font-mono text-indigo-900">
-                R$ {itemCalculations.finalTotal.toFixed(2)}
+                {`R$ ${itemCalculations.finalTotal.toFixed(2)}`}
               </span>
             </div>
           </div>
@@ -598,12 +598,10 @@ export function OrcamentoItemModal({
               {saving ? (
                 <span className="flex items-center gap-1.5">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Salvando...
+                  <span>Salvando...</span>
                 </span>
-              ) : isEditing ? (
-                'Salvar Alterações'
               ) : (
-                'Adicionar Item'
+                <span>{isEditing ? 'Salvar Alterações' : 'Adicionar Item'}</span>
               )}
             </Button>
           </div>

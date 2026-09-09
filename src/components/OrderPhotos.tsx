@@ -186,13 +186,15 @@ export function OrderPhotos({ orderId, canEdit }: OrderPhotosProps) {
               className="text-xs gap-1.5"
             >
               {uploading ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Processando...
-                </>
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Processando...</span>
+                </span>
               ) : (
-                <>
-                  <Upload className="h-3.5 w-3.5" /> Adicionar Fotos
-                </>
+                <span className="flex items-center gap-1.5">
+                  <Upload className="h-3.5 w-3.5" />
+                  <span>Adicionar Fotos</span>
+                </span>
               )}
             </Button>
           </div>

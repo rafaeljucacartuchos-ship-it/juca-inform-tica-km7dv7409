@@ -703,8 +703,8 @@ export function PrintOrderDocument({
                     </p>
                     {Number(orcamento.entrada) > 0 && (
                       <p>
-                        <strong className="text-slate-700">Entrada:</strong> R${' '}
-                        {fmtCurrency(orcamento.entrada)}
+                        <strong className="text-slate-700">Entrada:</strong>
+                        <span>{` R$ ${fmtCurrency(orcamento.entrada)}`}</span>
                       </p>
                     )}
                     {orcamento.observacoes && (
@@ -720,18 +720,18 @@ export function PrintOrderDocument({
                     <>
                       <div className="flex justify-between text-slate-600">
                         <span>Subtotal:</span>
-                        <span className="font-mono font-medium">R$ {fmtCurrency(orcSubtotal)}</span>
+                        <span className="font-mono font-medium">{`R$ ${fmtCurrency(orcSubtotal)}`}</span>
                       </div>
                       {orcDescontoTotal > 0 && (
                         <div className="flex justify-between text-rose-600 font-medium">
                           <span>Desconto Total:</span>
-                          <span className="font-mono">- R$ {fmtCurrency(orcDescontoTotal)}</span>
+                          <span className="font-mono">{`- R$ ${fmtCurrency(orcDescontoTotal)}`}</span>
                         </div>
                       )}
                       <div className="flex justify-between border-t border-slate-900 pt-0.5 text-[9.5px] font-black text-slate-900">
                         <span>TOTAL:</span>
                         <span className="font-mono text-[10px] text-indigo-900 font-bold">
-                          R$ {fmtCurrency(orcTotalGeral)}
+                          {`R$ ${fmtCurrency(orcTotalGeral)}`}
                         </span>
                       </div>
                     </>
@@ -739,24 +739,24 @@ export function PrintOrderDocument({
                     <>
                       <div className="flex justify-between text-slate-600">
                         <span>Subtotal dos Itens:</span>
-                        <span className="font-mono font-medium">R$ {fmtCurrency(soSubtotal)}</span>
+                        <span className="font-mono font-medium">{`R$ ${fmtCurrency(soSubtotal)}`}</span>
                       </div>
                       {soDesconto > 0 && (
                         <div className="flex justify-between text-rose-600 font-medium">
                           <span>Desconto:</span>
-                          <span className="font-mono">- R$ {fmtCurrency(soDesconto)}</span>
+                          <span className="font-mono">{`- R$ ${fmtCurrency(soDesconto)}`}</span>
                         </div>
                       )}
                       {soAcrescimo > 0 && (
                         <div className="flex justify-between text-emerald-600 font-medium">
                           <span>Acréscimo:</span>
-                          <span className="font-mono">+ R$ {fmtCurrency(soAcrescimo)}</span>
+                          <span className="font-mono">{`+ R$ ${fmtCurrency(soAcrescimo)}`}</span>
                         </div>
                       )}
                       <div className="flex justify-between border-t border-slate-900 pt-0.5 text-[9.5px] font-black text-slate-900">
                         <span>TOTAL GERAL:</span>
                         <span className="font-mono text-[10px] font-bold">
-                          R$ {fmtCurrency(soTotal)}
+                          {`R$ ${fmtCurrency(soTotal)}`}
                         </span>
                       </div>
                     </>

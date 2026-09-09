@@ -11,6 +11,28 @@ interface State {
   error: Error | null
   errorInfo: ErrorInfo | null
   showDetails: boolean
+  recoveryKey: number
+}
+
+function isDomMutationError(error: unknown): boolean {
+  if (!error) return false
+  const errName =
+    typeof error === 'object' && error !== null && 'name' in error
+      ? String((error as { name?: unknown }).name)
+      : ''
+  const errMsg =
+    typeof error === 'object' && error !== null && 'message' in error
+      ? String((error as { message?: unknown }).message)
+      : ''
+  const fullText = `${errName} ${errMsg}`.toLowerCase()
+
+  return (
+    fullText.includes('notfounderror') ||
+    fullText.includes('removechild') ||
+    fullText.includes('insertbefore') ||
+    fullText.includes('not a child') ||
+    fullText.includes('o nó a ser removido não é filho')
+  )
 }
 
 export class GlobalErrorBoundary extends Component<Props, State> {
@@ -19,7 +41,12 @@ export class GlobalErrorBoundary extends Component<Props, State> {
     error: null,
     errorInfo: null,
     showDetails: false,
+    recoveryKey: 0,
   }
+
+  private autoRecoverAttempts = 0
+  private lastAutoRecoverTime = 0
+  private recoverTimer: number | null = null
 
   public static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error }
@@ -28,6 +55,45 @@ export class GlobalErrorBoundary extends Component<Props, State> {
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('[GlobalErrorBoundary] Erro capturado pela fronteira:', error, errorInfo)
     this.setState({ errorInfo })
+
+    // Se for o erro clássico de reparentamento de nós pelo tradutor/extensão (removeChild / insertBefore / NotFoundError),
+    // tenta auto-recuperar silenciosamente sem assustar o usuário com a tela cheia de erro.
+    if (isDomMutationError(error)) {
+      const now = Date.now()
+      // Reseta contagem se passou mais de 15 segundos desde a última tentativa
+      if (now - this.lastAutoRecoverTime > 15000) {
+        this.autoRecoverAttempts = 0
+      }
+
+      if (this.autoRecoverAttempts < 2) {
+        this.autoRecoverAttempts += 1
+        this.lastAutoRecoverTime = now
+        console.warn(
+          `[GlobalErrorBoundary] Detectado erro de mutação DOM externa ('removeChild'/'insertBefore'). Tentando auto-recuperação (tentativa ${this.autoRecoverAttempts}/2)...`,
+        )
+
+        if (this.recoverTimer) {
+          window.clearTimeout(this.recoverTimer)
+        }
+
+        // Aguarda micro-pausa para o DOM estabilizar e remonta
+        this.recoverTimer = window.setTimeout(() => {
+          this.setState((prev) => ({
+            hasError: false,
+            error: null,
+            errorInfo: null,
+            showDetails: false,
+            recoveryKey: prev.recoveryKey + 1,
+          }))
+        }, 120)
+      }
+    }
+  }
+
+  public componentWillUnmount() {
+    if (this.recoverTimer) {
+      window.clearTimeout(this.recoverTimer)
+    }
   }
 
   private handleReset = () => {
@@ -135,7 +201,7 @@ export class GlobalErrorBoundary extends Component<Props, State> {
       )
     }
 
-    return this.props.children
+    return <React.Fragment key={this.state.recoveryKey}>{this.props.children}</React.Fragment>
   }
 }
 
