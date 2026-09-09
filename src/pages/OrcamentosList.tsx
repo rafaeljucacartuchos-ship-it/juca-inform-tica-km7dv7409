@@ -16,7 +16,12 @@ import {
   Link as LinkIcon,
   HelpCircle,
   Loader2,
+  ExternalLink,
 } from 'lucide-react'
+import { RecordActionsMenu, RecordActionItem } from '@/components/RecordActionsMenu'
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
+import { deleteOrcamento } from '@/services/orcamentos'
+import { usePermissions } from '@/hooks/use-permissions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -99,8 +104,10 @@ export default function OrcamentosList() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { toast } = useToast()
+  const { hasPermission } = usePermissions()
 
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([])
+  const [deleteTarget, setDeleteTarget] = useState<Orcamento | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('todos')
@@ -235,6 +242,63 @@ export default function OrcamentosList() {
   }, [orcamentos, statusFilter, searchTerm])
 
   // Estatísticas de contagem por status
+  const canDeleteOrc = user?.role === 'admin' || hasPermission('os_delete')
+
+  const handleDeleteOrcamento = async () => {
+    if (!deleteTarget) return
+    try {
+      await deleteOrcamento(deleteTarget.id)
+      toast({ title: 'Orçamento excluído com sucesso!' })
+      setDeleteTarget(null)
+      loadData()
+    } catch {
+      toast({ title: 'Erro ao excluir orçamento', variant: 'destructive' })
+    }
+  }
+
+  const buildOrcamentoActions = (orc: Orcamento): RecordActionItem[] => {
+    const osRec = orc.expand?.id_os
+    const custRec = osRec?.expand?.customer || orc.expand?.cliente_id
+    const phone = custRec ? getCustomerPhone(custRec) : orc.telefone_cliente_livre
+    const docUrl = `${window.location.origin}/orcamentos/${orc.id}/print`
+
+    return [
+      {
+        key: 'open',
+        label: 'Abrir detalhes',
+        icon: ExternalLink,
+        onClick: () => navigate(`/orcamentos/${orc.id}`),
+      },
+      {
+        key: 'print',
+        label: 'Imprimir PDF (A4)',
+        icon: Printer,
+        onClick: () => window.open(docUrl, '_blank'),
+      },
+      {
+        key: 'share',
+        label: 'Página pública / Proposta',
+        icon: Share2,
+        onClick: () => {
+          if (orc.public_token) {
+            window.open(`/proposta/${orc.public_token}`, '_blank')
+          } else {
+            navigate(`/orcamentos/${orc.id}`)
+          }
+        },
+      },
+      {
+        key: 'delete',
+        label: 'Excluir Orçamento',
+        icon: Trash2,
+        variant: 'destructive',
+        separatorBefore: true,
+        hidden: !canDeleteOrc,
+        onClick: () => setDeleteTarget(orc),
+      },
+    ]
+  }
+
   const counts = useMemo(() => {
     const res: Record<string, number> = {
       todos: orcamentos.length,
@@ -557,11 +621,18 @@ export default function OrcamentosList() {
                         </span>
                       )}
                     </div>
-                    <Badge
-                      className={`${cfg.bg} ${cfg.color} ${cfg.border} border text-[10px] font-bold uppercase tracking-wider shrink-0`}
-                    >
-                      {cfg.label}
-                    </Badge>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Badge
+                        className={`${cfg.bg} ${cfg.color} ${cfg.border} border text-[10px] font-bold uppercase tracking-wider shrink-0`}
+                      >
+                        {cfg.label}
+                      </Badge>
+                      <RecordActionsMenu
+                        label={`Orçamento: ${orc.numero_orcamento}`}
+                        items={buildOrcamentoActions(orc)}
+                        title={`Ações de ${orc.numero_orcamento}`}
+                      />
+                    </div>
                   </div>
                 </CardHeader>
 
@@ -625,15 +696,31 @@ export default function OrcamentosList() {
                     </span>
                   </div>
 
-                  <span className="text-indigo-600 font-bold flex items-center gap-1 text-xs group-hover:translate-x-1 transition-transform">
-                    Abrir <ArrowRight className="h-3.5 w-3.5" />
-                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      navigate(`/orcamentos/${orc.id}`)
+                    }}
+                    className="h-7 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 p-1"
+                  >
+                    Abrir <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                  </Button>
                 </div>
               </Card>
             )
           })}
         </div>
       )}
+
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        onConfirm={handleDeleteOrcamento}
+        title="Excluir Orçamento"
+        description={`Tem certeza que deseja excluir o orçamento ${deleteTarget?.numero_orcamento}? Esta ação não pode ser desfeita.`}
+      />
 
       {/* Modal de Criação de Orçamento */}
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>

@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Search, Eye, Pencil, Trash2, Download, Upload } from 'lucide-react'
+import { Plus, Search, Eye, Pencil, Trash2, Download, Upload, MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Customer } from '@/types'
-import { getCustomers, deleteCustomer } from '@/services/customers'
+import { getCustomers, deleteCustomer, getCustomerPhone } from '@/services/customers'
+import { RecordActionsMenu } from '@/components/RecordActionsMenu'
+import { openWhatsApp } from '@/lib/whatsapp'
 import { NewCustomerModal } from '@/components/NewCustomerModal'
 import { ImportClientsModal } from '@/components/ImportClientsModal'
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
@@ -156,6 +158,7 @@ export default function Clientes() {
                   const celularFormatted = rawCelular ? formatPhone(rawCelular) : '-'
                   const rgIe = c.rg_ie || '-'
                   const cpfCnpj = c.cpf_cnpj || '-'
+                  const displayName = c.nome_fantasia || c.razao_social || c.name || 'Cliente'
 
                   return (
                     <tr key={c.id} className="hover:bg-slate-50 transition-colors">
@@ -185,34 +188,54 @@ export default function Clientes() {
                       <td className="py-3 px-4 font-mono text-slate-700">{cpfCnpj}</td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1">
+                          {/* 1 Ação Principal visível fora do menu */}
                           <Link to={`/clientes/${c.id}`}>
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 text-xs text-indigo-600 gap-1"
+                              className="h-7 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-semibold gap-1"
                               title="Ver detalhes"
                             >
                               <Eye className="h-3.5 w-3.5" /> Detalhes
                             </Button>
                           </Link>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs text-amber-600 gap-1"
-                            onClick={() => setEditCustomer(c)}
-                            title="Editar cliente"
-                          >
-                            <Pencil className="h-3.5 w-3.5" /> Editar
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-red-600"
-                            onClick={() => setDeleteCustomerItem(c)}
-                            title="Excluir cliente"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+
+                          {/* Menu em cascata com as demais ações */}
+                          <RecordActionsMenu
+                            label={`Cliente: ${displayName}`}
+                            title={`Ações de ${displayName}`}
+                            items={[
+                              {
+                                key: 'edit',
+                                label: 'Editar cadastro',
+                                icon: Pencil,
+                                onClick: () => setEditCustomer(c),
+                              },
+                              {
+                                key: 'whatsapp',
+                                label: 'Conversar no WhatsApp',
+                                icon: MessageCircle,
+                                hidden: !getCustomerPhone(c),
+                                onClick: () => {
+                                  const ph = getCustomerPhone(c)
+                                  if (ph) {
+                                    openWhatsApp(
+                                      ph,
+                                      `Olá, ${displayName}! Entramos em contato da JUCA Informática.`,
+                                    )
+                                  }
+                                },
+                              },
+                              {
+                                key: 'delete',
+                                label: 'Excluir cliente',
+                                icon: Trash2,
+                                variant: 'destructive',
+                                separatorBefore: true,
+                                onClick: () => setDeleteCustomerItem(c),
+                              },
+                            ]}
+                          />
                         </div>
                       </td>
                     </tr>

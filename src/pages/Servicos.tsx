@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/select'
 import { Service, SERVICE_CATEGORY_LABELS } from '@/types'
 import { getServices, updateService, deleteService } from '@/services/services_catalog'
+import { RecordActionsMenu } from '@/components/RecordActionsMenu'
 import { NewServiceModal } from '@/components/NewServiceModal'
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -174,31 +175,41 @@ export default function Servicos() {
                         </Badge>
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* 1 Ação Principal visível fora do menu: Editar */}
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 w-7 p-0 text-slate-400 hover:text-emerald-600"
-                            onClick={() => toggleActive(s)}
-                          >
-                            <Power className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-amber-600"
+                            className="h-7 px-2 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-semibold gap-1"
                             onClick={() => setEditService(s)}
+                            title="Editar serviço"
                           >
                             <Pencil className="h-3.5 w-3.5" />
+                            <span>Editar</span>
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-red-600"
-                            onClick={() => setDeleteServiceItem(s)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+
+                          {/* Menu em cascata com Inativar/Ativar e Excluir */}
+                          <RecordActionsMenu
+                            label={`Serviço: ${displayName(s)}`}
+                            title={`Ações de ${displayName(s)}`}
+                            items={[
+                              {
+                                key: 'toggle_active',
+                                label: active ? 'Inativar serviço' : 'Ativar serviço',
+                                icon: Power,
+                                variant: active ? 'warning' : 'success',
+                                onClick: () => toggleActive(s),
+                              },
+                              {
+                                key: 'delete',
+                                label: 'Excluir serviço',
+                                icon: Trash2,
+                                variant: 'destructive',
+                                separatorBefore: true,
+                                onClick: () => setDeleteServiceItem(s),
+                              },
+                            ]}
+                          />
                         </div>
                       </td>
                     </tr>

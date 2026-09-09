@@ -40,6 +40,7 @@ export interface User {
   phone?: string
   avatar?: string
   permissions?: Record<string, boolean> | null
+  ativo?: boolean
   created?: string
   updated?: string
 }

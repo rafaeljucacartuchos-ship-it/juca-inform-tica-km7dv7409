@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Product } from '@/types'
 import { getProducts, deleteProduct, toggleProductActive } from '@/services/products'
+import { RecordActionsMenu } from '@/components/RecordActionsMenu'
 import { NewProductModal } from '@/components/NewProductModal'
 import { ImportProductsModal } from '@/components/ImportProductsModal'
 import { StockReportModal } from '@/components/StockReportModal'
@@ -476,7 +477,7 @@ export default function Produtos() {
                       </td>
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* Botão de Editar */}
+                          {/* 1 Ação Principal visível fora do menu: Editar */}
                           <Button
                             type="button"
                             variant="outline"
@@ -489,47 +490,28 @@ export default function Produtos() {
                             <span>Editar</span>
                           </Button>
 
-                          {/* Botão de Inativar / Ativar */}
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className={`h-7 px-2 text-[11px] font-semibold gap-1 transition-colors border shadow-2xs ${
-                              p.active !== false
-                                ? 'border-amber-200 bg-amber-50/60 text-amber-800 hover:bg-amber-100 hover:text-amber-900'
-                                : 'border-emerald-200 bg-emerald-50/60 text-emerald-800 hover:bg-emerald-100 hover:text-emerald-900'
-                            }`}
-                            onClick={() => handleToggleActive(p)}
-                            title={
-                              p.active !== false
-                                ? 'Inativar produto (pausar vendas/uso)'
-                                : 'Ativar produto'
-                            }
-                          >
-                            {p.active !== false ? (
-                              <>
-                                <PowerOff className="h-3 w-3 text-amber-600" />
-                                <span>Inativar</span>
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                                <span>Ativar</span>
-                              </>
-                            )}
-                          </Button>
-
-                          {/* Botão de Excluir */}
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 w-7 p-0 border-rose-200 bg-white text-rose-600 hover:text-rose-700 hover:bg-rose-50 shadow-2xs"
-                            onClick={() => setDeleteProductItem(p)}
-                            title="Excluir produto definitivamente"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          {/* Menu em cascata com Inativar/Ativar e Excluir */}
+                          <RecordActionsMenu
+                            label={`Produto: ${p.name}`}
+                            title={`Ações de ${p.name}`}
+                            items={[
+                              {
+                                key: 'toggle_active',
+                                label: p.active !== false ? 'Inativar produto' : 'Reativar produto',
+                                icon: p.active !== false ? PowerOff : CheckCircle2,
+                                variant: p.active !== false ? 'warning' : 'success',
+                                onClick: () => handleToggleActive(p),
+                              },
+                              {
+                                key: 'delete',
+                                label: 'Excluir produto',
+                                icon: Trash2,
+                                variant: 'destructive',
+                                separatorBefore: true,
+                                onClick: () => setDeleteProductItem(p),
+                              },
+                            ]}
+                          />
                         </div>
                       </td>
                     </tr>

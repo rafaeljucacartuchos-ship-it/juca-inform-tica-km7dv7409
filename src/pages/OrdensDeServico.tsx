@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus,
   LayoutGrid,
@@ -11,6 +11,10 @@ import {
   MessageCircle,
   Calendar,
   ArrowRightLeft,
+  ExternalLink,
+  Printer,
+  Trash2,
+  Share2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,13 +29,21 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ServiceOrder, OrderStatus, Customer, User } from '@/types'
-import { getServiceOrders, updateServiceOrder, addStatusHistory } from '@/services/service_orders'
+import {
+  getServiceOrders,
+  updateServiceOrder,
+  addStatusHistory,
+  deleteServiceOrder,
+} from '@/services/service_orders'
 import { getCustomers, getCustomerDisplayName, getCustomerPhone } from '@/services/customers'
 import { getTechnicians } from '@/services/users'
 import { StatusBadge } from '@/components/StatusBadge'
 import { NewOrderModal } from '@/components/NewOrderModal'
 import { TransferTechnicianModal } from '@/components/TransferTechnicianModal'
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
+import { RecordActionsMenu, RecordActionItem } from '@/components/RecordActionsMenu'
 import { useAuth } from '@/hooks/use-auth'
+import { usePermissions } from '@/hooks/use-permissions'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import { openWhatsApp, triggerWhatsAppEvaluation, buildServiceMessage } from '@/lib/whatsapp'
@@ -42,8 +54,11 @@ export default function OrdensDeServico() {
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
   const [periodTab, setPeriodTab] = useState<'all' | 'today' | 'week' | 'month'>('all')
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const { hasPermission } = usePermissions()
   const [filterText, setFilterText] = useState(searchParams.get('search') || '')
   const [newModalOpen, setNewModalOpen] = useState(false)
+  const [deleteOrderTarget, setDeleteOrderTarget] = useState<ServiceOrder | null>(null)
   const [transferModalOpen, setTransferModalOpen] = useState(false)
   const [orderToTransfer, setOrderToTransfer] = useState<ServiceOrder | null>(null)
   const [dateStart, setDateStart] = useState('')
@@ -250,6 +265,67 @@ export default function OrdensDeServico() {
       ),
     )
   }
+
+  const handleDeleteOrder = async () => {
+    if (!deleteOrderTarget) return
+    try {
+      await deleteServiceOrder(deleteOrderTarget.id)
+      toast({ title: 'Ordem de serviço excluída com sucesso!' })
+      setDeleteOrderTarget(null)
+      loadData()
+    } catch {
+      toast({ title: 'Erro ao excluir ordem de serviço', variant: 'destructive' })
+    }
+  }
+
+  const canDeleteOs = hasPermission('os_delete')
+
+  // Construtor dos itens de ação em cascata de uma O.S.
+  const buildOrderActions = (o: ServiceOrder): RecordActionItem[] => [
+    {
+      key: 'open',
+      label: 'Abrir O.S.',
+      icon: ExternalLink,
+      onClick: () => navigate(`/ordens/${o.id}`),
+    },
+    {
+      key: 'transfer',
+      label: 'Transferir técnico',
+      icon: ArrowRightLeft,
+      onClick: () => {
+        setOrderToTransfer(o)
+        setTransferModalOpen(true)
+      },
+    },
+    {
+      key: 'print',
+      label: 'Imprimir PDF (A4)',
+      icon: Printer,
+      onClick: () => window.open(`/ordens/${o.id}/print`, '_blank'),
+    },
+    {
+      key: 'whatsapp',
+      label: 'Notificar cliente (WhatsApp)',
+      icon: MessageCircle,
+      hidden: user?.role === 'technician',
+      onClick: () => handleNotifyClient(o),
+    },
+    {
+      key: 'public_link',
+      label: 'Página pública / Compartilhar',
+      icon: Share2,
+      onClick: () => window.open(`/share/${o.id}`, '_blank'),
+    },
+    {
+      key: 'delete',
+      label: 'Excluir O.S.',
+      icon: Trash2,
+      variant: 'destructive',
+      separatorBefore: true,
+      hidden: !canDeleteOs,
+      onClick: () => setDeleteOrderTarget(o),
+    },
+  ]
 
   const clearFilters = () => {
     setDateStart('')
@@ -552,35 +628,12 @@ export default function OrdensDeServico() {
                             <span className="font-mono font-semibold text-slate-900 shrink-0">
                               R$ {(o.total || 0).toFixed(2)}
                             </span>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                  setOrderToTransfer(o)
-                                  setTransferModalOpen(true)
-                                }}
-                                className="h-7 w-7 text-indigo-600 hover:bg-indigo-50 shrink-0"
-                                title="Transferir Técnico Responsável"
-                              >
-                                <ArrowRightLeft className="h-3.5 w-3.5" />
-                              </Button>
-                              {user?.role !== 'technician' && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleNotifyClient(o)}
-                                  className="h-7 w-7 text-emerald-600 hover:bg-emerald-50 shrink-0"
-                                  title="Notificar via WhatsApp"
-                                >
-                                  <MessageCircle className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
+                            <div className="flex items-center gap-1.5 shrink-0">
                               <Select
                                 value={o.status}
                                 onValueChange={(val: OrderStatus) => handleMoveStatus(o.id, val)}
                               >
-                                <SelectTrigger className="h-6 text-[10px] w-24 px-1.5">
+                                <SelectTrigger className="h-6 text-[10px] w-22 px-1">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -607,6 +660,13 @@ export default function OrdensDeServico() {
                                   </SelectItem>
                                 </SelectContent>
                               </Select>
+
+                              {/* Menu em cascata no card do Kanban */}
+                              <RecordActionsMenu
+                                label={`Ações: ${o.number}`}
+                                items={buildOrderActions(o)}
+                                title={`Mais ações da O.S. ${o.number}`}
+                              />
                             </div>
                           </div>
                         </CardContent>
@@ -663,29 +723,23 @@ export default function OrdensDeServico() {
                       </td>
                       <td className="py-3 px-4 text-center">
                         <div className="flex items-center justify-center gap-1">
+                          {/* 1 Ação Principal visível fora do menu: Abrir O.S. */}
                           <Button
                             variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setOrderToTransfer(o)
-                              setTransferModalOpen(true)
-                            }}
-                            className="h-8 w-8 text-indigo-600 hover:bg-indigo-50"
-                            title="Transferir Técnico Responsável"
+                            size="sm"
+                            onClick={() => navigate(`/ordens/${o.id}`)}
+                            className="h-7 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-semibold px-2"
+                            title="Ver detalhes da O.S."
                           >
-                            <ArrowRightLeft className="h-4 w-4" />
+                            Abrir
                           </Button>
-                          {user?.role !== 'technician' && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleNotifyClient(o)}
-                              className="h-8 w-8 text-emerald-600 hover:bg-emerald-50"
-                              title="Notificar via WhatsApp"
-                            >
-                              <MessageCircle className="h-4 w-4" />
-                            </Button>
-                          )}
+
+                          {/* Menu em cascata com todas as ações adicionais */}
+                          <RecordActionsMenu
+                            label={`Ações: ${o.number}`}
+                            items={buildOrderActions(o)}
+                            title={`Mais ações da O.S. ${o.number}`}
+                          />
                         </div>
                       </td>
                     </tr>
@@ -704,6 +758,14 @@ export default function OrdensDeServico() {
         onOpenChange={setTransferModalOpen}
         order={orderToTransfer}
         onTransferred={loadData}
+      />
+
+      <ConfirmDeleteDialog
+        open={!!deleteOrderTarget}
+        onOpenChange={(o) => !o && setDeleteOrderTarget(null)}
+        onConfirm={handleDeleteOrder}
+        title="Excluir Ordem de Serviço"
+        description={`Tem certeza que deseja excluir a ordem #${deleteOrderTarget?.number}? Esta ação não pode ser desfeita e removerá os dados vinculados.`}
       />
     </div>
   )

@@ -13,6 +13,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
+import { RecordActionsMenu } from '@/components/RecordActionsMenu'
 import { ServiceType } from '@/types'
 import {
   getAllServiceTypes,
@@ -226,52 +227,43 @@ export default function TiposAtendimento() {
                       </td>
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* 1 Ação Principal visível fora do menu: Editar */}
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="h-7 px-2 text-[11px] font-semibold text-slate-700 bg-white border-slate-200 hover:bg-slate-100 gap-1 shadow-2xs"
-                            onClick={() => handleOpenEdit(st)}
+                            className="h-7 px-2 text-[11px] font-semibold text-slate-700 bg-white border-slate-200 hover:bg-slate-100 hover:text-slate-900 gap-1 shadow-2xs"
+                            onClick={() => openEdit(st)}
+                            title="Editar tipo de atendimento"
                           >
                             <Pencil className="h-3 w-3 text-indigo-600" />
                             <span>Editar</span>
                           </Button>
 
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className={`h-7 px-2 text-[11px] font-semibold gap-1 transition-colors border shadow-2xs ${
-                              isActive
-                                ? 'border-amber-200 bg-amber-50/60 text-amber-800 hover:bg-amber-100'
-                                : 'border-emerald-200 bg-emerald-50/60 text-emerald-800 hover:bg-emerald-100'
-                            }`}
-                            onClick={() => handleToggle(st)}
-                          >
-                            {isActive ? (
-                              <>
-                                <PowerOff className="h-3 w-3 text-amber-600" />
-                                <span>Inativar</span>
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                                <span>Ativar</span>
-                              </>
-                            )}
-                          </Button>
-
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 w-7 p-0 border-rose-200 bg-white text-rose-600 hover:text-rose-700 hover:bg-rose-50 shadow-2xs"
-                            onClick={() => setDeleteItem(st)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          {/* Menu em cascata com Inativar/Ativar e Excluir */}
+                          <RecordActionsMenu
+                            label={`Tipo: ${st.name}`}
+                            title={`Ações de ${st.name}`}
+                            items={[
+                              {
+                                key: 'toggle_active',
+                                label: isActive ? 'Inativar tipo' : 'Ativar tipo',
+                                icon: isActive ? PowerOff : CheckCircle2,
+                                variant: isActive ? 'warning' : 'success',
+                                onClick: () => handleToggle(st),
+                              },
+                              {
+                                key: 'delete',
+                                label: 'Excluir tipo',
+                                icon: Trash2,
+                                variant: 'destructive',
+                                separatorBefore: true,
+                                onClick: () => setDeleteItem(st),
+                              },
+                            ]}
+                          />
                         </div>
-                      </td>
+                      </td>{' '}
                     </tr>
                   )
                 })}

@@ -67,6 +67,7 @@ import {
 import { OrderPhotos } from '@/components/OrderPhotos'
 import { NewEquipmentModal } from '@/components/NewEquipmentModal'
 import { TransferTechnicianModal } from '@/components/TransferTechnicianModal'
+import { RecordActionsMenu, RecordActionItem } from '@/components/RecordActionsMenu'
 import { useAuth } from '@/hooks/use-auth'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useToast } from '@/hooks/use-toast'
@@ -878,13 +879,13 @@ export default function OrdemDetail() {
           </Button>
         )}
 
-        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
-          {/* Botão de Orçamento Integrado à OS */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Ação Principal 1: Orçamento Integrado à OS */}
           {activeOrcamento ? (
             <Button
               size="sm"
               onClick={() => navigate(`/orcamentos/${activeOrcamento.id}`)}
-              className="text-xs gap-1.5 h-10 sm:h-9 justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+              className="text-xs gap-1.5 h-9 justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
             >
               <FileText className="h-4 w-4" />
               <span>Ver Orçamento ({activeOrcamento.numero_orcamento})</span>
@@ -912,85 +913,84 @@ export default function OrdemDetail() {
                   setCreatingOrcamento(false)
                 }
               }}
-              className="text-xs gap-1.5 h-10 sm:h-9 justify-center border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 font-bold"
+              className="text-xs gap-1.5 h-9 justify-center border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 font-bold"
             >
               <FileText className="h-4 w-4" />
               <span>{creatingOrcamento ? 'Gerando...' : 'Gerar Orçamento'}</span>
             </Button>
           )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePrintOrder}
-            className="text-xs gap-1.5 h-10 sm:h-9 justify-center"
-            title="Imprimir documento unificado A4 da Ordem de Serviço (modelo técnico folha única)"
-          >
-            <Printer className="h-4 w-4" />
-            <span>Imprimir PDF (A4)</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleEnviarDocumentoOs}
-            className="text-xs gap-1.5 h-10 sm:h-9 justify-center border-emerald-400 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-bold shadow-xs"
-            title="Enviar o documento técnico da O.S. ao cliente com seletor de compartilhamento (WhatsApp, Copiar link, Aparelho)"
-          >
-            <Share2 className="h-4 w-4 text-emerald-600" />
-            <span>Enviar ao Cliente</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleWhatsApp}
-            className="text-xs gap-1.5 h-10 sm:h-9 justify-center text-slate-700 hover:bg-slate-100"
-            title="Conversar com o cliente no WhatsApp (apresentação do técnico)"
-          >
-            <MessageCircle className="h-4 w-4 text-emerald-600" />
-            <span>Chat Técnico</span>
-          </Button>
-
-          {/* Botão Transferir Técnico Responsável */}
-          {canEdit && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setTransferModalOpen(true)}
-              className="text-xs gap-1.5 h-10 sm:h-9 justify-center border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 font-semibold"
-              title="Transferir responsabilidade da Ordem de Serviço para outro técnico"
-            >
-              <ArrowRightLeft className="h-4 w-4 text-indigo-600" />
-              <span>Transferir Técnico</span>
-            </Button>
-          )}
-
-          {/* Botão Finalizar Ordem de Serviço no cabeçalho */}
+          {/* Ação Principal 2 (se aberta e liberada): Finalizar Ordem de Serviço */}
           {!isFinalizada && canEdit && !fieldsLocked && (
             <Button
               size="sm"
               onClick={() => setConfirmFinalizarOpen(true)}
               disabled={finalizingOrder}
-              className="text-xs gap-1.5 h-10 sm:h-9 justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold col-span-2 sm:col-span-1 shadow-sm"
+              className="text-xs gap-1.5 h-9 justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm"
               title="Finalizar esta Ordem de Serviço"
             >
               <CheckCircle2 className="h-4 w-4" />
-              <span>Finalizar Ordem de Serviço</span>
+              <span>Finalizar O.S.</span>
             </Button>
           )}
 
-          {/* Botão Excluir O.S. (Administrador ou com permissão os_delete) */}
-          {canDeleteOs && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setConfirmDeleteOsOpen(true)}
-              className="text-xs gap-1.5 h-10 sm:h-9 justify-center border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 font-semibold"
-              title="Excluir Ordem de Serviço permanentemente"
-            >
-              <Trash2 className="h-4 w-4 text-rose-600" />
-              <span>Excluir O.S.</span>
-            </Button>
-          )}
+          {/* Menu em cascata com todas as demais ações */}
+          <RecordActionsMenu
+            label={`O.S. #${order.number}`}
+            title="Mais ações desta O.S."
+            triggerClassName="h-9 w-9 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 shadow-xs rounded-md"
+            items={[
+              {
+                key: 'print',
+                label: 'Imprimir PDF (A4)',
+                icon: Printer,
+                onClick: handlePrintOrder,
+              },
+              {
+                key: 'share',
+                label: 'Enviar ao Cliente (Seletor)',
+                icon: Share2,
+                variant: 'success',
+                onClick: handleEnviarDocumentoOs,
+              },
+              {
+                key: 'chat',
+                label: 'Chat Técnico (WhatsApp)',
+                icon: MessageCircle,
+                onClick: handleWhatsApp,
+              },
+              {
+                key: 'public_link',
+                label: 'Abrir link público (/share)',
+                icon: ExternalLink,
+                onClick: () => window.open(`/share/${order.id}`, '_blank'),
+              },
+              {
+                key: 'transfer',
+                label: 'Transferir Técnico',
+                icon: ArrowRightLeft,
+                hidden: !canEdit,
+                separatorBefore: true,
+                onClick: () => setTransferModalOpen(true),
+              },
+              {
+                key: 'edit_info',
+                label: isEditingOs ? 'Fechar edição de O.S.' : 'Editar título/descrição',
+                icon: Edit2,
+                hidden: !canEdit || fieldsLocked,
+                onClick: () => setIsEditingOs(!isEditingOs),
+              },
+              {
+                key: 'delete',
+                label: 'Excluir O.S.',
+                icon: Trash2,
+                variant: 'destructive',
+                hidden: !canDeleteOs,
+                separatorBefore: true,
+                onClick: () => setConfirmDeleteOsOpen(true),
+              },
+            ]}
+          />
         </div>
       </div>
 
