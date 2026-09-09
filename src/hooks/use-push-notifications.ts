@@ -126,7 +126,28 @@ export function usePushNotifications(userId?: string): UsePushNotificationsResul
               subscriptionRecordIdRef.current = created.id
             }
           } catch {
-            // ignora erro de duplicidade/etc
+            try {
+              const subJson = existing.toJSON()
+              const endpoint = (subJson.endpoint || '').trim()
+              const p256dh = (subJson.keys?.p256dh || '').trim()
+              const auth = (subJson.keys?.auth || '').trim()
+              if (endpoint) {
+                const existingRec = await pb
+                  .collection('push_subscriptions')
+                  .getFirstListItem<PushSubscriptionRecord>(`endpoint = "${endpoint}"`)
+                if (existingRec?.id) {
+                  await pb.collection('push_subscriptions').update(existingRec.id, {
+                    user: userId,
+                    p256dh,
+                    auth,
+                    active: true,
+                  })
+                  subscriptionRecordIdRef.current = existingRec.id
+                }
+              }
+            } catch {
+              // ignora erro
+            }
           }
         }
       } else if (!existing) {
@@ -209,8 +230,23 @@ export function usePushNotifications(userId?: string): UsePushNotificationsResul
               })
             recId = created.id
           } catch (err) {
-            // Pode ser unique constraint em endpoint (outro usuário) — ignora.
-            console.warn('Falha ao salvar subscription no backend:', err)
+            // Pode ser unique constraint em endpoint (outro usuário) — tenta atualizar
+            try {
+              const existingRec = await pb
+                .collection('push_subscriptions')
+                .getFirstListItem<PushSubscriptionRecord>(`endpoint = "${endpoint}"`)
+              if (existingRec?.id) {
+                await pb.collection('push_subscriptions').update(existingRec.id, {
+                  user: userId,
+                  p256dh,
+                  auth,
+                  active: true,
+                })
+                recId = existingRec.id
+              }
+            } catch {
+              console.warn('Falha ao salvar subscription no backend:', err)
+            }
           }
         }
       }

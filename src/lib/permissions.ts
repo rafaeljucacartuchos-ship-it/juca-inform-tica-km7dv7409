@@ -105,8 +105,8 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
       }
     case 'technician':
       return {
-        clientes: false,
-        os_create: false,
+        clientes: true,
+        os_create: true,
         agendamentos: true,
         ordens: true,
         os_delete: false,
@@ -118,9 +118,9 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         relatorios: false,
         exportacoes: false,
         permissoes: false,
-        equipamentos: false,
-        produtos: false,
-        servicos: false,
+        equipamentos: true,
+        produtos: true,
+        servicos: true,
         service_types: false,
       }
     default:

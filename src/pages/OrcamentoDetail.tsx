@@ -186,17 +186,47 @@ export default function OrcamentoDetail() {
   const loadAll = useCallback(async () => {
     if (!id) return
     try {
-      const [o, it, an] = await Promise.all([
-        getOrcamento(id),
-        getOrcamentoItens(id),
-        getOrcamentoAnexos(id),
+      // 1. Tenta buscar o orçamento diretamente pelo ID
+      let o: Orcamento | null = null
+      try {
+        o = await getOrcamento(id)
+      } catch (errFirst) {
+        console.warn('getOrcamento direto falhou, tentando fallback:', errFirst)
+        // Fallback: se 'id' for na verdade um id_os ou número de OS, tenta buscar o orçamento da OS
+        try {
+          const list = await pb.collection('orcamentos').getFullList<Orcamento>({
+            filter: `id_os = "${id}" || numero_orcamento = "${id}"`,
+            sort: '-created',
+            expand:
+              'id_os,id_usuario_criador,cliente_id,responsavel_id,id_os.customer,id_os.technician,id_os.equipment_ref',
+          })
+          if (list.length > 0) {
+            o = list[0]
+          }
+        } catch {
+          /* intentionally ignored */
+        }
+      }
+
+      if (!o) {
+        toast({ title: 'Orçamento não encontrado', variant: 'destructive' })
+        setLoading(false)
+        return
+      }
+
+      const realOrcId = o.id
+      const [it, an] = await Promise.all([
+        getOrcamentoItens(realOrcId).catch(() => []),
+        getOrcamentoAnexos(realOrcId).catch(() => []),
       ])
+
       setOrcamento(o)
       setParcelasInput(String(Math.max(1, o.parcelas || 1)))
       setItems(it)
       setAnexos(an)
       setJustificativaDesconto(o.justificativa_desconto || '')
-    } catch {
+    } catch (errTotal) {
+      console.error('Erro total ao carregar orçamento:', errTotal)
       toast({ title: 'Erro ao carregar orçamento', variant: 'destructive' })
     } finally {
       setLoading(false)

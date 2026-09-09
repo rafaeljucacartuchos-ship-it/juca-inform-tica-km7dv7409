@@ -179,11 +179,14 @@ export default function OrdemDetail() {
   const [orcDesconto, setOrcDesconto] = useState<number>(0)
   const [savingOrcConditions, setSavingOrcConditions] = useState(false)
 
-  const canEdit = user?.role === 'technician' || user?.role === 'admin'
+  const isTechnician = user?.role === 'technician'
+  const isOrderOwner = Boolean(
+    order && user && (order.technician === user.id || order.expand?.technician?.id === user.id),
+  )
+  const canEdit = user?.role === 'admin' || (isTechnician && (!order?.technician || isOrderOwner))
   const canDeleteOs = user?.role === 'admin' || hasPermission('os_delete')
   // Antes de iniciar o atendimento (started_at vazio), os campos editáveis
   // ficam bloqueados para o técnico. Após iniciar, ficam liberados.
-  const isTechnician = user?.role === 'technician'
   const notStarted = !order?.started_at
   const fieldsLocked = isTechnician && notStarted && canEdit
   const canStartService =
@@ -243,9 +246,8 @@ export default function OrdemDetail() {
     return <div className="p-8 text-center text-slate-500">Carregando detalhes da ordem...</div>
   }
 
-  if (user?.role === 'technician' && order.technician !== user.id) {
-    return <Navigate to="/ordens" replace />
-  }
+  // Técnicos podem visualizar qualquer O.S. (inclusive para consultar orçamentos ou histórico de outros colegas técnicos),
+  // mas canEdit só permite edições se o usuário for admin ou for o técnico atribuído a esta O.S.
 
   const isFinalizada = order.status === 'completed' || order.status === 'closed'
 
