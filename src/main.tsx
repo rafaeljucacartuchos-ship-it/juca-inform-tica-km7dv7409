@@ -3,6 +3,10 @@ import { useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './main.css'
+import { installDomMutationCrashGuard } from './lib/dom-guard'
+
+// Proteção preventiva contra erros 'removeChild'/'insertBefore' oriundos de extensões/Google Translate
+installDomMutationCrashGuard()
 
 function Root() {
   useEffect(() => {

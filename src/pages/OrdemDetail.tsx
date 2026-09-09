@@ -527,8 +527,9 @@ export default function OrdemDetail() {
 
   // Helper síncrono para cópia imediata no gesto do clique (essencial para iOS/Safari)
   const copyToClipboardSync = (text: string): boolean => {
+    let textArea: HTMLTextAreaElement | null = null
     try {
-      const textArea = document.createElement('textarea')
+      textArea = document.createElement('textarea')
       textArea.value = text
       textArea.style.position = 'fixed'
       textArea.style.left = '-9999px'
@@ -539,10 +540,17 @@ export default function OrdemDetail() {
       textArea.focus()
       textArea.select()
       const successful = document.execCommand('copy')
-      document.body.removeChild(textArea)
       if (successful) return true
     } catch {
       /* ignore */
+    } finally {
+      if (textArea && textArea.parentNode) {
+        try {
+          textArea.parentNode.removeChild(textArea)
+        } catch {
+          // nó já removido
+        }
+      }
     }
 
     try {
@@ -1195,20 +1203,25 @@ export default function OrdemDetail() {
                     </span>
                     <p className="font-medium text-slate-900 text-xs mt-0.5">
                       {order.expand?.customer?.endereco ? (
-                        order.expand.customer.endereco
+                        <span>{order.expand.customer.endereco}</span>
                       ) : order.expand?.customer?.street ? (
-                        <>
-                          {order.expand.customer.street}
-                          {order.expand.customer.number
-                            ? `, nº ${order.expand.customer.number}`
-                            : ''}
-                          {order.expand.customer.bairro
-                            ? ` - Bairro ${order.expand.customer.bairro}`
-                            : ''}
-                          {order.expand.customer.city ? ` - ${order.expand.customer.city}` : ''}
-                          {order.expand.customer.state ? `/${order.expand.customer.state}` : ''}
-                          {order.expand.customer.zip ? ` (CEP: ${order.expand.customer.zip})` : ''}
-                        </>
+                        <span>
+                          {[
+                            order.expand.customer.street,
+                            order.expand.customer.number
+                              ? `nº ${order.expand.customer.number}`
+                              : '',
+                            order.expand.customer.bairro
+                              ? `Bairro ${order.expand.customer.bairro}`
+                              : '',
+                            order.expand.customer.city
+                              ? `${order.expand.customer.city}${order.expand.customer.state ? `/${order.expand.customer.state}` : ''}`
+                              : '',
+                            order.expand.customer.zip ? `(CEP: ${order.expand.customer.zip})` : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' - ')}
+                        </span>
                       ) : (
                         <span className="text-slate-400 italic">Endereço não informado</span>
                       )}

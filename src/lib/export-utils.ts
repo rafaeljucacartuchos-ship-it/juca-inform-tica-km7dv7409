@@ -12,7 +12,13 @@ export function downloadFile(filename: string, content: string, mimeType: string
   a.download = filename
   document.body.appendChild(a)
   a.click()
-  document.body.removeChild(a)
+  if (a.parentNode) {
+    try {
+      a.parentNode.removeChild(a)
+    } catch {
+      // nó já removido
+    }
+  }
   URL.revokeObjectURL(url)
 }
 

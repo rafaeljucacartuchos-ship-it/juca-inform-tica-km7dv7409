@@ -710,8 +710,9 @@ export default function OrcamentoDetail() {
 
   // Helper síncrono para cópia imediata no gesto do clique (essencial para iOS/Safari)
   const copyToClipboardSync = (text: string): boolean => {
+    let textArea: HTMLTextAreaElement | null = null
     try {
-      const textArea = document.createElement('textarea')
+      textArea = document.createElement('textarea')
       textArea.value = text
       textArea.style.position = 'fixed'
       textArea.style.left = '-9999px'
@@ -722,10 +723,17 @@ export default function OrcamentoDetail() {
       textArea.focus()
       textArea.select()
       const successful = document.execCommand('copy')
-      document.body.removeChild(textArea)
       if (successful) return true
     } catch {
       /* ignore */
+    } finally {
+      if (textArea && textArea.parentNode) {
+        try {
+          textArea.parentNode.removeChild(textArea)
+        } catch {
+          // nó já removido
+        }
+      }
     }
 
     // Tenta também navigator.clipboard.writeText síncronamente disparado no clique
