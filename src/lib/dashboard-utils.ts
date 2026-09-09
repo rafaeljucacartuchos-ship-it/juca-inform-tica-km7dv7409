@@ -1,6 +1,7 @@
 import { ServiceOrder, StatusHistory, Payment, OrderStatus } from '@/types'
 
 export type Period = 'today' | 'week' | 'month' | 'custom'
+export type TechPeriod = 'today' | 'month' | 'year'
 
 export const STATUS_PRIORITY_MAP: Record<OrderStatus, number> = {
   aguardando_orcamento: 1,
@@ -77,6 +78,31 @@ export function getPeriodRange(period: Period, customStart?: string, customEnd?:
     }
     case 'custom':
       return { start: customStart || todayStr, end: customEnd || todayStr }
+  }
+}
+
+export function getTechPeriodRange(period: TechPeriod) {
+  const now = new Date()
+  const todayStr = now.toISOString().substring(0, 10)
+  switch (period) {
+    case 'today':
+      return { start: todayStr, end: todayStr }
+    case 'month': {
+      const first = new Date(now.getFullYear(), now.getMonth(), 1)
+      const last = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+      return {
+        start: first.toISOString().substring(0, 10),
+        end: last.toISOString().substring(0, 10),
+      }
+    }
+    case 'year': {
+      const first = new Date(now.getFullYear(), 0, 1)
+      const last = new Date(now.getFullYear(), 11, 31)
+      return {
+        start: first.toISOString().substring(0, 10),
+        end: last.toISOString().substring(0, 10),
+      }
+    }
   }
 }
 
