@@ -10,6 +10,7 @@ import {
   X,
   MessageCircle,
   Calendar,
+  CalendarClock,
   ArrowRightLeft,
   ExternalLink,
   Printer,
@@ -40,6 +41,7 @@ import { getTechnicians } from '@/services/users'
 import { StatusBadge } from '@/components/StatusBadge'
 import { NewOrderModal } from '@/components/NewOrderModal'
 import { TransferTechnicianModal } from '@/components/TransferTechnicianModal'
+import { RescheduleOrderModal } from '@/components/RescheduleOrderModal'
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
 import { RecordActionsMenu, RecordActionItem } from '@/components/RecordActionsMenu'
 import { useAuth } from '@/hooks/use-auth'
@@ -61,6 +63,8 @@ export default function OrdensDeServico() {
   const [deleteOrderTarget, setDeleteOrderTarget] = useState<ServiceOrder | null>(null)
   const [transferModalOpen, setTransferModalOpen] = useState(false)
   const [orderToTransfer, setOrderToTransfer] = useState<ServiceOrder | null>(null)
+  const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false)
+  const [orderToReschedule, setOrderToReschedule] = useState<ServiceOrder | null>(null)
   const [dateStart, setDateStart] = useState('')
   const [dateEnd, setDateEnd] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -287,6 +291,16 @@ export default function OrdensDeServico() {
       label: 'Abrir O.S.',
       icon: ExternalLink,
       onClick: () => navigate(`/ordens/${o.id}`),
+    },
+    {
+      key: 'reschedule',
+      label: 'Reagendar O.S.',
+      icon: CalendarClock,
+      hidden: o.status === 'completed' || o.status === 'closed',
+      onClick: () => {
+        setOrderToReschedule(o)
+        setRescheduleModalOpen(true)
+      },
     },
     {
       key: 'transfer',
@@ -758,6 +772,13 @@ export default function OrdensDeServico() {
         onOpenChange={setTransferModalOpen}
         order={orderToTransfer}
         onTransferred={loadData}
+      />
+
+      <RescheduleOrderModal
+        open={rescheduleModalOpen}
+        onOpenChange={setRescheduleModalOpen}
+        order={orderToReschedule}
+        onRescheduled={loadData}
       />
 
       <ConfirmDeleteDialog

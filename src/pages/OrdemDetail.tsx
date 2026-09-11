@@ -21,6 +21,8 @@ import {
   FileBadge,
   Send,
   ArrowRightLeft,
+  CalendarClock,
+  Clock,
   Share2,
   Copy,
   ArrowRight,
@@ -78,6 +80,7 @@ import { OrderPhotos } from '@/components/OrderPhotos'
 import { NewEquipmentModal } from '@/components/NewEquipmentModal'
 import { EditEquipmentModal } from '@/components/EditEquipmentModal'
 import { TransferTechnicianModal } from '@/components/TransferTechnicianModal'
+import { RescheduleOrderModal } from '@/components/RescheduleOrderModal'
 import { getEquipmentItem } from '@/services/equipment'
 import { RecordActionsMenu, RecordActionItem } from '@/components/RecordActionsMenu'
 import { useAuth } from '@/hooks/use-auth'
@@ -113,6 +116,7 @@ export default function OrdemDetail() {
   const [editEquipmentTab, setEditEquipmentTab] = useState<'edit' | 'photos'>('edit')
   const [activeEquipmentDetail, setActiveEquipmentDetail] = useState<Equipment | null>(null)
   const [transferModalOpen, setTransferModalOpen] = useState(false)
+  const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false)
   const [confirmDeleteOsOpen, setConfirmDeleteOsOpen] = useState(false)
   const [deletingOs, setDeletingOs] = useState(false)
 
@@ -1091,11 +1095,18 @@ export default function OrdemDetail() {
                 onClick: () => handleOpenEquipmentModal('photos'),
               },
               {
+                key: 'reschedule',
+                label: 'Reagendar Atendimento',
+                icon: CalendarClock,
+                hidden: !canEdit || isFinalizada,
+                separatorBefore: true,
+                onClick: () => setRescheduleModalOpen(true),
+              },
+              {
                 key: 'transfer',
                 label: 'Transferir Técnico',
                 icon: ArrowRightLeft,
                 hidden: !canEdit,
-                separatorBefore: true,
                 onClick: () => setTransferModalOpen(true),
               },
               {
@@ -1339,6 +1350,30 @@ export default function OrdemDetail() {
                   </div>
                   <p className="font-medium text-slate-900 mt-0.5">
                     {order.expand?.technician?.name || 'Não atribuído'}
+                  </p>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-slate-500">Agendamento:</span>
+                    {canEdit && !isFinalizada && (
+                      <button
+                        type="button"
+                        onClick={() => setRescheduleModalOpen(true)}
+                        className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1"
+                        title="Reagendar data e horário do atendimento"
+                      >
+                        <CalendarClock className="h-3 w-3" />
+                        Reagendar
+                      </button>
+                    )}
+                  </div>
+                  <p className="font-medium text-slate-900 mt-0.5 flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                    <span>
+                      {order.attendance_date
+                        ? `${order.attendance_date.split('-').reverse().join('/')}${order.attendance_time ? ` às ${order.attendance_time}` : ''}`
+                        : 'Não agendado'}
+                    </span>
                   </p>
                 </div>
                 <div>
@@ -1961,6 +1996,13 @@ export default function OrdemDetail() {
         onOpenChange={setTransferModalOpen}
         order={order}
         onTransferred={loadAll}
+      />
+
+      <RescheduleOrderModal
+        open={rescheduleModalOpen}
+        onOpenChange={setRescheduleModalOpen}
+        order={order}
+        onRescheduled={loadAll}
       />
 
       {activeOrcamento && (
