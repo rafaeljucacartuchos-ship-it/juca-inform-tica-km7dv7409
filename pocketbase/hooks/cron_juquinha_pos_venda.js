@@ -1,16 +1,20 @@
 // Cron: Processa mensagens de pós-venda agendadas pelo Juquinha
 // Executa a cada minuto ('* * * * *')
 // Verifica itens com status='pending' cujo scheduled_at <= agora
-// Gera o texto personalizado e o link wa.me respeitando horário comercial (08:00 às 18:00 Brasil/MS UTC-4)
+// IMPORTANTE (v0.0.183): avaliações (avaliacao_tecnico e avaliacao_google) que estejam pending
+// NÃO são promovidas automaticamente por tempo, pois aguardam o cliente responder!
+// Apenas checkin_pos_venda, pos_venda_7d, oferta_30d e legado são promovidos por tempo.
+
 cronAdd('juquinha_pos_venda_cron', '* * * * *', () => {
   try {
     var now = new Date()
     var nowIso = now.toISOString()
 
-    // Busca até 50 mensagens pendentes com scheduled_at atingido (ou sem scheduled_at definido)
+    // Busca até 50 mensagens pendentes com scheduled_at atingido (ou sem scheduled_at)
+    // Exclui avaliações do avanço automático por tempo, pois dependem de 'Cliente respondeu'
     var pending = $app.findRecordsByFilter(
       'pos_venda_messages',
-      'status = "pending" && (scheduled_at = null || scheduled_at = "" || scheduled_at <= "' +
+      'status = "pending" && tipo != "avaliacao_tecnico" && tipo != "avaliacao_google" && (scheduled_at = null || scheduled_at = "" || scheduled_at <= "' +
         nowIso +
         '")',
       'scheduled_at',
@@ -69,7 +73,6 @@ cronAdd('juquinha_pos_venda_cron', '* * * * *', () => {
           cust.getString('razao_social') ||
           cust.getString('name') ||
           'Cliente'
-        // Pega primeiro nome para tom mais próximo e pessoal
         var firstName = customerName.split(' ')[0]
 
         var soNumber = ''
@@ -124,7 +127,6 @@ cronAdd('juquinha_pos_venda_cron', '* * * * *', () => {
         var footer = '\n\n— *Juquinha — JUCA Informática*\n📞 (67) 3441-4981 | (67) 99654-4981'
         var textBody = ''
 
-        // Formatação humanizada e acolhedora dos dados reais
         var equipPart = equip ? 'o seu *' + equip + '*' : 'o seu equipamento'
         var osPart = soNumber ? ' (O.S. *' + soNumber + '*)' : ''
         var techMention = techName ? ' e o técnico *' + techName + '*' : ''
@@ -139,7 +141,6 @@ cronAdd('juquinha_pos_venda_cron', '* * * * *', () => {
         }
 
         if (tipo === 'checkin_pos_venda') {
-          // ETAPA 1: Check-in de atendimento — Tom conversacional perguntando se o cliente está GOSTANDO
           textBody =
             'Oi, ' +
             firstName +
@@ -152,47 +153,6 @@ cronAdd('juquinha_pos_venda_cron', '* * * * *', () => {
             'Eu' +
             techMention +
             ' ficamos muito felizes em te atender! Se tiver qualquer dúvida, detalhe ou precisar de um ajuste, é só me responder por aqui que estou à sua disposição!'
-        } else if (tipo === 'avaliacao_tecnico') {
-          // ETAPA 2 (A): Avaliação do Técnico — Mensagem simpática, curta e focada no técnico
-          var techLabel = techName ? '*' + techName + '*' : 'nosso técnico'
-          textBody =
-            'Oi, ' +
-            firstName +
-            '! Que bom falar com você! Aqui é o *Juquinha* da JUCA! ⭐\n\n' +
-            'Como você achou o atendimento e a atenção do técnico ' +
-            techLabel +
-            (osPart ? ' na sua ' + osPart : '') +
-            '?\n\n' +
-            'De 1 a 5 estrelas ⭐, como você avalia o trabalho dele? Se puder responder com uma nota ou uma palavrinha sobre o que achou, ficamos imensamente gratos!'
-        } else if (tipo === 'avaliacao_google') {
-          // ETAPA 2 (B): Avaliação no Google — Mensagem separada, direta, com o link
-          var googleLinkSection = googleReviewUrl
-            ? '\n\n👉 ' + googleReviewUrl + '\n\n'
-            : '\n\n(Acesse nossa página no Google e deixe seu comentário!)\n\n'
-
-          textBody =
-            'Oi, ' +
-            firstName +
-            '! *Juquinha* por aqui mais uma vez! 🌐✨\n\n' +
-            'A sua opinião no Google é muito importante para nós e ajuda outros clientes a conhecerem a dedicação da nossa equipe.\n\n' +
-            'Poderia dedicar 30 segundinhos para deixar uma avaliação 5 estrelas no nosso perfil do Google?' +
-            googleLinkSection +
-            'Muito obrigado pela parceria e carinho de sempre! 🚀'
-        } else if (tipo === 'avaliacao_30min') {
-          // Legado mantido compatível com tom melhorado
-          textBody =
-            'Oi, ' +
-            firstName +
-            '! Tudo bem? Aqui é o *Juquinha* da JUCA Informática! 🙋‍♂️\n\n' +
-            'Passando para agradecer pela confiança em trazer ' +
-            equipPart +
-            osPart +
-            '!\n\n' +
-            'A sua opinião é fundamental para nós. Se puder deixar uma avaliação rápida no Google, nos ajuda muito: ⭐⭐⭐⭐⭐\n\n' +
-            '👉 ' +
-            googleReviewUrl +
-            '\n\n' +
-            'Muito obrigado de coração!'
         } else if (tipo === 'pos_venda_7d') {
           var detailsLine = ''
           if (servicePart) {
@@ -226,6 +186,20 @@ cronAdd('juquinha_pos_venda_cron', '* * * * *', () => {
                 techName +
                 '* e toda a nossa família JUCA mandam aquele abraço forte!'
               : 'Toda a nossa equipe da JUCA manda aquele abraço forte!')
+        } else if (tipo === 'avaliacao_30min') {
+          textBody =
+            'Oi, ' +
+            firstName +
+            '! Tudo bem? Aqui é o *Juquinha* da JUCA Informática! 🙋‍♂️\n\n' +
+            'Passando para agradecer pela confiança em trazer ' +
+            equipPart +
+            osPart +
+            '!\n\n' +
+            'A sua opinião é fundamental para nós. Se puder deixar uma avaliação rápida no Google, nos ajuda muito: ⭐⭐⭐⭐⭐\n\n' +
+            '👉 ' +
+            googleReviewUrl +
+            '\n\n' +
+            'Muito obrigado de coração!'
         }
 
         var fullMessage = header + textBody + footer
@@ -238,13 +212,7 @@ cronAdd('juquinha_pos_venda_cron', '* * * * *', () => {
 
         $app
           .logger()
-          .info(
-            'Juquinha: Mensagem gerada e pronta para disparo humano',
-            'tipo',
-            tipo,
-            'customer',
-            customerName,
-          )
+          .info('Juquinha: Mensagem promovida para ready', 'tipo', tipo, 'customer', customerName)
       } catch (itemErr) {
         $app
           .logger()

@@ -16,14 +16,15 @@ import {
   Star,
   Globe,
   HelpCircle,
+  Calendar,
+  Gift,
   ArrowRight,
-  Filter,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Dialog,
   DialogContent,
@@ -53,14 +54,22 @@ import {
   buildJuquinhaMessageText,
   buildJuquinhaWaLink,
 } from '@/services/pos_venda'
-import { PosVendaMessage, PosVendaStatus, PosVendaTipo, Customer, ServiceOrder } from '@/types'
+import { PosVendaMessage, PosVendaTipo, Customer, ServiceOrder } from '@/types'
 import { getCustomerDisplayName, getCustomerPhone, getCustomers } from '@/services/customers'
 import { getServiceOrders } from '@/services/service_orders'
-import { notifyStaffMembers } from '@/services/notifications'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useAuth } from '@/hooks/use-auth'
 import pb from '@/lib/pocketbase/client'
+
+// Caixas reorganizadas da v0.0.183
+export type PosVendaBoxId =
+  | 'ready_7d' // Prontas para Disparo (7 dias)
+  | 'ofertas_30d' // Ofertas (30 dias)
+  | 'agendadas' // Agendadas (data futura)
+  | 'checkin' // Check-in Atendimento (respondidas vs pendentes)
+  | 'avaliacoes' // Avaliações (Técnico + Google)
+  | 'todas' // Visão geral de todas
 
 export default function PosVendaJuquinha() {
   const { user } = useAuth()
@@ -68,10 +77,18 @@ export default function PosVendaJuquinha() {
 
   const [messages, setMessages] = useState<PosVendaMessage[]>([])
   const [loading, setLoading] = useState(true)
-  const [statusTab, setStatusTab] = useState<'ready' | 'pending' | 'sent' | 'all'>('ready')
-  const [tipoFilter, setTipoFilter] = useState<'all' | PosVendaTipo | 'evaluations'>('all')
-  const [activeKpi, setActiveKpi] = useState<'ready' | 'pending' | 'checkin' | 'eval' | null>(null)
+  const [activeBox, setActiveBox] = useState<PosVendaBoxId>('ready_7d')
   const [filterText, setFilterText] = useState('')
+
+  // Sub-filtro para a caixa de Check-in Atendimento
+  const [checkinSubFilter, setCheckinSubFilter] = useState<
+    'all' | 'responded' | 'pending_response'
+  >('all')
+
+  // Sub-filtro de status para a caixa 'todas'
+  const [statusSubFilter, setStatusSubFilter] = useState<'all' | 'ready' | 'pending' | 'sent'>(
+    'all',
+  )
 
   // Modal de configurações do Juquinha (Google Review URL, etc.)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -133,16 +150,20 @@ export default function PosVendaJuquinha() {
     }
   }
 
+  // 1-Toque WhatsApp com cadeia automática
   const handleSendOneTouch = async (msg: PosVendaMessage) => {
     const link = msg.wa_me_link
     if (link) {
       window.open(link, '_blank')
     }
     try {
-      await markPosVendaMessageSent(msg.id)
+      await markPosVendaMessageSent(msg.id, msg)
       toast({
         title: 'WhatsApp aberto!',
-        description: 'Mensagem marcada como enviada no histórico.',
+        description:
+          msg.tipo === 'pos_venda_7d'
+            ? 'Mensagem marcada como enviada e avaliações geradas automaticamente!'
+            : 'Mensagem marcada como enviada no histórico.',
       })
       loadData()
     } catch {
@@ -160,35 +181,22 @@ export default function PosVendaJuquinha() {
     }
   }
 
-  // AÇÃO 3: Marcar Check-in como respondido pelo cliente + Criar Notificação
+  // Marcar como respondido pelo cliente + Cadeia automática de liberação e notificação
   const handleMarkAsResponded = async (msg: PosVendaMessage) => {
     setMarkingRespondedId(msg.id)
     try {
-      await markPosVendaMessageResponded(msg.id, true)
-
-      const cust = msg.expand?.customer
-      const custName = getCustomerDisplayName(cust)
-      const soNumber = msg.expand?.service_order?.number || ''
-      const osLabel = soNumber ? ` da OS #${soNumber}` : ''
-
-      // Notificação para atendentes e admins
-      await notifyStaffMembers({
-        title: `💬 ${custName} respondeu ao pós-venda`,
-        message: `${custName} respondeu ao check-in de atendimento${osLabel}. Acesse o Pós-venda para liberar as avaliações do técnico e Google!`,
-        type: 'service_order',
-        link: '/pos-venda',
-      })
+      await markPosVendaMessageResponded(msg.id, true, msg)
 
       toast({
         title: 'Cliente marcado como respondido!',
         description:
-          'Notificação criada para a equipe. O botão de liberar avaliações já está liberado!',
+          'Avaliações (Técnico e Google) liberadas como prontas e notificação enviada para a equipe!',
       })
 
       await loadData()
     } catch (err) {
       toast({
-        title: 'Erro ao marcar check-in como respondido',
+        title: 'Erro ao marcar como respondido',
         description: String(err),
         variant: 'destructive',
       })
@@ -197,28 +205,17 @@ export default function PosVendaJuquinha() {
     }
   }
 
-  // ETAPA 2: Botão "Cliente respondeu → Liberar avaliações"
+  // Ação explícita de liberação de avaliações
   const handleReleaseEvaluations = async (msg: PosVendaMessage) => {
-    if (!msg.cliente_respondeu) {
-      toast({
-        title: 'Aguardando resposta do cliente',
-        description: 'Marque primeiro o check-in como respondido para liberar as avaliações.',
-        variant: 'destructive',
-      })
-      return
-    }
-
     setReleasingEvaluationsId(msg.id)
     try {
       await releaseJuquinhaEvaluations(msg)
       toast({
         title: 'Avaliações liberadas com sucesso!',
         description:
-          '2 mensagens criadas: Avaliação do Técnico (⭐) e Avaliação no Google (🌐) prontas para disparo.',
+          '2 mensagens: Avaliação do Técnico (⭐) e Avaliação no Google (🌐) prontas para disparo.',
       })
-      setStatusTab('ready')
-      setTipoFilter('all')
-      setActiveKpi('ready')
+      setActiveBox('avaliacoes')
       await loadData()
     } catch (err) {
       toast({
@@ -228,32 +225,6 @@ export default function PosVendaJuquinha() {
       })
     } finally {
       setReleasingEvaluationsId(null)
-    }
-  }
-
-  // Handler para cliques nos 4 quadros rápidos de informação (Toggle / Filtro)
-  const handleKpiClick = (kpi: 'ready' | 'pending' | 'checkin' | 'eval') => {
-    if (activeKpi === kpi) {
-      // Clicar de novo limpa o filtro
-      setActiveKpi(null)
-      setStatusTab('all')
-      setTipoFilter('all')
-      return
-    }
-
-    setActiveKpi(kpi)
-    if (kpi === 'ready') {
-      setStatusTab('ready')
-      setTipoFilter('all')
-    } else if (kpi === 'pending') {
-      setStatusTab('pending')
-      setTipoFilter('all')
-    } else if (kpi === 'checkin') {
-      setStatusTab('all')
-      setTipoFilter('checkin_pos_venda')
-    } else if (kpi === 'eval') {
-      setStatusTab('all')
-      setTipoFilter('evaluations')
     }
   }
 
@@ -330,7 +301,7 @@ export default function PosVendaJuquinha() {
     }
   }
 
-  // Atualiza o texto pré-gerado quando os seletores manuais mudam
+  // Atualiza texto manual quando seletores mudam
   useEffect(() => {
     if (!newMsgModalOpen || !manualCustomerId) return
     const selectedCustomer = customersList.find((c) => c.id === manualCustomerId)
@@ -365,7 +336,6 @@ export default function PosVendaJuquinha() {
     googleUrl,
   ])
 
-  // Cria e dispara a nova mensagem manual em 1 toque
   const handleCreateAndSendManualMsg = async (openDirectly: boolean) => {
     if (!manualCustomerId) {
       toast({ title: 'Selecione um cliente', variant: 'destructive' })
@@ -405,50 +375,251 @@ export default function PosVendaJuquinha() {
 
       setNewMsgModalOpen(false)
       loadData()
-    } catch (err) {
+    } catch {
       toast({ title: 'Erro ao criar mensagem manual', variant: 'destructive' })
     } finally {
       setCreatingManualMsg(false)
     }
   }
 
+  // =========================================================================
+  // HELPER DE DATAS E CÁLCULO DE DIAS RESTANTES / DECORRIDOS
+  // =========================================================================
+  // Data de conclusão da O.S. (service_order.updated quando completed/closed, ou scheduled_at/created)
+  const getOrderCompletionDate = (msg: PosVendaMessage): Date => {
+    const so = msg.expand?.service_order
+    if (so && (so.status === 'completed' || so.status === 'closed') && so.updated) {
+      return new Date(so.updated)
+    }
+    if (msg.scheduled_at) {
+      // Se a mensagem foi agendada para +7d ou +30d, a conclusão foi 7d ou 30d antes
+      const sched = new Date(msg.scheduled_at).getTime()
+      if (msg.tipo === 'pos_venda_7d') {
+        return new Date(sched - 7 * 86400000)
+      }
+      if (msg.tipo === 'oferta_30d') {
+        return new Date(sched - 30 * 86400000)
+      }
+    }
+    return new Date(msg.created)
+  }
+
+  // Dias decorridos desde a conclusão
+  const getDaysSinceCompletion = (msg: PosVendaMessage): number => {
+    const compDate = getOrderCompletionDate(msg)
+    const diffMs = Date.now() - compDate.getTime()
+    return Math.floor(diffMs / 86400000)
+  }
+
+  // Dias que faltam para o agendamento
+  const getDaysRemainingUntilScheduled = (msg: PosVendaMessage): number => {
+    if (!msg.scheduled_at) return 0
+    const schedMs = new Date(msg.scheduled_at).getTime()
+    const diffMs = schedMs - Date.now()
+    return Math.ceil(diffMs / 86400000)
+  }
+
+  // Verifica se os N dias da conclusão já passaram
+  const hasDaysPassedSinceCompletion = (msg: PosVendaMessage, targetDays: number): boolean => {
+    const days = getDaysSinceCompletion(msg)
+    return days >= targetDays
+  }
+
+  // Mapa de mensagens por O.S. para calcular a Timeline e verificar etapas
+  const orderMessageMap = useMemo(() => {
+    const map = new Map<string, PosVendaMessage[]>()
+    messages.forEach((m) => {
+      const soId = m.service_order || 'no_os'
+      const arr = map.get(soId) || []
+      arr.push(m)
+      map.set(soId, arr)
+    })
+    return map
+  }, [messages])
+
+  // =========================================================================
+  // SEPARAÇÃO DAS 5 CAIXAS REORGANIZADAS DA v0.0.183
+  // =========================================================================
+
+  // a) 'Prontas para Disparo (7 dias)':
+  // Mensagens tipo pos_venda_7d cujos 7 dias da conclusão JÁ PASSARAM (status ready,
+  // ou pending com scheduled_at <= agora), ordenadas da mais antiga para a mais recente.
+  const ready7dMessages = useMemo(() => {
+    const now = Date.now()
+    return messages
+      .filter((m) => {
+        if (m.tipo !== 'pos_venda_7d') return false
+        if (m.status === 'dismissed' || m.status === 'sent') return false
+        const schedMs = m.scheduled_at ? new Date(m.scheduled_at).getTime() : 0
+        const isReadyByStatus = m.status === 'ready'
+        const isReadyByTime = schedMs > 0 && schedMs <= now
+        const is7dPassed = hasDaysPassedSinceCompletion(m, 7)
+        return isReadyByStatus || isReadyByTime || is7dPassed
+      })
+      .sort((a, b) => getOrderCompletionDate(a).getTime() - getOrderCompletionDate(b).getTime())
+  }, [messages])
+
+  // b) NOVA CAIXA 'Ofertas (30 dias)':
+  // Mensagens tipo oferta_30d cujos 30 dias JÁ PASSARAM, prontas para envio,
+  // ordenadas da mais antiga para a mais recente (mais urgente primeiro).
+  const ofertas30dMessages = useMemo(() => {
+    const now = Date.now()
+    return messages
+      .filter((m) => {
+        if (m.tipo !== 'oferta_30d') return false
+        if (m.status === 'dismissed' || m.status === 'sent') return false
+        const schedMs = m.scheduled_at ? new Date(m.scheduled_at).getTime() : 0
+        const isReadyByStatus = m.status === 'ready'
+        const isReadyByTime = schedMs > 0 && schedMs <= now
+        const is30dPassed = hasDaysPassedSinceCompletion(m, 30)
+        return isReadyByStatus || isReadyByTime || is30dPassed
+      })
+      .sort((a, b) => getOrderCompletionDate(a).getTime() - getOrderCompletionDate(b).getTime())
+  }, [messages])
+
+  // c) 'Agendadas':
+  // TODAS as mensagens de O.S. concluídas/fechadas ainda com data futura (7d/30d agendados),
+  // com status 'pending' e scheduled_at no futuro (ou que ainda não atingiram o prazo).
+  // Ordenadas pela próxima a vencer primeiro.
+  const agendadasMessages = useMemo(() => {
+    const now = Date.now()
+    return messages
+      .filter((m) => {
+        if (m.status !== 'pending') return false
+        if (m.tipo === 'avaliacao_tecnico' || m.tipo === 'avaliacao_google') return false // avaliações pendentes aguardam resposta
+        const schedMs = m.scheduled_at ? new Date(m.scheduled_at).getTime() : 0
+        // Deve ser data futura
+        return schedMs > now
+      })
+      .sort((a, b) => {
+        const schedA = a.scheduled_at ? new Date(a.scheduled_at).getTime() : 0
+        const schedB = b.scheduled_at ? new Date(b.scheduled_at).getTime() : 0
+        return schedA - schedB
+      })
+  }, [messages])
+
+  // d) 'Check-in Atendimento':
+  // Mensagens de check-in (tipo checkin_pos_venda), com distinção entre RESPONDIDAS pelo cliente
+  // (cliente_respondeu=true) e pendentes de resposta, ordenadas por data de conclusão da OS.
+  const checkinMessages = useMemo(() => {
+    return messages
+      .filter((m) => m.tipo === 'checkin_pos_venda' || m.tipo === 'avaliacao_30min')
+      .sort((a, b) => getOrderCompletionDate(a).getTime() - getOrderCompletionDate(b).getTime())
+  }, [messages])
+
+  // e) 'Avaliações (Técnico + Google)':
+  // Todas as mensagens das O.S. que já tiveram QUALQUER mensagem enviada (histórico de contato),
+  // com as avaliações prontas em destaque no topo, e avaliações pendentes ou enviadas em seguida.
+  const avaliacoesMessages = useMemo(() => {
+    return messages
+      .filter((m) => m.tipo === 'avaliacao_tecnico' || m.tipo === 'avaliacao_google')
+      .sort((a, b) => {
+        // Prontas (ready) vêm primeiro no topo
+        if (a.status === 'ready' && b.status !== 'ready') return -1
+        if (b.status === 'ready' && a.status !== 'ready') return 1
+        // Entre prontas ou mesmo status: mais antiga da conclusão primeiro
+        return getOrderCompletionDate(a).getTime() - getOrderCompletionDate(b).getTime()
+      })
+  }, [messages])
+
+  // Mensagens filtradas conforme a caixa ativa
+  const currentBoxMessages = useMemo(() => {
+    let list: PosVendaMessage[] = []
+
+    switch (activeBox) {
+      case 'ready_7d':
+        list = ready7dMessages
+        break
+      case 'ofertas_30d':
+        list = ofertas30dMessages
+        break
+      case 'agendadas':
+        list = agendadasMessages
+        break
+      case 'checkin':
+        if (checkinSubFilter === 'responded') {
+          list = checkinMessages.filter((m) => m.cliente_respondeu)
+        } else if (checkinSubFilter === 'pending_response') {
+          list = checkinMessages.filter((m) => !m.cliente_respondeu && m.status !== 'dismissed')
+        } else {
+          list = checkinMessages
+        }
+        break
+      case 'avaliacoes':
+        list = avaliacoesMessages
+        break
+      case 'todas':
+      default:
+        list = messages
+          .slice()
+          .filter((m) => {
+            if (statusSubFilter === 'all') return true
+            return m.status === statusSubFilter
+          })
+          .sort((a, b) => getOrderCompletionDate(a).getTime() - getOrderCompletionDate(b).getTime())
+        break
+    }
+
+    if (!filterText.trim()) return list
+    const q = filterText.toLowerCase()
+    return list.filter((m) => {
+      const cust = m.expand?.customer
+      const name = (cust?.razao_social || cust?.nome_fantasia || cust?.name || '').toLowerCase()
+      const soNumber = (m.expand?.service_order?.number || '').toLowerCase()
+      const equip = (m.expand?.service_order?.equipment || '').toLowerCase()
+      const body = (m.texto_gerado || '').toLowerCase()
+      return name.includes(q) || soNumber.includes(q) || equip.includes(q) || body.includes(q)
+    })
+  }, [
+    activeBox,
+    ready7dMessages,
+    ofertas30dMessages,
+    agendadasMessages,
+    checkinMessages,
+    avaliacoesMessages,
+    messages,
+    checkinSubFilter,
+    statusSubFilter,
+    filterText,
+  ])
+
+  // Badges visuais por tipo
   const getTipoBadge = (tipo: PosVendaTipo) => {
     switch (tipo) {
       case 'checkin_pos_venda':
         return (
           <Badge className="bg-emerald-100 text-emerald-900 border-emerald-300 text-[11px] font-bold gap-1">
-            💬 Check-in Atendimento (Etapa 1)
+            💬 Check-in Atendimento
+          </Badge>
+        )
+      case 'pos_venda_7d':
+        return (
+          <Badge className="bg-blue-100 text-blue-900 border-blue-300 text-[11px] font-bold gap-1">
+            🛠️ Pós-venda (7 dias)
+          </Badge>
+        )
+      case 'oferta_30d':
+        return (
+          <Badge className="bg-purple-100 text-purple-900 border-purple-300 text-[11px] font-bold gap-1">
+            🎁 Oferta (30 dias)
           </Badge>
         )
       case 'avaliacao_tecnico':
         return (
           <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-[11px] font-bold gap-1">
-            <Star className="h-3 w-3 text-amber-600 fill-amber-500" /> Avaliação do Técnico (Etapa
-            2)
+            <Star className="h-3 w-3 text-amber-600 fill-amber-500" /> Avaliação do Técnico
           </Badge>
         )
       case 'avaliacao_google':
         return (
           <Badge className="bg-sky-100 text-sky-900 border-sky-300 text-[11px] font-bold gap-1">
-            <Globe className="h-3 w-3 text-sky-600" /> Avaliação no Google (Etapa 2)
+            <Globe className="h-3 w-3 text-sky-600" /> Avaliação no Google
           </Badge>
         )
       case 'avaliacao_30min':
         return (
           <Badge className="bg-amber-50 text-amber-800 border-amber-200 text-[11px] font-bold">
             ⭐ Avaliação (30 min)
-          </Badge>
-        )
-      case 'pos_venda_7d':
-        return (
-          <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-[11px] font-bold">
-            🛠️ Acompanhamento (7 dias)
-          </Badge>
-        )
-      case 'oferta_30d':
-        return (
-          <Badge className="bg-purple-100 text-purple-800 border-purple-200 text-[11px] font-bold">
-            🎁 Oferta Especial (30 dias)
           </Badge>
         )
       case 'resumo_finalizacao':
@@ -462,10 +633,11 @@ export default function PosVendaJuquinha() {
     }
   }
 
+  // Badges visuais por status
   const getStatusBadge = (msg: PosVendaMessage) => {
     const { status, tipo, cliente_respondeu, avaliacoes_liberadas } = msg
 
-    // Cores específicas para Check-in por situação do atendimento
+    // Caso específico de checkin
     if (tipo === 'checkin_pos_venda') {
       if (avaliacoes_liberadas) {
         return (
@@ -476,7 +648,7 @@ export default function PosVendaJuquinha() {
       }
       if (cliente_respondeu) {
         return (
-          <Badge className="bg-purple-600 hover:bg-purple-700 text-white font-black gap-1 text-[11px] shadow-sm animate-pulse">
+          <Badge className="bg-purple-600 text-white font-black gap-1 text-[11px] shadow-sm animate-pulse">
             💬 Respondeu — Ação Pendente
           </Badge>
         )
@@ -490,18 +662,20 @@ export default function PosVendaJuquinha() {
       }
       if (status === 'ready') {
         return (
-          <Badge className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1 text-[11px]">
+          <Badge className="bg-blue-600 text-white font-bold gap-1 text-[11px]">
             <Send className="h-3 w-3" /> Aguardando envio
           </Badge>
         )
       }
-      if (status === 'pending') {
-        return (
-          <Badge className="bg-slate-500 text-white font-bold gap-1 text-[11px]">
-            <Clock className="h-3 w-3" /> Agendado (~30min)
-          </Badge>
-        )
-      }
+    }
+
+    // Avaliações pendentes aguardando resposta do cliente
+    if ((tipo === 'avaliacao_tecnico' || tipo === 'avaliacao_google') && status === 'pending') {
+      return (
+        <Badge className="bg-slate-200 text-slate-700 border border-slate-300 font-semibold gap-1 text-[11px]">
+          <Clock className="h-3 w-3 text-slate-500" /> Aguardando resposta do cliente
+        </Badge>
+      )
     }
 
     switch (status) {
@@ -532,57 +706,155 @@ export default function PosVendaJuquinha() {
     }
   }
 
-  // Cores por situação do atendimento (Item 5) para o Card do Check-in:
-  // - Aguardando envio (azul/cinza suave)
-  // - Enviado e aguardando resposta (âmbar suave)
-  // - Cliente respondeu — ação pendente (roxo/verde vibrante com pulso/destaque)
-  // - Avaliações já liberadas (neutro/esmaecido)
+  // Estilização do card conforme situação
   const getCardVisualClasses = (msg: PosVendaMessage) => {
-    if (msg.tipo !== 'checkin_pos_venda') {
-      return 'border-slate-200 bg-white hover:border-slate-300'
+    // Avaliações prontas: destaque dourado/âmbar
+    if (
+      (msg.tipo === 'avaliacao_tecnico' || msg.tipo === 'avaliacao_google') &&
+      msg.status === 'ready'
+    ) {
+      return 'border-2 border-amber-400 bg-gradient-to-br from-amber-50/90 via-yellow-50/40 to-white shadow-md ring-2 ring-amber-300/40'
     }
 
-    if (msg.avaliacoes_liberadas) {
-      return 'border-slate-200 bg-slate-50/70 opacity-80 hover:opacity-100 hover:border-slate-300'
-    }
-
-    if (msg.cliente_respondeu) {
+    // Check-in com resposta do cliente pendente de ação
+    if (msg.tipo === 'checkin_pos_venda' && msg.cliente_respondeu && !msg.avaliacoes_liberadas) {
       return 'border-2 border-purple-500 bg-gradient-to-br from-purple-50/90 via-fuchsia-50/40 to-white shadow-md ring-2 ring-purple-400/40'
     }
 
-    if (msg.status === 'sent') {
-      return 'border-amber-300 bg-gradient-to-br from-amber-50/70 to-white hover:border-amber-400'
+    // 7 dias pronta para disparo
+    if (msg.tipo === 'pos_venda_7d' && msg.status === 'ready') {
+      return 'border-2 border-emerald-400 bg-gradient-to-br from-emerald-50/60 to-white shadow-sm'
     }
 
-    // Aguardando envio (ready ou pending)
-    return 'border-blue-200 bg-gradient-to-br from-blue-50/50 via-slate-50/40 to-white hover:border-blue-300'
+    // Oferta 30 dias pronta
+    if (msg.tipo === 'oferta_30d' && msg.status === 'ready') {
+      return 'border-2 border-purple-400 bg-gradient-to-br from-purple-50/60 to-white shadow-sm'
+    }
+
+    if (msg.status === 'sent') {
+      return 'border-slate-200 bg-slate-50/60 opacity-90 hover:opacity-100'
+    }
+
+    return 'border-slate-200 bg-white hover:border-slate-300'
   }
 
-  const filteredMessages = useMemo(() => {
-    return messages.filter((m) => {
-      if (statusTab !== 'all' && m.status !== statusTab) return false
-      if (tipoFilter === 'evaluations') {
-        if (m.tipo !== 'avaliacao_tecnico' && m.tipo !== 'avaliacao_google') return false
-      } else if (tipoFilter !== 'all' && m.tipo !== tipoFilter) {
-        return false
-      }
-      if (!filterText.trim()) return true
-      const q = filterText.toLowerCase()
-      const cust = m.expand?.customer
-      const name = (cust?.razao_social || cust?.nome_fantasia || cust?.name || '').toLowerCase()
-      const soNumber = (m.expand?.service_order?.number || '').toLowerCase()
-      return (
-        name.includes(q) || soNumber.includes(q) || (m.texto_gerado || '').toLowerCase().includes(q)
-      )
-    })
-  }, [messages, statusTab, tipoFilter, filterText])
+  // =========================================================================
+  // COMPONENTE: LINHA DO TEMPO DO FLUXO (Check-in → 7 dias → Avaliações → Oferta)
+  // Mostra a etapa atual destacada para cada card de mensagem
+  // =========================================================================
+  const renderFlowTimeline = (currentMsg: PosVendaMessage) => {
+    const soId = currentMsg.service_order
+    const sisterMessages = soId ? orderMessageMap.get(soId) || [currentMsg] : [currentMsg]
 
-  const readyCount = messages.filter((m) => m.status === 'ready').length
-  const pendingCount = messages.filter((m) => m.status === 'pending').length
-  const checkinCount = messages.filter((m) => m.tipo === 'checkin_pos_venda').length
-  const evalCount = messages.filter(
-    (m) => m.tipo === 'avaliacao_tecnico' || m.tipo === 'avaliacao_google',
-  ).length
+    // Localiza os estados de cada etapa
+    const checkin = sisterMessages.find(
+      (m) => m.tipo === 'checkin_pos_venda' || m.tipo === 'avaliacao_30min',
+    )
+    const msg7d = sisterMessages.find((m) => m.tipo === 'pos_venda_7d')
+    const evals = sisterMessages.filter(
+      (m) => m.tipo === 'avaliacao_tecnico' || m.tipo === 'avaliacao_google',
+    )
+    const msg30d = sisterMessages.find((m) => m.tipo === 'oferta_30d')
+
+    // Status de cada etapa: 'done' (sent) | 'active' (atual ou ready) | 'pending' (futuro)
+    const checkinState = checkin?.status === 'sent' ? 'done' : checkin ? 'active' : 'pending'
+
+    const state7d =
+      msg7d?.status === 'sent' ? 'done' : msg7d?.status === 'ready' ? 'active' : 'pending'
+
+    const anyEvalSent = evals.some((e) => e.status === 'sent')
+    const allEvalSent = evals.length > 0 && evals.every((e) => e.status === 'sent')
+    const anyEvalReady = evals.some((e) => e.status === 'ready')
+    const evalState = allEvalSent ? 'done' : anyEvalSent || anyEvalReady ? 'active' : 'pending'
+
+    const state30d =
+      msg30d?.status === 'sent' ? 'done' : msg30d?.status === 'ready' ? 'active' : 'pending'
+
+    // Determina qual etapa corresponde a esta mensagem específica
+    const isThisCheckin =
+      currentMsg.tipo === 'checkin_pos_venda' || currentMsg.tipo === 'avaliacao_30min'
+    const isThis7d = currentMsg.tipo === 'pos_venda_7d'
+    const isThisEval =
+      currentMsg.tipo === 'avaliacao_tecnico' || currentMsg.tipo === 'avaliacao_google'
+    const isThis30d = currentMsg.tipo === 'oferta_30d'
+
+    const steps = [
+      {
+        key: 'checkin',
+        label: '1. Check-in',
+        state: checkinState,
+        isCurrent: isThisCheckin,
+      },
+      {
+        key: '7d',
+        label: '2. 7 Dias',
+        state: state7d,
+        isCurrent: isThis7d,
+      },
+      {
+        key: 'eval',
+        label: '3. Avaliações',
+        state: evalState,
+        isCurrent: isThisEval,
+      },
+      {
+        key: '30d',
+        label: '4. Oferta 30d',
+        state: state30d,
+        isCurrent: isThis30d,
+      },
+    ]
+
+    return (
+      <div className="bg-slate-50/90 rounded-lg p-2 border border-slate-100 flex items-center justify-between text-[11px] gap-1 overflow-x-auto">
+        <div className="flex items-center gap-1.5 shrink-0 text-slate-500 font-medium">
+          <span>Linha do Tempo:</span>
+        </div>
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          {steps.map((st, idx) => {
+            const isDone = st.state === 'done'
+            const isCurrent = st.isCurrent
+            const isActive = st.state === 'active'
+
+            let badgeClass = 'bg-slate-100 text-slate-500 border-slate-200'
+            if (isCurrent) {
+              badgeClass =
+                'bg-indigo-600 text-white font-black border-indigo-700 shadow-sm ring-1 ring-indigo-400'
+            } else if (isDone) {
+              badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold'
+            } else if (isActive) {
+              badgeClass = 'bg-amber-100 text-amber-800 border-amber-300 font-bold'
+            }
+
+            return (
+              <div key={st.key} className="flex items-center gap-1">
+                <span
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border ${badgeClass}`}
+                >
+                  {isDone ? (
+                    <Check className="h-2.5 w-2.5" />
+                  ) : isCurrent ? (
+                    <ArrowRight className="h-2.5 w-2.5" />
+                  ) : null}
+                  {st.label}
+                </span>
+                {idx < steps.length - 1 && <span className="text-slate-300 text-[10px]">→</span>}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // Contadores das caixas
+  const countReady7d = ready7dMessages.length
+  const countOfertas30d = ofertas30dMessages.length
+  const countAgendadas = agendadasMessages.length
+  const countCheckin = checkinMessages.length
+  const countCheckinResponded = checkinMessages.filter((m) => m.cliente_respondeu).length
+  const countAvaliacoes = avaliacoesMessages.length
+  const countAvaliacoesProntas = avaliacoesMessages.filter((m) => m.status === 'ready').length
 
   return (
     <div className="space-y-6">
@@ -599,12 +871,12 @@ export default function PosVendaJuquinha() {
                   Pós-venda — Juquinha
                 </h1>
                 <Badge className="bg-emerald-400 text-slate-950 font-black text-[10px] uppercase tracking-wider">
-                  Fluxo 2 Etapas Ativo
+                  v0.0.183
                 </Badge>
               </div>
               <p className="text-xs sm:text-sm text-indigo-200 mt-0.5">
-                Etapa 1: Check-in de atendimento → Etapa 2: Avaliações separadas (Técnico ⭐ +
-                Google 🌐) após resposta do cliente.
+                Fluxo por data de conclusão da O.S. com cadeia automática: envio 7d gera avaliações
+                e resposta do cliente libera disparo.
               </p>
             </div>
           </div>
@@ -638,121 +910,177 @@ export default function PosVendaJuquinha() {
           </div>
         </div>
 
-        {/* Indicadores rápidos de mensagens — QUADROS CLICÁVEIS */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-5 pt-4 border-t border-white/10 text-xs">
+        {/* =========================================================================
+            ITEM 1: 5 CAIXAS / QUADROS REORGANIZADOS POR DATA DE CONCLUSÃO DA O.S.
+            a) Prontas para Disparo (7 dias)
+            b) Ofertas (30 dias) [NOVA CAIXA]
+            c) Agendadas
+            d) Check-in Atendimento
+            e) Avaliações (Técnico + Google)
+        ========================================================================= */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 mt-5 pt-4 border-t border-white/10 text-xs">
+          {/* Caixa A: Prontas para Disparo (7 dias) */}
           <button
             type="button"
-            onClick={() => handleKpiClick('ready')}
+            onClick={() => setActiveBox('ready_7d')}
             className={`text-left rounded-xl p-2.5 transition-all cursor-pointer border ${
-              activeKpi === 'ready'
+              activeBox === 'ready_7d'
                 ? 'bg-emerald-500/25 border-emerald-400 ring-2 ring-emerald-400/50 shadow-md scale-[1.02]'
                 : 'bg-white/5 hover:bg-white/10 border-white/10 hover:border-white/20'
             }`}
           >
             <div className="flex items-center justify-between">
               <span className="text-indigo-200 text-[11px] block font-medium">
-                Prontas para Disparo
+                Prontas (7 dias)
               </span>
-              {activeKpi === 'ready' && (
+              {activeBox === 'ready_7d' && (
                 <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 px-1.5 py-0.2 rounded">
                   Ativo
                 </span>
               )}
             </div>
-            <span className="text-xl font-bold font-mono text-emerald-300 block mt-0.5">
-              {readyCount}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleKpiClick('pending')}
-            className={`text-left rounded-xl p-2.5 transition-all cursor-pointer border ${
-              activeKpi === 'pending'
-                ? 'bg-amber-500/25 border-amber-400 ring-2 ring-amber-400/50 shadow-md scale-[1.02]'
-                : 'bg-white/5 hover:bg-white/10 border-white/10 hover:border-white/20'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-indigo-200 text-[11px] block font-medium">
-                Agendadas (Aguardando)
-              </span>
-              {activeKpi === 'pending' && (
-                <span className="text-[10px] font-bold text-amber-300 bg-amber-950/60 px-1.5 py-0.2 rounded">
-                  Ativo
-                </span>
-              )}
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-xl font-bold font-mono text-emerald-300">{countReady7d}</span>
+              <span className="text-[10px] text-emerald-200/80">urgente 1º</span>
             </div>
-            <span className="text-xl font-bold font-mono text-amber-300 block mt-0.5">
-              {pendingCount}
-            </span>
           </button>
 
+          {/* Caixa B: NOVA CAIXA - Ofertas (30 dias) */}
           <button
             type="button"
-            onClick={() => handleKpiClick('checkin')}
+            onClick={() => setActiveBox('ofertas_30d')}
             className={`text-left rounded-xl p-2.5 transition-all cursor-pointer border ${
-              activeKpi === 'checkin'
-                ? 'bg-sky-500/25 border-sky-400 ring-2 ring-sky-400/50 shadow-md scale-[1.02]'
-                : 'bg-white/5 hover:bg-white/10 border-white/10 hover:border-white/20'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-indigo-200 text-[11px] block font-medium">
-                Check-ins Atendimento
-              </span>
-              {activeKpi === 'checkin' && (
-                <span className="text-[10px] font-bold text-sky-300 bg-sky-950/60 px-1.5 py-0.2 rounded">
-                  Ativo
-                </span>
-              )}
-            </div>
-            <span className="text-xl font-bold font-mono text-sky-300 block mt-0.5">
-              {checkinCount}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleKpiClick('eval')}
-            className={`text-left rounded-xl p-2.5 transition-all cursor-pointer border ${
-              activeKpi === 'eval'
+              activeBox === 'ofertas_30d'
                 ? 'bg-purple-500/25 border-purple-400 ring-2 ring-purple-400/50 shadow-md scale-[1.02]'
                 : 'bg-white/5 hover:bg-white/10 border-white/10 hover:border-white/20'
             }`}
           >
             <div className="flex items-center justify-between">
               <span className="text-indigo-200 text-[11px] block font-medium">
-                Avaliações (Técnico + Google)
+                🎁 Ofertas (30 dias)
               </span>
-              {activeKpi === 'eval' && (
+              {activeBox === 'ofertas_30d' && (
                 <span className="text-[10px] font-bold text-purple-300 bg-purple-950/60 px-1.5 py-0.2 rounded">
                   Ativo
                 </span>
               )}
             </div>
-            <span className="text-xl font-bold font-mono text-purple-300 block mt-0.5">
-              {evalCount}
-            </span>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-xl font-bold font-mono text-purple-300">{countOfertas30d}</span>
+              <span className="text-[10px] text-purple-200/80">30d passados</span>
+            </div>
+          </button>
+
+          {/* Caixa C: Agendadas (data futura) */}
+          <button
+            type="button"
+            onClick={() => setActiveBox('agendadas')}
+            className={`text-left rounded-xl p-2.5 transition-all cursor-pointer border ${
+              activeBox === 'agendadas'
+                ? 'bg-amber-500/25 border-amber-400 ring-2 ring-amber-400/50 shadow-md scale-[1.02]'
+                : 'bg-white/5 hover:bg-white/10 border-white/10 hover:border-white/20'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-indigo-200 text-[11px] block font-medium">
+                Agendadas Futuras
+              </span>
+              {activeBox === 'agendadas' && (
+                <span className="text-[10px] font-bold text-amber-300 bg-amber-950/60 px-1.5 py-0.2 rounded">
+                  Ativo
+                </span>
+              )}
+            </div>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-xl font-bold font-mono text-amber-300">{countAgendadas}</span>
+              <span className="text-[10px] text-amber-200/80">próx. a vencer</span>
+            </div>
+          </button>
+
+          {/* Caixa D: Check-in Atendimento */}
+          <button
+            type="button"
+            onClick={() => setActiveBox('checkin')}
+            className={`text-left rounded-xl p-2.5 transition-all cursor-pointer border ${
+              activeBox === 'checkin'
+                ? 'bg-sky-500/25 border-sky-400 ring-2 ring-sky-400/50 shadow-md scale-[1.02]'
+                : 'bg-white/5 hover:bg-white/10 border-white/10 hover:border-white/20'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-indigo-200 text-[11px] block font-medium">
+                💬 Check-in Atend.
+              </span>
+              {activeBox === 'checkin' && (
+                <span className="text-[10px] font-bold text-sky-300 bg-sky-950/60 px-1.5 py-0.2 rounded">
+                  Ativo
+                </span>
+              )}
+            </div>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-xl font-bold font-mono text-sky-300">{countCheckin}</span>
+              {countCheckinResponded > 0 && (
+                <span className="text-[10px] text-purple-300 font-bold bg-purple-950/50 px-1 rounded">
+                  {countCheckinResponded} resp.
+                </span>
+              )}
+            </div>
+          </button>
+
+          {/* Caixa E: Avaliações (Técnico + Google) */}
+          <button
+            type="button"
+            onClick={() => setActiveBox('avaliacoes')}
+            className={`text-left rounded-xl p-2.5 transition-all cursor-pointer border col-span-2 sm:col-span-1 ${
+              activeBox === 'avaliacoes'
+                ? 'bg-amber-400/25 border-amber-300 ring-2 ring-amber-300/50 shadow-md scale-[1.02]'
+                : 'bg-white/5 hover:bg-white/10 border-white/10 hover:border-white/20'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-indigo-200 text-[11px] block font-medium">
+                ⭐ Avaliações (Téc+Google)
+              </span>
+              {activeBox === 'avaliacoes' && (
+                <span className="text-[10px] font-bold text-amber-200 bg-amber-950/60 px-1.5 py-0.2 rounded">
+                  Ativo
+                </span>
+              )}
+            </div>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-xl font-bold font-mono text-amber-200">{countAvaliacoes}</span>
+              {countAvaliacoesProntas > 0 && (
+                <span className="text-[10px] text-emerald-300 font-bold bg-emerald-950/50 px-1 rounded">
+                  {countAvaliacoesProntas} prontas
+                </span>
+              )}
+            </div>
           </button>
         </div>
       </div>
 
-      {/* Explicação Didática do Novo Fluxo em 2 Etapas */}
-      <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-xl p-3.5 sm:p-4 text-xs text-indigo-950 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+      {/* Explicação Didática da Cadeia Automática e Limitação do WhatsApp */}
+      <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-xl p-3.5 sm:p-4 text-xs text-indigo-950 space-y-1.5">
         <div className="flex items-start gap-2.5">
           <HelpCircle className="h-4 w-4 text-indigo-600 mt-0.5 shrink-0" />
-          <div className="space-y-0.5">
+          <div className="space-y-1 flex-1">
             <p className="font-bold text-slate-900">
-              Como funciona o novo fluxo de pós-venda em 2 etapas?
+              Cadeia Automática do Pós-venda por Data de Conclusão da O.S. (v0.0.183):
             </p>
             <p className="text-slate-600 text-[11px] leading-relaxed">
-              <strong>1ª Etapa:</strong> O Juquinha manda um <em>Check-in humanizado</em>{' '}
-              perguntando se o cliente está gostando do serviço/equipamento.{' '}
-              <br className="hidden sm:inline" />
-              <strong>2ª Etapa:</strong> Quando o cliente responder, clique em{' '}
-              <strong>"Cliente respondeu → Liberar avaliações"</strong> para gerar 2 mensagens
-              separadas: Avaliação do Técnico (⭐) e Avaliação no Google (🌐).
+              <strong>1) Disparar 7 dias:</strong> Ao enviar a mensagem de 7 dias, o sistema gera
+              automaticamente as 2 avaliações (Técnico ⭐ e Google 🌐) como pendentes.
+              <br />
+              <strong>2) Cliente respondeu:</strong> Ao marcar "Cliente respondeu", as avaliações
+              são promovidas instantaneamente para prontas (ready) e uma notificação é gerada para a
+              equipe.
+              <br />
+              <strong>3) Ordenação inteligente:</strong> As mensagens de ação mostram as mais
+              antigas primeiro (urgentes no topo); as agendadas mostram a próxima a vencer.
+            </p>
+            <p className="text-[10px] text-slate-500 italic pt-0.5 border-t border-indigo-200/40">
+              * Nota: A leitura automática das respostas do WhatsApp requer a API Oficial da Meta. O
+              fluxo utiliza o botão <strong>"Cliente respondeu"</strong> como gatilho oficial.
             </p>
           </div>
         </div>
@@ -760,133 +1088,175 @@ export default function PosVendaJuquinha() {
 
       {/* Barra de Filtros e Busca */}
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
-        <Tabs
-          value={statusTab}
-          onValueChange={(v) => {
-            setStatusTab(v as any)
-            if (activeKpi === 'ready' && v !== 'ready') setActiveKpi(null)
-            if (activeKpi === 'pending' && v !== 'pending') setActiveKpi(null)
-          }}
-          className="w-full lg:w-auto"
-        >
-          <TabsList className="grid grid-cols-4 w-full lg:w-auto h-9 bg-slate-100 p-1">
-            <TabsTrigger value="ready" className="text-xs font-bold px-3">
-              Prontas ({readyCount})
-            </TabsTrigger>
-            <TabsTrigger value="pending" className="text-xs font-bold px-3">
-              Agendadas
-            </TabsTrigger>
-            <TabsTrigger value="sent" className="text-xs font-bold px-3">
-              Enviadas
-            </TabsTrigger>
-            <TabsTrigger value="all" className="text-xs font-bold px-3">
-              Todas
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+            <SlidersHorizontal className="h-3.5 w-3.5 text-indigo-600" />
+            Caixa Atual:
+          </span>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 lg:max-w-xl">
-          <div className="w-full sm:w-56">
-            <Select
-              value={tipoFilter}
-              onValueChange={(v) => {
-                setTipoFilter(v as any)
-                if (activeKpi === 'checkin' && v !== 'checkin_pos_venda') setActiveKpi(null)
-                if (activeKpi === 'eval' && v !== 'evaluations') setActiveKpi(null)
-              }}
+          <Badge className="text-xs font-bold bg-indigo-100 text-indigo-900 border-indigo-200">
+            {activeBox === 'ready_7d' && `Prontas (7 dias) • ${countReady7d}`}
+            {activeBox === 'ofertas_30d' && `Ofertas (30 dias) • ${countOfertas30d}`}
+            {activeBox === 'agendadas' && `Agendadas Futuras • ${countAgendadas}`}
+            {activeBox === 'checkin' && `Check-in Atendimento • ${countCheckin}`}
+            {activeBox === 'avaliacoes' && `Avaliações • ${countAvaliacoes}`}
+            {activeBox === 'todas' && `Todas as Mensagens • ${messages.length}`}
+          </Badge>
+
+          {activeBox !== 'todas' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setActiveBox('todas')}
+              className="h-7 text-xs text-slate-500 hover:text-slate-800"
             >
-              <SelectTrigger className="h-9 text-xs bg-slate-50 border-slate-200">
-                <Filter className="h-3.5 w-3.5 mr-1 text-slate-400" />
-                <SelectValue placeholder="Filtrar por tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" className="text-xs font-semibold">
-                  Todos os tipos
-                </SelectItem>
-                <SelectItem value="evaluations" className="text-xs font-semibold text-purple-700">
-                  ⭐ + 🌐 Avaliações (Técnico + Google)
-                </SelectItem>
-                <SelectItem value="checkin_pos_venda" className="text-xs">
-                  💬 Check-in (Etapa 1)
-                </SelectItem>
-                <SelectItem value="avaliacao_tecnico" className="text-xs">
-                  ⭐ Avaliação do Técnico
-                </SelectItem>
-                <SelectItem value="avaliacao_google" className="text-xs">
-                  🌐 Avaliação no Google
-                </SelectItem>
-                <SelectItem value="pos_venda_7d" className="text-xs">
-                  🛠️ Acompanhamento 7 dias
-                </SelectItem>
-                <SelectItem value="oferta_30d" className="text-xs">
-                  🎁 Oferta Especial 30 dias
-                </SelectItem>
-                <SelectItem value="avaliacao_30min" className="text-xs">
-                  ⭐ Avaliação Legado (30min)
-                </SelectItem>
-                <SelectItem value="resumo_finalizacao" className="text-xs">
-                  📄 Resumo de Conclusão
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+              Ver todas ({messages.length})
+            </Button>
+          )}
 
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-            <Input
-              placeholder="Buscar por cliente, OS ou texto..."
-              value={filterText}
-              onChange={(e) => setFilterText(e.target.value)}
-              className="pl-9 h-9 text-xs bg-slate-50 border-slate-200"
-            />
-          </div>
+          {/* Sub-filtro para Check-in */}
+          {activeBox === 'checkin' && (
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg ml-auto">
+              <Button
+                variant={checkinSubFilter === 'all' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setCheckinSubFilter('all')}
+                className="h-7 text-[11px] px-2"
+              >
+                Todos ({checkinMessages.length})
+              </Button>
+              <Button
+                variant={checkinSubFilter === 'responded' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setCheckinSubFilter('responded')}
+                className="h-7 text-[11px] px-2 font-bold text-purple-700"
+              >
+                Respondidas ({countCheckinResponded})
+              </Button>
+              <Button
+                variant={checkinSubFilter === 'pending_response' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setCheckinSubFilter('pending_response')}
+                className="h-7 text-[11px] px-2 text-slate-600"
+              >
+                Aguardando ({checkinMessages.length - countCheckinResponded})
+              </Button>
+            </div>
+          )}
+
+          {/* Sub-filtro para Todas */}
+          {activeBox === 'todas' && (
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg ml-auto">
+              <Button
+                variant={statusSubFilter === 'all' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setStatusSubFilter('all')}
+                className="h-7 text-[11px] px-2"
+              >
+                Todas
+              </Button>
+              <Button
+                variant={statusSubFilter === 'ready' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setStatusSubFilter('ready')}
+                className="h-7 text-[11px] px-2 font-bold text-emerald-700"
+              >
+                Prontas
+              </Button>
+              <Button
+                variant={statusSubFilter === 'pending' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setStatusSubFilter('pending')}
+                className="h-7 text-[11px] px-2 text-amber-700"
+              >
+                Agendadas
+              </Button>
+              <Button
+                variant={statusSubFilter === 'sent' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setStatusSubFilter('sent')}
+                className="h-7 text-[11px] px-2 text-slate-700"
+              >
+                Enviadas
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="relative w-full lg:w-72">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+          <Input
+            placeholder="Buscar por cliente, OS ou equipamento..."
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            className="pl-9 h-9 text-xs bg-slate-50 border-slate-200"
+          />
         </div>
       </div>
 
-      {/* Lista de Mensagens de Pós-Venda */}
+      {/* Lista de Mensagens de Pós-Venda Reorganizadas */}
       <div className="space-y-3">
         {loading && messages.length === 0 ? (
           <Card className="border-slate-200 p-8 text-center text-slate-500">
             <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2 text-indigo-600" />
             <p className="text-xs font-semibold">Carregando mensagens do Juquinha...</p>
           </Card>
-        ) : filteredMessages.length === 0 ? (
+        ) : currentBoxMessages.length === 0 ? (
           <Card className="border-slate-200 p-8 text-center text-slate-500">
-            <p className="text-sm font-semibold">Nenhuma mensagem encontrada neste filtro.</p>
+            <p className="text-sm font-semibold">Nenhuma mensagem nesta caixa no momento.</p>
             <p className="text-xs text-slate-400 mt-1">
-              As mensagens são agendadas automaticamente pelo Juquinha ao concluir uma Ordem de
-              Serviço, ou você pode criar uma clicando em "Nova Mensagem".
+              {activeBox === 'ready_7d' &&
+                'As mensagens de 7 dias aparecem aqui assim que os 7 dias da conclusão da O.S. forem atingidos.'}
+              {activeBox === 'ofertas_30d' &&
+                'As ofertas de 30 dias aparecem aqui assim que completarem 30 dias da conclusão da O.S.'}
+              {activeBox === 'agendadas' &&
+                'Todas as mensagens futuras agendadas pelo Juquinha já foram processadas ou atingiram a data.'}
+              {activeBox === 'checkin' &&
+                'Não há check-ins de atendimento com o filtro selecionado.'}
+              {activeBox === 'avaliacoes' &&
+                'As avaliações são criadas automaticamente ao disparar o acompanhamento de 7 dias ou quando o cliente responde ao check-in.'}
             </p>
           </Card>
         ) : (
-          filteredMessages.map((msg) => {
+          currentBoxMessages.map((msg) => {
             const cust = msg.expand?.customer
             const so = msg.expand?.service_order
             const custName = getCustomerDisplayName(cust)
             const phone = getCustomerPhone(cust)
-            const isCheckin = msg.tipo === 'checkin_pos_venda'
+            const isCheckin = msg.tipo === 'checkin_pos_venda' || msg.tipo === 'avaliacao_30min'
+            const is7d = msg.tipo === 'pos_venda_7d'
+            const is30d = msg.tipo === 'oferta_30d'
+            const isEval = msg.tipo === 'avaliacao_tecnico' || msg.tipo === 'avaliacao_google'
+
             const isReleasingThis = releasingEvaluationsId === msg.id
             const isMarkingResponded = markingRespondedId === msg.id
             const cardClasses = getCardVisualClasses(msg)
 
+            const completionDate = getOrderCompletionDate(msg)
+            const daysSinceComp = getDaysSinceCompletion(msg)
+            const daysRemaining = getDaysRemainingUntilScheduled(msg)
+
             return (
               <Card key={msg.id} className={`transition-all overflow-hidden ${cardClasses}`}>
-                {/* Faixa decorativa no topo para check-in por situação */}
-                {isCheckin && (
-                  <div
-                    className={`h-1.5 w-full ${
-                      msg.avaliacoes_liberadas
-                        ? 'bg-slate-300'
-                        : msg.cliente_respondeu
-                          ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500 animate-pulse'
-                          : msg.status === 'sent'
-                            ? 'bg-amber-400'
-                            : 'bg-blue-500'
-                    }`}
-                  />
-                )}
+                {/* Faixa decorativa no topo para destacar situação */}
+                <div
+                  className={`h-1.5 w-full ${
+                    isEval && msg.status === 'ready'
+                      ? 'bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 animate-pulse'
+                      : isCheckin && msg.cliente_respondeu && !msg.avaliacoes_liberadas
+                        ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500 animate-pulse'
+                        : is7d && msg.status === 'ready'
+                          ? 'bg-emerald-500'
+                          : is30d && msg.status === 'ready'
+                            ? 'bg-purple-500'
+                            : msg.status === 'sent'
+                              ? 'bg-slate-400'
+                              : 'bg-indigo-400'
+                  }`}
+                />
 
                 <CardContent className="p-4 sm:p-5 space-y-3">
+                  {/* Cabeçalho do Card com Badges e Informações de Data */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
                     <div className="flex items-center gap-2 flex-wrap">
                       {getTipoBadge(msg.tipo)}
@@ -897,28 +1267,47 @@ export default function PosVendaJuquinha() {
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-slate-400 flex items-center gap-1 font-mono">
-                      <Clock className="h-3 w-3" />
-                      <span>
-                        Agendado para:{' '}
-                        {msg.scheduled_at
-                          ? new Date(msg.scheduled_at).toLocaleString('pt-BR')
-                          : 'Imediato'}
+
+                    <div className="flex items-center gap-3 text-[11px] text-slate-500 font-mono flex-wrap">
+                      {/* Data de conclusão da OS */}
+                      <span className="flex items-center gap-1 text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                        <Calendar className="h-3 w-3 text-slate-500" />
+                        Conclusão OS: <strong>{completionDate.toLocaleDateString('pt-BR')}</strong>
+                        {daysSinceComp >= 0 && (
+                          <span className="text-[10px] text-slate-500 ml-0.5">
+                            ({daysSinceComp} {daysSinceComp === 1 ? 'dia' : 'dias'} atrás)
+                          </span>
+                        )}
                       </span>
+
+                      {/* Agendamento / Dias restantes */}
+                      {msg.status === 'pending' && daysRemaining > 0 && (
+                        <span className="flex items-center gap-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-bold">
+                          <Clock className="h-3 w-3 text-amber-600" />
+                          Faltam {daysRemaining} {daysRemaining === 1 ? 'dia' : 'dias'}
+                        </span>
+                      )}
+
+                      {msg.status === 'sent' && msg.sent_at && (
+                        <span className="flex items-center gap-1 text-slate-500">
+                          <Check className="h-3 w-3 text-emerald-600" />
+                          Enviado em: {new Date(msg.sent_at).toLocaleDateString('pt-BR')}
+                        </span>
+                      )}
                     </div>
                   </div>
 
+                  {/* Informações do Cliente e Equipamento */}
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
                     <div>
-                      <p className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                      <p className="font-bold text-slate-900 text-sm flex items-center gap-1.5 flex-wrap">
                         <User className="h-3.5 w-3.5 text-indigo-600" />
                         {custName}
-                        {isCheckin && msg.cliente_respondeu && (
+                        {msg.cliente_respondeu && (
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
-                            ✓ Respondeu{' '}
-                            {msg.cliente_respondeu_em
-                              ? `(${new Date(msg.cliente_respondeu_em).toLocaleDateString('pt-BR')})`
-                              : ''}
+                            ✓ Cliente Respondeu
+                            {msg.cliente_respondeu_em &&
+                              ` (${new Date(msg.cliente_respondeu_em).toLocaleDateString('pt-BR')})`}
                           </span>
                         )}
                       </p>
@@ -937,7 +1326,10 @@ export default function PosVendaJuquinha() {
                     )}
                   </div>
 
-                  {/* Texto da mensagem prévia */}
+                  {/* Item 3: Linha do Tempo do Fluxo (Check-in → 7 dias → Avaliações → Oferta) */}
+                  {renderFlowTimeline(msg)}
+
+                  {/* Texto da Mensagem */}
                   <div className="bg-white/80 p-3 rounded-xl border border-slate-200/80 text-xs text-slate-800 whitespace-pre-wrap font-sans leading-relaxed">
                     {msg.texto_gerado || (
                       <span className="text-slate-400 italic">
@@ -946,7 +1338,7 @@ export default function PosVendaJuquinha() {
                     )}
                   </div>
 
-                  {/* Ações Rápidas */}
+                  {/* Ações Rápidas em Cadeia (Item 2 e 3) */}
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
                     <div className="flex items-center gap-2 flex-wrap">
                       <Button
@@ -960,8 +1352,8 @@ export default function PosVendaJuquinha() {
                         <span>Refinar c/ IA</span>
                       </Button>
 
-                      {/* AÇÃO 3: Marcar Check-in como respondido pelo cliente */}
-                      {isCheckin && (
+                      {/* GATILHO DA CADEIA: Botão 'Cliente respondeu' (disponível no Check-in OU na mensagem de 7 dias) */}
+                      {(isCheckin || is7d) && (
                         <>
                           {!msg.cliente_respondeu ? (
                             <Button
@@ -974,7 +1366,7 @@ export default function PosVendaJuquinha() {
                             >
                               <MessageCircle className="h-3.5 w-3.5 text-purple-600" />
                               <span>
-                                {isMarkingResponded ? 'Gravando...' : 'Marcar como respondido'}
+                                {isMarkingResponded ? 'Gravando...' : 'Cliente respondeu'}
                               </span>
                             </Button>
                           ) : (
@@ -983,7 +1375,9 @@ export default function PosVendaJuquinha() {
                               variant="ghost"
                               size="sm"
                               onClick={() =>
-                                markPosVendaMessageResponded(msg.id, false).then(() => loadData())
+                                markPosVendaMessageResponded(msg.id, false, msg).then(() =>
+                                  loadData(),
+                                )
                               }
                               className="h-9 text-[11px] text-slate-400 hover:text-slate-600 rounded-lg"
                               title="Clique para desfazer a marcação de resposta"
@@ -994,52 +1388,22 @@ export default function PosVendaJuquinha() {
                         </>
                       )}
 
-                      {/* ETAPA 2 (Item 4): Botão 'Cliente respondeu → Liberar avaliações'
-                          SÓ ATIVO APÓS RESPOSTA DO CLIENTE!
-                          Enquanto NÃO respondido: cinza/desabilitado com texto 'Aguardando resposta do cliente...'.
-                          Quando respondido: ativo (âmbar vibrante).
-                          Quando já liberado: desabilitado com 'Avaliações já liberadas'.
-                      */}
-                      {isCheckin && (
-                        <>
-                          {msg.avaliacoes_liberadas ? (
-                            <Button
-                              type="button"
-                              size="sm"
-                              disabled
-                              className="h-9 text-xs font-semibold gap-1.5 bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed rounded-lg"
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5 text-slate-400" />
-                              <span>Avaliações já liberadas</span>
-                            </Button>
-                          ) : !msg.cliente_respondeu ? (
-                            <Button
-                              type="button"
-                              size="sm"
-                              disabled
-                              className="h-9 text-xs font-medium gap-1.5 bg-slate-100 hover:bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed rounded-lg opacity-75"
-                              title="Aguardando o cliente responder ao WhatsApp para liberar os pedidos de avaliação."
-                            >
-                              <Clock className="h-3.5 w-3.5 text-slate-400" />
-                              <span>Aguardando resposta do cliente...</span>
-                            </Button>
-                          ) : (
-                            <Button
-                              type="button"
-                              size="sm"
-                              disabled={isReleasingThis}
-                              onClick={() => handleReleaseEvaluations(msg)}
-                              className="h-9 text-xs font-black gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 shadow-md ring-2 ring-amber-400/50 rounded-lg animate-bounce"
-                            >
-                              <Star className="h-3.5 w-3.5 fill-slate-950" />
-                              <span>
-                                {isReleasingThis
-                                  ? 'Liberando avaliações...'
-                                  : 'Cliente respondeu → Liberar avaliações'}
-                              </span>
-                            </Button>
-                          )}
-                        </>
+                      {/* Botão de Liberação de Avaliações (quando respondido mas avaliações ainda não constam) */}
+                      {isCheckin && msg.cliente_respondeu && !msg.avaliacoes_liberadas && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={isReleasingThis}
+                          onClick={() => handleReleaseEvaluations(msg)}
+                          className="h-9 text-xs font-black gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 shadow-md ring-2 ring-amber-400/50 rounded-lg animate-bounce"
+                        >
+                          <Star className="h-3.5 w-3.5 fill-slate-950" />
+                          <span>
+                            {isReleasingThis
+                              ? 'Liberando avaliações...'
+                              : 'Liberar avaliações agora'}
+                          </span>
+                        </Button>
                       )}
 
                       {msg.status !== 'dismissed' && (
@@ -1055,6 +1419,7 @@ export default function PosVendaJuquinha() {
                       )}
                     </div>
 
+                    {/* Botão WhatsApp 1-Toque (dispara e atualiza para sent + cadeia de 7d cria as avaliações) */}
                     <Button
                       type="button"
                       size="sm"
@@ -1082,7 +1447,7 @@ export default function PosVendaJuquinha() {
               Criar Nova Mensagem do Juquinha
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Dispare manualmente um check-in, pedido de avaliação ou oferta para qualquer cliente
+              Dispare manualmente um check-in, pós-venda, avaliação ou oferta para qualquer cliente
               via WhatsApp.
             </DialogDescription>
           </DialogHeader>
@@ -1113,19 +1478,19 @@ export default function PosVendaJuquinha() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="checkin_pos_venda" className="text-xs">
-                      💬 Check-in Atendimento (Etapa 1)
-                    </SelectItem>
-                    <SelectItem value="avaliacao_tecnico" className="text-xs">
-                      ⭐ Avaliação do Técnico (Etapa 2)
-                    </SelectItem>
-                    <SelectItem value="avaliacao_google" className="text-xs">
-                      🌐 Avaliação no Google (Etapa 2)
+                      💬 Check-in Atendimento
                     </SelectItem>
                     <SelectItem value="pos_venda_7d" className="text-xs">
                       🛠️ Acompanhamento (7 dias)
                     </SelectItem>
                     <SelectItem value="oferta_30d" className="text-xs">
                       🎁 Oferta Especial (30 dias)
+                    </SelectItem>
+                    <SelectItem value="avaliacao_tecnico" className="text-xs">
+                      ⭐ Avaliação do Técnico
+                    </SelectItem>
+                    <SelectItem value="avaliacao_google" className="text-xs">
+                      🌐 Avaliação no Google
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -1227,8 +1592,8 @@ export default function PosVendaJuquinha() {
                 className="h-9 text-xs font-mono"
               />
               <p className="text-[11px] text-slate-500">
-                Este link é inserido automaticamente nas mensagens separadas de avaliação no Google
-                disparadas na etapa 2 do pós-venda.
+                Este link é inserido automaticamente nas mensagens de avaliação no Google geradas na
+                cadeia do pós-venda.
               </p>
             </div>
 
@@ -1281,7 +1646,7 @@ export default function PosVendaJuquinha() {
               <Input
                 value={customPrompt}
                 onChange={(e) => setCustomPrompt(e.target.value)}
-                placeholder="Ex: 'Mencione que trocamos o SSD e ficou 10x mais rápido' ou 'Tom ainda mais carinhoso'..."
+                placeholder="Ex: 'Mencione que trocamos o SSD e ficou 10x mais rápido'..."
                 className="h-9 text-xs"
               />
             </div>

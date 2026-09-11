@@ -1,6 +1,7 @@
 import pb from '@/lib/pocketbase/client'
 import { PosVendaMessage, PosVendaTipo, SystemSetting } from '@/types'
 import { getCustomerDisplayName, getCustomerPhone } from '@/services/customers'
+import { notifyStaffMembers } from '@/services/notifications'
 import { WHATSAPP_FOOTER, WHATSAPP_HEADER } from '@/lib/whatsapp'
 
 export const getPosVendaMessages = async (filterStr = '', sortStr = '-scheduled_at') => {
@@ -8,13 +9,6 @@ export const getPosVendaMessages = async (filterStr = '', sortStr = '-scheduled_
     filter: filterStr,
     expand: 'customer,service_order,service_order.technician,service_order.equipment_ref',
     sort: sortStr,
-  })
-}
-
-export const markPosVendaMessageSent = async (id: string) => {
-  return pb.collection('pos_venda_messages').update<PosVendaMessage>(id, {
-    status: 'sent',
-    sent_at: new Date().toISOString(),
   })
 }
 
@@ -26,17 +20,6 @@ export const dismissPosVendaMessage = async (id: string) => {
 
 export const createPosVendaMessage = async (data: Partial<PosVendaMessage>) => {
   return pb.collection('pos_venda_messages').create<PosVendaMessage>(data)
-}
-
-/**
- * Marca o check-in de pós-venda como respondido pelo cliente.
- */
-export const markPosVendaMessageResponded = async (id: string, responded = true) => {
-  const nowIso = new Date().toISOString()
-  return pb.collection('pos_venda_messages').update<PosVendaMessage>(id, {
-    cliente_respondeu: responded,
-    cliente_respondeu_em: responded ? nowIso : null,
-  })
 }
 
 /**
@@ -205,21 +188,17 @@ export function buildJuquinhaWaLink(phone: string, text: string): string {
 }
 
 /**
- * ETAPA 2 — LIBERAR AVALIAÇÕES APÓS RESPOSTA DO CLIENTE:
- * Quando o cliente responde ao check-in de atendimento, cria automaticamente
- * as DUAS mensagens de follow-up SEPARADAS:
- * 1) 'avaliacao_tecnico' (⭐)
- * 2) 'avaliacao_google' (🌐)
- * Ambas criadas com status 'ready' para disparo manual rápido (1 toque WhatsApp).
+ * Auxiliar: cria mensagens de avaliação para uma dada mensagem de referência (check-in ou pos_venda_7d).
+ * Cria as duas avaliações (avaliacao_tecnico e avaliacao_google) se ainda não existirem para a mesma O.S.
  */
-export async function releaseJuquinhaEvaluations(checkinMsg: PosVendaMessage): Promise<{
-  techMsg: PosVendaMessage
-  googleMsg: PosVendaMessage
-}> {
-  const cust = checkinMsg.expand?.customer
-  const so = checkinMsg.expand?.service_order
-  const custId = checkinMsg.customer
-  const soId = checkinMsg.service_order
+export async function createEvaluationsForOrder(
+  refMsg: PosVendaMessage,
+  initialStatus: 'pending' | 'ready' = 'pending',
+): Promise<{ techMsg?: PosVendaMessage; googleMsg?: PosVendaMessage }> {
+  const cust = refMsg.expand?.customer
+  const so = refMsg.expand?.service_order
+  const custId = refMsg.customer
+  const soId = refMsg.service_order
 
   const custName = getCustomerDisplayName(cust)
   const phone = getCustomerPhone(cust)
@@ -230,59 +209,223 @@ export async function releaseJuquinhaEvaluations(checkinMsg: PosVendaMessage): P
 
   const nowIso = new Date().toISOString()
 
-  // 1) Mensagem para avaliação do técnico
-  const textTecnico = buildJuquinhaMessageText({
-    tipo: 'avaliacao_tecnico',
-    customerName: custName,
-    equipment: equip,
-    orderNumber: soNumber,
-    technicianName: techName,
-  })
-  const waLinkTecnico = buildJuquinhaWaLink(phone, textTecnico)
+  // Verifica se já existem avaliações criadas para esta OS
+  let existingTech = null
+  let existingGoogle = null
+  if (soId) {
+    try {
+      const existing = await pb.collection('pos_venda_messages').getFullList<PosVendaMessage>({
+        filter: `service_order = "${soId}" && (tipo = "avaliacao_tecnico" || tipo = "avaliacao_google")`,
+      })
+      existingTech = existing.find((m) => m.tipo === 'avaliacao_tecnico')
+      existingGoogle = existing.find((m) => m.tipo === 'avaliacao_google')
+    } catch {
+      /* intentionally ignored */
+    }
+  }
 
-  const techMsg = await createPosVendaMessage({
-    customer: custId,
-    service_order: soId,
-    tipo: 'avaliacao_tecnico',
-    status: 'ready',
-    scheduled_at: nowIso,
-    texto_gerado: textTecnico,
-    wa_me_link: waLinkTecnico,
-    channel: 'whatsapp',
-  })
+  let techMsg = existingTech || undefined
+  let googleMsg = existingGoogle || undefined
 
-  // 2) Mensagem separada para avaliação no Google
-  const textGoogle = buildJuquinhaMessageText({
-    tipo: 'avaliacao_google',
-    customerName: custName,
-    equipment: equip,
-    orderNumber: soNumber,
-    technicianName: techName,
-    googleReviewUrl,
-  })
-  const waLinkGoogle = buildJuquinhaWaLink(phone, textGoogle)
-
-  const googleMsg = await createPosVendaMessage({
-    customer: custId,
-    service_order: soId,
-    tipo: 'avaliacao_google',
-    status: 'ready',
-    scheduled_at: nowIso,
-    texto_gerado: textGoogle,
-    wa_me_link: waLinkGoogle,
-    channel: 'whatsapp',
-  })
-
-  // Marca o check-in original como avaliações liberadas
-  try {
-    await pb.collection('pos_venda_messages').update(checkinMsg.id, {
-      avaliacoes_liberadas: true,
-      cliente_respondeu: true,
-      cliente_respondeu_em: checkinMsg.cliente_respondeu_em || nowIso,
+  if (!existingTech) {
+    const textTecnico = buildJuquinhaMessageText({
+      tipo: 'avaliacao_tecnico',
+      customerName: custName,
+      equipment: equip,
+      orderNumber: soNumber,
+      technicianName: techName,
     })
-  } catch (err) {
-    console.warn('Não foi possível marcar avaliacoes_liberadas no checkin:', err)
+    const waLinkTecnico = buildJuquinhaWaLink(phone, textTecnico)
+    techMsg = await createPosVendaMessage({
+      customer: custId,
+      service_order: soId,
+      tipo: 'avaliacao_tecnico',
+      status: initialStatus,
+      scheduled_at: nowIso,
+      texto_gerado: textTecnico,
+      wa_me_link: waLinkTecnico,
+      channel: 'whatsapp',
+    })
+  }
+
+  if (!existingGoogle) {
+    const textGoogle = buildJuquinhaMessageText({
+      tipo: 'avaliacao_google',
+      customerName: custName,
+      equipment: equip,
+      orderNumber: soNumber,
+      technicianName: techName,
+      googleReviewUrl,
+    })
+    const waLinkGoogle = buildJuquinhaWaLink(phone, textGoogle)
+    googleMsg = await createPosVendaMessage({
+      customer: custId,
+      service_order: soId,
+      tipo: 'avaliacao_google',
+      status: initialStatus,
+      scheduled_at: nowIso,
+      texto_gerado: textGoogle,
+      wa_me_link: waLinkGoogle,
+      channel: 'whatsapp',
+    })
   }
 
   return { techMsg, googleMsg }
+}
+
+/**
+ * Promove avaliações existentes de uma OS de 'pending' para 'ready'.
+ */
+export async function promoteEvaluationsToReady(soId: string): Promise<number> {
+  if (!soId) return 0
+  try {
+    const evals = await pb.collection('pos_venda_messages').getFullList<PosVendaMessage>({
+      filter: `service_order = "${soId}" && (tipo = "avaliacao_tecnico" || tipo = "avaliacao_google") && status = "pending"`,
+    })
+    for (const ev of evals) {
+      await pb.collection('pos_venda_messages').update(ev.id, {
+        status: 'ready',
+      })
+    }
+    return evals.length
+  } catch (err) {
+    console.warn('Erro ao promover avaliações para ready:', err)
+    return 0
+  }
+}
+
+/**
+ * CADEIA AUTOMÁTICA AO DISPARAR MENSAGEM (1-Toque WhatsApp):
+ * 1) Marca a mensagem como status='sent' e sent_at=agora
+ * 2) Se for tipo 'pos_venda_7d':
+ *    Cria automaticamente as 2 mensagens de avaliação (avaliacao_tecnico e avaliacao_google)
+ *    com status 'pending' (aguardando resposta do cliente).
+ *    Se o check-in ou 7d já estiver marcado como cliente_respondeu=true, cria como 'ready'!
+ */
+export const markPosVendaMessageSent = async (
+  id: string,
+  fullMsg?: PosVendaMessage,
+): Promise<PosVendaMessage> => {
+  const nowIso = new Date().toISOString()
+  const updated = await pb.collection('pos_venda_messages').update<PosVendaMessage>(id, {
+    status: 'sent',
+    sent_at: nowIso,
+  })
+
+  // Se a mensagem for pos_venda_7d, dispara a cadeia automática
+  const msgToCheck = fullMsg || updated
+  if (msgToCheck.tipo === 'pos_venda_7d') {
+    try {
+      const soId = msgToCheck.service_order
+      // Verifica se houve resposta prévia do cliente nesta OS
+      let alreadyResponded = !!msgToCheck.cliente_respondeu
+      if (!alreadyResponded && soId) {
+        try {
+          const sisterCheckin = await pb
+            .collection('pos_venda_messages')
+            .getFullList<PosVendaMessage>({
+              filter: `service_order = "${soId}" && tipo = "checkin_pos_venda" && cliente_respondeu = true`,
+            })
+          if (sisterCheckin.length > 0) alreadyResponded = true
+        } catch {
+          /* intentionally ignored */
+        }
+      }
+
+      await createEvaluationsForOrder(msgToCheck, alreadyResponded ? 'ready' : 'pending')
+    } catch (chainErr) {
+      console.warn('Erro na cadeia automática ao enviar 7d:', chainErr)
+    }
+  }
+
+  return updated
+}
+
+/**
+ * CADEIA AUTOMÁTICA AO MARCAR 'CLIENTE RESPONDEU':
+ * Quando o check-in OU a mensagem de 7 dias for marcada como 'Cliente respondeu':
+ * 1) Atualiza a mensagem com cliente_respondeu=true, cliente_respondeu_em=agora, avaliacoes_liberadas=true
+ * 2) Garante que as avaliações (avaliacao_tecnico e avaliacao_google) existam e sejam promovidas para 'ready'
+ * 3) Dispara notificação para atendentes e admins:
+ *    '💬 [Cliente] respondeu — avaliações da OS #X prontas para disparo' com link /pos-venda
+ */
+export const markPosVendaMessageResponded = async (
+  id: string,
+  responded = true,
+  refMsg?: PosVendaMessage,
+) => {
+  const nowIso = new Date().toISOString()
+
+  // 1) Atualiza o registro
+  const updated = await pb.collection('pos_venda_messages').update<PosVendaMessage>(id, {
+    cliente_respondeu: responded,
+    cliente_respondeu_em: responded ? nowIso : null,
+    avaliacoes_liberadas: responded ? true : undefined,
+  })
+
+  if (!responded) {
+    return updated
+  }
+
+  const msg = refMsg || updated
+  const cust = msg.expand?.customer
+  const custName = getCustomerDisplayName(cust)
+  const so = msg.expand?.service_order
+  const soId = msg.service_order
+  const soNumber = so?.number || ''
+  const osLabel = soNumber ? `OS #${soNumber}` : 'O.S.'
+
+  // 2) Cria (se não existirem) e promove as avaliações para 'ready'
+  try {
+    // Garante que existam
+    await createEvaluationsForOrder(msg, 'ready')
+    // Promove quaisquer que estivessem pending
+    if (soId) {
+      await promoteEvaluationsToReady(soId)
+    }
+  } catch (evalErr) {
+    console.warn('Erro ao promover/criar avaliações na resposta:', evalErr)
+  }
+
+  // 3) Notificação para atendentes e admin
+  try {
+    await notifyStaffMembers({
+      title: `💬 ${custName} respondeu — avaliações da ${osLabel} prontas para disparo`,
+      message: `${custName} respondeu ao contato de pós-venda da ${osLabel}. As mensagens de avaliação do técnico e Google estão prontas para disparo!`,
+      type: 'service_order',
+      link: '/pos-venda',
+    })
+  } catch (notifErr) {
+    console.warn('Erro ao notificar equipe da resposta do cliente:', notifErr)
+  }
+
+  return updated
+}
+
+/**
+ * ETAPA 2 — LIBERAR AVALIAÇÕES MANUALMENTE (fallback / ação explícita):
+ */
+export async function releaseJuquinhaEvaluations(msg: PosVendaMessage): Promise<{
+  techMsg?: PosVendaMessage
+  googleMsg?: PosVendaMessage
+}> {
+  const result = await createEvaluationsForOrder(msg, 'ready')
+
+  if (msg.service_order) {
+    await promoteEvaluationsToReady(msg.service_order)
+  }
+
+  // Marca a mensagem de referência
+  try {
+    const nowIso = new Date().toISOString()
+    await pb.collection('pos_venda_messages').update(msg.id, {
+      avaliacoes_liberadas: true,
+      cliente_respondeu: true,
+      cliente_respondeu_em: msg.cliente_respondeu_em || nowIso,
+    })
+  } catch (err) {
+    console.warn('Não foi possível marcar avaliacoes_liberadas:', err)
+  }
+
+  return result
 }

@@ -1,14 +1,19 @@
-// Schedule post-sale messages (Juquinha) when a service order is marked as "completed"
-// Nova Sequência v0.0.180 em 2 etapas:
-// Etapa 1: Check-in de Atendimento ('checkin_pos_venda') agendado para ~30 min após conclusão (dentro do horário comercial)
-// Pós-venda 7 dias ('pos_venda_7d') e Oferta 30 dias ('oferta_30d') continuam agendados normalmente.
-// Quando o check-in for enviado e o cliente responder, são liberadas as 2 avaliações separadas:
-// 'avaliacao_tecnico' (⭐) e 'avaliacao_google' (🌐).
+// Schedule post-sale messages (Juquinha) when a service order is marked as "completed" or "closed"
+// Sequência v0.0.183:
+// 1) Check-in de Atendimento ('checkin_pos_venda') agendado para ~30 min após conclusão (horário comercial)
+// 2) Pós-venda 7 dias ('pos_venda_7d') agendado para 7 dias após a conclusão da O.S.
+// 3) Oferta 30 dias ('oferta_30d') agendado para 30 dias após a conclusão da O.S.
+// Ao enviar/disparar o pos_venda_7d, o sistema cria as avaliações (avaliacao_tecnico e avaliacao_google)
+// como 'pending' (aguardando resposta). Quando o cliente responder (check-in ou 7d), são promovidas para 'ready'.
+
 onRecordAfterUpdateSuccess((e) => {
   var currStatus = e.record.getString('status')
-  if (currStatus !== 'completed') return e.next()
+  var prevStatus = e.record.original().getString('status')
+  if (currStatus !== 'completed' && currStatus !== 'closed') return e.next()
 
-  // Evita re-agendar se já tiver mensagens de checkin ou pos-venda cadastradas para esta OS
+  // Se já estava concluída/fechada, não precisa agendar novamente em updates menores
+  if (prevStatus === currStatus) return e.next()
+
   var soId = e.record.id
   var custId = e.record.getString('customer')
   if (!custId) return e.next()
@@ -99,7 +104,6 @@ onRecordAfterUpdateSuccess((e) => {
     var techMention = techName ? ' e o técnico *' + techName + '*' : ''
 
     // 1) ETAPA 1: CHECK-IN DE ATENDIMENTO (~30 min após conclusão)
-    // Conversa amigável de vendedor/técnico perguntando se o cliente está GOSTANDO do serviço/produto
     var textCheckin =
       header +
       'Oi, ' +
@@ -131,7 +135,7 @@ onRecordAfterUpdateSuccess((e) => {
     }
     $app.save(msgCheckin)
 
-    // 2) Pós-venda 7 dias (7 * 24 * 60 * 60 * 1000 ms) - Tom conversacional e caloroso
+    // 2) Pós-venda 7 dias (7 * 24 * 60 * 60 * 1000 ms)
     var detailsLine = ''
     if (serviceReport) {
       detailsLine = ' após o serviço de ' + serviceReport
@@ -167,7 +171,7 @@ onRecordAfterUpdateSuccess((e) => {
     }
     $app.save(msg7d)
 
-    // 3) Oferta / Revisão 30 dias (30 * 24 * 60 * 60 * 1000 ms) - Tom amigável e atencioso
+    // 3) Oferta / Revisão 30 dias (30 * 24 * 60 * 60 * 1000 ms)
     var text30d =
       header +
       'Oi, ' +
@@ -200,7 +204,7 @@ onRecordAfterUpdateSuccess((e) => {
     $app
       .logger()
       .info(
-        'Juquinha: Sequência de pós-venda v0.0.180 agendada com sucesso (check-in + 7d + 30d)',
+        'Juquinha: Sequência de pós-venda v0.0.183 agendada com sucesso (check-in + 7d + 30d)',
         'service_order',
         soId,
       )
