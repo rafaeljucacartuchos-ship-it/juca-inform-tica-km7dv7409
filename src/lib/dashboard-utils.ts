@@ -120,10 +120,226 @@ function formatDuration(ms: number) {
   return `${hours}h ${minutes}min`
 }
 
+export function formatCurrencyBRL(value: number): string {
+  return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
 export function computeBilling(payments: Payment[], start: string, end: string) {
   return payments
-    .filter((p) => p.status === 'paid' && isDateInRange(p.paid_at, start, end))
+    .filter((p) => p.status === 'paid' && isDateInRange(p.paid_at || p.created, start, end))
     .reduce((sum, p) => sum + (p.amount || 0), 0)
+}
+
+export interface FinancialSummary {
+  recebido: number
+  aReceber: number
+  ticketMedio: number
+  paidOrdersCount: number
+  growthPct: number | null
+}
+
+export function computeFinancialSummary(
+  payments: Payment[],
+  start: string,
+  end: string,
+  period: Period,
+): FinancialSummary {
+  const currentPaid = payments.filter(
+    (p) => p.status === 'paid' && isDateInRange(p.paid_at || p.created, start, end),
+  )
+  const recebido = currentPaid.reduce((sum, p) => sum + (p.amount || 0), 0)
+
+  // 'A Receber' = soma dos pagamentos status='pending'
+  const pendingPayments = payments.filter((p) => p.status === 'pending')
+  const aReceber = pendingPayments.reduce((sum, p) => sum + (p.amount || 0), 0)
+
+  // Nº de O.S. distintas pagas no período
+  const paidOrdersSet = new Set(
+    currentPaid.map((p) => p.service_order).filter((id): id is string => Boolean(id)),
+  )
+  const paidOrdersCount = paidOrdersSet.size || currentPaid.length
+  const ticketMedio = paidOrdersCount > 0 ? recebido / paidOrdersCount : 0
+
+  // Período anterior para calcular variação %
+  const currentStartDate = new Date(start + 'T00:00:00')
+  const currentEndDate = new Date(end + 'T23:59:59')
+  const durationMs = currentEndDate.getTime() - currentStartDate.getTime()
+
+  const prevEndDate = new Date(currentStartDate.getTime() - 1)
+  const prevStartDate = new Date(prevEndDate.getTime() - durationMs)
+  const prevStartStr = prevStartDate.toISOString().substring(0, 10)
+  const prevEndStr = prevEndDate.toISOString().substring(0, 10)
+
+  const prevPaid = payments.filter(
+    (p) => p.status === 'paid' && isDateInRange(p.paid_at || p.created, prevStartStr, prevEndStr),
+  )
+  const prevRecebido = prevPaid.reduce((sum, p) => sum + (p.amount || 0), 0)
+
+  let growthPct: number | null = null
+  if (prevRecebido > 0) {
+    growthPct = Math.round(((recebido - prevRecebido) / prevRecebido) * 100)
+  } else if (recebido > 0 && prevRecebido === 0) {
+    growthPct = 100
+  }
+
+  return {
+    recebido,
+    aReceber,
+    ticketMedio,
+    paidOrdersCount,
+    growthPct,
+  }
+}
+
+export interface DonutSlice {
+  name: string
+  value: number
+  color: string
+  percentage: number
+}
+
+const STATUS_COLOR_MAP: Record<string, string> = {
+  open: '#3b82f6', // blue-500
+  aguardando_orcamento: '#06b6d4', // cyan-500
+  orcamento_enviado: '#6366f1', // indigo-500
+  orcamento_aprovado: '#10b981', // emerald-500
+  in_progress: '#a855f7', // purple-500
+  paused: '#f97316', // orange-500
+  waiting_parts: '#f59e0b', // amber-500
+  completed: '#059669', // emerald-600
+  closed: '#64748b', // slate-500
+  orcamento_rejeitado: '#e11d48', // rose-600
+  cancelled: '#ef4444', // red-500
+}
+
+export function computeStatusDistribution(orders: ServiceOrder[]): DonutSlice[] {
+  const counts = new Map<string, number>()
+  for (const o of orders) {
+    counts.set(o.status, (counts.get(o.status) || 0) + 1)
+  }
+
+  const total = orders.length
+  if (total === 0) return []
+
+  // Agrupamento dos status mais expressivos
+  const groupedList: { status: string; label: string; count: number; color: string }[] = []
+
+  for (const cfg of STATUS_CONFIG) {
+    const count = counts.get(cfg.value) || 0
+    if (count > 0) {
+      groupedList.push({
+        status: cfg.value,
+        label: cfg.label,
+        count,
+        color: STATUS_COLOR_MAP[cfg.value] || '#94a3b8',
+      })
+    }
+  }
+
+  // Ordenar decrescente
+  groupedList.sort((a, b) => b.count - a.count)
+
+  // Máximo 5 fatias principais + Outros
+  if (groupedList.length > 6) {
+    const top5 = groupedList.slice(0, 5)
+    const rest = groupedList.slice(5)
+    const restSum = rest.reduce((s, r) => s + r.count, 0)
+    const result: DonutSlice[] = top5.map((item) => ({
+      name: item.label,
+      value: item.count,
+      color: item.color,
+      percentage: Math.round((item.count / total) * 100),
+    }))
+    if (restSum > 0) {
+      result.push({
+        name: 'Outros',
+        value: restSum,
+        color: '#94a3b8',
+        percentage: Math.round((restSum / total) * 100),
+      })
+    }
+    return result
+  }
+
+  return groupedList.map((item) => ({
+    name: item.label,
+    value: item.count,
+    color: item.color,
+    percentage: Math.round((item.count / total) * 100),
+  }))
+}
+
+const TECH_PALETTE = [
+  '#4f46e5', // indigo-600
+  '#06b6d4', // cyan-500
+  '#10b981', // emerald-500
+  '#f59e0b', // amber-500
+  '#8b5cf6', // purple-500
+  '#ec4899', // pink-500
+]
+
+export function computeTechnicianDistribution(
+  orders: ServiceOrder[],
+  technicians: { id: string; name?: string }[],
+): DonutSlice[] {
+  // Apenas O.S. ativas: não fechadas e não canceladas
+  const activeOrders = orders.filter((o) => o.status !== 'closed' && o.status !== 'cancelled')
+  const totalActive = activeOrders.length
+  if (totalActive === 0) return []
+
+  const techMap = new Map<string, string>()
+  technicians.forEach((t) => {
+    techMap.set(t.id, t.name || 'Sem nome')
+  })
+
+  const techCounts = new Map<string, number>()
+  let unassignedCount = 0
+
+  for (const o of activeOrders) {
+    if (!o.technician || !techMap.has(o.technician)) {
+      unassignedCount++
+    } else {
+      const name = techMap.get(o.technician)!
+      techCounts.set(name, (techCounts.get(name) || 0) + 1)
+    }
+  }
+
+  const items: { name: string; count: number }[] = []
+  techCounts.forEach((count, name) => {
+    items.push({ name, count })
+  })
+
+  items.sort((a, b) => b.count - a.count)
+
+  if (unassignedCount > 0) {
+    items.push({ name: 'Não atribuídas', count: unassignedCount })
+  }
+
+  // Se mais que 6 fatias, agrupar em Outros
+  let topItems = items
+  let othersCount = 0
+  if (items.length > 6) {
+    topItems = items.slice(0, 5)
+    othersCount = items.slice(5).reduce((s, it) => s + it.count, 0)
+  }
+
+  const result: DonutSlice[] = topItems.map((item, idx) => ({
+    name: item.name,
+    value: item.count,
+    color: item.name === 'Não atribuídas' ? '#cbd5e1' : TECH_PALETTE[idx % TECH_PALETTE.length],
+    percentage: Math.round((item.count / totalActive) * 100),
+  }))
+
+  if (othersCount > 0) {
+    result.push({
+      name: 'Outros',
+      value: othersCount,
+      color: '#94a3b8',
+      percentage: Math.round((othersCount / totalActive) * 100),
+    })
+  }
+
+  return result
 }
 
 export function countCompletedInPeriod(
@@ -217,7 +433,7 @@ export function computeEvolutionData(
 
   for (const payment of payments) {
     if (payment.status !== 'paid') continue
-    const key = resolveBucket(payment.paid_at)
+    const key = resolveBucket(payment.paid_at || payment.created)
     if (!key) continue
     const b = buckets.get(key) || { orders: 0, revenue: 0 }
     b.revenue += payment.amount || 0

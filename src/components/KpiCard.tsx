@@ -2,6 +2,8 @@ import { LucideIcon, TrendingUp, TrendingDown } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
+import { Link } from 'react-router-dom'
+
 interface KpiCardProps {
   title: string
   value: string | number
@@ -10,6 +12,8 @@ interface KpiCardProps {
   isPositive?: boolean
   colorClass: string
   bgClass: string
+  to?: string
+  subtitle?: string
 }
 
 export function KpiCard({
@@ -20,15 +24,25 @@ export function KpiCard({
   isPositive = true,
   colorClass,
   bgClass,
+  to,
+  subtitle,
 }: KpiCardProps) {
-  return (
-    <Card className="overflow-hidden border-slate-200/80 shadow-xs transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+  const content = (
+    <Card
+      className={cn(
+        'group overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-2xs transition-all duration-200',
+        to &&
+          'cursor-pointer hover:shadow-md hover:scale-[1.015] hover:border-indigo-300 active:scale-[0.99]',
+      )}
+    >
       <CardContent className="p-4 sm:p-5">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{title}</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate">
+            {title}
+          </p>
           <div
             className={cn(
-              'flex h-10 w-10 items-center justify-center rounded-xl font-bold',
+              'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-bold transition-transform group-hover:scale-105',
               bgClass,
               colorClass,
             )}
@@ -37,15 +51,15 @@ export function KpiCard({
           </div>
         </div>
 
-        <div className="mt-2.5 flex items-baseline justify-between">
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 font-mono">
+        <div className="mt-3 flex items-baseline justify-between gap-2">
+          <div className="text-3xl font-bold tracking-tight text-slate-900 tabular-nums">
             {value}
-          </h2>
+          </div>
 
           {trend && (
             <div
               className={cn(
-                'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold',
+                'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums shrink-0',
                 isPositive ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700',
               )}
             >
@@ -58,7 +72,19 @@ export function KpiCard({
             </div>
           )}
         </div>
+
+        {subtitle && <p className="mt-1 text-xs text-muted-foreground truncate">{subtitle}</p>}
       </CardContent>
     </Card>
   )
+
+  if (to) {
+    return (
+      <Link to={to} className="block focus:outline-hidden" title={`Abrir ${title}`}>
+        {content}
+      </Link>
+    )
+  }
+
+  return content
 }
