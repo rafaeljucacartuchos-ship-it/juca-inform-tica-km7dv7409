@@ -145,18 +145,26 @@ export default function OrdensDeServico() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [customerFilter, setCustomerFilter] = useState<string>('all')
   const [technicianFilter, setTechnicianFilter] = useState<string>(
-    searchParams.get('technician') || 'all',
+    searchParams.get('technician') || searchParams.get('tecnico') || 'all',
   )
   const [customers, setCustomers] = useState<Customer[]>([])
   const [technicians, setTechnicians] = useState<User[]>([])
   const { user } = useAuth()
   const { toast } = useToast()
 
-  // Sincroniza technician, status e search da query string se mudar na URL
+  // Sincroniza technician (ou tecnico por nome/id), status e search da query string se mudar na URL
   useEffect(() => {
-    const techParam = searchParams.get('technician')
+    const techParam = searchParams.get('technician') || searchParams.get('tecnico')
     if (techParam) {
-      setTechnicianFilter(techParam)
+      // Se techParam for um id ou nome de técnico
+      const matchTech = technicians.find(
+        (t) => t.id === techParam || (t.name && t.name.toLowerCase() === techParam.toLowerCase()),
+      )
+      if (matchTech) {
+        setTechnicianFilter(matchTech.id)
+      } else {
+        setTechnicianFilter(techParam)
+      }
     }
     const statusParam = searchParams.get('status')
     if (statusParam) {
@@ -166,7 +174,7 @@ export default function OrdensDeServico() {
     if (searchParam !== null) {
       setFilterText(searchParam)
     }
-  }, [searchParams])
+  }, [searchParams, technicians])
 
   const loadData = async () => {
     try {

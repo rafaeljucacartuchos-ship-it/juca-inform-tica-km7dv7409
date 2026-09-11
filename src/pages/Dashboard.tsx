@@ -481,8 +481,8 @@ export default function Dashboard() {
               return (
                 <Link
                   key={t.id}
-                  to={`/ordens?technician=${t.id}`}
-                  className="flex flex-col rounded-xl border border-slate-200/90 p-3.5 bg-white shadow-2xs hover:border-indigo-400 hover:shadow-md hover:bg-indigo-50/20 cursor-pointer transition-all duration-200 group"
+                  to={`/ordens?tecnico=${encodeURIComponent(t.name || t.id)}`}
+                  className="flex flex-col rounded-xl border border-slate-200/90 p-3.5 bg-white shadow-2xs hover:border-indigo-400 hover:shadow-md hover:scale-[1.015] hover:bg-indigo-50/20 cursor-pointer transition-all duration-200 group"
                   title={`Filtrar ordens de ${t.name}`}
                 >
                   <div className="flex items-center gap-3">
@@ -612,7 +612,7 @@ export default function Dashboard() {
                     <td className="py-3 px-4 text-slate-600 font-medium">
                       {o.expand?.technician?.name ? (
                         <Link
-                          to={`/ordens?technician=${o.technician || o.expand.technician.id}`}
+                          to={`/ordens?tecnico=${encodeURIComponent(o.expand.technician.name)}`}
                           className="text-slate-600 hover:text-indigo-600 hover:underline font-medium"
                           title={`Filtrar ordens de ${o.expand.technician.name}`}
                         >

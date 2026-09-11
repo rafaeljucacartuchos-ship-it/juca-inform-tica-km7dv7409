@@ -33,9 +33,9 @@ export function FinancialResultCard({ summary, chartData, periodLabel }: Financi
 
           <Link
             to="/relatorios"
-            className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 self-start sm:self-auto"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline self-start sm:self-auto"
           >
-            <span>Ver relatórios detalhados</span>
+            <span>Relatórios Financeiros</span>
             <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
         </div>
@@ -47,12 +47,12 @@ export function FinancialResultCard({ summary, chartData, periodLabel }: Financi
           {/* 1. Recebido no Período */}
           <Link
             to="/ordens?status=completed"
-            className="group block rounded-xl border border-emerald-100 bg-emerald-50/40 p-3.5 transition-all hover:bg-emerald-50 hover:shadow-xs hover:border-emerald-200"
+            className="group block rounded-xl border border-emerald-100 bg-emerald-50/40 p-3.5 transition-all duration-200 hover:bg-emerald-50 hover:shadow-md hover:scale-[1.015] hover:border-emerald-300 cursor-pointer"
             title="Ver ordens concluídas no período"
           >
             <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-emerald-800">
               <span>Recebido no Período</span>
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 transition-transform group-hover:scale-105">
                 <DollarSign className="h-4 w-4" />
               </div>
             </div>
@@ -64,7 +64,7 @@ export function FinancialResultCard({ summary, chartData, periodLabel }: Financi
               })}
             </div>
             <div className="mt-2 flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">
+              <span className="text-muted-foreground text-xs">
                 {paidOrdersCount} {paidOrdersCount === 1 ? 'O.S. quitada' : 'O.S. quitadas'}
               </span>
               {growthPct !== null && (
@@ -86,13 +86,13 @@ export function FinancialResultCard({ summary, chartData, periodLabel }: Financi
 
           {/* 2. A Receber */}
           <Link
-            to="/ordens?status=in_progress"
-            className="group block rounded-xl border border-amber-100 bg-amber-50/40 p-3.5 transition-all hover:bg-amber-50 hover:shadow-xs hover:border-amber-200"
+            to="/ordens?status=open"
+            className="group block rounded-xl border border-amber-100 bg-amber-50/40 p-3.5 transition-all duration-200 hover:bg-amber-50 hover:shadow-md hover:scale-[1.015] hover:border-amber-300 cursor-pointer"
             title="Ver ordens em andamento e pagamentos pendentes"
           >
             <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-amber-800">
               <span>A Receber (Pendente)</span>
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 text-amber-700 transition-transform group-hover:scale-105">
                 <Clock className="h-4 w-4" />
               </div>
             </div>
@@ -150,7 +150,7 @@ export function FinancialResultCard({ summary, chartData, periodLabel }: Financi
                     tickLine={false}
                     axisLine={false}
                     tick={{ fontSize: 10, fill: '#64748b' }}
-                    tickFormatter={(v) => `R$ ${v}`}
+                    tickFormatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR')}`}
                   />
                   <Tooltip
                     content={({ active, payload }) => {
@@ -160,16 +160,20 @@ export function FinancialResultCard({ summary, chartData, periodLabel }: Financi
                         <div className="rounded-lg border border-slate-200 bg-white p-2.5 shadow-md text-xs">
                           <p className="font-semibold text-slate-900">{pt.label}</p>
                           <p className="text-emerald-700 font-bold tabular-nums mt-0.5">
-                            R$ {pt.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            R${' '}
+                            {pt.revenue.toLocaleString('pt-BR', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
                           </p>
                           <p className="text-slate-500 text-[11px]">
-                            {pt.orders} {pt.orders === 1 ? 'ordem criada' : 'ordens criadas'}
+                            {pt.orders} {pt.orders === 1 ? 'ordem no dia' : 'ordens no dia'}
                           </p>
                         </div>
                       )
                     }}
                   />
-                  <Bar dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                  <Bar dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={36} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
