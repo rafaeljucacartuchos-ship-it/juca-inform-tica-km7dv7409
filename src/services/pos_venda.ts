@@ -29,6 +29,17 @@ export const createPosVendaMessage = async (data: Partial<PosVendaMessage>) => {
 }
 
 /**
+ * Marca o check-in de pós-venda como respondido pelo cliente.
+ */
+export const markPosVendaMessageResponded = async (id: string, responded = true) => {
+  const nowIso = new Date().toISOString()
+  return pb.collection('pos_venda_messages').update<PosVendaMessage>(id, {
+    cliente_respondeu: responded,
+    cliente_respondeu_em: responded ? nowIso : null,
+  })
+}
+
+/**
  * Busca mensagens de agradecimento de proposta aprovada pendentes de envio
  * ou prontas (status = 'ready' ou 'pending', canal = 'whatsapp').
  */
@@ -261,6 +272,17 @@ export async function releaseJuquinhaEvaluations(checkinMsg: PosVendaMessage): P
     wa_me_link: waLinkGoogle,
     channel: 'whatsapp',
   })
+
+  // Marca o check-in original como avaliações liberadas
+  try {
+    await pb.collection('pos_venda_messages').update(checkinMsg.id, {
+      avaliacoes_liberadas: true,
+      cliente_respondeu: true,
+      cliente_respondeu_em: checkinMsg.cliente_respondeu_em || nowIso,
+    })
+  } catch (err) {
+    console.warn('Não foi possível marcar avaliacoes_liberadas no checkin:', err)
+  }
 
   return { techMsg, googleMsg }
 }

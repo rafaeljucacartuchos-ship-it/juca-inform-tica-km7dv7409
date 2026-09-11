@@ -7,10 +7,12 @@ cronAdd('juquinha_pos_venda_cron', '* * * * *', () => {
     var now = new Date()
     var nowIso = now.toISOString()
 
-    // Busca até 50 mensagens pendentes com scheduled_at atingido
+    // Busca até 50 mensagens pendentes com scheduled_at atingido (ou sem scheduled_at definido)
     var pending = $app.findRecordsByFilter(
       'pos_venda_messages',
-      'status = "pending" && scheduled_at <= "' + nowIso + '"',
+      'status = "pending" && (scheduled_at = null || scheduled_at = "" || scheduled_at <= "' +
+        nowIso +
+        '")',
       'scheduled_at',
       50,
       0,

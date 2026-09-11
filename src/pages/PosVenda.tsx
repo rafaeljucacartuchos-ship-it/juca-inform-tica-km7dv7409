@@ -45,6 +45,7 @@ import {
   getPosVendaMessages,
   markPosVendaMessageSent,
   dismissPosVendaMessage,
+  markPosVendaMessageResponded,
   getGoogleReviewUrl,
   updateGoogleReviewUrl,
   releaseJuquinhaEvaluations,
@@ -55,6 +56,7 @@ import {
 import { PosVendaMessage, PosVendaStatus, PosVendaTipo, Customer, ServiceOrder } from '@/types'
 import { getCustomerDisplayName, getCustomerPhone, getCustomers } from '@/services/customers'
 import { getServiceOrders } from '@/services/service_orders'
+import { notifyStaffMembers } from '@/services/notifications'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useAuth } from '@/hooks/use-auth'
@@ -67,7 +69,8 @@ export default function PosVendaJuquinha() {
   const [messages, setMessages] = useState<PosVendaMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [statusTab, setStatusTab] = useState<'ready' | 'pending' | 'sent' | 'all'>('ready')
-  const [tipoFilter, setTipoFilter] = useState<'all' | PosVendaTipo>('all')
+  const [tipoFilter, setTipoFilter] = useState<'all' | PosVendaTipo | 'evaluations'>('all')
+  const [activeKpi, setActiveKpi] = useState<'ready' | 'pending' | 'checkin' | 'eval' | null>(null)
   const [filterText, setFilterText] = useState('')
 
   // Modal de configurações do Juquinha (Google Review URL, etc.)
@@ -82,7 +85,8 @@ export default function PosVendaJuquinha() {
   const [generatingAi, setGeneratingAi] = useState(false)
   const [aiGeneratedText, setAiGeneratedText] = useState('')
 
-  // Estado para liberar avaliações da etapa 2
+  // Estado para ações de resposta e liberação
+  const [markingRespondedId, setMarkingRespondedId] = useState<string | null>(null)
   const [releasingEvaluationsId, setReleasingEvaluationsId] = useState<string | null>(null)
 
   // Modal Nova Mensagem Manual
@@ -156,8 +160,54 @@ export default function PosVendaJuquinha() {
     }
   }
 
+  // AÇÃO 3: Marcar Check-in como respondido pelo cliente + Criar Notificação
+  const handleMarkAsResponded = async (msg: PosVendaMessage) => {
+    setMarkingRespondedId(msg.id)
+    try {
+      await markPosVendaMessageResponded(msg.id, true)
+
+      const cust = msg.expand?.customer
+      const custName = getCustomerDisplayName(cust)
+      const soNumber = msg.expand?.service_order?.number || ''
+      const osLabel = soNumber ? ` da OS #${soNumber}` : ''
+
+      // Notificação para atendentes e admins
+      await notifyStaffMembers({
+        title: `💬 ${custName} respondeu ao pós-venda`,
+        message: `${custName} respondeu ao check-in de atendimento${osLabel}. Acesse o Pós-venda para liberar as avaliações do técnico e Google!`,
+        type: 'service_order',
+        link: '/pos-venda',
+      })
+
+      toast({
+        title: 'Cliente marcado como respondido!',
+        description:
+          'Notificação criada para a equipe. O botão de liberar avaliações já está liberado!',
+      })
+
+      await loadData()
+    } catch (err) {
+      toast({
+        title: 'Erro ao marcar check-in como respondido',
+        description: String(err),
+        variant: 'destructive',
+      })
+    } finally {
+      setMarkingRespondedId(null)
+    }
+  }
+
   // ETAPA 2: Botão "Cliente respondeu → Liberar avaliações"
   const handleReleaseEvaluations = async (msg: PosVendaMessage) => {
+    if (!msg.cliente_respondeu) {
+      toast({
+        title: 'Aguardando resposta do cliente',
+        description: 'Marque primeiro o check-in como respondido para liberar as avaliações.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     setReleasingEvaluationsId(msg.id)
     try {
       await releaseJuquinhaEvaluations(msg)
@@ -168,6 +218,7 @@ export default function PosVendaJuquinha() {
       })
       setStatusTab('ready')
       setTipoFilter('all')
+      setActiveKpi('ready')
       await loadData()
     } catch (err) {
       toast({
@@ -177,6 +228,32 @@ export default function PosVendaJuquinha() {
       })
     } finally {
       setReleasingEvaluationsId(null)
+    }
+  }
+
+  // Handler para cliques nos 4 quadros rápidos de informação (Toggle / Filtro)
+  const handleKpiClick = (kpi: 'ready' | 'pending' | 'checkin' | 'eval') => {
+    if (activeKpi === kpi) {
+      // Clicar de novo limpa o filtro
+      setActiveKpi(null)
+      setStatusTab('all')
+      setTipoFilter('all')
+      return
+    }
+
+    setActiveKpi(kpi)
+    if (kpi === 'ready') {
+      setStatusTab('ready')
+      setTipoFilter('all')
+    } else if (kpi === 'pending') {
+      setStatusTab('pending')
+      setTipoFilter('all')
+    } else if (kpi === 'checkin') {
+      setStatusTab('all')
+      setTipoFilter('checkin_pos_venda')
+    } else if (kpi === 'eval') {
+      setStatusTab('all')
+      setTipoFilter('evaluations')
     }
   }
 
@@ -385,7 +462,48 @@ export default function PosVendaJuquinha() {
     }
   }
 
-  const getStatusBadge = (status: PosVendaStatus) => {
+  const getStatusBadge = (msg: PosVendaMessage) => {
+    const { status, tipo, cliente_respondeu, avaliacoes_liberadas } = msg
+
+    // Cores específicas para Check-in por situação do atendimento
+    if (tipo === 'checkin_pos_venda') {
+      if (avaliacoes_liberadas) {
+        return (
+          <Badge className="bg-slate-200 text-slate-700 border border-slate-300 font-bold gap-1 text-[11px]">
+            <CheckCircle2 className="h-3 w-3 text-slate-500" /> Avaliações Liberadas
+          </Badge>
+        )
+      }
+      if (cliente_respondeu) {
+        return (
+          <Badge className="bg-purple-600 hover:bg-purple-700 text-white font-black gap-1 text-[11px] shadow-sm animate-pulse">
+            💬 Respondeu — Ação Pendente
+          </Badge>
+        )
+      }
+      if (status === 'sent') {
+        return (
+          <Badge className="bg-amber-100 text-amber-900 border border-amber-300 font-bold gap-1 text-[11px]">
+            <Clock className="h-3 w-3 text-amber-600" /> Enviado • Aguardando resposta
+          </Badge>
+        )
+      }
+      if (status === 'ready') {
+        return (
+          <Badge className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1 text-[11px]">
+            <Send className="h-3 w-3" /> Aguardando envio
+          </Badge>
+        )
+      }
+      if (status === 'pending') {
+        return (
+          <Badge className="bg-slate-500 text-white font-bold gap-1 text-[11px]">
+            <Clock className="h-3 w-3" /> Agendado (~30min)
+          </Badge>
+        )
+      }
+    }
+
     switch (status) {
       case 'ready':
         return (
@@ -414,10 +532,40 @@ export default function PosVendaJuquinha() {
     }
   }
 
+  // Cores por situação do atendimento (Item 5) para o Card do Check-in:
+  // - Aguardando envio (azul/cinza suave)
+  // - Enviado e aguardando resposta (âmbar suave)
+  // - Cliente respondeu — ação pendente (roxo/verde vibrante com pulso/destaque)
+  // - Avaliações já liberadas (neutro/esmaecido)
+  const getCardVisualClasses = (msg: PosVendaMessage) => {
+    if (msg.tipo !== 'checkin_pos_venda') {
+      return 'border-slate-200 bg-white hover:border-slate-300'
+    }
+
+    if (msg.avaliacoes_liberadas) {
+      return 'border-slate-200 bg-slate-50/70 opacity-80 hover:opacity-100 hover:border-slate-300'
+    }
+
+    if (msg.cliente_respondeu) {
+      return 'border-2 border-purple-500 bg-gradient-to-br from-purple-50/90 via-fuchsia-50/40 to-white shadow-md ring-2 ring-purple-400/40'
+    }
+
+    if (msg.status === 'sent') {
+      return 'border-amber-300 bg-gradient-to-br from-amber-50/70 to-white hover:border-amber-400'
+    }
+
+    // Aguardando envio (ready ou pending)
+    return 'border-blue-200 bg-gradient-to-br from-blue-50/50 via-slate-50/40 to-white hover:border-blue-300'
+  }
+
   const filteredMessages = useMemo(() => {
     return messages.filter((m) => {
       if (statusTab !== 'all' && m.status !== statusTab) return false
-      if (tipoFilter !== 'all' && m.tipo !== tipoFilter) return false
+      if (tipoFilter === 'evaluations') {
+        if (m.tipo !== 'avaliacao_tecnico' && m.tipo !== 'avaliacao_google') return false
+      } else if (tipoFilter !== 'all' && m.tipo !== tipoFilter) {
+        return false
+      }
       if (!filterText.trim()) return true
       const q = filterText.toLowerCase()
       const cust = m.expand?.customer
@@ -490,24 +638,103 @@ export default function PosVendaJuquinha() {
           </div>
         </div>
 
-        {/* Indicadores rápidos de mensagens */}
+        {/* Indicadores rápidos de mensagens — QUADROS CLICÁVEIS */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-5 pt-4 border-t border-white/10 text-xs">
-          <div className="bg-white/5 rounded-xl p-2.5 border border-white/10">
-            <span className="text-indigo-200 text-[11px] block">Prontas para Disparo</span>
-            <span className="text-xl font-bold font-mono text-emerald-300">{readyCount}</span>
-          </div>
-          <div className="bg-white/5 rounded-xl p-2.5 border border-white/10">
-            <span className="text-indigo-200 text-[11px] block">Agendadas (Aguardando)</span>
-            <span className="text-xl font-bold font-mono text-amber-300">{pendingCount}</span>
-          </div>
-          <div className="bg-white/5 rounded-xl p-2.5 border border-white/10">
-            <span className="text-indigo-200 text-[11px] block">Check-ins de Atendimento</span>
-            <span className="text-xl font-bold font-mono text-sky-300">{checkinCount}</span>
-          </div>
-          <div className="bg-white/5 rounded-xl p-2.5 border border-white/10">
-            <span className="text-indigo-200 text-[11px] block">Avaliações (Técnico + Google)</span>
-            <span className="text-xl font-bold font-mono text-purple-300">{evalCount}</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => handleKpiClick('ready')}
+            className={`text-left rounded-xl p-2.5 transition-all cursor-pointer border ${
+              activeKpi === 'ready'
+                ? 'bg-emerald-500/25 border-emerald-400 ring-2 ring-emerald-400/50 shadow-md scale-[1.02]'
+                : 'bg-white/5 hover:bg-white/10 border-white/10 hover:border-white/20'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-indigo-200 text-[11px] block font-medium">
+                Prontas para Disparo
+              </span>
+              {activeKpi === 'ready' && (
+                <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 px-1.5 py-0.2 rounded">
+                  Ativo
+                </span>
+              )}
+            </div>
+            <span className="text-xl font-bold font-mono text-emerald-300 block mt-0.5">
+              {readyCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleKpiClick('pending')}
+            className={`text-left rounded-xl p-2.5 transition-all cursor-pointer border ${
+              activeKpi === 'pending'
+                ? 'bg-amber-500/25 border-amber-400 ring-2 ring-amber-400/50 shadow-md scale-[1.02]'
+                : 'bg-white/5 hover:bg-white/10 border-white/10 hover:border-white/20'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-indigo-200 text-[11px] block font-medium">
+                Agendadas (Aguardando)
+              </span>
+              {activeKpi === 'pending' && (
+                <span className="text-[10px] font-bold text-amber-300 bg-amber-950/60 px-1.5 py-0.2 rounded">
+                  Ativo
+                </span>
+              )}
+            </div>
+            <span className="text-xl font-bold font-mono text-amber-300 block mt-0.5">
+              {pendingCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleKpiClick('checkin')}
+            className={`text-left rounded-xl p-2.5 transition-all cursor-pointer border ${
+              activeKpi === 'checkin'
+                ? 'bg-sky-500/25 border-sky-400 ring-2 ring-sky-400/50 shadow-md scale-[1.02]'
+                : 'bg-white/5 hover:bg-white/10 border-white/10 hover:border-white/20'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-indigo-200 text-[11px] block font-medium">
+                Check-ins Atendimento
+              </span>
+              {activeKpi === 'checkin' && (
+                <span className="text-[10px] font-bold text-sky-300 bg-sky-950/60 px-1.5 py-0.2 rounded">
+                  Ativo
+                </span>
+              )}
+            </div>
+            <span className="text-xl font-bold font-mono text-sky-300 block mt-0.5">
+              {checkinCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleKpiClick('eval')}
+            className={`text-left rounded-xl p-2.5 transition-all cursor-pointer border ${
+              activeKpi === 'eval'
+                ? 'bg-purple-500/25 border-purple-400 ring-2 ring-purple-400/50 shadow-md scale-[1.02]'
+                : 'bg-white/5 hover:bg-white/10 border-white/10 hover:border-white/20'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-indigo-200 text-[11px] block font-medium">
+                Avaliações (Técnico + Google)
+              </span>
+              {activeKpi === 'eval' && (
+                <span className="text-[10px] font-bold text-purple-300 bg-purple-950/60 px-1.5 py-0.2 rounded">
+                  Ativo
+                </span>
+              )}
+            </div>
+            <span className="text-xl font-bold font-mono text-purple-300 block mt-0.5">
+              {evalCount}
+            </span>
+          </button>
         </div>
       </div>
 
@@ -535,7 +762,11 @@ export default function PosVendaJuquinha() {
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
         <Tabs
           value={statusTab}
-          onValueChange={(v) => setStatusTab(v as any)}
+          onValueChange={(v) => {
+            setStatusTab(v as any)
+            if (activeKpi === 'ready' && v !== 'ready') setActiveKpi(null)
+            if (activeKpi === 'pending' && v !== 'pending') setActiveKpi(null)
+          }}
           className="w-full lg:w-auto"
         >
           <TabsList className="grid grid-cols-4 w-full lg:w-auto h-9 bg-slate-100 p-1">
@@ -556,7 +787,14 @@ export default function PosVendaJuquinha() {
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 lg:max-w-xl">
           <div className="w-full sm:w-56">
-            <Select value={tipoFilter} onValueChange={(v) => setTipoFilter(v as any)}>
+            <Select
+              value={tipoFilter}
+              onValueChange={(v) => {
+                setTipoFilter(v as any)
+                if (activeKpi === 'checkin' && v !== 'checkin_pos_venda') setActiveKpi(null)
+                if (activeKpi === 'eval' && v !== 'evaluations') setActiveKpi(null)
+              }}
+            >
               <SelectTrigger className="h-9 text-xs bg-slate-50 border-slate-200">
                 <Filter className="h-3.5 w-3.5 mr-1 text-slate-400" />
                 <SelectValue placeholder="Filtrar por tipo" />
@@ -564,6 +802,9 @@ export default function PosVendaJuquinha() {
               <SelectContent>
                 <SelectItem value="all" className="text-xs font-semibold">
                   Todos os tipos
+                </SelectItem>
+                <SelectItem value="evaluations" className="text-xs font-semibold text-purple-700">
+                  ⭐ + 🌐 Avaliações (Técnico + Google)
                 </SelectItem>
                 <SelectItem value="checkin_pos_venda" className="text-xs">
                   💬 Check-in (Etapa 1)
@@ -624,19 +865,32 @@ export default function PosVendaJuquinha() {
             const custName = getCustomerDisplayName(cust)
             const phone = getCustomerPhone(cust)
             const isCheckin = msg.tipo === 'checkin_pos_venda'
-            const isSentOrReady = msg.status === 'sent' || msg.status === 'ready'
             const isReleasingThis = releasingEvaluationsId === msg.id
+            const isMarkingResponded = markingRespondedId === msg.id
+            const cardClasses = getCardVisualClasses(msg)
 
             return (
-              <Card
-                key={msg.id}
-                className="border-slate-200 shadow-xs hover:shadow-md transition-shadow overflow-hidden"
-              >
+              <Card key={msg.id} className={`transition-all overflow-hidden ${cardClasses}`}>
+                {/* Faixa decorativa no topo para check-in por situação */}
+                {isCheckin && (
+                  <div
+                    className={`h-1.5 w-full ${
+                      msg.avaliacoes_liberadas
+                        ? 'bg-slate-300'
+                        : msg.cliente_respondeu
+                          ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500 animate-pulse'
+                          : msg.status === 'sent'
+                            ? 'bg-amber-400'
+                            : 'bg-blue-500'
+                    }`}
+                  />
+                )}
+
                 <CardContent className="p-4 sm:p-5 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
                     <div className="flex items-center gap-2 flex-wrap">
                       {getTipoBadge(msg.tipo)}
-                      {getStatusBadge(msg.status)}
+                      {getStatusBadge(msg)}
                       {so && (
                         <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
                           OS #{so.number}
@@ -659,6 +913,14 @@ export default function PosVendaJuquinha() {
                       <p className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
                         <User className="h-3.5 w-3.5 text-indigo-600" />
                         {custName}
+                        {isCheckin && msg.cliente_respondeu && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
+                            ✓ Respondeu{' '}
+                            {msg.cliente_respondeu_em
+                              ? `(${new Date(msg.cliente_respondeu_em).toLocaleDateString('pt-BR')})`
+                              : ''}
+                          </span>
+                        )}
                       </p>
                       <p className="text-slate-500 font-mono text-[11px] mt-0.5">
                         {phone || 'Telefone não cadastrado'}
@@ -676,7 +938,7 @@ export default function PosVendaJuquinha() {
                   </div>
 
                   {/* Texto da mensagem prévia */}
-                  <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/80 text-xs text-slate-800 whitespace-pre-wrap font-sans leading-relaxed">
+                  <div className="bg-white/80 p-3 rounded-xl border border-slate-200/80 text-xs text-slate-800 whitespace-pre-wrap font-sans leading-relaxed">
                     {msg.texto_gerado || (
                       <span className="text-slate-400 italic">
                         O texto será gerado no momento do disparo comercial pelo Juquinha.
@@ -684,7 +946,7 @@ export default function PosVendaJuquinha() {
                     )}
                   </div>
 
-                  {/* Ações Rápidas (1-Toque WhatsApp, Personalizar com IA Juquinha, Liberar Avaliações, Descartar) */}
+                  {/* Ações Rápidas */}
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
                     <div className="flex items-center gap-2 flex-wrap">
                       <Button
@@ -695,25 +957,89 @@ export default function PosVendaJuquinha() {
                         className="h-9 text-xs font-semibold gap-1.5 border-indigo-200 text-indigo-700 bg-indigo-50/60 hover:bg-indigo-100 rounded-lg"
                       >
                         <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
-                        <span>Refinar c/ IA Juquinha</span>
+                        <span>Refinar c/ IA</span>
                       </Button>
 
-                      {/* ETAPA 2: Botão para disparar avaliações após resposta do check-in */}
-                      {isCheckin && isSentOrReady && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={isReleasingThis}
-                          onClick={() => handleReleaseEvaluations(msg)}
-                          className="h-9 text-xs font-bold gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 shadow-sm rounded-lg"
-                        >
-                          <Star className="h-3.5 w-3.5 fill-slate-950" />
-                          <span>
-                            {isReleasingThis
-                              ? 'Liberando avaliações...'
-                              : 'Cliente respondeu → Liberar avaliações'}
-                          </span>
-                        </Button>
+                      {/* AÇÃO 3: Marcar Check-in como respondido pelo cliente */}
+                      {isCheckin && (
+                        <>
+                          {!msg.cliente_respondeu ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={isMarkingResponded}
+                              onClick={() => handleMarkAsResponded(msg)}
+                              className="h-9 text-xs font-bold gap-1.5 border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg shadow-xs"
+                            >
+                              <MessageCircle className="h-3.5 w-3.5 text-purple-600" />
+                              <span>
+                                {isMarkingResponded ? 'Gravando...' : 'Marcar como respondido'}
+                              </span>
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                markPosVendaMessageResponded(msg.id, false).then(() => loadData())
+                              }
+                              className="h-9 text-[11px] text-slate-400 hover:text-slate-600 rounded-lg"
+                              title="Clique para desfazer a marcação de resposta"
+                            >
+                              Desmarcar resposta
+                            </Button>
+                          )}
+                        </>
+                      )}
+
+                      {/* ETAPA 2 (Item 4): Botão 'Cliente respondeu → Liberar avaliações'
+                          SÓ ATIVO APÓS RESPOSTA DO CLIENTE!
+                          Enquanto NÃO respondido: cinza/desabilitado com texto 'Aguardando resposta do cliente...'.
+                          Quando respondido: ativo (âmbar vibrante).
+                          Quando já liberado: desabilitado com 'Avaliações já liberadas'.
+                      */}
+                      {isCheckin && (
+                        <>
+                          {msg.avaliacoes_liberadas ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled
+                              className="h-9 text-xs font-semibold gap-1.5 bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed rounded-lg"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5 text-slate-400" />
+                              <span>Avaliações já liberadas</span>
+                            </Button>
+                          ) : !msg.cliente_respondeu ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled
+                              className="h-9 text-xs font-medium gap-1.5 bg-slate-100 hover:bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed rounded-lg opacity-75"
+                              title="Aguardando o cliente responder ao WhatsApp para liberar os pedidos de avaliação."
+                            >
+                              <Clock className="h-3.5 w-3.5 text-slate-400" />
+                              <span>Aguardando resposta do cliente...</span>
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={isReleasingThis}
+                              onClick={() => handleReleaseEvaluations(msg)}
+                              className="h-9 text-xs font-black gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 shadow-md ring-2 ring-amber-400/50 rounded-lg animate-bounce"
+                            >
+                              <Star className="h-3.5 w-3.5 fill-slate-950" />
+                              <span>
+                                {isReleasingThis
+                                  ? 'Liberando avaliações...'
+                                  : 'Cliente respondeu → Liberar avaliações'}
+                              </span>
+                            </Button>
+                          )}
+                        </>
                       )}
 
                       {msg.status !== 'dismissed' && (

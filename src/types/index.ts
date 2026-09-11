@@ -316,6 +316,9 @@ export interface PosVendaMessage {
   texto_gerado?: string
   wa_me_link?: string
   channel?: string
+  cliente_respondeu?: boolean
+  cliente_respondeu_em?: string
+  avaliacoes_liberadas?: boolean
   created?: string
   updated?: string
   expand?: {

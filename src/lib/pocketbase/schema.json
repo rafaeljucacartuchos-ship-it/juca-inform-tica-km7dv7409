@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-11T19:18:22.612Z",
+  "generatedAt": "2026-09-11T21:07:16.302Z",
   "collections": [
     {
       "name": "users",
@@ -1489,6 +1489,24 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "cliente_respondeu",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cliente_respondeu_em",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "avaliacoes_liberadas",
+          "type": "bool",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
