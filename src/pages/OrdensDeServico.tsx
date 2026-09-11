@@ -11,11 +11,13 @@ import {
   MessageCircle,
   Calendar,
   CalendarClock,
+  Clock,
   ArrowRightLeft,
   ExternalLink,
   Printer,
   Trash2,
   Share2,
+  ArrowUpDown,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,6 +53,76 @@ import { useToast } from '@/hooks/use-toast'
 import { openWhatsApp, triggerWhatsAppEvaluation, buildServiceMessage } from '@/lib/whatsapp'
 import { STATUS_PRIORITY_MAP } from '@/lib/dashboard-utils'
 
+/**
+ * Converte attendance_date (ex: "2026-09-14", "2026-09-14 00:00:00.000Z") e attendance_time (ex: "08:30")
+ * em um timestamp numérico em milissegundos.
+ * Se não houver data de atendimento válida, retorna null.
+ */
+function getAttendanceTimestamp(order: ServiceOrder): number | null {
+  if (!order.attendance_date) return null
+
+  // Extrai a porção de data YYYY-MM-DD
+  const dateMatch = order.attendance_date.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!dateMatch) return null
+
+  const [, yStr, mStr, dStr] = dateMatch
+  const year = parseInt(yStr, 10)
+  const month = parseInt(mStr, 10) - 1
+  const day = parseInt(dStr, 10)
+
+  let hour = 0
+  let min = 0
+  if (order.attendance_time) {
+    const timeMatch = order.attendance_time.match(/^(\d{1,2}):(\d{2})/)
+    if (timeMatch) {
+      hour = parseInt(timeMatch[1], 10)
+      min = parseInt(timeMatch[2], 10)
+    }
+  }
+
+  const dt = new Date(year, month, day, hour, min, 0, 0)
+  const ts = dt.getTime()
+  return isNaN(ts) ? null : ts
+}
+
+/**
+ * Ordena ordens de serviço por data e horário de atendimento MAIS RECENTE no topo.
+ * - Registros com atendimento definido têm prioridade máxima (mais recente primeiro).
+ * - Registros sem data de atendimento definida vão para o final (desempate por created desc).
+ */
+function compareOrdersByAttendanceDesc(a: ServiceOrder, b: ServiceOrder): number {
+  const tsA = getAttendanceTimestamp(a)
+  const tsB = getAttendanceTimestamp(b)
+
+  // Se ambos têm data/hora de atendimento, o mais recente fica no topo
+  if (tsA !== null && tsB !== null) {
+    if (tsA !== tsB) {
+      return tsB - tsA
+    }
+    // Desempate: data de criação mais recente
+    const cA = a.created ? new Date(a.created).getTime() : 0
+    const cB = b.created ? new Date(b.created).getTime() : 0
+    return cB - cA
+  }
+
+  // Com data de atendimento vem antes de sem data
+  if (tsA !== null && tsB === null) return -1
+  if (tsA === null && tsB !== null) return 1
+
+  // Ambos sem data de atendimento: desempate por criação mais recente
+  const cA = a.created ? new Date(a.created).getTime() : 0
+  const cB = b.created ? new Date(b.created).getTime() : 0
+  return cB - cA
+}
+
+/** Formata data de atendimento para exibição amigável: DD/MM/AAAA */
+function formatAttendanceDateDisplay(dateStr?: string): string {
+  if (!dateStr) return ''
+  const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!m) return dateStr
+  return `${m[3]}/${m[2]}/${m[1]}`
+}
+
 export default function OrdensDeServico() {
   const [orders, setOrders] = useState<ServiceOrder[]>([])
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
@@ -59,6 +131,9 @@ export default function OrdensDeServico() {
   const navigate = useNavigate()
   const { hasPermission } = usePermissions()
   const [filterText, setFilterText] = useState(searchParams.get('search') || '')
+  const [sortBy, setSortBy] = useState<'attendance_desc' | 'created_desc' | 'status_priority'>(
+    'attendance_desc',
+  )
   const [newModalOpen, setNewModalOpen] = useState(false)
   const [deleteOrderTarget, setDeleteOrderTarget] = useState<ServiceOrder | null>(null)
   const [transferModalOpen, setTransferModalOpen] = useState(false)
@@ -206,16 +281,23 @@ export default function OrdensDeServico() {
     })
 
     return [...list].sort((a, b) => {
-      const pA = STATUS_PRIORITY_MAP[a.status] ?? 99
-      const pB = STATUS_PRIORITY_MAP[b.status] ?? 99
-      if (pA !== pB) {
-        return pA - pB
+      if (sortBy === 'created_desc') {
+        const timeA = a.created ? new Date(a.created).getTime() : 0
+        const timeB = b.created ? new Date(b.created).getTime() : 0
+        return timeB - timeA
       }
-      const timeA = a.created ? new Date(a.created).getTime() : 0
-      const timeB = b.created ? new Date(b.created).getTime() : 0
-      return timeB - timeA
+      if (sortBy === 'status_priority') {
+        const pA = STATUS_PRIORITY_MAP[a.status] ?? 99
+        const pB = STATUS_PRIORITY_MAP[b.status] ?? 99
+        if (pA !== pB) {
+          return pA - pB
+        }
+        return compareOrdersByAttendanceDesc(a, b)
+      }
+      // Padrão: data e horário de atendimento mais recente no topo
+      return compareOrdersByAttendanceDesc(a, b)
     })
-  }, [periodFilteredOrders, filterText])
+  }, [periodFilteredOrders, filterText, sortBy])
 
   const handleMoveStatus = async (orderId: string, newStatus: OrderStatus) => {
     try {
@@ -348,6 +430,7 @@ export default function OrdensDeServico() {
     setCustomerFilter('all')
     setTechnicianFilter('all')
     setFilterText('')
+    setSortBy('attendance_desc')
     setSearchParams({}, { replace: true })
   }
 
@@ -357,6 +440,7 @@ export default function OrdensDeServico() {
     statusFilter !== 'all' ||
     customerFilter !== 'all' ||
     (technicianFilter !== 'all' && user?.role !== 'technician') ||
+    sortBy !== 'attendance_desc' ||
     Boolean(filterText.trim())
 
   return (
@@ -446,6 +530,33 @@ export default function OrdensDeServico() {
 
       <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
         <Filter className="h-4 w-4 text-slate-400" />
+        <div className="flex items-center gap-2">
+          <label className="text-[11px] font-semibold text-slate-600 whitespace-nowrap flex items-center gap-1">
+            <ArrowUpDown className="h-3 w-3 text-indigo-600" />
+            Ordenar por:
+          </label>
+          <Select
+            value={sortBy}
+            onValueChange={(val: 'attendance_desc' | 'created_desc' | 'status_priority') =>
+              setSortBy(val)
+            }
+          >
+            <SelectTrigger className="h-8 text-xs w-52 bg-indigo-50/50 border-indigo-200 text-indigo-900 font-semibold">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="attendance_desc" className="text-xs font-medium">
+                Data/Hora Atend. Mais Recente
+              </SelectItem>
+              <SelectItem value="created_desc" className="text-xs">
+                Data de Criação (Mais recente)
+              </SelectItem>
+              <SelectItem value="status_priority" className="text-xs">
+                Status + Atendimento
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="flex items-center gap-2">
           <label className="text-[11px] font-semibold text-slate-600 whitespace-nowrap">
             Período:
@@ -638,6 +749,27 @@ export default function OrdensDeServico() {
                             </span>
                           </p>
 
+                          {/* Data e horário de atendimento (critério prioritário de ordenação) */}
+                          <div className="flex items-center justify-between text-[11px] pt-1 text-slate-600">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700">
+                              <Calendar className="h-3 w-3 text-indigo-500 shrink-0" />
+                              {o.attendance_date ? (
+                                <span className="font-semibold text-slate-800">
+                                  {formatAttendanceDateDisplay(o.attendance_date)}
+                                  {o.attendance_time && (
+                                    <span className="text-indigo-600 font-mono font-bold ml-1">
+                                      às {o.attendance_time}
+                                    </span>
+                                  )}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 italic text-[10px]">
+                                  Sem agendamento
+                                </span>
+                              )}
+                            </span>
+                          </div>
+
                           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] gap-2">
                             <span className="font-mono font-semibold text-slate-900 shrink-0">
                               R$ {(o.total || 0).toFixed(2)}
@@ -700,6 +832,7 @@ export default function OrdensDeServico() {
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
                   <tr>
                     <th className="py-3 px-4">Número</th>
+                    <th className="py-3 px-4">Atendimento</th>
                     <th className="py-3 px-4">Título</th>
                     <th className="py-3 px-4">Cliente</th>
                     <th className="py-3 px-4">Técnico</th>
@@ -711,12 +844,28 @@ export default function OrdensDeServico() {
                 <tbody className="divide-y divide-slate-100">
                   {filteredOrders.map((o) => (
                     <tr key={o.id} className="hover:bg-slate-50">
-                      <td className="py-3 px-4 font-mono font-bold text-indigo-600">
+                      <td className="py-3 px-4 font-mono font-bold text-indigo-600 whitespace-nowrap">
                         <Link to={`/ordens/${o.id}`}>{o.number}</Link>
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        {o.attendance_date ? (
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-slate-800 text-xs">
+                              {formatAttendanceDateDisplay(o.attendance_date)}
+                            </span>
+                            {o.attendance_time && (
+                              <span className="text-[11px] font-mono text-indigo-600 font-bold">
+                                {o.attendance_time}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 italic text-[11px]">Não agendado</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 font-medium text-slate-900">{o.title}</td>
                       <td className="py-3 px-4 text-slate-600">{o.expand?.customer?.name}</td>
-                      <td className="py-3 px-4 text-slate-600">
+                      <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
                         {o.expand?.technician?.name ? (
                           <Link
                             to={`/ordens?technician=${o.technician || o.expand.technician.id}`}
@@ -729,10 +878,10 @@ export default function OrdensDeServico() {
                           'Não atribuído'
                         )}
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 whitespace-nowrap">
                         <StatusBadge status={o.status} />
                       </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold">
+                      <td className="py-3 px-4 text-right font-mono font-bold whitespace-nowrap">
                         R$ {(o.total || 0).toFixed(2)}
                       </td>
                       <td className="py-3 px-4 text-center">
