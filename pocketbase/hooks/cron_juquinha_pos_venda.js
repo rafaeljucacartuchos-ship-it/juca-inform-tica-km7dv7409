@@ -125,9 +125,8 @@ cronAdd('juquinha_pos_venda_cron', '* * * * *', () => {
         // Formatação humanizada e acolhedora dos dados reais
         var equipPart = equip ? 'o seu *' + equip + '*' : 'o seu equipamento'
         var osPart = soNumber ? ' (O.S. *' + soNumber + '*)' : ''
-        var techPart = techName
-          ? 'cuidado com dedicação pelo nosso técnico *' + techName + '*'
-          : 'cuidado com dedicação pela nossa equipe técnica'
+        var techMention = techName ? ' e o técnico *' + techName + '*' : ''
+
         var servicePart = ''
         if (itemsSummary && serviceReport) {
           servicePart = 'após a realização de ' + serviceReport + ' e aplicação de ' + itemsSummary
@@ -137,7 +136,48 @@ cronAdd('juquinha_pos_venda_cron', '* * * * *', () => {
           servicePart = 'após ' + serviceReport
         }
 
-        if (tipo === 'avaliacao_30min') {
+        if (tipo === 'checkin_pos_venda') {
+          // ETAPA 1: Check-in de atendimento — Tom conversacional perguntando se o cliente está GOSTANDO
+          textBody =
+            'Oi, ' +
+            firstName +
+            '! Tudo bem com você? Aqui é o *Juquinha* da JUCA Informática! 😄🙋‍♂️\n\n' +
+            'Passando rapidinho para bater um papo e saber: como está ' +
+            equipPart +
+            osPart +
+            '?\n\n' +
+            'Você já teve um tempinho de testar? Está gostando do serviço que fizemos por aqui? Ficou tudo 100% como você esperava?\n\n' +
+            'Eu' +
+            techMention +
+            ' ficamos muito felizes em te atender! Se tiver qualquer dúvida, detalhe ou precisar de um ajuste, é só me responder por aqui que estou à sua disposição!'
+        } else if (tipo === 'avaliacao_tecnico') {
+          // ETAPA 2 (A): Avaliação do Técnico — Mensagem simpática, curta e focada no técnico
+          var techLabel = techName ? '*' + techName + '*' : 'nosso técnico'
+          textBody =
+            'Oi, ' +
+            firstName +
+            '! Que bom falar com você! Aqui é o *Juquinha* da JUCA! ⭐\n\n' +
+            'Como você achou o atendimento e a atenção do técnico ' +
+            techLabel +
+            (osPart ? ' na sua ' + osPart : '') +
+            '?\n\n' +
+            'De 1 a 5 estrelas ⭐, como você avalia o trabalho dele? Se puder responder com uma nota ou uma palavrinha sobre o que achou, ficamos imensamente gratos!'
+        } else if (tipo === 'avaliacao_google') {
+          // ETAPA 2 (B): Avaliação no Google — Mensagem separada, direta, com o link
+          var googleLinkSection = googleReviewUrl
+            ? '\n\n👉 ' + googleReviewUrl + '\n\n'
+            : '\n\n(Acesse nossa página no Google e deixe seu comentário!)\n\n'
+
+          textBody =
+            'Oi, ' +
+            firstName +
+            '! *Juquinha* por aqui mais uma vez! 🌐✨\n\n' +
+            'A sua opinião no Google é muito importante para nós e ajuda outros clientes a conhecerem a dedicação da nossa equipe.\n\n' +
+            'Poderia dedicar 30 segundinhos para deixar uma avaliação 5 estrelas no nosso perfil do Google?' +
+            googleLinkSection +
+            'Muito obrigado pela parceria e carinho de sempre! 🚀'
+        } else if (tipo === 'avaliacao_30min') {
+          // Legado mantido compatível com tom melhorado
           textBody =
             'Oi, ' +
             firstName +
@@ -145,12 +185,8 @@ cronAdd('juquinha_pos_venda_cron', '* * * * *', () => {
             'Passando para agradecer pela confiança em trazer ' +
             equipPart +
             osPart +
-            ', ' +
-            techPart +
-            (servicePart ? ' (' + servicePart + ')' : '') +
             '!\n\n' +
-            'A sua opinião é fundamental para valorizar o trabalho do técnico e ajudar a JUCA a atender você cada vez melhor.\n\n' +
-            'Você poderia nos dedicar 30 segundinhos para deixar uma avaliação rápida no Google? É bem rapidinho e nos ajuda muito! ⭐⭐⭐⭐⭐\n\n' +
+            'A sua opinião é fundamental para nós. Se puder deixar uma avaliação rápida no Google, nos ajuda muito: ⭐⭐⭐⭐⭐\n\n' +
             '👉 ' +
             googleReviewUrl +
             '\n\n' +
@@ -158,41 +194,36 @@ cronAdd('juquinha_pos_venda_cron', '* * * * *', () => {
         } else if (tipo === 'pos_venda_7d') {
           var detailsLine = ''
           if (servicePart) {
-            detailsLine = ', ' + servicePart + ','
+            detailsLine = ' após o serviço de ' + servicePart
           }
           textBody =
             'Olá, ' +
             firstName +
-            '! Tudo bem com você? Aqui é o *Juquinha* da JUCA Informática! 🛠️\n\n' +
-            'Como está ' +
+            '! Tudo ótimo por aí? Aqui é o *Juquinha* da JUCA Informática novamente! 🛠️👋\n\n' +
+            'Já se passou uma semaninha desde que finalizamos ' +
             equipPart +
-            ' que finalizamos na semana passada' +
             osPart +
             detailsLine +
-            (techName ? ' com o técnico *' + techName + '*' : '') +
-            '? Tudo funcionando perfeitamente por aí?\n\n' +
-            'Ficou com alguma dúvida, precisa de algum ajuste ou suporte complementar?\n\n' +
-            'Qualquer coisa que precisar, é só responder por aqui. Estamos sempre prontos para te ajudar!'
+            (techName ? ' com o nosso técnico *' + techName + '*' : '') +
+            '.\n\n' +
+            'Como tem sido o uso no dia a dia? O equipamento está respondendo direitinho, rápido e sem nenhum problema?\n\n' +
+            'Conta para mim! Se precisar de qualquer suporte complementar ou orientação, nós estamos por aqui para te dar total apoio!'
         } else if (tipo === 'oferta_30d') {
-          var prevContext = ''
-          if (equip) {
-            prevContext =
-              'Já faz um mês que cuidamos do seu *' +
-              equip +
-              '*' +
-              osPart +
-              ' e esperamos que ele continue voando alto! 🚀\n\n'
-          }
           textBody =
             'Oi, ' +
             firstName +
-            '! Tudo bem? O *Juquinha* da JUCA Informática passando para te desejar um excelente dia! ✨\n\n' +
-            prevContext +
-            'Lembramos que manter seus equipamentos com manutenção preventiva em dia evita dores de cabeça e paradas indesejadas.\n\n' +
-            'Se estiver precisando de recarga de cartuchos, toners, periféricos, SSD/memória ou uma nova revisão com condições especiais para clientes parceiros como você, conte com a gente!\n\n' +
+            '! Como você está? Aqui é o *Juquinha* da JUCA Informática passando para te dar um alô! ✨😊\n\n' +
+            'Já faz 1 mês que cuidamos de ' +
+            equipPart +
+            osPart +
+            ' e esperamos que tudo continue funcionando perfeitamente por aí!\n\n' +
+            'Você já sabe: manutenção preventiva e cuidado contínuo evitam surpresas e mantêm seu trabalho sempre fluindo.\n\n' +
+            'Se estiver precisando de recarga de cartuchos, toners, cabos, SSD/memória ou um check-up com descontos especiais de cliente parceiro, me dá um toque aqui no WhatsApp!\n\n' +
             (techName
-              ? 'O técnico *' + techName + '* e toda a nossa equipe mandam um grande abraço!'
-              : 'Um grande abraço de toda a nossa equipe!')
+              ? 'O técnico *' +
+                techName +
+                '* e toda a nossa família JUCA mandam aquele abraço forte!'
+              : 'Toda a nossa equipe da JUCA manda aquele abraço forte!')
         }
 
         var fullMessage = header + textBody + footer

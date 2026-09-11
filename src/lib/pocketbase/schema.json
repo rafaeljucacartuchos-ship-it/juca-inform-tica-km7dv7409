@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-09T23:38:46.993Z",
+  "generatedAt": "2026-09-11T19:18:22.612Z",
   "collections": [
     {
       "name": "users",
@@ -1429,7 +1429,15 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["resumo_finalizacao", "avaliacao_30min", "pos_venda_7d", "oferta_30d"]
+          "selectValues": [
+            "resumo_finalizacao",
+            "checkin_pos_venda",
+            "avaliacao_tecnico",
+            "avaliacao_google",
+            "avaliacao_30min",
+            "pos_venda_7d",
+            "oferta_30d"
+          ]
         },
         {
           "name": "status",

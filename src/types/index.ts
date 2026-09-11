@@ -295,7 +295,14 @@ export interface ServiceAttachment {
   updated?: string
 }
 
-export type PosVendaTipo = 'resumo_finalizacao' | 'avaliacao_30min' | 'pos_venda_7d' | 'oferta_30d'
+export type PosVendaTipo =
+  | 'resumo_finalizacao'
+  | 'checkin_pos_venda'
+  | 'avaliacao_tecnico'
+  | 'avaliacao_google'
+  | 'avaliacao_30min'
+  | 'pos_venda_7d'
+  | 'oferta_30d'
 export type PosVendaStatus = 'pending' | 'ready' | 'sent' | 'dismissed'
 
 export interface PosVendaMessage {

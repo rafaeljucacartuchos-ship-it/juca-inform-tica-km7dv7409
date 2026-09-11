@@ -1,12 +1,14 @@
 // Schedule post-sale messages (Juquinha) when a service order is marked as "completed"
-// 1) 30 min: Pedido de avaliação no Google
-// 2) 7 dias: Pós-venda e verificação de funcionamento
-// 3) 30 dias: Oferta de suprimentos e manutenção
+// Nova Sequência v0.0.180 em 2 etapas:
+// Etapa 1: Check-in de Atendimento ('checkin_pos_venda') agendado para ~30 min após conclusão (dentro do horário comercial)
+// Pós-venda 7 dias ('pos_venda_7d') e Oferta 30 dias ('oferta_30d') continuam agendados normalmente.
+// Quando o check-in for enviado e o cliente responder, são liberadas as 2 avaliações separadas:
+// 'avaliacao_tecnico' (⭐) e 'avaliacao_google' (🌐).
 onRecordAfterUpdateSuccess((e) => {
   var currStatus = e.record.getString('status')
   if (currStatus !== 'completed') return e.next()
 
-  // Evita re-agendar se já tiver mensagens cadastradas para esta OS
+  // Evita re-agendar se já tiver mensagens de checkin ou pos-venda cadastradas para esta OS
   var soId = e.record.id
   var custId = e.record.getString('customer')
   if (!custId) return e.next()
@@ -14,7 +16,6 @@ onRecordAfterUpdateSuccess((e) => {
   try {
     // Verifica se o cliente autorizou mensagens via WhatsApp (LGPD)
     var cust = $app.findRecordById('customers', custId)
-    // Se o cliente explicitamente recusou whatsapp (campo whatsapp_consent === false)
     if (cust && cust.get('whatsapp_consent') === false) {
       $app
         .logger()
@@ -28,7 +29,7 @@ onRecordAfterUpdateSuccess((e) => {
 
     var existing = $app.findRecordsByFilter(
       'pos_venda_messages',
-      'service_order = "' + soId + '" && tipo = "avaliacao_30min"',
+      'service_order = "' + soId + '" && (tipo = "checkin_pos_venda" || tipo = "avaliacao_30min")',
       '',
       1,
       0,
@@ -40,7 +41,7 @@ onRecordAfterUpdateSuccess((e) => {
     var col = $app.findCollectionByNameOrId('pos_venda_messages')
     var nowMs = new Date().getTime()
 
-    // Dados da O.S. para pré-gerar texto humanizado personalizado
+    // Dados da O.S. para pré-gerar texto humanizado e conversacional
     var custName =
       cust.getString('nome_fantasia') ||
       cust.getString('razao_social') ||
@@ -85,14 +86,6 @@ onRecordAfterUpdateSuccess((e) => {
       }
     } catch (_) {}
 
-    var googleReviewUrl = 'https://g.page/r/CfKb0UxVRFNsEAI/review'
-    try {
-      var setRecord = $app.findFirstRecordByData('settings', 'key', 'google_review_url')
-      if (setRecord && setRecord.getString('value')) {
-        googleReviewUrl = setRecord.getString('value').trim()
-      }
-    } catch (_) {}
-
     var rawPhone = cust.getString('celular') || cust.getString('phone') || ''
     var digits = rawPhone.replace(/\D/g, '')
     if (digits.startsWith('0')) digits = digits.substring(1)
@@ -103,71 +96,62 @@ onRecordAfterUpdateSuccess((e) => {
 
     var equipPart = equip ? 'o seu *' + equip + '*' : 'o seu equipamento'
     var osPart = soNumber ? ' (O.S. *' + soNumber + '*)' : ''
-    var techPart = techName
-      ? 'cuidado com dedicação pelo nosso técnico *' + techName + '*'
-      : 'cuidado com dedicação pela nossa equipe técnica'
-    var servicePart = ''
-    if (itemsSummary && serviceReport) {
-      servicePart = 'após a realização de ' + serviceReport + ' e aplicação de ' + itemsSummary
-    } else if (itemsSummary) {
-      servicePart = 'após a realização do serviço com ' + itemsSummary
-    } else if (serviceReport) {
-      servicePart = 'após ' + serviceReport
-    }
+    var techMention = techName ? ' e o técnico *' + techName + '*' : ''
 
-    // 1) Avaliação 30 min (30 * 60 * 1000 ms)
-    var text30m =
+    // 1) ETAPA 1: CHECK-IN DE ATENDIMENTO (~30 min após conclusão)
+    // Conversa amigável de vendedor/técnico perguntando se o cliente está GOSTANDO do serviço/produto
+    var textCheckin =
       header +
       'Oi, ' +
       firstName +
-      '! Tudo bem? Aqui é o *Juquinha* da JUCA Informática! 🙋‍♂️\n\n' +
-      'Passando para agradecer pela confiança em trazer ' +
+      '! Tudo bem com você? Aqui é o *Juquinha* da JUCA Informática! 😄🙋‍♂️\n\n' +
+      'Passando rapidinho para bater um papo e saber: como está ' +
       equipPart +
       osPart +
-      ', ' +
-      techPart +
-      (servicePart ? ' (' + servicePart + ')' : '') +
-      '!\n\n' +
-      'A sua opinião é fundamental para valorizar o trabalho do técnico e ajudar a JUCA a atender você cada vez melhor.\n\n' +
-      'Você poderia nos dedicar 30 segundinhos para deixar uma avaliação rápida no Google? É bem rapidinho e nos ajuda muito! ⭐⭐⭐⭐⭐\n\n' +
-      '👉 ' +
-      googleReviewUrl +
-      '\n\n' +
-      'Muito obrigado de coração!' +
+      '?\n\n' +
+      'Você já teve um tempinho de testar? Está gostando do serviço que fizemos por aqui? Ficou tudo 100% como você esperava?\n\n' +
+      'Eu' +
+      techMention +
+      ' ficamos muito felizes em te atender! Se tiver qualquer dúvida, detalhe ou precisar de um ajuste, é só me responder por aqui que estou à sua disposição!' +
       footer
 
-    var sched30m = new Date(nowMs + 30 * 60 * 1000).toISOString()
-    var msg30m = new Record(col)
-    msg30m.set('customer', custId)
-    msg30m.set('service_order', soId)
-    msg30m.set('tipo', 'avaliacao_30min')
-    msg30m.set('status', 'pending')
-    msg30m.set('scheduled_at', sched30m)
-    msg30m.set('texto_gerado', text30m)
+    var schedCheckin = new Date(nowMs + 30 * 60 * 1000).toISOString()
+    var msgCheckin = new Record(col)
+    msgCheckin.set('customer', custId)
+    msgCheckin.set('service_order', soId)
+    msgCheckin.set('tipo', 'checkin_pos_venda')
+    msgCheckin.set('status', 'pending')
+    msgCheckin.set('scheduled_at', schedCheckin)
+    msgCheckin.set('texto_gerado', textCheckin)
     if (digits) {
-      msg30m.set('wa_me_link', 'https://wa.me/' + digits + '?text=' + encodeURIComponent(text30m))
+      msgCheckin.set(
+        'wa_me_link',
+        'https://wa.me/' + digits + '?text=' + encodeURIComponent(textCheckin),
+      )
     }
-    $app.save(msg30m)
+    $app.save(msgCheckin)
 
-    // 2) Pós-venda 7 dias (7 * 24 * 60 * 60 * 1000 ms)
+    // 2) Pós-venda 7 dias (7 * 24 * 60 * 60 * 1000 ms) - Tom conversacional e caloroso
     var detailsLine = ''
-    if (servicePart) {
-      detailsLine = ', ' + servicePart + ','
+    if (serviceReport) {
+      detailsLine = ' após o serviço de ' + serviceReport
+    } else if (itemsSummary) {
+      detailsLine = ' após ' + itemsSummary
     }
+
     var text7d =
       header +
       'Olá, ' +
       firstName +
-      '! Tudo bem com você? Aqui é o *Juquinha* da JUCA Informática! 🛠️\n\n' +
-      'Como está ' +
+      '! Tudo ótimo por aí? Aqui é o *Juquinha* da JUCA Informática novamente! 🛠️👋\n\n' +
+      'Já se passou uma semaninha desde que finalizamos ' +
       equipPart +
-      ' que finalizamos na semana passada' +
       osPart +
       detailsLine +
-      (techName ? ' com o técnico *' + techName + '*' : '') +
-      '? Tudo funcionando perfeitamente por aí?\n\n' +
-      'Ficou com alguma dúvida, precisa de algum ajuste ou suporte complementar?\n\n' +
-      'Qualquer coisa que precisar, é só responder por aqui. Estamos sempre prontos para te ajudar!' +
+      (techName ? ' com o nosso técnico *' + techName + '*' : '') +
+      '.\n\n' +
+      'Como tem sido o uso no dia a dia? O equipamento está respondendo direitinho, rápido e sem nenhum problema?\n\n' +
+      'Conta para mim! Se precisar de qualquer suporte complementar ou orientação, nós estamos por aqui para te dar total apoio!' +
       footer
 
     var sched7d = new Date(nowMs + 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -183,27 +167,21 @@ onRecordAfterUpdateSuccess((e) => {
     }
     $app.save(msg7d)
 
-    // 3) Oferta 30 dias (30 * 24 * 60 * 60 * 1000 ms)
-    var prevContext = ''
-    if (equip) {
-      prevContext =
-        'Já faz um mês que cuidamos do seu *' +
-        equip +
-        '*' +
-        osPart +
-        ' e esperamos que ele continue voando alto! 🚀\n\n'
-    }
+    // 3) Oferta / Revisão 30 dias (30 * 24 * 60 * 60 * 1000 ms) - Tom amigável e atencioso
     var text30d =
       header +
       'Oi, ' +
       firstName +
-      '! Tudo bem? O *Juquinha* da JUCA Informática passando para te desejar um excelente dia! ✨\n\n' +
-      prevContext +
-      'Lembramos que manter seus equipamentos com manutenção preventiva em dia evita dores de cabeça e paradas indesejadas.\n\n' +
-      'Se estiver precisando de recarga de cartuchos, toners, periféricos, SSD/memória ou uma nova revisão com condições especiais para clientes parceiros como você, conte com a gente!\n\n' +
+      '! Como você está? Aqui é o *Juquinha* da JUCA Informática passando para te dar um alô! ✨😊\n\n' +
+      'Já faz 1 mês que cuidamos de ' +
+      equipPart +
+      osPart +
+      ' e esperamos que tudo continue funcionando perfeitamente por aí!\n\n' +
+      'Você já sabe: manutenção preventiva e cuidado contínuo evitam surpresas e mantêm seu trabalho sempre fluindo.\n\n' +
+      'Se estiver precisando de recarga de cartuchos, toners, cabos, SSD/memória ou um check-up com descontos especiais de cliente parceiro, me dá um toque aqui no WhatsApp!\n\n' +
       (techName
-        ? 'O técnico *' + techName + '* e toda a nossa equipe mandam um grande abraço!'
-        : 'Um grande abraço de toda a nossa equipe!') +
+        ? 'O técnico *' + techName + '* e toda a nossa família JUCA mandam aquele abraço forte!'
+        : 'Toda a nossa equipe da JUCA manda aquele abraço forte!') +
       footer
 
     var sched30d = new Date(nowMs + 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -221,7 +199,11 @@ onRecordAfterUpdateSuccess((e) => {
 
     $app
       .logger()
-      .info('Juquinha: Mensagens de pós-venda agendadas com sucesso', 'service_order', soId)
+      .info(
+        'Juquinha: Sequência de pós-venda v0.0.180 agendada com sucesso (check-in + 7d + 30d)',
+        'service_order',
+        soId,
+      )
   } catch (err) {
     $app.logger().error('Juquinha: Falha ao agendar mensagens de pós-venda', 'error', String(err))
   }

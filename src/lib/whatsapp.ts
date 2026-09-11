@@ -1,7 +1,7 @@
 // Cabeçalho padrão exibido no topo de TODAS as mensagens WhatsApp.
-const WHATSAPP_HEADER = '🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n'
+export const WHATSAPP_HEADER = '🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n'
 // Rodapé padrão com a assinatura da empresa.
-const WHATSAPP_FOOTER =
+export const WHATSAPP_FOOTER =
   '\n\nJuca Cartuchos e Informática Ltda\n(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981'
 // Link de avaliação no Google (fixo conforme solicitado).
 export const GOOGLE_REVIEW_URL = 'https://g.page/r/CfKb0UxVRFNsEAI/review'
