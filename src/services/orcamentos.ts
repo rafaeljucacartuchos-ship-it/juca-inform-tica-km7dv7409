@@ -554,20 +554,29 @@ export async function uploadOrcamentoSignature(
  * total_itens_com_desconto = subtotal - Σ(descontos por item)
  * total_geral = total_itens_com_desconto - desconto_total
  */
-export async function recalculateOrcamentoTotals(
-  orcamentoId: string,
-): Promise<{ subtotal: number; total_geral: number }> {
+export async function recalculateOrcamentoTotals(orcamentoId: string): Promise<{
+  subtotal: number
+  total_geral: number
+  subtotalProdutos: number
+  subtotalServicos: number
+  somaDescontosItens: number
+}> {
   const [orc, itens] = await Promise.all([
     pb.collection('orcamentos').getOne<Orcamento>(orcamentoId),
     getOrcamentoItens(orcamentoId),
   ])
 
-  let subtotal = 0
+  let subtotalProdutos = 0
+  let subtotalServicos = 0
   let somaDescontosItens = 0
 
   for (const item of itens) {
-    const rawTotal = (item.valor_unitario || 0) * (item.quantidade || 0)
-    subtotal += rawTotal
+    const rawTotal = (Number(item.valor_unitario) || 0) * (Number(item.quantidade) || 0)
+    if (item.tipo === 'servico') {
+      subtotalServicos += rawTotal
+    } else {
+      subtotalProdutos += rawTotal
+    }
 
     let itemDesc = 0
     if (item.desconto_item && item.desconto_item > 0) {
@@ -580,6 +589,7 @@ export async function recalculateOrcamentoTotals(
     somaDescontosItens += itemDesc
   }
 
+  const subtotal = subtotalProdutos + subtotalServicos
   const totalComDescontoItens = Math.max(0, subtotal - somaDescontosItens)
 
   let descontoTotalValor = Number(orc.desconto_total_valor) || 0
@@ -596,7 +606,13 @@ export async function recalculateOrcamentoTotals(
     desconto_total_valor: descontoTotalValor,
   })
 
-  return { subtotal, total_geral: totalGeral }
+  return {
+    subtotal,
+    total_geral: totalGeral,
+    subtotalProdutos,
+    subtotalServicos,
+    somaDescontosItens,
+  }
 }
 
 /**

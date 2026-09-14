@@ -76,6 +76,10 @@ import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
 import { BarcodeScanner } from '@/components/BarcodeScanner'
 import { OrcamentoItemModal } from '@/components/OrcamentoItemModal'
+import {
+  OrcamentoServicoSelectModal,
+  SelectedServicoCadastrado,
+} from '@/components/OrcamentoServicoSelectModal'
 import { OrcamentoPhotos } from '@/components/OrcamentoPhotos'
 import { OrcamentoAssinaturaModal } from '@/components/OrcamentoAssinaturaModal'
 import {
@@ -148,6 +152,9 @@ export default function OrcamentoDetail() {
 
   // Modais auxiliares
   const [itemModalOpen, setItemModalOpen] = useState(false)
+  const [modalDefaultKind, setModalDefaultKind] = useState<'produto' | 'servico'>('produto')
+  const [modalLockKind, setModalLockKind] = useState(false)
+  const [servicoSelectModalOpen, setServicoSelectModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<OrcamentoItem | null>(null)
   const [scannerOpen, setScannerOpen] = useState(false)
   const [signatureModalOpen, setSignatureModalOpen] = useState(false)
@@ -285,12 +292,16 @@ export default function OrcamentoDetail() {
     }, 600)
   }
 
-  // Cálculos financeiros em tempo real
+  // Cálculos financeiros em tempo real com separação de Produtos e Serviços
   const financialSummary = useMemo(() => {
-    const subtotal = items.reduce(
-      (sum, it) => sum + (Number(it.valor_unitario) || 0) * (Number(it.quantidade) || 0),
-      0,
-    )
+    const subtotalProdutos = items
+      .filter((it) => it.tipo !== 'servico')
+      .reduce((sum, it) => sum + (Number(it.valor_unitario) || 0) * (Number(it.quantidade) || 0), 0)
+    const subtotalServicos = items
+      .filter((it) => it.tipo === 'servico')
+      .reduce((sum, it) => sum + (Number(it.valor_unitario) || 0) * (Number(it.quantidade) || 0), 0)
+    const subtotal = subtotalProdutos + subtotalServicos
+
     const totalItensComDesconto = items.reduce(
       (sum, it) => sum + (Number(it.valor_total_item) || 0),
       0,
@@ -310,6 +321,8 @@ export default function OrcamentoDetail() {
 
     return {
       subtotal,
+      subtotalProdutos,
+      subtotalServicos,
       somaDescontosItens,
       totalItensComDesconto,
       descTotal,
@@ -416,6 +429,33 @@ export default function OrcamentoDetail() {
     }
   }
 
+  // Adição direta de linha de serviço cadastrado
+  const handleSelectServicoCadastrado = async (servico: SelectedServicoCadastrado) => {
+    if (!id || isLocked) return
+    try {
+      const unitPrice = servico.valorUnitario || 0
+      await createOrcamentoItem({
+        id_orcamento: id,
+        tipo: 'servico',
+        id_produto: servico.id,
+        descricao: servico.descricao,
+        quantidade: 1,
+        valor_unitario: unitPrice,
+        desconto_item: 0,
+        desconto_item_tipo: 'valor',
+        valor_total_item: unitPrice,
+      })
+      await recalculateOrcamentoTotals(id)
+      toast({
+        title: 'Serviço adicionado!',
+        description: `${servico.descricao} (R$ ${unitPrice.toFixed(2)})`,
+      })
+      await loadAll()
+    } catch {
+      toast({ title: 'Erro ao incluir serviço selecionado', variant: 'destructive' })
+    }
+  }
+
   // Helpers para resolver cliente e responsável independente vs vinculado
   const activeCustomer = useMemo(() => {
     if (!orcamento) return null
@@ -504,6 +544,9 @@ export default function OrcamentoDetail() {
       osNumber: osNum,
       propostaUrl,
       equipment: equipmentName,
+      subtotalProdutos: financialSummary.subtotalProdutos,
+      subtotalServicos: financialSummary.subtotalServicos,
+      totalGeral: financialSummary.totalGeral,
     })
 
     // Registra no histórico do cliente / pos_venda_messages se houver cliente cadastrado
@@ -593,6 +636,9 @@ export default function OrcamentoDetail() {
       osNumber: osNum,
       propostaUrl,
       equipment: equipmentName,
+      subtotalProdutos: financialSummary.subtotalProdutos,
+      subtotalServicos: financialSummary.subtotalServicos,
+      totalGeral: financialSummary.totalGeral,
     })
 
     // Registra no histórico do cliente / pos_venda_messages
@@ -823,23 +869,34 @@ export default function OrcamentoDetail() {
       documentoUrl,
     } = params
 
-    const itensLinhas =
-      itensList.length > 0
-        ? itensList
+    const prodsList = itensList.filter((it) => it.tipo !== 'servico')
+    const servsList = itensList.filter((it) => it.tipo === 'servico')
+
+    const subProds = prodsList.reduce(
+      (s, it) => s + (Number(it.valor_unitario) || 0) * (Number(it.quantidade) || 0),
+      0,
+    )
+    const subServs = servsList.reduce(
+      (s, it) => s + (Number(it.valor_unitario) || 0) * (Number(it.quantidade) || 0),
+      0,
+    )
+
+    const fmt = (v: number) =>
+      v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+    const formatList = (list: OrcamentoItem[]) =>
+      list.length > 0
+        ? list
             .map((it) => {
               const qtd = it.quantidade || 1
               const rawTotal =
                 typeof it.valor_total_item === 'number'
                   ? it.valor_total_item
                   : (it.valor_unitario || 0) * qtd
-              const vlr = rawTotal.toLocaleString('pt-BR', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })
-              return `  • ${qtd}x ${it.descricao}: R$ ${vlr}`
+              return `  • ${qtd}x ${it.descricao}: R$ ${fmt(rawTotal)}`
             })
             .join('\n')
-        : '  • Nenhum item listado'
+        : '  • Nenhum'
 
     const totalFmt = totalGeral.toLocaleString('pt-BR', {
       minimumFractionDigits: 2,
@@ -863,8 +920,10 @@ export default function OrcamentoDetail() {
       `👤 *Cliente:* ${clientName}\n` +
       `💻 *Equipamento:* ${equipmentName}\n` +
       `👨‍💼 *Responsável:* ${responsibleName}\n\n` +
-      `📦 *Itens e Serviços:*\n` +
-      `${itensLinhas}\n\n` +
+      `📦 *Produtos & Peças (Subtotal: R$ ${fmt(subProds)}):*\n` +
+      `${formatList(prodsList)}\n\n` +
+      `🛠️ *Serviços & Mão de Obra (Subtotal: R$ ${fmt(subServs)}):*\n` +
+      `${formatList(servsList)}\n\n` +
       `💰 *Total Geral:* R$ ${totalFmt}\n` +
       `💳 *Forma de Pagamento:* ${formaPag} (${parcelasFmt})\n\n` +
       (isLinkedToOs ? `✅ *Status O.S.:* Finalizada (Closed)\n` : '') +
@@ -1555,16 +1614,31 @@ export default function OrcamentoDetail() {
             </CardContent>
           </Card>
 
-          {/* ITENS E SERVIÇOS DO ORÇAMENTO */}
-          <Card className="border-slate-200 shadow-xs">
-            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3">
+          {/* SEÇÃO 1: PRODUTOS & PEÇAS */}
+          <Card className="border-slate-200 shadow-xs overflow-hidden">
+            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 bg-gradient-to-r from-indigo-50/70 via-white to-white border-b border-indigo-100/60">
               <div className="flex items-center gap-2">
-                <CardTitle className="text-sm font-bold text-slate-900">
-                  Itens e Serviços do Orçamento
-                </CardTitle>
-                <Badge variant="outline" className="text-xs">
-                  {items.length} {items.length === 1 ? 'item' : 'itens'}
-                </Badge>
+                <div className="h-7 w-7 rounded-md bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Package className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-sm font-bold text-slate-900">
+                      Produtos & Peças
+                    </CardTitle>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200"
+                    >
+                      {items.filter((it) => it.tipo !== 'servico').length}{' '}
+                      {items.filter((it) => it.tipo !== 'servico').length === 1 ? 'item' : 'itens'}
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Peças físicas, componentes e suprimentos (com baixa automática de estoque no
+                    faturamento)
+                  </p>
+                </div>
               </div>
 
               {canEdit && (
@@ -1573,7 +1647,8 @@ export default function OrcamentoDetail() {
                     size="sm"
                     variant="outline"
                     onClick={() => setScannerOpen(true)}
-                    className="h-8 text-xs gap-1.5"
+                    className="h-8 text-xs gap-1.5 border-slate-200"
+                    title="Ler código de barras ou bipar leitor físico"
                   >
                     <ScanLine className="h-3.5 w-3.5 text-indigo-600" />
                     <span>Código de Barras</span>
@@ -1582,100 +1657,111 @@ export default function OrcamentoDetail() {
                     size="sm"
                     onClick={() => {
                       setEditingItem(null)
+                      setModalDefaultKind('produto')
+                      setModalLockKind(true)
                       setItemModalOpen(true)
                     }}
-                    className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                    className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shadow-xs font-semibold"
                   >
-                    <Plus className="h-3.5 w-3.5" /> Adicionar Item
+                    <Plus className="h-3.5 w-3.5" /> Adicionar Produto
                   </Button>
                 </div>
               )}
             </CardHeader>
 
             <CardContent className="p-0">
-              {/* Tabela de Itens */}
+              {/* Tabela de Produtos */}
               <div className="overflow-x-auto w-full">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 border-y border-slate-200 text-slate-500">
+                  <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-semibold">
                     <tr>
-                      <th className="py-2.5 px-3">Tipo</th>
-                      <th className="py-2.5 px-3">Descrição</th>
+                      <th className="py-2.5 px-3">Descrição do Produto / Peça</th>
                       <th className="py-2.5 px-3 text-center">Qtd</th>
                       <th className="py-2.5 px-3 text-right">Vlr. Unit.</th>
-                      <th className="py-2.5 px-3 text-right">Desconto Item</th>
-                      <th className="py-2.5 px-3 text-right">Total Item</th>
+                      <th className="py-2.5 px-3 text-right">Desconto</th>
+                      <th className="py-2.5 px-3 text-right">Total</th>
                       {canEdit && <th className="py-2.5 px-3 text-right">Ações</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {items.map((it) => {
-                      let itemDescVal = 0
-                      if (it.desconto_item && it.desconto_item > 0) {
-                        const raw = it.valor_unitario * it.quantidade
-                        itemDescVal =
-                          it.desconto_item_tipo === 'percentual'
-                            ? (raw * it.desconto_item) / 100
-                            : it.desconto_item
-                      }
-                      return (
-                        <tr key={it.id} className="hover:bg-slate-50/70">
-                          <td className="py-2.5 px-3">
-                            <span
-                              className={`inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                                it.tipo === 'servico'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : 'bg-indigo-100 text-indigo-800'
-                              }`}
-                            >
-                              {it.tipo === 'servico' ? 'Serviço' : 'Produto'}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-3 font-medium text-slate-900">{it.descricao}</td>
-                          <td className="py-2.5 px-3 text-center font-mono">{it.quantidade}</td>
-                          <td className="py-2.5 px-3 text-right font-mono">
-                            R$ {(it.valor_unitario || 0).toFixed(2)}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono text-rose-600">
-                            {itemDescVal > 0 ? `- R$ ${itemDescVal.toFixed(2)}` : '—'}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
-                            R$ {(it.valor_total_item || 0).toFixed(2)}
-                          </td>
-                          {canEdit && (
-                            <td className="py-2.5 px-3 text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => {
-                                    setEditingItem(it)
-                                    setItemModalOpen(true)
-                                  }}
-                                  className="h-7 w-7 text-slate-500 hover:text-indigo-600"
-                                  title="Editar item"
-                                >
-                                  <Edit className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleDeleteItem(it.id, it.descricao)}
-                                  className="h-7 w-7 text-red-500 hover:bg-red-50"
-                                  title="Excluir item"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
+                    {items
+                      .filter((it) => it.tipo !== 'servico')
+                      .map((it) => {
+                        let itemDescVal = 0
+                        if (it.desconto_item && it.desconto_item > 0) {
+                          const raw = (it.valor_unitario || 0) * (it.quantidade || 0)
+                          itemDescVal =
+                            it.desconto_item_tipo === 'percentual'
+                              ? (raw * it.desconto_item) / 100
+                              : it.desconto_item
+                        }
+                        return (
+                          <tr key={it.id} className="hover:bg-indigo-50/30 transition-colors">
+                            <td className="py-2.5 px-3">
+                              <div className="font-medium text-slate-900">{it.descricao}</div>
+                              {it.id_produto && (
+                                <span className="text-[10px] text-slate-400">Do catálogo</span>
+                              )}
                             </td>
-                          )}
-                        </tr>
-                      )
-                    })}
-                    {items.length === 0 && (
+                            <td className="py-2.5 px-3 text-center font-mono font-medium">
+                              {it.quantidade}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700">
+                              R${' '}
+                              {(it.valor_unitario || 0).toLocaleString('pt-BR', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono tabular-nums text-rose-600">
+                              {itemDescVal > 0
+                                ? `- R$ ${itemDescVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                : '—'}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold text-slate-900">
+                              R${' '}
+                              {(it.valor_total_item || 0).toLocaleString('pt-BR', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </td>
+                            {canEdit && (
+                              <td className="py-2.5 px-3 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => {
+                                      setEditingItem(it)
+                                      setModalDefaultKind('produto')
+                                      setModalLockKind(false)
+                                      setItemModalOpen(true)
+                                    }}
+                                    className="h-7 w-7 text-slate-500 hover:text-indigo-600"
+                                    title="Editar produto"
+                                  >
+                                    <Edit className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDeleteItem(it.id, it.descricao)}
+                                    className="h-7 w-7 text-red-500 hover:bg-red-50"
+                                    title="Excluir produto"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        )
+                      })}
+                    {items.filter((it) => it.tipo !== 'servico').length === 0 && (
                       <tr>
-                        <td colSpan={7} className="py-8 text-center text-slate-400 text-xs">
-                          Nenhum item adicionado ao orçamento. Clique em "Adicionar Item" ou
-                          escaneie o código de barras.
+                        <td colSpan={6} className="py-7 text-center text-slate-400 text-xs">
+                          Nenhum produto ou peça adicionado. Clique em "+ Adicionar Produto" ou use
+                          o código de barras.
                         </td>
                       </tr>
                     )}
@@ -1683,118 +1769,396 @@ export default function OrcamentoDetail() {
                 </table>
               </div>
 
-              {/* RESUMO FINANCEIRO E DESCONTOS (2 NÍVEIS) */}
-              <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-3 text-xs">
-                <div className="flex justify-between items-center text-slate-600 font-medium">
-                  <span>Subtotal Bruto dos Itens:</span>
-                  <span className="font-mono font-bold text-slate-800">
-                    R$ {financialSummary.subtotal.toFixed(2)}
-                  </span>
+              {/* Rodapé do Subtotal de Produtos */}
+              <div className="px-4 py-2.5 bg-indigo-50/50 border-t border-indigo-100 flex items-center justify-between text-xs">
+                <span className="font-semibold text-indigo-950 flex items-center gap-1.5">
+                  <Package className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>Subtotal Produtos:</span>
+                </span>
+                <span className="font-mono tabular-nums font-bold text-sm text-indigo-900">
+                  R${' '}
+                  {financialSummary.subtotalProdutos.toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* SEÇÃO 2: SERVIÇOS & MÃO DE OBRA */}
+          <Card className="border-slate-200 shadow-xs overflow-hidden">
+            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 bg-gradient-to-r from-emerald-50/70 via-white to-white border-b border-emerald-100/60">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-md bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Wrench className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-sm font-bold text-slate-900">
+                      Serviços & Mão de Obra
+                    </CardTitle>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200"
+                    >
+                      {items.filter((it) => it.tipo === 'servico').length}{' '}
+                      {items.filter((it) => it.tipo === 'servico').length === 1
+                        ? 'serviço'
+                        : 'serviços'}
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Mão de obra e serviços prestados (sem movimentação de estoque físico)
+                  </p>
+                </div>
+              </div>
+
+              {canEdit && (
+                <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setServicoSelectModalOpen(true)}
+                    className="h-8 text-xs gap-1.5 border-emerald-300 bg-emerald-50/60 text-emerald-800 hover:bg-emerald-100/70"
+                    title="Buscar serviço cadastrado no catálogo JUCA"
+                  >
+                    <Search className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>Selecionar serviço cadastrado</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setEditingItem(null)
+                      setModalDefaultKind('servico')
+                      setModalLockKind(true)
+                      setItemModalOpen(true)
+                    }}
+                    className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-xs font-semibold"
+                    title="Adicionar serviço digitando descrição, quantidade e valor livremente"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> + Adicionar serviço
+                  </Button>
+                </div>
+              )}
+            </CardHeader>
+
+            <CardContent className="p-0">
+              {/* Tabela de Serviços */}
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-semibold">
+                    <tr>
+                      <th className="py-2.5 px-3">Descrição do Serviço / Mão de Obra</th>
+                      <th className="py-2.5 px-3 text-center">Qtd</th>
+                      <th className="py-2.5 px-3 text-right">Vlr. Unit.</th>
+                      <th className="py-2.5 px-3 text-right">Desconto</th>
+                      <th className="py-2.5 px-3 text-right">Total</th>
+                      {canEdit && <th className="py-2.5 px-3 text-right">Ações</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {items
+                      .filter((it) => it.tipo === 'servico')
+                      .map((it) => {
+                        let itemDescVal = 0
+                        if (it.desconto_item && it.desconto_item > 0) {
+                          const raw = (it.valor_unitario || 0) * (it.quantidade || 0)
+                          itemDescVal =
+                            it.desconto_item_tipo === 'percentual'
+                              ? (raw * it.desconto_item) / 100
+                              : it.desconto_item
+                        }
+                        return (
+                          <tr key={it.id} className="hover:bg-emerald-50/30 transition-colors">
+                            <td className="py-2.5 px-3">
+                              <div className="font-medium text-slate-900">{it.descricao}</div>
+                              <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded font-medium">
+                                Serviço livre
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-mono font-medium">
+                              {it.quantidade}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700">
+                              R${' '}
+                              {(it.valor_unitario || 0).toLocaleString('pt-BR', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono tabular-nums text-rose-600">
+                              {itemDescVal > 0
+                                ? `- R$ ${itemDescVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                : '—'}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold text-slate-900">
+                              R${' '}
+                              {(it.valor_total_item || 0).toLocaleString('pt-BR', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </td>
+                            {canEdit && (
+                              <td className="py-2.5 px-3 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => {
+                                      setEditingItem(it)
+                                      setModalDefaultKind('servico')
+                                      setModalLockKind(false)
+                                      setItemModalOpen(true)
+                                    }}
+                                    className="h-7 w-7 text-slate-500 hover:text-emerald-700"
+                                    title="Editar serviço"
+                                  >
+                                    <Edit className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDeleteItem(it.id, it.descricao)}
+                                    className="h-7 w-7 text-red-500 hover:bg-red-50"
+                                    title="Excluir serviço"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        )
+                      })}
+                    {items.filter((it) => it.tipo === 'servico').length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="py-7 text-center text-slate-400 text-xs">
+                          Nenhum serviço ou mão de obra adicionado. Clique em "+ Adicionar serviço"
+                          (digitação livre) ou "Selecionar serviço cadastrado".
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Rodapé do Subtotal de Serviços */}
+              <div className="px-4 py-2.5 bg-emerald-50/50 border-t border-emerald-100 flex items-center justify-between text-xs">
+                <span className="font-semibold text-emerald-950 flex items-center gap-1.5">
+                  <Wrench className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>Subtotal Serviços:</span>
+                </span>
+                <span className="font-mono tabular-nums font-bold text-sm text-emerald-900">
+                  R${' '}
+                  {financialSummary.subtotalServicos.toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* CARD DE RESUMO CONSOLIDADO: PRODUTOS + SERVIÇOS - DESCONTOS = TOTAL GERAL */}
+          <Card className="border-slate-200 shadow-sm bg-gradient-to-br from-white via-slate-50/50 to-indigo-50/30 overflow-hidden">
+            <CardHeader className="pb-3 border-b border-slate-100">
+              <CardTitle className="text-sm font-bold text-slate-900 flex items-center justify-between">
+                <span>Resumo Consolidado do Orçamento</span>
+                <span className="text-[11px] font-normal text-slate-500">
+                  Produtos ({items.filter((it) => it.tipo !== 'servico').length}) + Serviços (
+                  {items.filter((it) => it.tipo === 'servico').length})
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 space-y-3 text-xs">
+              {/* Grid com subtotais independentes lado a lado */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3 bg-white border border-indigo-100 rounded-lg shadow-xs flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="h-7 w-7 rounded-md bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                      <Package className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-slate-500 font-medium">
+                        Subtotal Produtos
+                      </div>
+                      <div className="text-xs font-semibold text-slate-800">
+                        {items.filter((it) => it.tipo !== 'servico').length}{' '}
+                        {items.filter((it) => it.tipo !== 'servico').length === 1
+                          ? 'item'
+                          : 'itens'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-mono tabular-nums font-bold text-sm text-indigo-900">
+                      R${' '}
+                      {financialSummary.subtotalProdutos.toLocaleString('pt-BR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  </div>
                 </div>
 
-                {financialSummary.somaDescontosItens > 0 && (
-                  <div className="flex justify-between items-center text-rose-600 font-medium">
-                    <span>Soma de Descontos nos Itens:</span>
-                    <span className="font-mono font-bold">
-                      - R$ {financialSummary.somaDescontosItens.toFixed(2)}
-                    </span>
-                  </div>
-                )}
-
-                {/* Desconto no Total do Orçamento (Nível 2) */}
-                <div className="p-3 bg-white border border-slate-200 rounded-lg space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-700">
-                      Desconto no Total Geral (Percentual ou Valor Fixo):
-                    </span>
-                    <div className="flex rounded-md border border-slate-200 bg-slate-50 p-0.5 text-[10px]">
-                      <button
-                        type="button"
-                        disabled={!canEdit}
-                        onClick={() =>
-                          handleApplyTotalDiscount(orcamento.desconto_total_valor || 0, 'valor')
-                        }
-                        className={`px-2 py-0.5 rounded font-semibold ${
-                          orcamento.desconto_total_tipo === 'valor'
-                            ? 'bg-indigo-600 text-white'
-                            : 'text-slate-600'
-                        }`}
-                      >
-                        R$ Fixo
-                      </button>
-                      <button
-                        type="button"
-                        disabled={!canEdit}
-                        onClick={() =>
-                          handleApplyTotalDiscount(
-                            orcamento.desconto_total_percentual || 0,
-                            'percentual',
-                          )
-                        }
-                        className={`px-2 py-0.5 rounded font-semibold ${
-                          orcamento.desconto_total_tipo === 'percentual'
-                            ? 'bg-indigo-600 text-white'
-                            : 'text-slate-600'
-                        }`}
-                      >
-                        % Percentual
-                      </button>
-                    </div>
-                  </div>
-
+                <div className="p-3 bg-white border border-emerald-100 rounded-lg shadow-xs flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      disabled={!canEdit}
-                      value={
-                        orcamento.desconto_total_tipo === 'percentual'
-                          ? orcamento.desconto_total_percentual || ''
-                          : orcamento.desconto_total_valor || ''
-                      }
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0
-                        handleApplyTotalDiscount(val, orcamento.desconto_total_tipo || 'valor')
-                      }}
-                      placeholder="0,00"
-                      className="h-8 w-32 font-mono font-bold text-rose-700"
-                    />
-                    <span className="font-semibold text-slate-600">
-                      {orcamento.desconto_total_tipo === 'percentual' ? '%' : 'R$'}
-                    </span>
-
-                    {financialSummary.pctDoTotal > 0 && (
-                      <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
-                        {financialSummary.pctDoTotal.toFixed(1)}% de desconto aplicado
-                      </span>
-                    )}
-                  </div>
-
-                  {financialSummary.descTotal > 0 && (
-                    <div className="space-y-1 pt-1">
-                      <label className="text-[11px] font-semibold text-slate-700 block">
-                        Justificativa / Observação do Desconto (opcional):
-                      </label>
-                      <Input
-                        value={justificativaDesconto}
-                        disabled={!canEdit}
-                        onChange={(e) => {
-                          setJustificativaDesconto(e.target.value)
-                          triggerAutoSave({ justificativa_desconto: e.target.value })
-                        }}
-                        placeholder="Ex: Pagamento à vista, cortesia comercial, cliente recorrente..."
-                        className="h-8 text-xs bg-slate-50"
-                      />
+                    <div className="h-7 w-7 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                      <Wrench className="h-4 w-4" />
                     </div>
+                    <div>
+                      <div className="text-[11px] text-slate-500 font-medium">
+                        Subtotal Serviços
+                      </div>
+                      <div className="text-xs font-semibold text-slate-800">
+                        {items.filter((it) => it.tipo === 'servico').length}{' '}
+                        {items.filter((it) => it.tipo === 'servico').length === 1
+                          ? 'item'
+                          : 'itens'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-mono tabular-nums font-bold text-sm text-emerald-900">
+                      R${' '}
+                      {financialSummary.subtotalServicos.toLocaleString('pt-BR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Linha da soma bruta */}
+              <div className="flex justify-between items-center text-slate-600 font-medium pt-1">
+                <span>Subtotal Bruto (Produtos + Serviços):</span>
+                <span className="font-mono tabular-nums font-bold text-slate-800">
+                  R${' '}
+                  {financialSummary.subtotal.toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </div>
+
+              {financialSummary.somaDescontosItens > 0 && (
+                <div className="flex justify-between items-center text-rose-600 font-medium">
+                  <span>Soma de Descontos nos Itens:</span>
+                  <span className="font-mono tabular-nums font-bold">
+                    - R${' '}
+                    {financialSummary.somaDescontosItens.toLocaleString('pt-BR', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+              )}
+
+              {/* Desconto no Total do Orçamento (Nível 2) */}
+              <div className="p-3 bg-white border border-slate-200 rounded-lg space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-700">
+                    Desconto no Total Geral (Percentual ou Valor Fixo):
+                  </span>
+                  <div className="flex rounded-md border border-slate-200 bg-slate-50 p-0.5 text-[10px]">
+                    <button
+                      type="button"
+                      disabled={!canEdit}
+                      onClick={() =>
+                        handleApplyTotalDiscount(orcamento.desconto_total_valor || 0, 'valor')
+                      }
+                      className={`px-2 py-0.5 rounded font-semibold ${
+                        orcamento.desconto_total_tipo === 'valor'
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-slate-600'
+                      }`}
+                    >
+                      R$ Fixo
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canEdit}
+                      onClick={() =>
+                        handleApplyTotalDiscount(
+                          orcamento.desconto_total_percentual || 0,
+                          'percentual',
+                        )
+                      }
+                      className={`px-2 py-0.5 rounded font-semibold ${
+                        orcamento.desconto_total_tipo === 'percentual'
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-slate-600'
+                      }`}
+                    >
+                      % Percentual
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    disabled={!canEdit}
+                    value={
+                      orcamento.desconto_total_tipo === 'percentual'
+                        ? orcamento.desconto_total_percentual || ''
+                        : orcamento.desconto_total_valor || ''
+                    }
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0
+                      handleApplyTotalDiscount(val, orcamento.desconto_total_tipo || 'valor')
+                    }}
+                    placeholder="0,00"
+                    className="h-8 w-32 font-mono tabular-nums font-bold text-rose-700"
+                  />
+                  <span className="font-semibold text-slate-600">
+                    {orcamento.desconto_total_tipo === 'percentual' ? '%' : 'R$'}
+                  </span>
+
+                  {financialSummary.pctDoTotal > 0 && (
+                    <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                      {financialSummary.pctDoTotal.toFixed(1)}% de desconto aplicado
+                    </span>
                   )}
                 </div>
 
-                <div className="flex justify-between items-center font-bold text-sm pt-2 border-t border-slate-200">
-                  <span className="text-slate-900">VALOR TOTAL DO ORÇAMENTO:</span>
-                  <span className="font-mono text-indigo-700 text-lg">
-                    R$ {financialSummary.totalGeral.toFixed(2)}
-                  </span>
+                {financialSummary.descTotal > 0 && (
+                  <div className="space-y-1 pt-1">
+                    <label className="text-[11px] font-semibold text-slate-700 block">
+                      Justificativa / Observação do Desconto (opcional):
+                    </label>
+                    <Input
+                      value={justificativaDesconto}
+                      disabled={!canEdit}
+                      onChange={(e) => {
+                        setJustificativaDesconto(e.target.value)
+                        triggerAutoSave({ justificativa_desconto: e.target.value })
+                      }}
+                      placeholder="Ex: Pagamento à vista, cortesia comercial, cliente recorrente..."
+                      className="h-8 text-xs bg-slate-50"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Destaque do TOTAL GERAL */}
+              <div className="p-3 bg-indigo-900 text-white rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-xs">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-indigo-200 font-semibold">
+                    Produtos + Serviços − Descontos
+                  </div>
+                  <div className="text-sm font-bold text-white">TOTAL GERAL DO ORÇAMENTO</div>
+                </div>
+                <div className="font-mono tabular-nums font-extrabold text-xl sm:text-2xl text-emerald-300">
+                  R${' '}
+                  {financialSummary.totalGeral.toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
                 </div>
               </div>
             </CardContent>
@@ -2472,12 +2836,21 @@ export default function OrcamentoDetail() {
         onDetected={handleBarcodeScanned}
       />
 
-      {/* Modal de Itens */}
+      {/* Modal de Seleção de Serviço Cadastrado */}
+      <OrcamentoServicoSelectModal
+        open={servicoSelectModalOpen}
+        onOpenChange={setServicoSelectModalOpen}
+        onSelect={handleSelectServicoCadastrado}
+      />
+
+      {/* Modal de Itens (Produtos e Serviços) */}
       <OrcamentoItemModal
         open={itemModalOpen}
         onOpenChange={setItemModalOpen}
         orcamentoId={orcamento.id}
         itemToEdit={editingItem}
+        defaultKind={modalDefaultKind}
+        lockKind={modalLockKind}
         onSaved={loadAll}
       />
 

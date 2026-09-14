@@ -186,96 +186,215 @@ export function PropostaPrintDocument({ data, localSignatureUrl }: PropostaPrint
           </div>
         </div>
 
-        {/* TABELA DE ITENS (COMPACTA) */}
-        <div className="page-break-inside-avoid mb-2 rounded border border-slate-200 p-2">
-          <h3 className="mb-1 text-[10px] font-bold text-slate-900 uppercase tracking-wide">
-            Itens, Peças e Serviços da Proposta
-          </h3>
-          <table className="w-full border-collapse text-[10px]">
-            <thead>
-              <tr className="bg-slate-100 text-slate-800 border-b border-slate-300">
-                <th className="px-1.5 py-1 text-left font-bold w-10">Item</th>
-                <th className="px-1.5 py-1 text-left font-bold">Descrição do Produto / Serviço</th>
-                <th className="px-1.5 py-1 text-center font-bold w-12">Qtd</th>
-                <th className="px-1.5 py-1 text-right font-bold w-20">Vlr. Unit.</th>
-                <th className="px-1.5 py-1 text-right font-bold w-20">Desconto</th>
-                <th className="px-1.5 py-1 text-right font-bold w-20">Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {items.length > 0 ? (
-                items.map((it, idx) => {
-                  let itemDescVal = 0
-                  if (it.desconto_item && it.desconto_item > 0) {
-                    const raw = it.valor_unitario * it.quantidade
-                    itemDescVal =
-                      it.desconto_item_tipo === 'percentual'
-                        ? (raw * it.desconto_item) / 100
-                        : it.desconto_item
-                  }
-                  return (
-                    <tr key={it.id || idx} className="even:bg-slate-50/80">
-                      <td className="px-1.5 py-0.5 text-slate-500 font-mono text-center">
-                        {idx + 1}
-                      </td>
-                      <td className="px-1.5 py-0.5 text-slate-900">
-                        <span className="font-semibold">{it.descricao}</span>
-                        <span className="ml-1 text-[8px] uppercase px-1 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                          {it.tipo}
-                        </span>
-                      </td>
-                      <td className="px-1.5 py-0.5 text-center font-mono font-medium text-slate-800">
-                        {it.quantidade}
-                      </td>
-                      <td className="px-1.5 py-0.5 text-right font-mono text-slate-700">
-                        R$ {fmtCurrency(it.valor_unitario)}
-                      </td>
-                      <td className="px-1.5 py-0.5 text-right font-mono text-rose-600">
-                        {itemDescVal > 0 ? `- R$ ${fmtCurrency(itemDescVal)}` : '—'}
-                      </td>
-                      <td className="px-1.5 py-0.5 text-right font-mono font-bold text-slate-900">
-                        R$ {fmtCurrency(it.valor_total_item)}
-                      </td>
-                    </tr>
-                  )
-                })
-              ) : (
-                <tr>
-                  <td colSpan={6} className="px-1.5 py-2 text-center text-slate-400 italic">
-                    Nenhum item adicionado a esta proposta.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-
-          {/* RESUMO FINANCEIRO */}
-          <div className="mt-1.5 flex justify-end">
-            <div className="w-64 space-y-0.5 rounded bg-slate-50 p-1.5 border border-slate-200 text-right text-[10px]">
-              <div className="flex justify-between text-slate-600">
-                <span>Subtotal Bruto:</span>
-                <span className="font-mono font-medium">R$ {fmtCurrency(subtotal)}</span>
-              </div>
-              {descontoTotal > 0 && (
-                <div className="flex justify-between text-rose-600 font-medium">
-                  <span>
-                    Desconto Concedido{' '}
-                    {data.desconto_total_tipo === 'percentual'
-                      ? `(${data.desconto_total_percentual}%)`
-                      : ''}
-                    :
+        {/* SEÇÕES SEPARADAS: PRODUTOS E SERVIÇOS */}
+        <div className="page-break-inside-avoid mb-2 space-y-2">
+          {/* SEÇÃO PRODUTOS */}
+          {(() => {
+            const prods = items.filter((it) => it.tipo !== 'servico')
+            const subProds = prods.reduce(
+              (sum, it) => sum + (Number(it.valor_unitario) || 0) * (Number(it.quantidade) || 0),
+              0,
+            )
+            return (
+              <div className="rounded border border-indigo-200 bg-white p-2">
+                <div className="flex items-center justify-between mb-1 pb-1 border-b border-indigo-100">
+                  <h3 className="text-[10px] font-bold text-indigo-950 uppercase tracking-wide flex items-center gap-1">
+                    <span>Produtos & Peças</span>
+                    <span className="text-[8.5px] font-normal text-indigo-700">
+                      ({prods.length} {prods.length === 1 ? 'item' : 'itens'})
+                    </span>
+                  </h3>
+                  <span className="text-[9.5px] font-mono tabular-nums font-bold text-indigo-900">
+                    Subtotal Produtos: R$ {fmtCurrency(subProds)}
                   </span>
-                  <span className="font-mono">- R$ {fmtCurrency(descontoTotal)}</span>
                 </div>
-              )}
-              <div className="flex justify-between border-t border-slate-900 pt-0.5 text-[11px] font-black text-slate-900">
-                <span>TOTAL GERAL:</span>
-                <span className="font-mono text-xs text-indigo-900 font-bold">
-                  R$ {fmtCurrency(totalGeral)}
-                </span>
+                <table className="w-full border-collapse text-[9.5px]">
+                  <thead>
+                    <tr className="bg-indigo-50/60 text-slate-700 border-b border-indigo-100">
+                      <th className="px-1.5 py-0.5 text-left font-bold w-8">Item</th>
+                      <th className="px-1.5 py-0.5 text-left font-bold">Descrição do Produto</th>
+                      <th className="px-1.5 py-0.5 text-center font-bold w-10">Qtd</th>
+                      <th className="px-1.5 py-0.5 text-right font-bold w-16">Vlr. Unit.</th>
+                      <th className="px-1.5 py-0.5 text-right font-bold w-16">Desconto</th>
+                      <th className="px-1.5 py-0.5 text-right font-bold w-16">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {prods.length > 0 ? (
+                      prods.map((it, idx) => {
+                        let itemDescVal = 0
+                        if (it.desconto_item && it.desconto_item > 0) {
+                          const raw = it.valor_unitario * it.quantidade
+                          itemDescVal =
+                            it.desconto_item_tipo === 'percentual'
+                              ? (raw * it.desconto_item) / 100
+                              : it.desconto_item
+                        }
+                        return (
+                          <tr key={it.id || idx} className="even:bg-slate-50/50">
+                            <td className="px-1.5 py-0.5 text-slate-500 font-mono text-center">
+                              {idx + 1}
+                            </td>
+                            <td className="px-1.5 py-0.5 text-slate-900 font-medium">
+                              {it.descricao}
+                            </td>
+                            <td className="px-1.5 py-0.5 text-center font-mono text-slate-800">
+                              {it.quantidade}
+                            </td>
+                            <td className="px-1.5 py-0.5 text-right font-mono text-slate-700">
+                              R$ {fmtCurrency(it.valor_unitario)}
+                            </td>
+                            <td className="px-1.5 py-0.5 text-right font-mono text-rose-600">
+                              {itemDescVal > 0 ? `- R$ ${fmtCurrency(itemDescVal)}` : '—'}
+                            </td>
+                            <td className="px-1.5 py-0.5 text-right font-mono font-bold text-slate-900">
+                              R$ {fmtCurrency(it.valor_total_item)}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="px-1.5 py-1 text-center text-slate-400 italic">
+                          Nenhum produto cadastrado nesta proposta.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
-            </div>
-          </div>
+            )
+          })()}
+
+          {/* SEÇÃO SERVIÇOS */}
+          {(() => {
+            const servs = items.filter((it) => it.tipo === 'servico')
+            const subServs = servs.reduce(
+              (sum, it) => sum + (Number(it.valor_unitario) || 0) * (Number(it.quantidade) || 0),
+              0,
+            )
+            return (
+              <div className="rounded border border-emerald-200 bg-white p-2">
+                <div className="flex items-center justify-between mb-1 pb-1 border-b border-emerald-100">
+                  <h3 className="text-[10px] font-bold text-emerald-950 uppercase tracking-wide flex items-center gap-1">
+                    <span>Serviços & Mão de Obra</span>
+                    <span className="text-[8.5px] font-normal text-emerald-700">
+                      ({servs.length} {servs.length === 1 ? 'serviço' : 'serviços'})
+                    </span>
+                  </h3>
+                  <span className="text-[9.5px] font-mono tabular-nums font-bold text-emerald-900">
+                    Subtotal Serviços: R$ {fmtCurrency(subServs)}
+                  </span>
+                </div>
+                <table className="w-full border-collapse text-[9.5px]">
+                  <thead>
+                    <tr className="bg-emerald-50/60 text-slate-700 border-b border-emerald-100">
+                      <th className="px-1.5 py-0.5 text-left font-bold w-8">Item</th>
+                      <th className="px-1.5 py-0.5 text-left font-bold">Descrição do Serviço</th>
+                      <th className="px-1.5 py-0.5 text-center font-bold w-10">Qtd</th>
+                      <th className="px-1.5 py-0.5 text-right font-bold w-16">Vlr. Unit.</th>
+                      <th className="px-1.5 py-0.5 text-right font-bold w-16">Desconto</th>
+                      <th className="px-1.5 py-0.5 text-right font-bold w-16">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {servs.length > 0 ? (
+                      servs.map((it, idx) => {
+                        let itemDescVal = 0
+                        if (it.desconto_item && it.desconto_item > 0) {
+                          const raw = it.valor_unitario * it.quantidade
+                          itemDescVal =
+                            it.desconto_item_tipo === 'percentual'
+                              ? (raw * it.desconto_item) / 100
+                              : it.desconto_item
+                        }
+                        return (
+                          <tr key={it.id || idx} className="even:bg-slate-50/50">
+                            <td className="px-1.5 py-0.5 text-slate-500 font-mono text-center">
+                              {idx + 1}
+                            </td>
+                            <td className="px-1.5 py-0.5 text-slate-900 font-medium">
+                              {it.descricao}
+                            </td>
+                            <td className="px-1.5 py-0.5 text-center font-mono text-slate-800">
+                              {it.quantidade}
+                            </td>
+                            <td className="px-1.5 py-0.5 text-right font-mono text-slate-700">
+                              R$ {fmtCurrency(it.valor_unitario)}
+                            </td>
+                            <td className="px-1.5 py-0.5 text-right font-mono text-rose-600">
+                              {itemDescVal > 0 ? `- R$ ${fmtCurrency(itemDescVal)}` : '—'}
+                            </td>
+                            <td className="px-1.5 py-0.5 text-right font-mono font-bold text-slate-900">
+                              R$ {fmtCurrency(it.valor_total_item)}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="px-1.5 py-1 text-center text-slate-400 italic">
+                          Nenhum serviço incluído nesta proposta.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )
+          })()}
+
+          {/* RESUMO FINANCEIRO (PRODUTOS + SERVIÇOS - DESCONTOS = TOTAL GERAL) */}
+          {(() => {
+            const subProds = items
+              .filter((it) => it.tipo !== 'servico')
+              .reduce(
+                (sum, it) => sum + (Number(it.valor_unitario) || 0) * (Number(it.quantidade) || 0),
+                0,
+              )
+            const subServs = items
+              .filter((it) => it.tipo === 'servico')
+              .reduce(
+                (sum, it) => sum + (Number(it.valor_unitario) || 0) * (Number(it.quantidade) || 0),
+                0,
+              )
+            return (
+              <div className="mt-1 flex justify-end">
+                <div className="w-72 space-y-0.5 rounded bg-slate-50 p-2 border border-slate-300 text-right text-[10px]">
+                  <div className="flex justify-between text-indigo-900 font-semibold">
+                    <span>Subtotal Produtos:</span>
+                    <span className="font-mono tabular-nums">R$ {fmtCurrency(subProds)}</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-900 font-semibold">
+                    <span>Subtotal Serviços:</span>
+                    <span className="font-mono tabular-nums">R$ {fmtCurrency(subServs)}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600 pt-0.5 border-t border-slate-200">
+                    <span>Subtotal Bruto:</span>
+                    <span className="font-mono font-medium">R$ {fmtCurrency(subtotal)}</span>
+                  </div>
+                  {descontoTotal > 0 && (
+                    <div className="flex justify-between text-rose-600 font-medium">
+                      <span>
+                        Desconto Concedido{' '}
+                        {data.desconto_total_tipo === 'percentual'
+                          ? `(${data.desconto_total_percentual}%)`
+                          : ''}
+                        :
+                      </span>
+                      <span className="font-mono">- R$ {fmtCurrency(descontoTotal)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t-2 border-slate-900 pt-1 text-[11px] font-black text-slate-900">
+                    <span>TOTAL GERAL:</span>
+                    <span className="font-mono text-xs text-indigo-900 font-bold tabular-nums">
+                      R$ {fmtCurrency(totalGeral)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
         </div>
 
         {/* CONDIÇÕES DE PAGAMENTO */}

@@ -188,18 +188,46 @@ export function buildOrcamentoPropostaMessage(params: {
   propostaUrl: string
   equipment?: string
   osNumber?: string
+  subtotalProdutos?: number
+  subtotalServicos?: number
+  totalGeral?: number
 }): string {
-  const { customerName, numeroOrcamento, propostaUrl, equipment, osNumber } = params
+  const {
+    customerName,
+    numeroOrcamento,
+    propostaUrl,
+    equipment,
+    osNumber,
+    subtotalProdutos,
+    subtotalServicos,
+    totalGeral,
+  } = params
   const firstName = customerName.split(' ')[0] || customerName
   const equipPart = equipment ? ` para o equipamento *${equipment}*` : ''
   const osPart = osNumber ? ` vinculado à O.S. *${osNumber}*` : ''
 
+  let valoresPart = ''
+  if (typeof totalGeral === 'number' && totalGeral > 0) {
+    const fmt = (v: number) =>
+      v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const linhas: string[] = []
+    if (typeof subtotalProdutos === 'number' && subtotalProdutos > 0) {
+      linhas.push(`  • *Produtos & Peças:* R$ ${fmt(subtotalProdutos)}`)
+    }
+    if (typeof subtotalServicos === 'number' && subtotalServicos > 0) {
+      linhas.push(`  • *Serviços & Mão de Obra:* R$ ${fmt(subtotalServicos)}`)
+    }
+    linhas.push(`  • *Total Geral:* R$ ${fmt(totalGeral)}`)
+    valoresPart = `\n💰 *Resumo dos Valores:*\n${linhas.join('\n')}\n`
+  }
+
   return (
     `🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n` +
     `Olá, *${firstName}*! Tudo bem?\n\n` +
-    `Preparamos o seu *Orçamento Comercial (${numeroOrcamento})*${equipPart}${osPart}.\n\n` +
-    `📋 *Modelo de Orçamento:* Contém a discriminação detalhada dos itens, produtos, peças, serviços, valores, descontos e condições de pagamento.\n\n` +
-    `Acesse o link abaixo para visualizar a proposta e assinar digitalmente para aprovação:\n\n` +
+    `Preparamos o seu *Orçamento Comercial (${numeroOrcamento})*${equipPart}${osPart}.\n` +
+    valoresPart +
+    `\n📋 *Modelo de Orçamento:* Contém a discriminação detalhada separada em Produtos & Peças e Serviços & Mão de Obra, com subtotais, descontos e condições de pagamento.\n\n` +
+    `Acesse o link abaixo para visualizar a proposta completa e assinar digitalmente para aprovação:\n\n` +
     `👉 ${propostaUrl}\n\n` +
     `Qualquer dúvida ou ajuste que precisar, estamos à sua inteira disposição!\n\n` +
     `JUCA INFORMÁTICA\n` +

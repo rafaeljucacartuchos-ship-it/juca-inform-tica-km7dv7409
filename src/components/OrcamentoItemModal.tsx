@@ -30,6 +30,8 @@ interface OrcamentoItemModalProps {
   orcamentoId: string
   itemToEdit?: OrcamentoItem | null
   onSaved: () => void
+  defaultKind?: 'produto' | 'servico'
+  lockKind?: boolean
 }
 
 export function OrcamentoItemModal({
@@ -38,6 +40,8 @@ export function OrcamentoItemModal({
   orcamentoId,
   itemToEdit,
   onSaved,
+  defaultKind = 'produto',
+  lockKind = false,
 }: OrcamentoItemModalProps) {
   const { toast } = useToast()
   const isEditing = Boolean(itemToEdit)
@@ -80,7 +84,10 @@ export function OrcamentoItemModal({
       setQuery('')
       setResults([])
     } else {
-      setKind('produto')
+      setKind(defaultKind)
+      setActiveTab(
+        defaultKind === 'servico' ? 'service' : defaultKind === 'produto' ? 'product' : 'all',
+      )
       setDescricao('')
       setSelectedProductId(undefined)
       setQuantidade('1')
@@ -91,7 +98,7 @@ export function OrcamentoItemModal({
       setQuery('')
       setResults([])
     }
-  }, [open, itemToEdit])
+  }, [open, itemToEdit, defaultKind])
 
   // Busca produtos e serviços no catálogo
   useEffect(() => {
@@ -298,7 +305,13 @@ export function OrcamentoItemModal({
       <DialogContent className="w-full max-w-full sm:max-w-xl h-[100dvh] sm:h-auto max-h-[var(--app-visible-height,100dvh)] sm:max-h-[92vh] rounded-none sm:rounded-lg p-0 gap-0 flex flex-col overflow-hidden">
         <DialogHeader className="px-4 py-3 sm:px-5 sm:pt-4 sm:pb-2 border-b border-slate-100 shrink-0">
           <DialogTitle className="text-base font-bold text-slate-900">
-            {isEditing ? 'Editar Item do Orçamento' : 'Adicionar Item ao Orçamento'}
+            {isEditing
+              ? kind === 'servico'
+                ? 'Editar Serviço'
+                : 'Editar Produto'
+              : kind === 'servico'
+                ? 'Adicionar Serviço / Mão de Obra'
+                : 'Adicionar Produto / Peça'}
           </DialogTitle>
         </DialogHeader>
 
@@ -448,34 +461,54 @@ export function OrcamentoItemModal({
               </div>
             )}
 
-            {/* Tipo do Item */}
-            <div className="space-y-1.5">
-              <label className="font-semibold text-slate-700 block">Tipo do Item *</label>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  variant={kind === 'produto' ? 'default' : 'outline'}
-                  size="sm"
-                  className={`h-9 text-xs justify-start gap-2 ${
-                    kind === 'produto' ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : ''
-                  }`}
-                  onClick={() => setKind('produto')}
-                >
-                  <Package className="h-4 w-4" /> Produto / Peça
-                </Button>
-                <Button
-                  type="button"
-                  variant={kind === 'servico' ? 'default' : 'outline'}
-                  size="sm"
-                  className={`h-9 text-xs justify-start gap-2 ${
-                    kind === 'servico' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''
-                  }`}
-                  onClick={() => setKind('servico')}
-                >
-                  <Wrench className="h-4 w-4" /> Mão de Obra / Serviço
-                </Button>
+            {/* Tipo do Item (oculto se bloqueado para seção dedicada) */}
+            {!lockKind ? (
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700 block">Tipo do Item *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant={kind === 'produto' ? 'default' : 'outline'}
+                    size="sm"
+                    className={`h-9 text-xs justify-start gap-2 ${
+                      kind === 'produto' ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : ''
+                    }`}
+                    onClick={() => setKind('produto')}
+                  >
+                    <Package className="h-4 w-4" /> Produto / Peça
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={kind === 'servico' ? 'default' : 'outline'}
+                    size="sm"
+                    className={`h-9 text-xs justify-start gap-2 ${
+                      kind === 'servico' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''
+                    }`}
+                    onClick={() => setKind('servico')}
+                  >
+                    <Wrench className="h-4 w-4" /> Mão de Obra / Serviço
+                  </Button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center gap-2 p-2 bg-slate-100 rounded-md">
+                {kind === 'servico' ? (
+                  <>
+                    <Wrench className="h-3.5 w-3.5 text-emerald-600" />
+                    <span className="text-xs font-semibold text-emerald-900">
+                      Item classificado como Serviço / Mão de Obra
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Package className="h-3.5 w-3.5 text-indigo-600" />
+                    <span className="text-xs font-semibold text-indigo-900">
+                      Item classificado como Produto / Peça
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* Descrição livre */}
             <div className="space-y-1">
