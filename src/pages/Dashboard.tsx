@@ -1,12 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Wrench,
-  CheckCircle2,
-  DollarSign,
   ArrowRight,
   UserCheck,
-  Timer,
   Loader2,
   FileDown,
   Search,
@@ -17,13 +13,10 @@ import { ExportReportsModal } from '@/components/ExportReportsModal'
 import { ExportOrdersListModal } from '@/components/ExportOrdersListModal'
 import { DashboardProductSearchModal } from '@/components/DashboardProductSearchModal'
 import { DashboardDonutCard } from '@/components/DashboardDonutCard'
-import { FinancialResultCard } from '@/components/FinancialResultCard'
-import { EvolutionCharts } from '@/components/EvolutionCharts'
 import { TechnicianProductionPanel } from '@/components/TechnicianProductionPanel'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { KpiCard } from '@/components/KpiCard'
 import { StatusBadge } from '@/components/StatusBadge'
 import { ServiceOrder, User, Payment, StatusHistory, Orcamento } from '@/types'
 import { getServiceOrders } from '@/services/service_orders'
@@ -35,17 +28,9 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { useAuth } from '@/hooks/use-auth'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
 import {
-  STATUS_CONFIG,
   STATUS_PRIORITY_MAP,
   getPeriodRange,
-  computeBilling,
-  computeFinancialSummary,
   computeStatusDistribution,
-  computeTechnicianDistribution,
-  countCompletedInPeriod,
-  computeAverageServiceTime,
-  countOrdersInPeriod,
-  computeEvolutionData,
   computeTechnicianProduction,
   computeOrcamentosStatusDistribution,
   computeTechnicianValueDistribution,
@@ -149,13 +134,8 @@ export default function Dashboard() {
   useRealtime('orcamentos', loadData)
 
   const range = getPeriodRange(period, customStart, customEnd)
-  const billing = computeBilling(payments, range.start, range.end)
-  const completedCount = countCompletedInPeriod(orders, history, range.start, range.end)
-  const avgTime = computeAverageServiceTime(orders, history, range.start, range.end)
-  const evolutionData = computeEvolutionData(orders, payments, range.start, range.end)
-  const periodOrderCount = countOrdersInPeriod(orders, range.start, range.end)
 
-  // 1) Métricas de O.S. no período
+  // 1) Métricas de O.S. no período (necessárias para o donut de Valor Gerado por Técnico e Resultado do Período)
   const periodOrders = useMemo(() => {
     return orders.filter((o) => {
       if (!o.created) return false
@@ -164,12 +144,12 @@ export default function Dashboard() {
     })
   }, [orders, range.start, range.end])
 
-  // Valor total em O.S. do período (soma do campo total das O.S. criadas no período)
+  // Valor total em O.S. do período (soma do campo total das O.S. criadas no período para os donuts c e d)
   const totalValorEmOS = useMemo(() => {
     return periodOrders.reduce((sum, o) => sum + (o.total || 0), 0)
   }, [periodOrders])
 
-  // 2) Métricas de Orçamentos no período
+  // 2) Métricas de Orçamentos no período (necessárias para os donuts b e d)
   const periodOrcamentos = useMemo(() => {
     return orcamentos.filter((orc) => {
       if (!orc.created) return false
@@ -182,7 +162,6 @@ export default function Dashboard() {
     return periodOrcamentos.filter((orc) => orc.status === 'aprovado' || orc.status === 'faturado')
   }, [periodOrcamentos])
 
-  const countOrcAprovados = orcamentosAprovados.length
   const totalValorOrcAprovados = useMemo(() => {
     return orcamentosAprovados.reduce((sum, orc) => sum + (orc.total_geral || 0), 0)
   }, [orcamentosAprovados])
@@ -196,7 +175,6 @@ export default function Dashboard() {
     )
   }, [periodOrcamentos])
 
-  const countOrcPendentes = orcamentosPendentes.length
   const totalValorOrcPendentes = useMemo(() => {
     return orcamentosPendentes.reduce((sum, orc) => sum + (orc.total_geral || 0), 0)
   }, [orcamentosPendentes])
@@ -213,7 +191,7 @@ export default function Dashboard() {
     )
   }, [technicians, orders, orcamentos, history, range.start, range.end])
 
-  // 3) OS 4 GRÁFICOS DE PIZZA (DONUT)
+  // 2) OS 4 GRÁFICOS DE PIZZA (DONUT)
   // (a) O.S. por status
   const statusDistribution = useMemo(() => {
     return computeStatusDistribution(orders)
@@ -233,61 +211,6 @@ export default function Dashboard() {
   const periodResultDistribution = useMemo(() => {
     return computePeriodResultDistribution(orders, orcamentos, range.start, range.end)
   }, [orders, orcamentos, range.start, range.end])
-
-  // Resultado financeiro mantido, porém adaptado para acompanhamento
-  const financialSummary = useMemo(() => {
-    return computeFinancialSummary(payments, range.start, range.end, period)
-  }, [payments, range.start, range.end, period])
-
-  // Distribuição da carga por técnico (O.S. ativas por técnico em pizza/donut para preservação)
-  const techDistribution = useMemo(() => {
-    return computeTechnicianDistribution(orders, technicians)
-  }, [orders, technicians])
-
-  const sortedTechnicians = useMemo(() => {
-    return [...technicians].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-  }, [technicians])
-
-  // Métricas por técnico para os cards da seção de Carga dos Técnicos
-  const techMetrics = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        activeCount: number
-        completedCount: number
-        billing: number
-      }
-    >()
-
-    const ordersByTech = new Map<string, ServiceOrder[]>()
-    for (const o of orders) {
-      if (!o.technician) continue
-      const list = ordersByTech.get(o.technician) || []
-      list.push(o)
-      ordersByTech.set(o.technician, list)
-    }
-
-    for (const t of technicians) {
-      const techOrders = ordersByTech.get(t.id) || []
-      const activeCount = techOrders.filter(
-        (o) => o.status !== 'closed' && o.status !== 'cancelled',
-      ).length
-
-      const completedInPer = countCompletedInPeriod(techOrders, history, range.start, range.end)
-
-      const techOrderIds = new Set(techOrders.map((o) => o.id))
-      const techPayments = payments.filter((p) => techOrderIds.has(p.service_order))
-      const techBilling = computeBilling(techPayments, range.start, range.end)
-
-      map.set(t.id, {
-        activeCount,
-        completedCount: completedInPer,
-        billing: techBilling,
-      })
-    }
-
-    return map
-  }, [technicians, orders, history, payments, range.start, range.end])
 
   const sortedRecentOrders = useMemo(() => {
     return [...orders].sort((a, b) => {
@@ -426,78 +349,6 @@ export default function Dashboard() {
               />
             </div>
           )}
-        </div>
-      </div>
-
-      {/* 2. NÚMEROS GERAIS DO PERÍODO (topo, cards simples e sem vocabulário financeiro de payments) */}
-      <div className="space-y-3.5">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {/* Card 1: O.S. no período */}
-          <KpiCard
-            title="O.S. no Período"
-            value={periodOrderCount}
-            icon={Wrench}
-            colorClass="text-blue-700"
-            bgClass="bg-blue-100"
-            to="/ordens"
-            subtitle={`${completedCount} ${completedCount === 1 ? 'concluída' : 'concluídas'} no período`}
-          />
-
-          {/* Card 2: Valor Total em O.S. */}
-          <KpiCard
-            title="Valores em O.S."
-            value={formatCurrencyBRL(totalValorEmOS)}
-            icon={DollarSign}
-            colorClass="text-indigo-700"
-            bgClass="bg-indigo-100"
-            to="/ordens"
-            subtitle="Soma do valor das ordens criadas no período"
-          />
-
-          {/* Card 3: Orçamentos Aprovados + valor */}
-          <KpiCard
-            title="Valores em Orçamentos Aprovados"
-            value={formatCurrencyBRL(totalValorOrcAprovados)}
-            icon={CheckCircle2}
-            colorClass="text-emerald-700"
-            bgClass="bg-emerald-100"
-            to="/orcamentos?status=aprovado"
-            subtitle={`${countOrcAprovados} ${countOrcAprovados === 1 ? 'orçamento aprovado' : 'orçamentos aprovados'}`}
-          />
-
-          {/* Card 4: Orçamentos Pendentes + valor */}
-          <KpiCard
-            title="Orçamentos Pendentes"
-            value={formatCurrencyBRL(totalValorOrcPendentes)}
-            icon={Timer}
-            colorClass="text-amber-700"
-            bgClass="bg-amber-100"
-            to="/orcamentos"
-            subtitle={`${countOrcPendentes} ${countOrcPendentes === 1 ? 'orçamento pendente' : 'orçamentos pendentes'}`}
-          />
-        </div>
-
-        {/* Mini-Cards dos Status de O.S (clicáveis para filtro imediato) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5">
-          {STATUS_CONFIG.map((s) => (
-            <Link
-              key={s.value}
-              to={`/ordens?status=${s.value}`}
-              className="block group"
-              title={`Filtrar ordens com status ${s.label}`}
-            >
-              <Card
-                className={`border border-slate-200/90 shadow-2xs ${s.bg} transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 cursor-pointer rounded-xl`}
-              >
-                <CardContent className="p-3">
-                  <div className={`text-3xl font-bold tabular-nums ${s.color}`}>
-                    {orders.filter((o) => o.status === s.value).length}
-                  </div>
-                  <p className="text-xs text-slate-700 font-semibold mt-1 truncate">{s.label}</p>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
         </div>
       </div>
 
@@ -703,150 +554,6 @@ export default function Dashboard() {
           valueIsCurrency
         />
       </div>
-
-      {/* 5. ACOMPANHAMENTO DE RESULTADO / PAGAMENTOS DO REDESIGN ANTERIOR (MANTIDO E RENOMEADO) */}
-      {!isTech && (
-        <FinancialResultCard
-          summary={financialSummary}
-          chartData={evolutionData}
-          periodLabel={PERIOD_LABELS[period]}
-          totalOrcamentosAprovados={totalValorOrcAprovados}
-          countOrcamentosAprovados={countOrcAprovados}
-          totalOrcamentosPendentes={totalValorOrcPendentes}
-          countOrcamentosPendentes={countOrcPendentes}
-        />
-      )}
-
-      {/* 6. DISTRIBUIÇÃO DA CARGA POR TÉCNICO (PRESERVADO) */}
-      <div className="grid grid-cols-1 gap-4">
-        <DashboardDonutCard
-          title="Distribuição da Carga por Técnico"
-          subtitle="Proporção de O.S. ativas distribuídas entre a equipe técnica"
-          data={techDistribution}
-          centerLabel="Ativas"
-          centerValue={
-            orders.filter((o) => o.status !== 'closed' && o.status !== 'cancelled').length
-          }
-          emptyMessage="Nenhuma ordem ativa no momento"
-        />
-      </div>
-
-      {/* 7. CARGA DOS TÉCNICOS (SOMENTE ROLE='technician') */}
-      <Card className="rounded-xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden">
-        <CardHeader className="pb-3 border-b border-slate-100 bg-white">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-            <div>
-              <CardTitle className="text-base font-semibold text-slate-900 tracking-tight">
-                Carga dos Técnicos
-              </CardTitle>
-              <p className="text-xs text-muted-foreground">
-                Equipe técnica responsável pelos atendimentos ({sortedTechnicians.length}{' '}
-                {sortedTechnicians.length === 1 ? 'técnico ativo' : 'técnicos ativos'})
-              </p>
-            </div>
-            {!isTech && (
-              <span className="text-xs text-muted-foreground font-medium">
-                Concluídas e gerado calculados no período selecionado
-              </span>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="pt-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {sortedTechnicians.map((t) => {
-              const metrics = techMetrics.get(t.id) || {
-                activeCount: 0,
-                completedCount: 0,
-                billing: 0,
-              }
-              const { activeCount, completedCount: techCompleted, billing: techBilling } = metrics
-
-              return (
-                <Link
-                  key={t.id}
-                  to={`/ordens?tecnico=${encodeURIComponent(t.name || t.id)}`}
-                  className="flex flex-col rounded-xl border border-slate-200/90 p-3.5 bg-white shadow-2xs hover:border-indigo-400 hover:shadow-md hover:scale-[1.015] hover:bg-indigo-50/20 cursor-pointer transition-all duration-200 group"
-                  title={`Filtrar ordens de ${t.name}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-100 border border-indigo-200 group-hover:bg-indigo-600 group-hover:border-indigo-600 transition-colors">
-                      <UserCheck className="h-5 w-5 text-indigo-700 group-hover:text-white transition-colors" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-slate-900 truncate group-hover:text-indigo-900 transition-colors">
-                        {t.name}
-                      </h3>
-                      <p className="text-xs text-muted-foreground">
-                        {activeCount} {activeCount === 1 ? 'ativa' : 'ativas'}
-                      </p>
-                    </div>
-                    <span
-                      className={`text-xs font-semibold tabular-nums px-2.5 py-0.5 rounded-md shrink-0 transition-colors ${
-                        activeCount > 3
-                          ? 'bg-amber-100 text-amber-800'
-                          : activeCount > 0
-                            ? 'bg-indigo-100 text-indigo-800'
-                            : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {activeCount}
-                    </span>
-                  </div>
-
-                  {/* Concluídas no período + Valor Gerado no período */}
-                  <div className="mt-3 pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs">
-                    <div className="bg-slate-50 rounded-lg p-2 group-hover:bg-white transition-colors">
-                      <span className="text-muted-foreground block text-[10px] font-semibold uppercase">
-                        Concluídas
-                      </span>
-                      <span className="text-xs font-bold tabular-nums text-emerald-600">
-                        {techCompleted} {techCompleted === 1 ? 'OS' : 'OSs'}
-                      </span>
-                    </div>
-
-                    {!isTech ? (
-                      <div className="bg-slate-50 rounded-lg p-2 group-hover:bg-white transition-colors">
-                        <span className="text-muted-foreground block text-[10px] font-semibold uppercase">
-                          Gerado
-                        </span>
-                        <span className="text-xs font-bold tabular-nums text-amber-700">
-                          R${' '}
-                          {techBilling.toLocaleString('pt-BR', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="bg-slate-50 rounded-lg p-2 group-hover:bg-white transition-colors">
-                        <span className="text-muted-foreground block text-[10px] font-semibold uppercase">
-                          Desempenho
-                        </span>
-                        <span className="text-xs font-semibold text-indigo-600">
-                          {techCompleted > 0 ? 'Produtivo' : 'Disponível'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </Link>
-              )
-            })}
-            {sortedTechnicians.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-6 col-span-full">
-                Nenhum técnico cadastrado com o perfil "technician".
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 8. GRÁFICOS DE EVOLUÇÃO (Histórico comparativo do período) */}
-      <EvolutionCharts
-        data={evolutionData}
-        totalOrders={periodOrderCount}
-        totalRevenue={billing}
-        showRevenue={!isTech}
-      />
 
       {/* 9. ORDENS DE SERVIÇO RECENTES */}
       <Card className="rounded-xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden">
