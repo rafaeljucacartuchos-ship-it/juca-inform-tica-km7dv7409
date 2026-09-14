@@ -463,3 +463,24 @@ export interface OrcamentoAnexo {
   created?: string
   updated?: string
 }
+
+export type PricingMode = 'produto' | 'avulsa' | 'rapida'
+
+export interface PricingHistory {
+  id: string
+  product?: string
+  cost?: number
+  despesas_pct?: number
+  markup_pct?: number
+  margem_pct?: number
+  sale_price: number
+  lucro_unitario?: number
+  mode: PricingMode
+  created_by?: string
+  created?: string
+  updated?: string
+  expand?: {
+    product?: Product
+    created_by?: User
+  }
+}

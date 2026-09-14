@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Plus,
   Search,
@@ -14,6 +15,7 @@ import {
   AlertCircle,
   PowerOff,
   CheckCircle2,
+  Tag,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,6 +45,7 @@ export default function Produtos() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'zero_stock'>(
     'all',
   )
+  const navigate = useNavigate()
   const { toast } = useToast()
 
   const loadData = async () => {
@@ -477,6 +480,19 @@ export default function Produtos() {
                       </td>
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Ação de Precificação direta */}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-[11px] font-semibold text-indigo-700 bg-indigo-50/70 border-indigo-200 hover:bg-indigo-100 gap-1 shadow-2xs"
+                            onClick={() => navigate(`/precificacao?productId=${p.id}&tab=produto`)}
+                            title="Abrir no módulo de Precificação com custo e margens calculadas"
+                          >
+                            <Tag className="h-3 w-3 text-indigo-600" />
+                            <span>Precificar</span>
+                          </Button>
+
                           {/* 1 Ação Principal visível fora do menu: Editar */}
                           <Button
                             type="button"
@@ -496,10 +512,18 @@ export default function Produtos() {
                             title={`Ações de ${p.name}`}
                             items={[
                               {
+                                key: 'precificar',
+                                label: 'Precificar este produto',
+                                icon: Tag,
+                                onClick: () =>
+                                  navigate(`/precificacao?productId=${p.id}&tab=produto`),
+                              },
+                              {
                                 key: 'toggle_active',
                                 label: p.active !== false ? 'Inativar produto' : 'Reativar produto',
                                 icon: p.active !== false ? PowerOff : CheckCircle2,
                                 variant: p.active !== false ? 'warning' : 'success',
+                                separatorBefore: true,
                                 onClick: () => handleToggleActive(p),
                               },
                               {

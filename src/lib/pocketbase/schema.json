@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-11T22:55:05.620Z",
+  "generatedAt": "2026-09-14T13:40:41.114Z",
   "collections": [
     {
       "name": "users",
@@ -2034,6 +2034,95 @@
         }
       ],
       "indexes": ["CREATE INDEX idx_orc_anexos_orcamento ON orcamento_anexos (id_orcamento)"]
+    },
+    {
+      "name": "pricing_history",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "product",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "products"
+        },
+        {
+          "name": "cost",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "despesas_pct",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "markup_pct",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "margem_pct",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sale_price",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "lucro_unitario",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "mode",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["produto", "avulsa", "rapida"]
+        },
+        {
+          "name": "created_by",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_pricing_history_product ON pricing_history (product)",
+        "CREATE INDEX idx_pricing_history_created ON pricing_history (created DESC)",
+        "CREATE INDEX idx_pricing_history_mode ON pricing_history (mode)"
+      ]
     }
   ]
 }

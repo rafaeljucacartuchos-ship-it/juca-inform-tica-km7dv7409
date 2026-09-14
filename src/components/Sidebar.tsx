@@ -95,6 +95,12 @@ export function Sidebar({ onNavClick }: SidebarProps) {
       show: hasPermission('orcamentos'),
     },
     {
+      label: 'Precificação',
+      path: '/precificacao',
+      icon: Tag,
+      show: hasPermission('precificacao') || user?.role === 'admin' || user?.role === 'attendant',
+    },
+    {
       label: 'Pedido de Mercadoria',
       path: '/pedido-mercadorias',
       icon: ShoppingCart,
