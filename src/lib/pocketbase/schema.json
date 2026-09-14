@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-14T13:56:51.844Z",
+  "generatedAt": "2026-09-14T14:13:51.221Z",
   "collections": [
     {
       "name": "users",
@@ -2181,6 +2181,18 @@
         {
           "name": "ipi_pct",
           "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "imposto_saida_pct",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "payment_method_nome",
+          "type": "text",
           "required": false,
           "system": false
         }

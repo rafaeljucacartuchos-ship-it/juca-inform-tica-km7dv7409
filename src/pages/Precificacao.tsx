@@ -42,21 +42,25 @@ import {
   PricingMode,
   CurrencyType,
   CompanyPricingParameters,
+  PaymentMethodTax,
 } from '@/types'
 import { getProducts, getProduct, updateProduct, createProduct } from '@/services/products'
 import {
   getCompanyPricingParameters,
   updateCompanyPricingParameters,
+  updatePaymentMethodsTax,
   createPricingHistory,
   getPricingHistory,
   calculateJucaPricing,
   decomposeExistingPrice,
   PricingCalculationResult,
   DEFAULT_COMPANY_PARAMS,
+  DEFAULT_PAYMENT_METHODS_TAX,
 } from '@/services/pricing'
 import { formatCurrencyBRL } from '@/lib/dashboard-utils'
 import { CompanyParamsCard } from '@/components/CompanyParamsCard'
 import { PricingWaterfallCard } from '@/components/PricingWaterfallCard'
+import { PaymentMethodsTableCard } from '@/components/PaymentMethodsTableCard'
 
 export default function Precificacao() {
   const [searchParams] = useSearchParams()
@@ -73,11 +77,17 @@ export default function Precificacao() {
   const [companyParams, setCompanyParams] =
     useState<CompanyPricingParameters>(DEFAULT_COMPANY_PARAMS)
   const [savingCompanyParams, setSavingCompanyParams] = useState(false)
-  const [configModalOpen, setConfigModalOpen] = useState(false)
+  const [savingPaymentMethods, setSavingPaymentMethods] = useState(false)
+  const [dolarInputLive, setDolarInputLive] = useState(String(DEFAULT_COMPANY_PARAMS.cotacao_dolar))
 
   // Histórico
   const [historyList, setHistoryList] = useState<PricingHistory[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
+
+  // Formas de Pagamento selecionadas por aba
+  const [selectedMethod1, setSelectedMethod1] = useState<PaymentMethodTax | null>(null)
+  const [selectedMethod2, setSelectedMethod2] = useState<PaymentMethodTax | null>(null)
+  const [selectedMethod3, setSelectedMethod3] = useState<PaymentMethodTax | null>(null)
 
   // -------------------------------------------------------------
   // MODO 1: PRODUTO CADASTRADO
@@ -97,8 +107,10 @@ export default function Precificacao() {
   const [fixedExpensesPct1, setFixedExpensesPct1] = useState('15')
   const [cardTaxPct1, setCardTaxPct1] = useState('3.5')
   const [icmsPct1, setIcmsPct1] = useState('4.0')
+  const [impostoSaidaPct1, setImpostoSaidaPct1] = useState('4.0')
   const [commissionPct1, setCommissionPct1] = useState('2.5')
   const [ipiPct1, setIpiPct1] = useState('0')
+  const [variableExpensesTotal1, setVariableExpensesTotal1] = useState('14.0')
   const [marginInput1, setMarginInput1] = useState('25')
   const [calcResult1, setCalcResult1] = useState<PricingCalculationResult | null>(null)
   const [confirmApplyModalOpen, setConfirmApplyModalOpen] = useState(false)
@@ -115,8 +127,10 @@ export default function Precificacao() {
   const [fixedExpensesPct2, setFixedExpensesPct2] = useState('15')
   const [cardTaxPct2, setCardTaxPct2] = useState('3.5')
   const [icmsPct2, setIcmsPct2] = useState('4.0')
+  const [impostoSaidaPct2, setImpostoSaidaPct2] = useState('4.0')
   const [commissionPct2, setCommissionPct2] = useState('2.5')
   const [ipiPct2, setIpiPct2] = useState('0')
+  const [variableExpensesTotal2, setVariableExpensesTotal2] = useState('14.0')
   const [marginInput2, setMarginInput2] = useState('25')
   const [calcResult2, setCalcResult2] = useState<PricingCalculationResult | null>(null)
 
@@ -131,8 +145,10 @@ export default function Precificacao() {
   const [fixedExpensesPct3, setFixedExpensesPct3] = useState('15')
   const [cardTaxPct3, setCardTaxPct3] = useState('3.5')
   const [icmsPct3, setIcmsPct3] = useState('4.0')
+  const [impostoSaidaPct3, setImpostoSaidaPct3] = useState('4.0')
   const [commissionPct3, setCommissionPct3] = useState('2.5')
   const [ipiPct3, setIpiPct3] = useState('0')
+  const [variableExpensesTotal3, setVariableExpensesTotal3] = useState('14.0')
   const [marginInput3, setMarginInput3] = useState('25')
   const [calcResult3, setCalcResult3] = useState<PricingCalculationResult | null>(null)
   const [linkedProduct3, setLinkedProduct3] = useState<Product | null>(null)
@@ -153,6 +169,7 @@ export default function Precificacao() {
     try {
       const params = await getCompanyPricingParameters()
       setCompanyParams(params)
+      setDolarInputLive(String(params.cotacao_dolar))
       applyParamsToInputs(params)
     } catch (err) {
       console.error('Erro ao carregar parâmetros da empresa:', err)
@@ -163,17 +180,21 @@ export default function Precificacao() {
     const fPct = String(params.despesa_fixa_pct)
     const cTax = String(params.taxa_cartao_pct)
     const icms = String(params.icms_pct)
+    const impSaida = String(params.imposto_saida_pct ?? 4.0)
     const com = String(params.comissao_pct)
     const ipi = String(params.ipi_pct)
     const marg = String(params.lucratividade_desejada_pct)
     const frete = String(params.frete_padrao)
+    const varTotal = String(params.custos_variaveis_pct)
 
     // Modo 1
     setFixedExpensesPct1(fPct)
     setCardTaxPct1(cTax)
     setIcmsPct1(icms)
+    setImpostoSaidaPct1(impSaida)
     setCommissionPct1(com)
     setIpiPct1(ipi)
+    setVariableExpensesTotal1(varTotal)
     setMarginInput1(marg)
     setFreightInput1(frete)
 
@@ -181,8 +202,10 @@ export default function Precificacao() {
     setFixedExpensesPct2(fPct)
     setCardTaxPct2(cTax)
     setIcmsPct2(icms)
+    setImpostoSaidaPct2(impSaida)
     setCommissionPct2(com)
     setIpiPct2(ipi)
+    setVariableExpensesTotal2(varTotal)
     setMarginInput2(marg)
     setFreightInput2(frete)
 
@@ -190,11 +213,37 @@ export default function Precificacao() {
     setFixedExpensesPct3(fPct)
     setCardTaxPct3(cTax)
     setIcmsPct3(icms)
+    setImpostoSaidaPct3(impSaida)
     setCommissionPct3(com)
     setIpiPct3(ipi)
+    setVariableExpensesTotal3(varTotal)
     setMarginInput3(marg)
     setFreightInput3(frete)
   }
+
+  // Handler para salvar formas de pagamento da tabela
+  const handleSavePaymentMethods = async (methods: PaymentMethodTax[]) => {
+    setSavingPaymentMethods(true)
+    try {
+      await updatePaymentMethodsTax(methods)
+      setCompanyParams((prev) => ({ ...prev, payment_methods_tax: methods }))
+      toast({
+        title: 'Taxas salvas com sucesso!',
+        description: 'Tabela de formas de pagamento atualizada.',
+      })
+    } catch {
+      toast({
+        title: 'Erro ao salvar formas de pagamento',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingPaymentMethods(false)
+    }
+  }
+
+  // Cotação do dólar ativa em tempo real
+  const cotacaoDolarAtiva =
+    parseFloat(dolarInputLive.replace(',', '.')) || companyParams.cotacao_dolar || 5.65
 
   // Carrega produto inicial se passado por query param
   useEffect(() => {
@@ -233,22 +282,26 @@ export default function Precificacao() {
     const fExp = parseFloat(fixedExpensesPct1.replace(',', '.')) || 0
     const cTax = parseFloat(cardTaxPct1.replace(',', '.')) || 0
     const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
+    const impSaida = parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
     const com = parseFloat(commissionPct1.replace(',', '.')) || 0
     const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
     const marg = parseFloat(marginInput1.replace(',', '.')) || 0
+    const overrideVar = parseFloat(variableExpensesTotal1.replace(',', '.'))
 
     const res = calculateJucaPricing({
       custoProduto: rawCost,
       moeda: currency1,
-      cotacaoDolar: companyParams.cotacao_dolar,
+      cotacaoDolar: cotacaoDolarAtiva,
       frete,
       custoAdicional1: add1,
       custoAdicional2: add2,
       despesaFixaPct: fExp,
       taxaCartaoPct: cTax,
       icmsPct: icms,
+      impostoSaidaPct: impSaida,
       comissaoPct: com,
       ipiPct: ipi,
+      custosVariaveisPctOverride: isNaN(overrideVar) ? undefined : overrideVar,
       lucratividadePct: marg,
     })
     setCalcResult1(res)
@@ -261,10 +314,12 @@ export default function Precificacao() {
     fixedExpensesPct1,
     cardTaxPct1,
     icmsPct1,
+    impostoSaidaPct1,
     commissionPct1,
     ipiPct1,
+    variableExpensesTotal1,
     marginInput1,
-    companyParams.cotacao_dolar,
+    cotacaoDolarAtiva,
   ])
 
   // -------------------------------------------------------------
@@ -278,22 +333,26 @@ export default function Precificacao() {
     const fExp = parseFloat(fixedExpensesPct2.replace(',', '.')) || 0
     const cTax = parseFloat(cardTaxPct2.replace(',', '.')) || 0
     const icms = parseFloat(icmsPct2.replace(',', '.')) || 0
+    const impSaida = parseFloat(impostoSaidaPct2.replace(',', '.')) || 0
     const com = parseFloat(commissionPct2.replace(',', '.')) || 0
     const ipi = parseFloat(ipiPct2.replace(',', '.')) || 0
     const marg = parseFloat(marginInput2.replace(',', '.')) || 0
+    const overrideVar = parseFloat(variableExpensesTotal2.replace(',', '.'))
 
     const res = calculateJucaPricing({
       custoProduto: rawCost,
       moeda: currency2,
-      cotacaoDolar: companyParams.cotacao_dolar,
+      cotacaoDolar: cotacaoDolarAtiva,
       frete,
       custoAdicional1: add1,
       custoAdicional2: add2,
       despesaFixaPct: fExp,
       taxaCartaoPct: cTax,
       icmsPct: icms,
+      impostoSaidaPct: impSaida,
       comissaoPct: com,
       ipiPct: ipi,
+      custosVariaveisPctOverride: isNaN(overrideVar) ? undefined : overrideVar,
       lucratividadePct: marg,
     })
     setCalcResult2(res)
@@ -306,10 +365,12 @@ export default function Precificacao() {
     fixedExpensesPct2,
     cardTaxPct2,
     icmsPct2,
+    impostoSaidaPct2,
     commissionPct2,
     ipiPct2,
+    variableExpensesTotal2,
     marginInput2,
-    companyParams.cotacao_dolar,
+    cotacaoDolarAtiva,
   ])
 
   // -------------------------------------------------------------
@@ -323,22 +384,26 @@ export default function Precificacao() {
     const fExp = parseFloat(fixedExpensesPct3.replace(',', '.')) || 0
     const cTax = parseFloat(cardTaxPct3.replace(',', '.')) || 0
     const icms = parseFloat(icmsPct3.replace(',', '.')) || 0
+    const impSaida = parseFloat(impostoSaidaPct3.replace(',', '.')) || 0
     const com = parseFloat(commissionPct3.replace(',', '.')) || 0
     const ipi = parseFloat(ipiPct3.replace(',', '.')) || 0
     const marg = parseFloat(marginInput3.replace(',', '.')) || 0
+    const overrideVar = parseFloat(variableExpensesTotal3.replace(',', '.'))
 
     const res = calculateJucaPricing({
       custoProduto: rawCost,
       moeda: currency3,
-      cotacaoDolar: companyParams.cotacao_dolar,
+      cotacaoDolar: cotacaoDolarAtiva,
       frete,
       custoAdicional1: add1,
       custoAdicional2: add2,
       despesaFixaPct: fExp,
       taxaCartaoPct: cTax,
       icmsPct: icms,
+      impostoSaidaPct: impSaida,
       comissaoPct: com,
       ipiPct: ipi,
+      custosVariaveisPctOverride: isNaN(overrideVar) ? undefined : overrideVar,
       lucratividadePct: marg,
     })
     setCalcResult3(res)
@@ -351,10 +416,12 @@ export default function Precificacao() {
     fixedExpensesPct3,
     cardTaxPct3,
     icmsPct3,
+    impostoSaidaPct3,
     commissionPct3,
     ipiPct3,
+    variableExpensesTotal3,
     marginInput3,
-    companyParams.cotacao_dolar,
+    cotacaoDolarAtiva,
   ])
 
   // -------------------------------------------------------------
@@ -388,6 +455,9 @@ export default function Precificacao() {
       await updateCompanyPricingParameters(params)
       const updated = await getCompanyPricingParameters()
       setCompanyParams(updated)
+      if (params.cotacao_dolar !== undefined) {
+        setDolarInputLive(String(params.cotacao_dolar))
+      }
       applyParamsToInputs(updated)
       toast({
         title: 'Parâmetros atualizados!',
@@ -409,6 +479,7 @@ export default function Precificacao() {
     prod: Product,
     res: PricingCalculationResult,
     mode: PricingMode,
+    paymentMethodNome?: string,
   ) => {
     if (!res.isPossible || res.salePrice <= 0) {
       toast({
@@ -446,6 +517,8 @@ export default function Precificacao() {
         cotacao_dolar: res.cotacaoDolar,
         taxa_cartao_pct: res.taxaCartaoPct,
         icms_pct: res.icmsPct,
+        imposto_saida_pct: res.impostoSaidaPct,
+        payment_method_nome: paymentMethodNome,
         comissao_pct: res.comissaoPct,
         ipi_pct: res.ipiPct,
       })
@@ -545,6 +618,8 @@ export default function Precificacao() {
           cotacao_dolar: calcResult3.cotacaoDolar,
           taxa_cartao_pct: calcResult3.taxaCartaoPct,
           icms_pct: calcResult3.icmsPct,
+          imposto_saida_pct: calcResult3.impostoSaidaPct,
+          payment_method_nome: selectedMethod3?.nome,
           comissao_pct: calcResult3.comissaoPct,
           ipi_pct: calcResult3.ipiPct,
         })
@@ -575,6 +650,7 @@ export default function Precificacao() {
           calcResult1.icmsPct,
           calcResult1.comissaoPct,
           calcResult1.ipiPct,
+          calcResult1.impostoSaidaPct || 0,
         )
       : null
 
@@ -596,12 +672,12 @@ export default function Precificacao() {
                   variant="outline"
                   className="border-indigo-200 bg-indigo-50 text-indigo-700 text-[10px] font-bold"
                 >
-                  v0.0.188
+                  v0.0.189
                 </Badge>
               </div>
               <p className="text-xs text-slate-500">
-                Metodologia completa JUCA INFORMÁTICA: Markup divisor, conversão US$, despesas fixas
-                e cascata 100%.
+                Metodologia completa JUCA INFORMÁTICA: Markup divisor, conversão US$, despesas
+                fixas, imposto de saída, taxas de cartão parceladas (1x a 12x) e cascata 100%.
               </p>
             </div>
           </div>
@@ -776,30 +852,50 @@ export default function Precificacao() {
                       <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
                         2. Custos Diretos do Produto
                       </h4>
-                      {/* TOGGLE R$ / US$ */}
-                      <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                        <button
-                          type="button"
-                          onClick={() => setCurrency1('BRL')}
-                          className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
-                            currency1 === 'BRL'
-                              ? 'bg-white text-indigo-700 shadow-xs'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          R$ (BRL)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setCurrency1('USD')}
-                          className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
-                            currency1 === 'USD'
-                              ? 'bg-white text-emerald-700 shadow-xs'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          US$ (Dólar)
-                        </button>
+                      {/* TOGGLE R$ / US$ e COTAÇÃO DO DÓLAR */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                          <button
+                            type="button"
+                            onClick={() => setCurrency1('BRL')}
+                            className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
+                              currency1 === 'BRL'
+                                ? 'bg-white text-indigo-700 shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            R$ (BRL)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCurrency1('USD')}
+                            className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
+                              currency1 === 'USD'
+                                ? 'bg-white text-emerald-700 shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            US$ (Dólar)
+                          </button>
+                        </div>
+
+                        {/* Campo Cotação do Dólar editável com conversão automática imediata */}
+                        <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-0.5">
+                          <span className="text-[11px] font-semibold text-emerald-800">
+                            Cotação US$:
+                          </span>
+                          <span className="text-[11px] font-mono text-emerald-700 font-bold">
+                            R$
+                          </span>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={dolarInputLive}
+                            onChange={(e) => setDolarInputLive(e.target.value)}
+                            className="h-6 w-16 text-xs font-mono font-bold text-emerald-900 bg-white border-emerald-300 px-1 py-0"
+                            title="Cotação do Dólar do dia (converte automaticamente)"
+                          />
+                        </div>
                       </div>
                     </div>
 
@@ -811,8 +907,7 @@ export default function Precificacao() {
                             <span className="text-[10px] text-emerald-700 font-bold font-mono">
                               = R${' '}
                               {(
-                                (parseFloat(costInput1.replace(',', '.')) || 0) *
-                                companyParams.cotacao_dolar
+                                (parseFloat(costInput1.replace(',', '.')) || 0) * cotacaoDolarAtiva
                               ).toFixed(2)}
                             </span>
                           )}
@@ -870,85 +965,229 @@ export default function Precificacao() {
                       </div>
                     </div>
 
-                    {/* DEDUÇÕES: DESPESA FIXA + VARIÁVEIS + LUCRATIVIDADE */}
+                    {/* DEDUÇÕES: CUSTO FIXO % + CUSTO VARIÁVEL % + LUCRATIVIDADE % */}
                     <div className="pt-2 space-y-2">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                        3. Alíquotas e Margem Alvo (% sobre Preço)
-                      </h4>
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                          3. Parâmetros de Markup (% sobre Preço de Venda)
+                        </h4>
+                        <span className="text-[10px] text-slate-500 font-mono">
+                          Markup = 1 ÷ (1 − C.Fixo% − C.Variável% − Lucro%)
+                        </span>
+                      </div>
 
                       <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {/* Destaque dos 3 Componentes Principais da Fórmula */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-2.5 bg-white rounded-lg border border-indigo-100 shadow-2xs">
                           <div className="space-y-1">
-                            <Label className="text-[11px] font-semibold text-slate-600">
-                              Despesa Fixa %
+                            <Label className="text-[11px] font-bold text-sky-900 flex items-center justify-between">
+                              <span>CUSTO FIXO %</span>
+                              <span className="text-[10px] text-sky-600 font-mono font-normal">
+                                Empresa
+                              </span>
                             </Label>
                             <Input
                               type="number"
                               step="0.1"
                               value={fixedExpensesPct1}
                               onChange={(e) => setFixedExpensesPct1(e.target.value)}
-                              className="h-8 font-mono text-xs"
+                              className="h-8 font-mono text-xs font-bold text-sky-800 bg-sky-50/50 border-sky-200"
                             />
                           </div>
+
                           <div className="space-y-1">
-                            <Label className="text-[11px] font-semibold text-slate-600">
-                              Taxa Cartão %
+                            <Label className="text-[11px] font-bold text-indigo-900 flex items-center justify-between">
+                              <span>CUSTO VARIÁVEL %</span>
+                              <span className="text-[10px] text-indigo-600 font-mono font-normal">
+                                Soma variáveis
+                              </span>
                             </Label>
                             <Input
                               type="number"
                               step="0.1"
-                              value={cardTaxPct1}
-                              onChange={(e) => setCardTaxPct1(e.target.value)}
-                              className="h-8 font-mono text-xs"
+                              value={variableExpensesTotal1}
+                              onChange={(e) => setVariableExpensesTotal1(e.target.value)}
+                              className="h-8 font-mono text-xs font-bold text-indigo-800 bg-indigo-50/50 border-indigo-200"
                             />
                           </div>
+
                           <div className="space-y-1">
-                            <Label className="text-[11px] font-semibold text-slate-600">
-                              ICMS/Simples %
-                            </Label>
-                            <Input
-                              type="number"
-                              step="0.1"
-                              value={icmsPct1}
-                              onChange={(e) => setIcmsPct1(e.target.value)}
-                              className="h-8 font-mono text-xs"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[11px] font-semibold text-slate-600">
-                              Comissão %
-                            </Label>
-                            <Input
-                              type="number"
-                              step="0.1"
-                              value={commissionPct1}
-                              onChange={(e) => setCommissionPct1(e.target.value)}
-                              className="h-8 font-mono text-xs"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[11px] font-semibold text-slate-600">
-                              IPI / Outros %
-                            </Label>
-                            <Input
-                              type="number"
-                              step="0.1"
-                              value={ipiPct1}
-                              onChange={(e) => setIpiPct1(e.target.value)}
-                              className="h-8 font-mono text-xs"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[11px] font-bold text-emerald-800">
-                              Lucratividade % *
+                            <Label className="text-[11px] font-bold text-emerald-900 flex items-center justify-between">
+                              <span>LUCRATIVIDADE %</span>
+                              <span className="text-[10px] text-emerald-600 font-mono font-normal">
+                                Alvo
+                              </span>
                             </Label>
                             <Input
                               type="number"
                               step="0.5"
                               value={marginInput1}
                               onChange={(e) => setMarginInput1(e.target.value)}
-                              className="h-8 font-mono text-xs font-bold text-emerald-700 bg-emerald-50/60 border-emerald-300"
+                              className="h-8 font-mono text-xs font-bold text-emerald-800 bg-emerald-50/60 border-emerald-300"
                             />
+                          </div>
+                        </div>
+
+                        {/* Detalhamento das taxas componentes dos Custos Variáveis */}
+                        <div className="space-y-1.5 pt-1">
+                          <div className="flex items-center justify-between text-[11px] text-slate-600 font-semibold">
+                            <span>Composição dos Custos Variáveis:</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const cTax = parseFloat(cardTaxPct1.replace(',', '.')) || 0
+                                const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
+                                const impSaida = parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
+                                const com = parseFloat(commissionPct1.replace(',', '.')) || 0
+                                const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
+                                const soma =
+                                  Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10
+                                setVariableExpensesTotal1(String(soma))
+                              }}
+                              className="text-[10px] text-indigo-600 hover:underline font-normal"
+                            >
+                              Sincronizar soma com Custo Variável %
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-semibold text-slate-600 flex items-center justify-between">
+                                <span>Taxa Cartão %</span>
+                                {selectedMethod1 && (
+                                  <span className="text-[9px] text-emerald-600 font-bold">tab</span>
+                                )}
+                              </Label>
+                              <Input
+                                type="number"
+                                step="0.1"
+                                value={cardTaxPct1}
+                                onChange={(e) => {
+                                  const val = e.target.value
+                                  setCardTaxPct1(val)
+                                  const cTax = parseFloat(val.replace(',', '.')) || 0
+                                  const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
+                                  const impSaida =
+                                    parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
+                                  const com = parseFloat(commissionPct1.replace(',', '.')) || 0
+                                  const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
+                                  setVariableExpensesTotal1(
+                                    String(
+                                      Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10,
+                                    ),
+                                  )
+                                }}
+                                className="h-8 font-mono text-xs"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-semibold text-slate-600">
+                                ICMS/Simples %
+                              </Label>
+                              <Input
+                                type="number"
+                                step="0.1"
+                                value={icmsPct1}
+                                onChange={(e) => {
+                                  const val = e.target.value
+                                  setIcmsPct1(val)
+                                  const cTax = parseFloat(cardTaxPct1.replace(',', '.')) || 0
+                                  const icms = parseFloat(val.replace(',', '.')) || 0
+                                  const impSaida =
+                                    parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
+                                  const com = parseFloat(commissionPct1.replace(',', '.')) || 0
+                                  const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
+                                  setVariableExpensesTotal1(
+                                    String(
+                                      Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10,
+                                    ),
+                                  )
+                                }}
+                                className="h-8 font-mono text-xs"
+                              />
+                            </div>
+
+                            {/* REQUISITO 2: CAMPO IMPOSTO DE SAÍDA % SEPARADO */}
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-bold text-indigo-900">
+                                Imposto Saída % *
+                              </Label>
+                              <Input
+                                type="number"
+                                step="0.1"
+                                value={impostoSaidaPct1}
+                                onChange={(e) => {
+                                  const val = e.target.value
+                                  setImpostoSaidaPct1(val)
+                                  const cTax = parseFloat(cardTaxPct1.replace(',', '.')) || 0
+                                  const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
+                                  const impSaida = parseFloat(val.replace(',', '.')) || 0
+                                  const com = parseFloat(commissionPct1.replace(',', '.')) || 0
+                                  const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
+                                  setVariableExpensesTotal1(
+                                    String(
+                                      Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10,
+                                    ),
+                                  )
+                                }}
+                                className="h-8 font-mono text-xs font-bold text-indigo-700 bg-indigo-50/50 border-indigo-200"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-semibold text-slate-600">
+                                Comissão %
+                              </Label>
+                              <Input
+                                type="number"
+                                step="0.1"
+                                value={commissionPct1}
+                                onChange={(e) => {
+                                  const val = e.target.value
+                                  setCommissionPct1(val)
+                                  const cTax = parseFloat(cardTaxPct1.replace(',', '.')) || 0
+                                  const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
+                                  const impSaida =
+                                    parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
+                                  const com = parseFloat(val.replace(',', '.')) || 0
+                                  const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
+                                  setVariableExpensesTotal1(
+                                    String(
+                                      Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10,
+                                    ),
+                                  )
+                                }}
+                                className="h-8 font-mono text-xs"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-semibold text-slate-600">
+                                IPI / Outros %
+                              </Label>
+                              <Input
+                                type="number"
+                                step="0.1"
+                                value={ipiPct1}
+                                onChange={(e) => {
+                                  const val = e.target.value
+                                  setIpiPct1(val)
+                                  const cTax = parseFloat(cardTaxPct1.replace(',', '.')) || 0
+                                  const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
+                                  const impSaida =
+                                    parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
+                                  const com = parseFloat(commissionPct1.replace(',', '.')) || 0
+                                  const ipi = parseFloat(val.replace(',', '.')) || 0
+                                  setVariableExpensesTotal1(
+                                    String(
+                                      Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10,
+                                    ),
+                                  )
+                                }}
+                                className="h-8 font-mono text-xs"
+                              />
+                            </div>
                           </div>
                         </div>
 
@@ -1146,6 +1385,29 @@ export default function Precificacao() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* REQUISITO 1: TABELA EDITÁVEL DE FORMAS DE PAGAMENTO COM TAXAS E PARCELAS */}
+              <PaymentMethodsTableCard
+                methods={companyParams.payment_methods_tax || DEFAULT_PAYMENT_METHODS_TAX}
+                onSaveMethods={handleSavePaymentMethods}
+                saving={savingPaymentMethods}
+                currentSalePrice={calcResult1?.salePrice || 0}
+                selectedMethodId={selectedMethod1?.id}
+                onSelectMethod={(method) => {
+                  setSelectedMethod1(method)
+                  if (method) {
+                    setCardTaxPct1(String(method.taxa_pct))
+                    const cTax = method.taxa_pct
+                    const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
+                    const impSaida = parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
+                    const com = parseFloat(commissionPct1.replace(',', '.')) || 0
+                    const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
+                    setVariableExpensesTotal1(
+                      String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
+                    )
+                  }
+                }}
+              />
             </div>
           </div>
         </TabsContent>
@@ -1171,29 +1433,46 @@ export default function Precificacao() {
                       </div>
                     </div>
 
-                    <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                      <button
-                        type="button"
-                        onClick={() => setCurrency2('BRL')}
-                        className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
-                          currency2 === 'BRL'
-                            ? 'bg-white text-indigo-700 shadow-xs'
-                            : 'text-slate-600'
-                        }`}
-                      >
-                        R$
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCurrency2('USD')}
-                        className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
-                          currency2 === 'USD'
-                            ? 'bg-white text-emerald-700 shadow-xs'
-                            : 'text-slate-600'
-                        }`}
-                      >
-                        US$
-                      </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => setCurrency2('BRL')}
+                          className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
+                            currency2 === 'BRL'
+                              ? 'bg-white text-indigo-700 shadow-xs'
+                              : 'text-slate-600'
+                          }`}
+                        >
+                          R$
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCurrency2('USD')}
+                          className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
+                            currency2 === 'USD'
+                              ? 'bg-white text-emerald-700 shadow-xs'
+                              : 'text-slate-600'
+                          }`}
+                        >
+                          US$
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-0.5">
+                        <span className="text-[11px] font-semibold text-emerald-800">
+                          Cotação US$:
+                        </span>
+                        <span className="text-[11px] font-mono text-emerald-700 font-bold">R$</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={dolarInputLive}
+                          onChange={(e) => setDolarInputLive(e.target.value)}
+                          className="h-6 w-16 text-xs font-mono font-bold text-emerald-900 bg-white border-emerald-300 px-1 py-0"
+                          title="Cotação do Dólar do dia (converte automaticamente)"
+                        />
+                      </div>
                     </div>
                   </div>
                 </CardHeader>
@@ -1207,8 +1486,7 @@ export default function Precificacao() {
                           <span className="text-[10px] text-emerald-700 font-mono font-bold">
                             = R${' '}
                             {(
-                              (parseFloat(costInput2.replace(',', '.')) || 0) *
-                              companyParams.cotacao_dolar
+                              (parseFloat(costInput2.replace(',', '.')) || 0) * cotacaoDolarAtiva
                             ).toFixed(2)}
                           </span>
                         )}
@@ -1263,80 +1541,204 @@ export default function Precificacao() {
                     </div>
                   </div>
 
-                  {/* Alíquotas e Margem */}
+                  {/* Alíquotas e Margem com Custo Fixo % e Custo Variável % editáveis */}
                   <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {/* Componentes Principais da Fórmula */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-2.5 bg-white rounded-lg border border-indigo-100 shadow-2xs">
                       <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold text-slate-600">
-                          Despesa Fixa %
+                        <Label className="text-[11px] font-bold text-sky-900 flex items-center justify-between">
+                          <span>CUSTO FIXO %</span>
+                          <span className="text-[10px] text-sky-600 font-mono font-normal">
+                            Empresa
+                          </span>
                         </Label>
                         <Input
                           type="number"
                           step="0.1"
                           value={fixedExpensesPct2}
                           onChange={(e) => setFixedExpensesPct2(e.target.value)}
-                          className="h-8 font-mono text-xs"
+                          className="h-8 font-mono text-xs font-bold text-sky-800 bg-sky-50/50 border-sky-200"
                         />
                       </div>
+
                       <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold text-slate-600">
-                          Taxa Cartão %
+                        <Label className="text-[11px] font-bold text-indigo-900 flex items-center justify-between">
+                          <span>CUSTO VARIÁVEL %</span>
+                          <span className="text-[10px] text-indigo-600 font-mono font-normal">
+                            Soma variáveis
+                          </span>
                         </Label>
                         <Input
                           type="number"
                           step="0.1"
-                          value={cardTaxPct2}
-                          onChange={(e) => setCardTaxPct2(e.target.value)}
-                          className="h-8 font-mono text-xs"
+                          value={variableExpensesTotal2}
+                          onChange={(e) => setVariableExpensesTotal2(e.target.value)}
+                          className="h-8 font-mono text-xs font-bold text-indigo-800 bg-indigo-50/50 border-indigo-200"
                         />
                       </div>
+
                       <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold text-slate-600">
-                          ICMS/Simples %
-                        </Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={icmsPct2}
-                          onChange={(e) => setIcmsPct2(e.target.value)}
-                          className="h-8 font-mono text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold text-slate-600">
-                          Comissão %
-                        </Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={commissionPct2}
-                          onChange={(e) => setCommissionPct2(e.target.value)}
-                          className="h-8 font-mono text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold text-slate-600">
-                          IPI / Outros %
-                        </Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={ipiPct2}
-                          onChange={(e) => setIpiPct2(e.target.value)}
-                          className="h-8 font-mono text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-bold text-emerald-800">
-                          Lucratividade % *
+                        <Label className="text-[11px] font-bold text-emerald-900 flex items-center justify-between">
+                          <span>LUCRATIVIDADE %</span>
+                          <span className="text-[10px] text-emerald-600 font-mono font-normal">
+                            Alvo
+                          </span>
                         </Label>
                         <Input
                           type="number"
                           step="0.5"
                           value={marginInput2}
                           onChange={(e) => setMarginInput2(e.target.value)}
-                          className="h-8 font-mono text-xs font-bold text-emerald-700 bg-emerald-50/60 border-emerald-300"
+                          className="h-8 font-mono text-xs font-bold text-emerald-800 bg-emerald-50/60 border-emerald-300"
                         />
+                      </div>
+                    </div>
+
+                    {/* Detalhamento das taxas componentes */}
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex items-center justify-between text-[11px] text-slate-600 font-semibold">
+                        <span>Composição dos Custos Variáveis:</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cTax = parseFloat(cardTaxPct2.replace(',', '.')) || 0
+                            const icms = parseFloat(icmsPct2.replace(',', '.')) || 0
+                            const impSaida = parseFloat(impostoSaidaPct2.replace(',', '.')) || 0
+                            const com = parseFloat(commissionPct2.replace(',', '.')) || 0
+                            const ipi = parseFloat(ipiPct2.replace(',', '.')) || 0
+                            const soma = Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10
+                            setVariableExpensesTotal2(String(soma))
+                          }}
+                          className="text-[10px] text-indigo-600 hover:underline font-normal"
+                        >
+                          Sincronizar soma com Custo Variável %
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-semibold text-slate-600 flex items-center justify-between">
+                            <span>Taxa Cartão %</span>
+                            {selectedMethod2 && (
+                              <span className="text-[9px] text-emerald-600 font-bold">tab</span>
+                            )}
+                          </Label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={cardTaxPct2}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              setCardTaxPct2(val)
+                              const cTax = parseFloat(val.replace(',', '.')) || 0
+                              const icms = parseFloat(icmsPct2.replace(',', '.')) || 0
+                              const impSaida = parseFloat(impostoSaidaPct2.replace(',', '.')) || 0
+                              const com = parseFloat(commissionPct2.replace(',', '.')) || 0
+                              const ipi = parseFloat(ipiPct2.replace(',', '.')) || 0
+                              setVariableExpensesTotal2(
+                                String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
+                              )
+                            }}
+                            className="h-8 font-mono text-xs"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-semibold text-slate-600">
+                            ICMS/Simples %
+                          </Label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={icmsPct2}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              setIcmsPct2(val)
+                              const cTax = parseFloat(cardTaxPct2.replace(',', '.')) || 0
+                              const icms = parseFloat(val.replace(',', '.')) || 0
+                              const impSaida = parseFloat(impostoSaidaPct2.replace(',', '.')) || 0
+                              const com = parseFloat(commissionPct2.replace(',', '.')) || 0
+                              const ipi = parseFloat(ipiPct2.replace(',', '.')) || 0
+                              setVariableExpensesTotal2(
+                                String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
+                              )
+                            }}
+                            className="h-8 font-mono text-xs"
+                          />
+                        </div>
+
+                        {/* REQUISITO 2: CAMPO IMPOSTO DE SAÍDA % */}
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-bold text-indigo-900">
+                            Imposto Saída % *
+                          </Label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={impostoSaidaPct2}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              setImpostoSaidaPct2(val)
+                              const cTax = parseFloat(cardTaxPct2.replace(',', '.')) || 0
+                              const icms = parseFloat(icmsPct2.replace(',', '.')) || 0
+                              const impSaida = parseFloat(val.replace(',', '.')) || 0
+                              const com = parseFloat(commissionPct2.replace(',', '.')) || 0
+                              const ipi = parseFloat(ipiPct2.replace(',', '.')) || 0
+                              setVariableExpensesTotal2(
+                                String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
+                              )
+                            }}
+                            className="h-8 font-mono text-xs font-bold text-indigo-700 bg-indigo-50/50 border-indigo-200"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-semibold text-slate-600">
+                            Comissão %
+                          </Label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={commissionPct2}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              setCommissionPct2(val)
+                              const cTax = parseFloat(cardTaxPct2.replace(',', '.')) || 0
+                              const icms = parseFloat(icmsPct2.replace(',', '.')) || 0
+                              const impSaida = parseFloat(impostoSaidaPct2.replace(',', '.')) || 0
+                              const com = parseFloat(val.replace(',', '.')) || 0
+                              const ipi = parseFloat(ipiPct2.replace(',', '.')) || 0
+                              setVariableExpensesTotal2(
+                                String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
+                              )
+                            }}
+                            className="h-8 font-mono text-xs"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-semibold text-slate-600">
+                            IPI / Outros %
+                          </Label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={ipiPct2}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              setIpiPct2(val)
+                              const cTax = parseFloat(cardTaxPct2.replace(',', '.')) || 0
+                              const icms = parseFloat(icmsPct2.replace(',', '.')) || 0
+                              const impSaida = parseFloat(impostoSaidaPct2.replace(',', '.')) || 0
+                              const com = parseFloat(commissionPct2.replace(',', '.')) || 0
+                              const ipi = parseFloat(val.replace(',', '.')) || 0
+                              setVariableExpensesTotal2(
+                                String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
+                              )
+                            }}
+                            className="h-8 font-mono text-xs"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1426,6 +1828,8 @@ export default function Precificacao() {
                                 cotacao_dolar: calcResult2.cotacaoDolar,
                                 taxa_cartao_pct: calcResult2.taxaCartaoPct,
                                 icms_pct: calcResult2.icmsPct,
+                                imposto_saida_pct: calcResult2.impostoSaidaPct,
+                                payment_method_nome: selectedMethod2?.nome,
                                 comissao_pct: calcResult2.comissaoPct,
                                 ipi_pct: calcResult2.ipiPct,
                               })
@@ -1453,10 +1857,32 @@ export default function Precificacao() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* TABELA DE FORMAS DE PAGAMENTO NO MODO AVULSA */}
+              <PaymentMethodsTableCard
+                methods={companyParams.payment_methods_tax || DEFAULT_PAYMENT_METHODS_TAX}
+                onSaveMethods={handleSavePaymentMethods}
+                saving={savingPaymentMethods}
+                currentSalePrice={calcResult2?.salePrice || 0}
+                selectedMethodId={selectedMethod2?.id}
+                onSelectMethod={(method) => {
+                  setSelectedMethod2(method)
+                  if (method) {
+                    setCardTaxPct2(String(method.taxa_pct))
+                    const cTax = method.taxa_pct
+                    const icms = parseFloat(icmsPct2.replace(',', '.')) || 0
+                    const impSaida = parseFloat(impostoSaidaPct2.replace(',', '.')) || 0
+                    const com = parseFloat(commissionPct2.replace(',', '.')) || 0
+                    const ipi = parseFloat(ipiPct2.replace(',', '.')) || 0
+                    setVariableExpensesTotal2(
+                      String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
+                    )
+                  }
+                }}
+              />
             </div>
           </div>
         </TabsContent>
-
         {/* ==================================================================== */}
         {/* ABA 3: PRECIFICAÇÃO RÁPIDA (Com Vínculo ou Novo Produto)            */}
         {/* ==================================================================== */}
@@ -1476,7 +1902,7 @@ export default function Precificacao() {
                       </CardDescription>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {linkedProduct3 && (
                         <Badge className="bg-indigo-600 text-white text-[11px] font-bold">
                           {linkedProduct3.name}
@@ -1506,6 +1932,21 @@ export default function Precificacao() {
                           US$
                         </button>
                       </div>
+
+                      <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-0.5">
+                        <span className="text-[11px] font-semibold text-emerald-800">
+                          Cotação US$:
+                        </span>
+                        <span className="text-[11px] font-mono text-emerald-700 font-bold">R$</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={dolarInputLive}
+                          onChange={(e) => setDolarInputLive(e.target.value)}
+                          className="h-6 w-16 text-xs font-mono font-bold text-emerald-900 bg-white border-emerald-300 px-1 py-0"
+                          title="Cotação do Dólar do dia (converte automaticamente)"
+                        />
+                      </div>
                     </div>
                   </div>
                 </CardHeader>
@@ -1519,8 +1960,7 @@ export default function Precificacao() {
                           <span className="text-[10px] text-emerald-700 font-mono font-bold">
                             = R${' '}
                             {(
-                              (parseFloat(costInput3.replace(',', '.')) || 0) *
-                              companyParams.cotacao_dolar
+                              (parseFloat(costInput3.replace(',', '.')) || 0) * cotacaoDolarAtiva
                             ).toFixed(2)}
                           </span>
                         )}
@@ -1557,18 +1997,165 @@ export default function Precificacao() {
                         className="h-9 font-mono text-xs"
                       />
                     </div>
+                  </div>
 
-                    <div className="space-y-1">
-                      <Label className="text-xs font-bold text-emerald-800">
-                        Lucratividade Alvo %
-                      </Label>
-                      <Input
-                        type="number"
-                        step="0.5"
-                        value={marginInput3}
-                        onChange={(e) => setMarginInput3(e.target.value)}
-                        className="h-9 font-mono text-xs font-bold text-emerald-700 bg-emerald-50/60 border-emerald-300"
-                      />
+                  {/* Parâmetros de Markup Modo 3: Custo Fixo %, Custo Variável %, Lucratividade % */}
+                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-2.5 bg-white rounded-lg border border-indigo-100 shadow-2xs">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-bold text-sky-900 flex items-center justify-between">
+                          <span>CUSTO FIXO %</span>
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={fixedExpensesPct3}
+                          onChange={(e) => setFixedExpensesPct3(e.target.value)}
+                          className="h-8 font-mono text-xs font-bold text-sky-800 bg-sky-50/50 border-sky-200"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-bold text-indigo-900 flex items-center justify-between">
+                          <span>CUSTO VARIÁVEL %</span>
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={variableExpensesTotal3}
+                          onChange={(e) => setVariableExpensesTotal3(e.target.value)}
+                          className="h-8 font-mono text-xs font-bold text-indigo-800 bg-indigo-50/50 border-indigo-200"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-bold text-emerald-900 flex items-center justify-between">
+                          <span>LUCRATIVIDADE %</span>
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.5"
+                          value={marginInput3}
+                          onChange={(e) => setMarginInput3(e.target.value)}
+                          className="h-8 font-mono text-xs font-bold text-emerald-800 bg-emerald-50/60 border-emerald-300"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 pt-1">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-semibold text-slate-600">
+                          Taxa Cartão %
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={cardTaxPct3}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setCardTaxPct3(val)
+                            const cTax = parseFloat(val.replace(',', '.')) || 0
+                            const icms = parseFloat(icmsPct3.replace(',', '.')) || 0
+                            const impSaida = parseFloat(impostoSaidaPct3.replace(',', '.')) || 0
+                            const com = parseFloat(commissionPct3.replace(',', '.')) || 0
+                            const ipi = parseFloat(ipiPct3.replace(',', '.')) || 0
+                            setVariableExpensesTotal3(
+                              String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
+                            )
+                          }}
+                          className="h-8 font-mono text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-semibold text-slate-600">
+                          ICMS/Simples %
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={icmsPct3}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setIcmsPct3(val)
+                            const cTax = parseFloat(cardTaxPct3.replace(',', '.')) || 0
+                            const icms = parseFloat(val.replace(',', '.')) || 0
+                            const impSaida = parseFloat(impostoSaidaPct3.replace(',', '.')) || 0
+                            const com = parseFloat(commissionPct3.replace(',', '.')) || 0
+                            const ipi = parseFloat(ipiPct3.replace(',', '.')) || 0
+                            setVariableExpensesTotal3(
+                              String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
+                            )
+                          }}
+                          className="h-8 font-mono text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-bold text-indigo-900">
+                          Imp. Saída % *
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={impostoSaidaPct3}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setImpostoSaidaPct3(val)
+                            const cTax = parseFloat(cardTaxPct3.replace(',', '.')) || 0
+                            const icms = parseFloat(icmsPct3.replace(',', '.')) || 0
+                            const impSaida = parseFloat(val.replace(',', '.')) || 0
+                            const com = parseFloat(commissionPct3.replace(',', '.')) || 0
+                            const ipi = parseFloat(ipiPct3.replace(',', '.')) || 0
+                            setVariableExpensesTotal3(
+                              String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
+                            )
+                          }}
+                          className="h-8 font-mono text-xs font-bold text-indigo-700 bg-indigo-50/50 border-indigo-200"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-semibold text-slate-600">
+                          Comissão %
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={commissionPct3}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setCommissionPct3(val)
+                            const cTax = parseFloat(cardTaxPct3.replace(',', '.')) || 0
+                            const icms = parseFloat(icmsPct3.replace(',', '.')) || 0
+                            const impSaida = parseFloat(impostoSaidaPct3.replace(',', '.')) || 0
+                            const com = parseFloat(val.replace(',', '.')) || 0
+                            const ipi = parseFloat(ipiPct3.replace(',', '.')) || 0
+                            setVariableExpensesTotal3(
+                              String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
+                            )
+                          }}
+                          className="h-8 font-mono text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-semibold text-slate-600">IPI %</Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={ipiPct3}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setIpiPct3(val)
+                            const cTax = parseFloat(cardTaxPct3.replace(',', '.')) || 0
+                            const icms = parseFloat(icmsPct3.replace(',', '.')) || 0
+                            const impSaida = parseFloat(impostoSaidaPct3.replace(',', '.')) || 0
+                            const com = parseFloat(commissionPct3.replace(',', '.')) || 0
+                            const ipi = parseFloat(val.replace(',', '.')) || 0
+                            setVariableExpensesTotal3(
+                              String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
+                            )
+                          }}
+                          className="h-8 font-mono text-xs"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -1702,6 +2289,29 @@ export default function Precificacao() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* TABELA DE FORMAS DE PAGAMENTO NO MODO RÁPIDO */}
+              <PaymentMethodsTableCard
+                methods={companyParams.payment_methods_tax || DEFAULT_PAYMENT_METHODS_TAX}
+                onSaveMethods={handleSavePaymentMethods}
+                saving={savingPaymentMethods}
+                currentSalePrice={calcResult3?.salePrice || 0}
+                selectedMethodId={selectedMethod3?.id}
+                onSelectMethod={(method) => {
+                  setSelectedMethod3(method)
+                  if (method) {
+                    setCardTaxPct3(String(method.taxa_pct))
+                    const cTax = method.taxa_pct
+                    const icms = parseFloat(icmsPct3.replace(',', '.')) || 0
+                    const impSaida = parseFloat(impostoSaidaPct3.replace(',', '.')) || 0
+                    const com = parseFloat(commissionPct3.replace(',', '.')) || 0
+                    const ipi = parseFloat(ipiPct3.replace(',', '.')) || 0
+                    setVariableExpensesTotal3(
+                      String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
+                    )
+                  }
+                }}
+              />
             </div>
           </div>
         </TabsContent>
@@ -1741,6 +2351,7 @@ export default function Precificacao() {
                       <th className="py-2.5 px-3">Data/Hora</th>
                       <th className="py-2.5 px-3">Modo</th>
                       <th className="py-2.5 px-3">Produto</th>
+                      <th className="py-2.5 px-3 text-center">Forma Pagto</th>
                       <th className="py-2.5 px-3 text-center">Moeda / US$</th>
                       <th className="py-2.5 px-3 text-right">Custo Direto</th>
                       <th className="py-2.5 px-3 text-right">Frete</th>
@@ -1791,6 +2402,18 @@ export default function Precificacao() {
                             {prodName}
                           </td>
                           <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            {item.payment_method_nome ? (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] bg-slate-50 text-slate-700 border-slate-200"
+                              >
+                                {item.payment_method_nome}
+                              </Badge>
+                            ) : (
+                              <span className="text-slate-400 text-[11px]">—</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
                             {item.custo_moeda === 'USD' ? (
                               <Badge
                                 variant="outline"
@@ -1834,7 +2457,7 @@ export default function Precificacao() {
 
                     {historyList.length === 0 && (
                       <tr>
-                        <td colSpan={12} className="py-12 text-center text-slate-400">
+                        <td colSpan={13} className="py-12 text-center text-slate-400">
                           {loadingHistory
                             ? 'Carregando histórico...'
                             : 'Nenhum histórico de precificação registrado ainda.'}
@@ -2041,14 +2664,19 @@ export default function Precificacao() {
               onClick={() =>
                 selectedProduct &&
                 calcResult1 &&
-                handleApplyPriceToProduct(selectedProduct, calcResult1, 'produto')
+                handleApplyPriceToProduct(
+                  selectedProduct,
+                  calcResult1,
+                  'produto',
+                  selectedMethod1?.nome,
+                )
               }
               disabled={applyingPrice}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs gap-1.5"
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
               <span>{applyingPrice ? 'Atualizando...' : 'Confirmar e Aplicar'}</span>
-            </Button>
+            </Button>{' '}
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -468,6 +468,13 @@ export type PricingMode = 'produto' | 'avulsa' | 'rapida'
 
 export type CurrencyType = 'BRL' | 'USD'
 
+export interface PaymentMethodTax {
+  id: string
+  nome: string
+  taxa_pct: number
+  parcelas: number
+}
+
 export interface CompanyPricingParameters {
   cotacao_dolar: number
   frete_padrao: number
@@ -475,11 +482,13 @@ export interface CompanyPricingParameters {
   icms_pct: number
   comissao_pct: number
   ipi_pct: number
+  imposto_saida_pct?: number
   despesa_fixa_mensal: number
   faturamento_medio_mensal: number
   lucratividade_desejada_pct: number
   despesa_fixa_pct: number // Calculado: despesa_fixa_mensal / faturamento_medio_mensal * 100
-  custos_variaveis_pct: number // Calculado: taxa_cartao_pct + icms_pct + comissao_pct + ipi_pct
+  custos_variaveis_pct: number // Calculado: taxa_cartao_pct + icms_pct + imposto_saida_pct + comissao_pct + ipi_pct
+  payment_methods_tax?: PaymentMethodTax[]
 }
 
 export interface PricingHistory {
@@ -503,6 +512,8 @@ export interface PricingHistory {
   icms_pct?: number
   comissao_pct?: number
   ipi_pct?: number
+  imposto_saida_pct?: number
+  payment_method_nome?: string
   created_by?: string
   created?: string
   updated?: string

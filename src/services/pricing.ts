@@ -2,6 +2,7 @@ import pb from '@/lib/pocketbase/client'
 import {
   CompanyPricingParameters,
   CurrencyType,
+  PaymentMethodTax,
   PricingHistory,
   PricingMode,
   SystemSetting,
@@ -19,10 +20,28 @@ export const SETTING_KEYS = {
   ICMS_PCT: 'icms_pct',
   COMISSAO_PCT: 'comissao_pct',
   IPI_PCT: 'ipi_pct',
+  IMPOSTO_SAIDA_PCT: 'imposto_saida_pct',
   DESPESA_FIXA_MENSAL: 'despesa_fixa_mensal',
   FATURAMENTO_MEDIO_MENSAL: 'faturamento_medio_mensal',
   LUCRATIVIDADE_DESEJADA_PCT: 'lucratividade_desejada_pct',
+  PAYMENT_METHODS_TAX: 'payment_methods_tax',
 } as const
+
+export const DEFAULT_PAYMENT_METHODS_TAX: PaymentMethodTax[] = [
+  { id: 'debito', nome: 'Débito', taxa_pct: 1.5, parcelas: 1 },
+  { id: 'credito_vista', nome: 'Crédito à vista (1x)', taxa_pct: 3.5, parcelas: 1 },
+  { id: 'credito_2x', nome: 'Crédito 2x', taxa_pct: 4.5, parcelas: 2 },
+  { id: 'credito_3x', nome: 'Crédito 3x', taxa_pct: 5.5, parcelas: 3 },
+  { id: 'credito_4x', nome: 'Crédito 4x', taxa_pct: 6.5, parcelas: 4 },
+  { id: 'credito_5x', nome: 'Crédito 5x', taxa_pct: 7.5, parcelas: 5 },
+  { id: 'credito_6x', nome: 'Crédito 6x', taxa_pct: 8.5, parcelas: 6 },
+  { id: 'credito_7x', nome: 'Crédito 7x', taxa_pct: 9.5, parcelas: 7 },
+  { id: 'credito_8x', nome: 'Crédito 8x', taxa_pct: 10.5, parcelas: 8 },
+  { id: 'credito_9x', nome: 'Crédito 9x', taxa_pct: 11.5, parcelas: 9 },
+  { id: 'credito_10x', nome: 'Crédito 10x', taxa_pct: 12.5, parcelas: 10 },
+  { id: 'credito_11x', nome: 'Crédito 11x', taxa_pct: 13.5, parcelas: 11 },
+  { id: 'credito_12x', nome: 'Crédito 12x', taxa_pct: 14.5, parcelas: 12 },
+]
 
 export const DEFAULT_COMPANY_PARAMS: CompanyPricingParameters = {
   cotacao_dolar: 5.65,
@@ -31,11 +50,13 @@ export const DEFAULT_COMPANY_PARAMS: CompanyPricingParameters = {
   icms_pct: 4.0,
   comissao_pct: 2.5,
   ipi_pct: 0,
+  imposto_saida_pct: 4.0,
   despesa_fixa_mensal: 15000,
   faturamento_medio_mensal: 100000,
   lucratividade_desejada_pct: 25.0,
   despesa_fixa_pct: 15.0,
-  custos_variaveis_pct: 10.0,
+  custos_variaveis_pct: 14.0,
+  payment_methods_tax: DEFAULT_PAYMENT_METHODS_TAX,
 }
 
 /**
@@ -111,6 +132,10 @@ export async function getCompanyPricingParameters(): Promise<CompanyPricingParam
       DEFAULT_COMPANY_PARAMS.comissao_pct,
     )
     const ipi_pct = parseNum(map.get(SETTING_KEYS.IPI_PCT), DEFAULT_COMPANY_PARAMS.ipi_pct)
+    const imposto_saida_pct = parseNum(
+      map.get(SETTING_KEYS.IMPOSTO_SAIDA_PCT),
+      DEFAULT_COMPANY_PARAMS.imposto_saida_pct ?? 4.0,
+    )
     const despesa_fixa_mensal = parseNum(
       map.get(SETTING_KEYS.DESPESA_FIXA_MENSAL),
       DEFAULT_COMPANY_PARAMS.despesa_fixa_mensal,
@@ -124,13 +149,27 @@ export async function getCompanyPricingParameters(): Promise<CompanyPricingParam
       DEFAULT_COMPANY_PARAMS.lucratividade_desejada_pct,
     )
 
+    let payment_methods_tax = DEFAULT_PAYMENT_METHODS_TAX
+    const rawMethods = map.get(SETTING_KEYS.PAYMENT_METHODS_TAX)
+    if (rawMethods) {
+      try {
+        const parsed = JSON.parse(rawMethods)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          payment_methods_tax = parsed
+        }
+      } catch {
+        /* fallback para default */
+      }
+    }
+
     const despesa_fixa_pct =
       faturamento_medio_mensal > 0
         ? Math.round((despesa_fixa_mensal / faturamento_medio_mensal) * 10000) / 100
         : 0
 
     const custos_variaveis_pct =
-      Math.round((taxa_cartao_pct + icms_pct + comissao_pct + ipi_pct) * 100) / 100
+      Math.round((taxa_cartao_pct + icms_pct + imposto_saida_pct + comissao_pct + ipi_pct) * 100) /
+      100
 
     return {
       cotacao_dolar,
@@ -139,11 +178,13 @@ export async function getCompanyPricingParameters(): Promise<CompanyPricingParam
       icms_pct,
       comissao_pct,
       ipi_pct,
+      imposto_saida_pct,
       despesa_fixa_mensal,
       faturamento_medio_mensal,
       lucratividade_desejada_pct,
       despesa_fixa_pct,
       custos_variaveis_pct,
+      payment_methods_tax,
     }
   } catch {
     return DEFAULT_COMPANY_PARAMS
@@ -212,6 +253,15 @@ export async function updateCompanyPricingParameters(
       ),
     )
   }
+  if (params.imposto_saida_pct !== undefined) {
+    updates.push(
+      setSettingValue(
+        SETTING_KEYS.IMPOSTO_SAIDA_PCT,
+        String(params.imposto_saida_pct),
+        'Alíquota de imposto de saída (%) incidente nas vendas',
+      ),
+    )
+  }
   if (params.despesa_fixa_mensal !== undefined) {
     updates.push(
       setSettingValue(
@@ -241,8 +291,28 @@ export async function updateCompanyPricingParameters(
     // Sincroniza também com o legacy min_margin
     updates.push(updateDefaultMinMarginPct(params.lucratividade_desejada_pct))
   }
+  if (params.payment_methods_tax !== undefined) {
+    updates.push(
+      setSettingValue(
+        SETTING_KEYS.PAYMENT_METHODS_TAX,
+        JSON.stringify(params.payment_methods_tax),
+        'Tabela de formas de pagamento e taxas de cartão (%) em formato JSON',
+      ),
+    )
+  }
 
   await Promise.all(updates)
+}
+
+/**
+ * Salva apenas a tabela de taxas de formas de pagamento em settings.
+ */
+export async function updatePaymentMethodsTax(methods: PaymentMethodTax[]): Promise<void> {
+  await setSettingValue(
+    SETTING_KEYS.PAYMENT_METHODS_TAX,
+    JSON.stringify(methods),
+    'Tabela de formas de pagamento e taxas de cartão (%) em formato JSON',
+  )
 }
 
 /**
@@ -299,6 +369,8 @@ export async function createPricingHistory(data: {
   icms_pct?: number
   comissao_pct?: number
   ipi_pct?: number
+  imposto_saida_pct?: number
+  payment_method_nome?: string
 }): Promise<PricingHistory> {
   const currentUserId = pb.authStore.model?.id || undefined
   return pb.collection('pricing_history').create<PricingHistory>({
@@ -321,6 +393,8 @@ export async function createPricingHistory(data: {
     icms_pct: data.icms_pct ?? 0,
     comissao_pct: data.comissao_pct ?? 0,
     ipi_pct: data.ipi_pct ?? 0,
+    imposto_saida_pct: data.imposto_saida_pct ?? 0,
+    payment_method_nome: data.payment_method_nome || null,
     created_by: currentUserId || null,
   })
 }
@@ -364,9 +438,10 @@ export interface PricingCalculationResult {
   despesaFixaPct: number
   taxaCartaoPct: number
   icmsPct: number
+  impostoSaidaPct?: number
   comissaoPct: number
   ipiPct: number
-  custosVariaveisPct: number // soma das 4 variáveis
+  custosVariaveisPct: number // soma das variáveis
   lucratividadePct: number // margem de lucro líquido alvo
 
   // Divisor e Multiplicador de markup
@@ -385,9 +460,10 @@ export interface PricingCalculationResult {
     custosVariaveis: {
       valor: number
       pct: number
-      detalhe: {
+      detalhe?: {
         cartao: { valor: number; pct: number }
         icms: { valor: number; pct: number }
+        impostoSaida?: { valor: number; pct: number }
         comissao: { valor: number; pct: number }
         ipi: { valor: number; pct: number }
       }
@@ -414,10 +490,12 @@ export interface PricingInputData {
   custoAdicional1?: number
   custoAdicional2?: number
   despesaFixaPct: number
-  taxaCartaoPct: number
-  icmsPct: number
-  comissaoPct: number
-  ipiPct: number
+  taxaCartaoPct?: number
+  icmsPct?: number
+  impostoSaidaPct?: number
+  comissaoPct?: number
+  ipiPct?: number
+  custosVariaveisPctOverride?: number
   lucratividadePct: number
 }
 
@@ -452,10 +530,14 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
   const despesaFixaPct = Math.max(0, input.despesaFixaPct || 0)
   const taxaCartaoPct = Math.max(0, input.taxaCartaoPct || 0)
   const icmsPct = Math.max(0, input.icmsPct || 0)
+  const impostoSaidaPct = Math.max(0, input.impostoSaidaPct || 0)
   const comissaoPct = Math.max(0, input.comissaoPct || 0)
   const ipiPct = Math.max(0, input.ipiPct || 0)
+
   const custosVariaveisPct =
-    Math.round((taxaCartaoPct + icmsPct + comissaoPct + ipiPct) * 100) / 100
+    input.custosVariaveisPctOverride !== undefined
+      ? Math.max(0, input.custosVariaveisPctOverride)
+      : Math.round((taxaCartaoPct + icmsPct + impostoSaidaPct + comissaoPct + ipiPct) * 100) / 100
   const lucratividadePct = Math.max(0, input.lucratividadePct || 0)
 
   // Divisor decimal: 1 - (despesa_fixa% + variaveis% + lucratividade%) / 100
@@ -475,6 +557,7 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
       despesaFixaPct,
       taxaCartaoPct,
       icmsPct,
+      impostoSaidaPct,
       comissaoPct,
       ipiPct,
       custosVariaveisPct,
@@ -493,6 +576,7 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
           detalhe: {
             cartao: { valor: 0, pct: 0 },
             icms: { valor: 0, pct: 0 },
+            impostoSaida: { valor: 0, pct: 0 },
             comissao: { valor: 0, pct: 0 },
             ipi: { valor: 0, pct: 0 },
           },
@@ -518,10 +602,14 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
   const despesaFixaValor = Math.round(salePrice * (despesaFixaPct / 100) * 100) / 100
   const cartaoValor = Math.round(salePrice * (taxaCartaoPct / 100) * 100) / 100
   const icmsValor = Math.round(salePrice * (icmsPct / 100) * 100) / 100
+  const impostoSaidaValor = Math.round(salePrice * (impostoSaidaPct / 100) * 100) / 100
   const comissaoValor = Math.round(salePrice * (comissaoPct / 100) * 100) / 100
   const ipiValor = Math.round(salePrice * (ipiPct / 100) * 100) / 100
   const custosVariaveisValor =
-    Math.round((cartaoValor + icmsValor + comissaoValor + ipiValor) * 100) / 100
+    input.custosVariaveisPctOverride !== undefined
+      ? Math.round(salePrice * (custosVariaveisPct / 100) * 100) / 100
+      : Math.round((cartaoValor + icmsValor + impostoSaidaValor + comissaoValor + ipiValor) * 100) /
+        100
 
   // Lucro R$ = Preço - custo direto - despesa fixa$ - variáveis$
   const lucroUnitario =
@@ -553,6 +641,7 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
     despesaFixaPct,
     taxaCartaoPct,
     icmsPct,
+    impostoSaidaPct,
     comissaoPct,
     ipiPct,
     custosVariaveisPct,
@@ -582,6 +671,10 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
           icms: {
             valor: icmsValor,
             pct: Math.round((icmsValor / (salePrice || 1)) * 1000) / 10,
+          },
+          impostoSaida: {
+            valor: impostoSaidaValor,
+            pct: Math.round((impostoSaidaValor / (salePrice || 1)) * 1000) / 10,
           },
           comissao: {
             valor: comissaoValor,
@@ -620,6 +713,7 @@ export function decomposeExistingPrice(
   icmsPct: number,
   comissaoPct: number,
   ipiPct: number,
+  impostoSaidaPct = 0,
 ) {
   const price = Math.max(0, currentPrice)
   const custo = Math.max(0, custoDiretoTotal)
@@ -627,10 +721,11 @@ export function decomposeExistingPrice(
   const despesaFixaValor = Math.round(price * (despesaFixaPct / 100) * 100) / 100
   const cartaoValor = Math.round(price * (taxaCartaoPct / 100) * 100) / 100
   const icmsValor = Math.round(price * (icmsPct / 100) * 100) / 100
+  const impostoSaidaValor = Math.round(price * (impostoSaidaPct / 100) * 100) / 100
   const comissaoValor = Math.round(price * (comissaoPct / 100) * 100) / 100
   const ipiValor = Math.round(price * (ipiPct / 100) * 100) / 100
   const custosVariaveisValor =
-    Math.round((cartaoValor + icmsValor + comissaoValor + ipiValor) * 100) / 100
+    Math.round((cartaoValor + icmsValor + impostoSaidaValor + comissaoValor + ipiValor) * 100) / 100
 
   // Lucro R$ no preço atual
   const lucroUnitario =

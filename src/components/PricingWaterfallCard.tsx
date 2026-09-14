@@ -15,6 +15,7 @@ interface PricingWaterfallProps {
   detalheVariaveis?: {
     cartao: { valor: number; pct: number }
     icms: { valor: number; pct: number }
+    impostoSaida?: { valor: number; pct: number }
     comissao: { valor: number; pct: number }
     ipi: { valor: number; pct: number }
   }
@@ -175,6 +176,15 @@ export function PricingWaterfallCard({
             </strong>{' '}
             ({detalheVariaveis.icms.pct}%)
           </span>
+          {detalheVariaveis.impostoSaida && detalheVariaveis.impostoSaida.pct > 0 && (
+            <span>
+              Imp. Saída:{' '}
+              <strong className="font-mono text-slate-700">
+                {formatCurrencyBRL(detalheVariaveis.impostoSaida.valor)}
+              </strong>{' '}
+              ({detalheVariaveis.impostoSaida.pct}%)
+            </span>
+          )}
           <span>
             Comissão:{' '}
             <strong className="font-mono text-slate-700">

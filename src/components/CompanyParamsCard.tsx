@@ -22,6 +22,7 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
   const [fretePadrao, setFretePadrao] = useState(String(parameters.frete_padrao))
   const [taxaCartao, setTaxaCartao] = useState(String(parameters.taxa_cartao_pct))
   const [icms, setIcms] = useState(String(parameters.icms_pct))
+  const [impostoSaida, setImpostoSaida] = useState(String(parameters.imposto_saida_pct ?? 4.0))
   const [comissao, setComissao] = useState(String(parameters.comissao_pct))
   const [ipi, setIpi] = useState(String(parameters.ipi_pct))
   const [despesaFixa, setDespesaFixa] = useState(String(parameters.despesa_fixa_mensal))
@@ -34,6 +35,7 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
     setFretePadrao(String(parameters.frete_padrao))
     setTaxaCartao(String(parameters.taxa_cartao_pct))
     setIcms(String(parameters.icms_pct))
+    setImpostoSaida(String(parameters.imposto_saida_pct ?? 4.0))
     setComissao(String(parameters.comissao_pct))
     setIpi(String(parameters.ipi_pct))
     setDespesaFixa(String(parameters.despesa_fixa_mensal))
@@ -48,9 +50,10 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
 
   const tCartao = parseFloat(taxaCartao.replace(',', '.')) || 0
   const tIcms = parseFloat(icms.replace(',', '.')) || 0
+  const tImpSaida = parseFloat(impostoSaida.replace(',', '.')) || 0
   const tComissao = parseFloat(comissao.replace(',', '.')) || 0
   const tIpi = parseFloat(ipi.replace(',', '.')) || 0
-  const custosVariaveisCalculadosPct = tCartao + tIcms + tComissao + tIpi
+  const custosVariaveisCalculadosPct = tCartao + tIcms + tImpSaida + tComissao + tIpi
 
   const handleSave = async () => {
     await onSave({
@@ -58,6 +61,7 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
       frete_padrao: parseFloat(fretePadrao.replace(',', '.')) || 0,
       taxa_cartao_pct: tCartao,
       icms_pct: tIcms,
+      imposto_saida_pct: tImpSaida,
       comissao_pct: tComissao,
       ipi_pct: tIpi,
       despesa_fixa_mensal: despFixaNum,
@@ -207,7 +211,7 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <div className="space-y-1">
                   <Label className="text-[10px] font-semibold text-slate-600">Taxa Cartão %</Label>
                   <Input
@@ -228,6 +232,18 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
                     value={icms}
                     onChange={(e) => setIcms(e.target.value)}
                     className="h-8 font-mono text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-semibold text-slate-600">
+                    Imposto Saída %
+                  </Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={impostoSaida}
+                    onChange={(e) => setImpostoSaida(e.target.value)}
+                    className="h-8 font-mono text-xs font-semibold text-indigo-700 bg-indigo-50/40"
                   />
                 </div>
                 <div className="space-y-1">
