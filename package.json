@@ -2,7 +2,7 @@
   "name": "skip-react-template",
   "description": "JUCA INFORMÁTICA - Sistema de Gestão",
   "private": true,
-  "version": "0.0.194",
+  "version": "0.0.195",
   "type": "module",
   "scripts": {
     "start": "vite dev",
@@ -13,8 +13,9 @@
     "lint:fix": "oxlint src --fix",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "postbuild": "node scripts/inject-sw-timestamp.mjs",
-    "postbuild:dev": "node scripts/inject-sw-timestamp.mjs --dev",
+    "icons:generate": "node scripts/copy-logo.js",
+    "postbuild": "node scripts/copy-logo.js && node scripts/inject-sw-timestamp.mjs",
+    "postbuild:dev": "node scripts/copy-logo.js && node scripts/inject-sw-timestamp.mjs --dev",
     "preview": "vite preview",
     "test": "echo \"there are no tests for this project\" && exit 0",
     "test:watch": "echo \"there are no tests for this project\" && exit 0"

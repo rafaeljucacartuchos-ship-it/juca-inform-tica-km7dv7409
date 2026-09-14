@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Bell, Plus, Menu } from 'lucide-react'
+import { Search, Bell, Plus, Menu, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
@@ -11,6 +11,7 @@ import { usePermissions } from '@/hooks/use-permissions'
 import { useNotifications } from '@/hooks/use-notifications'
 import { NotificationsPanel } from '@/components/NotificationsPanel'
 import { SoundSettings } from '@/components/SoundSettings'
+import { usePwaInstall } from '@/hooks/use-pwa-install'
 
 export function Topbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -20,6 +21,7 @@ export function Topbar() {
   const { notifications, unreadCount, markAllAsRead, requestBrowserPermission, browserPermission } =
     useNotifications()
   const { hasPermission } = usePermissions()
+  const { isInstallable, promptInstall, isStandalone } = usePwaInstall()
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,6 +65,19 @@ export function Topbar() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          {!isStandalone && isInstallable && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={promptInstall}
+              className="h-8 gap-1.5 border-indigo-200 bg-indigo-50/50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800 text-xs px-2.5 rounded-lg font-medium shadow-none"
+              title="Instalar aplicativo JUCA Informática no celular"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span className="hidden xs:inline">Instalar app</span>
+            </Button>
+          )}
+
           <SoundSettings />
 
           <Popover

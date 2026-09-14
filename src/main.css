@@ -111,6 +111,10 @@
   * {
     @apply border-border;
   }
+  html {
+    background-color: #0a1224;
+  }
+
   body {
     font-family:
       'Plus Jakarta Sans',
@@ -124,6 +128,8 @@
     -moz-osx-font-smoothing: grayscale;
     -webkit-text-size-adjust: 100%;
     touch-action: manipulation;
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
     @apply bg-background text-foreground;
   }
   code,

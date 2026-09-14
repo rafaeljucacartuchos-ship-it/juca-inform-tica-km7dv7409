@@ -5,6 +5,7 @@ const source = path.join(process.cwd(), 'src/assets/editedimage1786731852013-eff
 
 const destinations = [
   'public/logo.png',
+  'public/apple-touch-icon.png',
   'public/icon-192.png',
   'public/icon-512.png',
   'public/icon-192-maskable.png',

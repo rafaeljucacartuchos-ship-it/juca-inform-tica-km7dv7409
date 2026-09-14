@@ -49,30 +49,31 @@ export function OfflineBanner() {
 
   return (
     <div
-      className={`flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium text-white transition-all duration-300 ${
-        isOffline ? 'bg-amber-500' : 'bg-blue-600'
+      className={`flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium text-white transition-all duration-300 shadow-sm ${
+        isOffline ? 'bg-amber-600' : 'bg-indigo-600'
       }`}
       role="status"
       aria-live="polite"
     >
       {isOffline ? (
         <>
-          <CloudOff className="h-4 w-4 shrink-0" />
+          <CloudOff className="h-4 w-4 shrink-0 animate-pulse" />
           <span>
-            Sem conexão — as alterações serão salvas localmente e sincronizadas quando a internet
-            voltar.
+            Sem conexão — o app continua operando em modo offline. Os dados serão atualizados assim
+            que a conexão retornar.
           </span>
         </>
       ) : (
         <>
           <RefreshCw className="h-4 w-4 shrink-0 animate-spin" />
           <span>
-            Sincronizando {pending} {pending === 1 ? 'alteração pendente' : 'alterações pendentes'}
+            Conexão restabelecida! Sincronizando {pending}{' '}
+            {pending === 1 ? 'alteração pendente' : 'alterações pendentes'}
             ...
           </span>
         </>
       )}
-      <Cloud className="h-3 w-3 shrink-0 opacity-60" />
+      <Cloud className="h-3.5 w-3.5 shrink-0 opacity-75" />
     </div>
   )
 }

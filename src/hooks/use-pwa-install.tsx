@@ -33,6 +33,7 @@ export function usePwaInstall() {
   const [isIOS, setIsIOS] = useState(false)
   const [isSafari, setIsSafari] = useState(false)
   const [iosGuideDismissed, setIosGuideDismissed] = useState(false)
+  const [iosModalOpen, setIosModalOpen] = useState(false)
 
   useEffect(() => {
     const standalone =
@@ -70,13 +71,18 @@ export function usePwaInstall() {
   }, [])
 
   const promptInstall = useCallback(async () => {
-    if (!installPromptEvent) return
+    if (!installPromptEvent) {
+      if (isIOS) {
+        setIosModalOpen(true)
+      }
+      return
+    }
     await installPromptEvent.prompt()
     const choice = await installPromptEvent.userChoice
     if (choice.outcome === 'accepted') {
       setInstallPromptEvent(null)
     }
-  }, [installPromptEvent])
+  }, [installPromptEvent, isIOS])
 
   const dismiss = useCallback(() => {
     setIsDismissed(true)
@@ -84,6 +90,7 @@ export function usePwaInstall() {
 
   const dismissIosGuide = useCallback(() => {
     setIosGuideDismissed(true)
+    setIosModalOpen(false)
     try {
       localStorage.setItem(IOS_DISMISS_KEY, 'true')
     } catch {
@@ -92,19 +99,23 @@ export function usePwaInstall() {
   }, [])
 
   const showIosGuide = useCallback(() => {
-    setIosGuideDismissed(false)
-    try {
-      localStorage.removeItem(IOS_DISMISS_KEY)
-    } catch {
-      // ignore
-    }
+    setIosModalOpen(true)
   }, [])
 
+  const closeIosModal = useCallback(() => {
+    setIosModalOpen(false)
+  }, [])
+
+  // Mostra o prompt/botão quando não está instalado standalone
   const canInstall = !isStandalone && !isDismissed && !!installPromptEvent
+  // Banner automático para iOS (apenas se safari, não instalado, e não dispensado anteriormente)
   const canShowIosGuide = isIOS && isSafari && !isStandalone && !iosGuideDismissed
+  // Permite ação manual de instalação (Android com evento prompt OU iOS)
+  const isInstallable = !isStandalone && (!!installPromptEvent || isIOS)
 
   return {
     canInstall,
+    isInstallable,
     promptInstall,
     dismiss,
     isStandalone,
@@ -113,5 +124,7 @@ export function usePwaInstall() {
     canShowIosGuide,
     dismissIosGuide,
     showIosGuide,
+    iosModalOpen,
+    closeIosModal,
   }
 }

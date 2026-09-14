@@ -24,6 +24,11 @@ const PRECACHE_URLS = [
   '/manifest.webmanifest',
   '/icon.svg',
   '/icon-maskable.svg',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-192-maskable.png',
+  '/icon-512-maskable.png',
+  '/apple-touch-icon.png',
 ]
 
 const ASSET_EXTENSIONS = /\.(?:png|jpe?g|gif|webp|avif|ico|svg|woff2?|ttf|eot|css|js)$/
