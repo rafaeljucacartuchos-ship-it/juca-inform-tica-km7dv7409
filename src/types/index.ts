@@ -466,6 +466,22 @@ export interface OrcamentoAnexo {
 
 export type PricingMode = 'produto' | 'avulsa' | 'rapida'
 
+export type CurrencyType = 'BRL' | 'USD'
+
+export interface CompanyPricingParameters {
+  cotacao_dolar: number
+  frete_padrao: number
+  taxa_cartao_pct: number
+  icms_pct: number
+  comissao_pct: number
+  ipi_pct: number
+  despesa_fixa_mensal: number
+  faturamento_medio_mensal: number
+  lucratividade_desejada_pct: number
+  despesa_fixa_pct: number // Calculado: despesa_fixa_mensal / faturamento_medio_mensal * 100
+  custos_variaveis_pct: number // Calculado: taxa_cartao_pct + icms_pct + comissao_pct + ipi_pct
+}
+
 export interface PricingHistory {
   id: string
   product?: string
@@ -476,6 +492,17 @@ export interface PricingHistory {
   sale_price: number
   lucro_unitario?: number
   mode: PricingMode
+  frete?: number
+  custos_adicionais?: number
+  custos_variaveis_pct?: number
+  despesa_fixa_pct?: number
+  custo_moeda?: CurrencyType
+  cost_usd?: number
+  cotacao_dolar?: number
+  taxa_cartao_pct?: number
+  icms_pct?: number
+  comissao_pct?: number
+  ipi_pct?: number
   created_by?: string
   created?: string
   updated?: string

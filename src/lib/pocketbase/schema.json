@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-14T13:40:41.114Z",
+  "generatedAt": "2026-09-14T13:56:51.844Z",
   "collections": [
     {
       "name": "users",
@@ -2116,6 +2116,73 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "frete",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "custos_adicionais",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "custos_variaveis_pct",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "despesa_fixa_pct",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "custo_moeda",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["BRL", "USD"]
+        },
+        {
+          "name": "cost_usd",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cotacao_dolar",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "taxa_cartao_pct",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "icms_pct",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "comissao_pct",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ipi_pct",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [

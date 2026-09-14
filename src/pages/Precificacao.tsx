@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Tag,
@@ -14,12 +14,11 @@ import {
   Plus,
   RefreshCw,
   TrendingUp,
-  Percent,
-  DollarSign,
   AlertCircle,
-  HelpCircle,
-  Layers,
   Sparkles,
+  DollarSign,
+  Layers,
+  ArrowUpDown,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -37,24 +36,30 @@ import {
 } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useToast } from '@/hooks/use-toast'
-import { Product, PricingHistory, PricingMode } from '@/types'
+import {
+  Product,
+  PricingHistory,
+  PricingMode,
+  CurrencyType,
+  CompanyPricingParameters,
+} from '@/types'
 import { getProducts, getProduct, updateProduct, createProduct } from '@/services/products'
 import {
-  getDefaultExpensesPct,
-  updateDefaultExpensesPct,
-  getDefaultMinMarginPct,
-  updateDefaultMinMarginPct,
+  getCompanyPricingParameters,
+  updateCompanyPricingParameters,
   createPricingHistory,
   getPricingHistory,
-  calculateFromMargem,
-  calculateFromMarkup,
-  calculateFromPrice,
+  calculateJucaPricing,
+  decomposeExistingPrice,
   PricingCalculationResult,
+  DEFAULT_COMPANY_PARAMS,
 } from '@/services/pricing'
 import { formatCurrencyBRL } from '@/lib/dashboard-utils'
+import { CompanyParamsCard } from '@/components/CompanyParamsCard'
+import { PricingWaterfallCard } from '@/components/PricingWaterfallCard'
 
 export default function Precificacao() {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const initialProductId = searchParams.get('productId') || ''
   const initialMode = (searchParams.get('tab') as string) || 'produto'
 
@@ -64,13 +69,11 @@ export default function Precificacao() {
 
   const { toast } = useToast()
 
-  // Configurações globais de precificação
-  const [defaultExpenses, setDefaultExpenses] = useState<number>(12)
-  const [minMargin, setMinMargin] = useState<number>(20)
+  // Parâmetros corporativos de precificação (carregados de settings)
+  const [companyParams, setCompanyParams] =
+    useState<CompanyPricingParameters>(DEFAULT_COMPANY_PARAMS)
+  const [savingCompanyParams, setSavingCompanyParams] = useState(false)
   const [configModalOpen, setConfigModalOpen] = useState(false)
-  const [savingConfig, setSavingConfig] = useState(false)
-  const [editExpensesInput, setEditExpensesInput] = useState('12')
-  const [editMinMarginInput, setEditMinMarginInput] = useState('20')
 
   // Histórico
   const [historyList, setHistoryList] = useState<PricingHistory[]>([])
@@ -86,33 +89,51 @@ export default function Precificacao() {
   const [searchProductModalOpen, setSearchProductModalOpen] = useState(false)
 
   // Campos Modo 1
+  const [currency1, setCurrency1] = useState<CurrencyType>('BRL')
   const [costInput1, setCostInput1] = useState('')
-  const [expensesInput1, setExpensesInput1] = useState('')
-  const [marginInput1, setMarginInput1] = useState('30')
-  const [markupInput1, setMarkupInput1] = useState('51.72')
-  const [lastEditedField1, setLastEditedField1] = useState<'margem' | 'markup'>('margem')
+  const [freightInput1, setFreightInput1] = useState('0')
+  const [extraCost1A, setExtraCost1A] = useState('0') // Ex: embalagem
+  const [extraCost1B, setExtraCost1B] = useState('0') // Ex: outros
+  const [fixedExpensesPct1, setFixedExpensesPct1] = useState('15')
+  const [cardTaxPct1, setCardTaxPct1] = useState('3.5')
+  const [icmsPct1, setIcmsPct1] = useState('4.0')
+  const [commissionPct1, setCommissionPct1] = useState('2.5')
+  const [ipiPct1, setIpiPct1] = useState('0')
+  const [marginInput1, setMarginInput1] = useState('25')
   const [calcResult1, setCalcResult1] = useState<PricingCalculationResult | null>(null)
   const [confirmApplyModalOpen, setConfirmApplyModalOpen] = useState(false)
   const [applyingPrice, setApplyingPrice] = useState(false)
 
   // -------------------------------------------------------------
-  // MODO 2: PRECIFICAÇÃO AVULSA (Calculadora Livre)
+  // MODO 2: PRECIFICAÇÃO AVULSA
   // -------------------------------------------------------------
+  const [currency2, setCurrency2] = useState<CurrencyType>('BRL')
   const [costInput2, setCostInput2] = useState('100')
-  const [expensesInput2, setExpensesInput2] = useState('')
-  const [marginInput2, setMarginInput2] = useState('30')
-  const [markupInput2, setMarkupInput2] = useState('')
-  const [lastEditedField2, setLastEditedField2] = useState<'margem' | 'markup'>('margem')
+  const [freightInput2, setFreightInput2] = useState('0')
+  const [extraCost2A, setExtraCost2A] = useState('0')
+  const [extraCost2B, setExtraCost2B] = useState('0')
+  const [fixedExpensesPct2, setFixedExpensesPct2] = useState('15')
+  const [cardTaxPct2, setCardTaxPct2] = useState('3.5')
+  const [icmsPct2, setIcmsPct2] = useState('4.0')
+  const [commissionPct2, setCommissionPct2] = useState('2.5')
+  const [ipiPct2, setIpiPct2] = useState('0')
+  const [marginInput2, setMarginInput2] = useState('25')
   const [calcResult2, setCalcResult2] = useState<PricingCalculationResult | null>(null)
 
   // -------------------------------------------------------------
   // MODO 3: PRECIFICAÇÃO RÁPIDA
   // -------------------------------------------------------------
+  const [currency3, setCurrency3] = useState<CurrencyType>('BRL')
   const [costInput3, setCostInput3] = useState('80')
-  const [expensesInput3, setExpensesInput3] = useState('')
-  const [marginInput3, setMarginInput3] = useState('35')
-  const [markupInput3, setMarkupInput3] = useState('')
-  const [lastEditedField3, setLastEditedField3] = useState<'margem' | 'markup'>('margem')
+  const [freightInput3, setFreightInput3] = useState('0')
+  const [extraCost3A, setExtraCost3A] = useState('0')
+  const [extraCost3B, setExtraCost3B] = useState('0')
+  const [fixedExpensesPct3, setFixedExpensesPct3] = useState('15')
+  const [cardTaxPct3, setCardTaxPct3] = useState('3.5')
+  const [icmsPct3, setIcmsPct3] = useState('4.0')
+  const [commissionPct3, setCommissionPct3] = useState('2.5')
+  const [ipiPct3, setIpiPct3] = useState('0')
+  const [marginInput3, setMarginInput3] = useState('25')
   const [calcResult3, setCalcResult3] = useState<PricingCalculationResult | null>(null)
   const [linkedProduct3, setLinkedProduct3] = useState<Product | null>(null)
   const [newProductModalOpen, setNewProductModalOpen] = useState(false)
@@ -124,23 +145,56 @@ export default function Precificacao() {
 
   // Carrega configurações iniciais e histórico
   useEffect(() => {
-    async function initSettings() {
-      try {
-        const [exp, minM] = await Promise.all([getDefaultExpensesPct(), getDefaultMinMarginPct()])
-        setDefaultExpenses(exp)
-        setMinMargin(minM)
-        setExpensesInput1(String(exp))
-        setExpensesInput2(String(exp))
-        setExpensesInput3(String(exp))
-        setEditExpensesInput(String(exp))
-        setEditMinMarginInput(String(minM))
-      } catch {
-        /* fallback */
-      }
-    }
-    initSettings()
+    loadCompanyParams()
     loadHistory()
   }, [])
+
+  const loadCompanyParams = async () => {
+    try {
+      const params = await getCompanyPricingParameters()
+      setCompanyParams(params)
+      applyParamsToInputs(params)
+    } catch (err) {
+      console.error('Erro ao carregar parâmetros da empresa:', err)
+    }
+  }
+
+  const applyParamsToInputs = (params: CompanyPricingParameters) => {
+    const fPct = String(params.despesa_fixa_pct)
+    const cTax = String(params.taxa_cartao_pct)
+    const icms = String(params.icms_pct)
+    const com = String(params.comissao_pct)
+    const ipi = String(params.ipi_pct)
+    const marg = String(params.lucratividade_desejada_pct)
+    const frete = String(params.frete_padrao)
+
+    // Modo 1
+    setFixedExpensesPct1(fPct)
+    setCardTaxPct1(cTax)
+    setIcmsPct1(icms)
+    setCommissionPct1(com)
+    setIpiPct1(ipi)
+    setMarginInput1(marg)
+    setFreightInput1(frete)
+
+    // Modo 2
+    setFixedExpensesPct2(fPct)
+    setCardTaxPct2(cTax)
+    setIcmsPct2(icms)
+    setCommissionPct2(com)
+    setIpiPct2(ipi)
+    setMarginInput2(marg)
+    setFreightInput2(frete)
+
+    // Modo 3
+    setFixedExpensesPct3(fPct)
+    setCardTaxPct3(cTax)
+    setIcmsPct3(icms)
+    setCommissionPct3(com)
+    setIpiPct3(ipi)
+    setMarginInput3(marg)
+    setFreightInput3(frete)
+  }
 
   // Carrega produto inicial se passado por query param
   useEffect(() => {
@@ -169,101 +223,147 @@ export default function Precificacao() {
   }
 
   // -------------------------------------------------------------
-  // RECALCULO MODO 1
+  // RECALCULO MODO 1 (Produto Cadastrado)
   // -------------------------------------------------------------
   useEffect(() => {
-    const cost = parseFloat(costInput1.replace(',', '.')) || 0
-    const expenses = parseFloat(expensesInput1.replace(',', '.')) || 0
+    const rawCost = parseFloat(costInput1.replace(',', '.')) || 0
+    const frete = parseFloat(freightInput1.replace(',', '.')) || 0
+    const add1 = parseFloat(extraCost1A.replace(',', '.')) || 0
+    const add2 = parseFloat(extraCost1B.replace(',', '.')) || 0
+    const fExp = parseFloat(fixedExpensesPct1.replace(',', '.')) || 0
+    const cTax = parseFloat(cardTaxPct1.replace(',', '.')) || 0
+    const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
+    const com = parseFloat(commissionPct1.replace(',', '.')) || 0
+    const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
+    const marg = parseFloat(marginInput1.replace(',', '.')) || 0
 
-    if (lastEditedField1 === 'margem') {
-      const margem = parseFloat(marginInput1.replace(',', '.')) || 0
-      const res = calculateFromMargem(cost, expenses, margem)
-      setCalcResult1(res)
-      if (res.isPossible) {
-        setMarkupInput1(String(res.markupPct))
-      }
-    } else {
-      const markup = parseFloat(markupInput1.replace(',', '.')) || 0
-      const res = calculateFromMarkup(cost, expenses, markup)
-      setCalcResult1(res)
-      if (res.isPossible) {
-        setMarginInput1(String(res.margemPct))
-      }
-    }
-  }, [costInput1, expensesInput1, marginInput1, markupInput1, lastEditedField1])
+    const res = calculateJucaPricing({
+      custoProduto: rawCost,
+      moeda: currency1,
+      cotacaoDolar: companyParams.cotacao_dolar,
+      frete,
+      custoAdicional1: add1,
+      custoAdicional2: add2,
+      despesaFixaPct: fExp,
+      taxaCartaoPct: cTax,
+      icmsPct: icms,
+      comissaoPct: com,
+      ipiPct: ipi,
+      lucratividadePct: marg,
+    })
+    setCalcResult1(res)
+  }, [
+    costInput1,
+    currency1,
+    freightInput1,
+    extraCost1A,
+    extraCost1B,
+    fixedExpensesPct1,
+    cardTaxPct1,
+    icmsPct1,
+    commissionPct1,
+    ipiPct1,
+    marginInput1,
+    companyParams.cotacao_dolar,
+  ])
 
   // -------------------------------------------------------------
   // RECALCULO MODO 2 (Avulsa)
   // -------------------------------------------------------------
   useEffect(() => {
-    const cost = parseFloat(costInput2.replace(',', '.')) || 0
-    const expenses = parseFloat(expensesInput2.replace(',', '.')) || 0
+    const rawCost = parseFloat(costInput2.replace(',', '.')) || 0
+    const frete = parseFloat(freightInput2.replace(',', '.')) || 0
+    const add1 = parseFloat(extraCost2A.replace(',', '.')) || 0
+    const add2 = parseFloat(extraCost2B.replace(',', '.')) || 0
+    const fExp = parseFloat(fixedExpensesPct2.replace(',', '.')) || 0
+    const cTax = parseFloat(cardTaxPct2.replace(',', '.')) || 0
+    const icms = parseFloat(icmsPct2.replace(',', '.')) || 0
+    const com = parseFloat(commissionPct2.replace(',', '.')) || 0
+    const ipi = parseFloat(ipiPct2.replace(',', '.')) || 0
+    const marg = parseFloat(marginInput2.replace(',', '.')) || 0
 
-    if (lastEditedField2 === 'margem') {
-      const margem = parseFloat(marginInput2.replace(',', '.')) || 0
-      const res = calculateFromMargem(cost, expenses, margem)
-      setCalcResult2(res)
-      if (res.isPossible) {
-        setMarkupInput2(String(res.markupPct))
-      }
-    } else {
-      const markup = parseFloat(markupInput2.replace(',', '.')) || 0
-      const res = calculateFromMarkup(cost, expenses, markup)
-      setCalcResult2(res)
-      if (res.isPossible) {
-        setMarginInput2(String(res.margemPct))
-      }
-    }
-  }, [costInput2, expensesInput2, marginInput2, markupInput2, lastEditedField2])
+    const res = calculateJucaPricing({
+      custoProduto: rawCost,
+      moeda: currency2,
+      cotacaoDolar: companyParams.cotacao_dolar,
+      frete,
+      custoAdicional1: add1,
+      custoAdicional2: add2,
+      despesaFixaPct: fExp,
+      taxaCartaoPct: cTax,
+      icmsPct: icms,
+      comissaoPct: com,
+      ipiPct: ipi,
+      lucratividadePct: marg,
+    })
+    setCalcResult2(res)
+  }, [
+    costInput2,
+    currency2,
+    freightInput2,
+    extraCost2A,
+    extraCost2B,
+    fixedExpensesPct2,
+    cardTaxPct2,
+    icmsPct2,
+    commissionPct2,
+    ipiPct2,
+    marginInput2,
+    companyParams.cotacao_dolar,
+  ])
 
   // -------------------------------------------------------------
   // RECALCULO MODO 3 (Rápida)
   // -------------------------------------------------------------
   useEffect(() => {
-    const cost = parseFloat(costInput3.replace(',', '.')) || 0
-    const expenses = parseFloat(expensesInput3.replace(',', '.')) || 0
+    const rawCost = parseFloat(costInput3.replace(',', '.')) || 0
+    const frete = parseFloat(freightInput3.replace(',', '.')) || 0
+    const add1 = parseFloat(extraCost3A.replace(',', '.')) || 0
+    const add2 = parseFloat(extraCost3B.replace(',', '.')) || 0
+    const fExp = parseFloat(fixedExpensesPct3.replace(',', '.')) || 0
+    const cTax = parseFloat(cardTaxPct3.replace(',', '.')) || 0
+    const icms = parseFloat(icmsPct3.replace(',', '.')) || 0
+    const com = parseFloat(commissionPct3.replace(',', '.')) || 0
+    const ipi = parseFloat(ipiPct3.replace(',', '.')) || 0
+    const marg = parseFloat(marginInput3.replace(',', '.')) || 0
 
-    if (lastEditedField3 === 'margem') {
-      const margem = parseFloat(marginInput3.replace(',', '.')) || 0
-      const res = calculateFromMargem(cost, expenses, margem)
-      setCalcResult3(res)
-      if (res.isPossible) {
-        setMarkupInput3(String(res.markupPct))
-      }
-    } else {
-      const markup = parseFloat(markupInput3.replace(',', '.')) || 0
-      const res = calculateFromMarkup(cost, expenses, markup)
-      setCalcResult3(res)
-      if (res.isPossible) {
-        setMarginInput3(String(res.margemPct))
-      }
-    }
-  }, [costInput3, expensesInput3, marginInput3, markupInput3, lastEditedField3])
+    const res = calculateJucaPricing({
+      custoProduto: rawCost,
+      moeda: currency3,
+      cotacaoDolar: companyParams.cotacao_dolar,
+      frete,
+      custoAdicional1: add1,
+      custoAdicional2: add2,
+      despesaFixaPct: fExp,
+      taxaCartaoPct: cTax,
+      icmsPct: icms,
+      comissaoPct: com,
+      ipiPct: ipi,
+      lucratividadePct: marg,
+    })
+    setCalcResult3(res)
+  }, [
+    costInput3,
+    currency3,
+    freightInput3,
+    extraCost3A,
+    extraCost3B,
+    fixedExpensesPct3,
+    cardTaxPct3,
+    icmsPct3,
+    commissionPct3,
+    ipiPct3,
+    marginInput3,
+    companyParams.cotacao_dolar,
+  ])
 
   // -------------------------------------------------------------
   // SELEÇÃO DE PRODUTO NO MODO 1
   // -------------------------------------------------------------
   const handleSelectProduct1 = (prod: Product) => {
     setSelectedProduct(prod)
+    setCurrency1('BRL')
     setCostInput1(prod.cost != null ? String(prod.cost) : '0')
-    setExpensesInput1(String(defaultExpenses))
-
-    // Se o produto já possui preço e custo, calcula a margem atual como inicial
-    if (prod.price && prod.cost && prod.price > 0) {
-      const cur = calculateFromPrice(prod.cost, defaultExpenses, prod.price)
-      if (cur.margemPct > 0) {
-        setMarginInput1(String(cur.margemPct))
-        setMarkupInput1(String(cur.markupPct))
-        setLastEditedField1('margem')
-      } else {
-        setMarginInput1('30')
-        setLastEditedField1('margem')
-      }
-    } else {
-      setMarginInput1('30')
-      setLastEditedField1('margem')
-    }
-
     setSearchProductModalOpen(false)
   }
 
@@ -278,6 +378,29 @@ export default function Precificacao() {
       setProductSearchResults([])
     } finally {
       setSearchingProducts(false)
+    }
+  }
+
+  // Salvar novos parâmetros corporativos
+  const handleSaveCompanyParams = async (params: Partial<CompanyPricingParameters>) => {
+    setSavingCompanyParams(true)
+    try {
+      await updateCompanyPricingParameters(params)
+      const updated = await getCompanyPricingParameters()
+      setCompanyParams(updated)
+      applyParamsToInputs(updated)
+      toast({
+        title: 'Parâmetros atualizados!',
+        description: 'Os novos padrões foram salvos e aplicados aos cálculos.',
+      })
+    } catch {
+      toast({
+        title: 'Erro ao salvar parâmetros',
+        description: 'Verifique a conexão e tente novamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingCompanyParams(false)
     }
   }
 
@@ -298,31 +421,42 @@ export default function Precificacao() {
 
     setApplyingPrice(true)
     try {
-      // 1. Atualizar produto (preço e se custo tiver sido alterado na tela)
+      // 1. Atualizar produto (preço de venda e custo em R$)
       await updateProduct(prod.id, {
         price: res.salePrice,
-        cost: res.cost,
+        cost: res.custoDiretoTotal,
       })
 
-      // 2. Registrar no histórico
+      // 2. Registrar no histórico com todos os novos campos
       await createPricingHistory({
         product: prod.id,
-        cost: res.cost,
+        cost: res.custoDiretoTotal,
         despesas_pct: res.despesasPct,
-        markup_pct: res.markupPct,
-        margem_pct: res.margemPct,
+        markup_pct: res.markupSobreCustoPct,
+        margem_pct: res.lucratividadePct,
         sale_price: res.salePrice,
         lucro_unitario: res.lucroUnitario,
         mode,
+        frete: res.frete,
+        custos_adicionais: res.custoAdicional1 + res.custoAdicional2,
+        custos_variaveis_pct: res.custosVariaveisPct,
+        despesa_fixa_pct: res.despesaFixaPct,
+        custo_moeda: res.moeda,
+        cost_usd: res.custoProdutoUSD,
+        cotacao_dolar: res.cotacaoDolar,
+        taxa_cartao_pct: res.taxaCartaoPct,
+        icms_pct: res.icmsPct,
+        comissao_pct: res.comissaoPct,
+        ipi_pct: res.ipiPct,
       })
 
       // Atualiza estado local
       setSelectedProduct((prev) =>
-        prev ? { ...prev, price: res.salePrice, cost: res.cost } : null,
+        prev ? { ...prev, price: res.salePrice, cost: res.custoDiretoTotal } : null,
       )
       if (linkedProduct3 && linkedProduct3.id === prod.id) {
         setLinkedProduct3((prev) =>
-          prev ? { ...prev, price: res.salePrice, cost: res.cost } : null,
+          prev ? { ...prev, price: res.salePrice, cost: res.custoDiretoTotal } : null,
         )
       }
 
@@ -349,50 +483,22 @@ export default function Precificacao() {
     if (!res || !res.isPossible) return
     const text =
       `*${label} - JUCA INFORMÁTICA*\n` +
-      `Custo Unitário: ${formatCurrencyBRL(res.cost)}\n` +
-      `Despesas Variáveis: ${res.despesasPct}%\n` +
-      `Margem de Lucro: ${res.margemPct}%\n` +
-      `Markup: ${res.markupPct}%\n` +
+      `Custo Base (${res.moeda}): ${res.moeda === 'USD' ? `US$ ${res.custoProdutoUSD?.toFixed(2)} (R$ ${res.custoProdutoBRL.toFixed(2)})` : formatCurrencyBRL(res.custoProdutoBRL)}\n` +
+      `Frete + Extras: ${formatCurrencyBRL(res.frete + res.custoAdicional1 + res.custoAdicional2)}\n` +
+      `Custo Direto Total: ${formatCurrencyBRL(res.custoDiretoTotal)} (${res.fatias.custoDireto.pct}%)\n` +
+      `Despesa Fixa (${res.despesaFixaPct}%): ${formatCurrencyBRL(res.fatias.despesaFixa.valor)}\n` +
+      `Custos Variáveis (${res.custosVariaveisPct}%): ${formatCurrencyBRL(res.fatias.custosVariaveis.valor)}\n` +
+      `Lucratividade Alvo: ${res.lucratividadePct}%\n` +
+      `Markup Multiplicador: ${res.markupMultiplicador}×\n` +
       `-------------------------\n` +
-      `Preço Final Sugerido: ${formatCurrencyBRL(res.salePrice)}\n` +
-      `Lucro Líquido Unitário: ${formatCurrencyBRL(res.lucroUnitario)}`
+      `PREÇO DE VENDA: ${formatCurrencyBRL(res.salePrice)}\n` +
+      `LUCRO LÍQUIDO: ${formatCurrencyBRL(res.lucroUnitario)} (${res.fatias.lucro.pct}%)`
 
     navigator.clipboard.writeText(text)
     toast({
       title: 'Resultado copiado!',
-      description: 'Valores formatados e copiados para sua área de transferência.',
+      description: 'Resumo completo formatado e copiado para a área de transferência.',
     })
-  }
-
-  // Salvar configurações
-  const handleSaveConfig = async () => {
-    const exp = parseFloat(editExpensesInput.replace(',', '.'))
-    const minM = parseFloat(editMinMarginInput.replace(',', '.'))
-    if (isNaN(exp) || exp < 0 || exp >= 100) {
-      toast({ title: 'Despesas variáveis inválidas (0 a 99%)', variant: 'destructive' })
-      return
-    }
-    if (isNaN(minM) || minM < 0 || minM >= 100) {
-      toast({ title: 'Margem mínima inválida (0 a 99%)', variant: 'destructive' })
-      return
-    }
-
-    setSavingConfig(true)
-    try {
-      await updateDefaultExpensesPct(exp)
-      await updateDefaultMinMarginPct(minM)
-      setDefaultExpenses(exp)
-      setMinMargin(minM)
-      toast({
-        title: 'Configurações salvas!',
-        description: 'Padrões de precificação atualizados com sucesso.',
-      })
-      setConfigModalOpen(false)
-    } catch {
-      toast({ title: 'Erro ao salvar configurações', variant: 'destructive' })
-    } finally {
-      setSavingConfig(false)
-    }
   }
 
   // Criar novo produto no Modo 3 (Mini formulário)
@@ -402,7 +508,8 @@ export default function Precificacao() {
       toast({ title: 'Nome do produto é obrigatório', variant: 'destructive' })
       return
     }
-    const costVal = parseFloat(newProductCost.replace(',', '.')) || (calcResult3?.cost ?? 0)
+    const costVal =
+      parseFloat(newProductCost.replace(',', '.')) || (calcResult3?.custoDiretoTotal ?? 0)
     const priceVal = calcResult3?.salePrice || 0
 
     setSavingNewProduct(true)
@@ -422,13 +529,24 @@ export default function Precificacao() {
       if (calcResult3 && calcResult3.isPossible) {
         await createPricingHistory({
           product: created.id,
-          cost: calcResult3.cost,
+          cost: calcResult3.custoDiretoTotal,
           despesas_pct: calcResult3.despesasPct,
-          markup_pct: calcResult3.markupPct,
-          margem_pct: calcResult3.margemPct,
+          markup_pct: calcResult3.markupSobreCustoPct,
+          margem_pct: calcResult3.lucratividadePct,
           sale_price: calcResult3.salePrice,
           lucro_unitario: calcResult3.lucroUnitario,
           mode: 'rapida',
+          frete: calcResult3.frete,
+          custos_adicionais: calcResult3.custoAdicional1 + calcResult3.custoAdicional2,
+          custos_variaveis_pct: calcResult3.custosVariaveisPct,
+          despesa_fixa_pct: calcResult3.despesaFixaPct,
+          custo_moeda: calcResult3.moeda,
+          cost_usd: calcResult3.custoProdutoUSD,
+          cotacao_dolar: calcResult3.cotacaoDolar,
+          taxa_cartao_pct: calcResult3.taxaCartaoPct,
+          icms_pct: calcResult3.icmsPct,
+          comissao_pct: calcResult3.comissaoPct,
+          ipi_pct: calcResult3.ipiPct,
         })
       }
 
@@ -439,12 +557,26 @@ export default function Precificacao() {
         description: `"${created.name}" cadastrado com sucesso com o preço sugerido.`,
       })
       loadHistory()
-    } catch (err) {
+    } catch {
       toast({ title: 'Erro ao criar produto', variant: 'destructive' })
     } finally {
       setSavingNewProduct(false)
     }
   }
+
+  // Decomposição do preço atual do produto selecionado no Modo 1 (para comparação)
+  const existingPriceDecomp =
+    selectedProduct && selectedProduct.price && selectedProduct.price > 0 && calcResult1
+      ? decomposeExistingPrice(
+          selectedProduct.price,
+          calcResult1.custoDiretoTotal,
+          calcResult1.despesaFixaPct,
+          calcResult1.taxaCartaoPct,
+          calcResult1.icmsPct,
+          calcResult1.comissaoPct,
+          calcResult1.ipiPct,
+        )
+      : null
 
   return (
     <div className="space-y-6 pb-12">
@@ -464,27 +596,18 @@ export default function Precificacao() {
                   variant="outline"
                   className="border-indigo-200 bg-indigo-50 text-indigo-700 text-[10px] font-bold"
                 >
-                  v0.0.187
+                  v0.0.188
                 </Badge>
               </div>
               <p className="text-xs text-slate-500">
-                Formação de preço de venda com base em custo, despesas variáveis e margem líquida /
-                markup.
+                Metodologia completa JUCA INFORMÁTICA: Markup divisor, conversão US$, despesas fixas
+                e cascata 100%.
               </p>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setConfigModalOpen(true)}
-            className="h-9 text-xs gap-1.5 border-slate-200 hover:bg-slate-50 font-medium"
-          >
-            <Settings className="h-3.5 w-3.5 text-slate-500" />
-            <span>Configurações ({defaultExpenses}% desp.)</span>
-          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -496,6 +619,13 @@ export default function Precificacao() {
           </Button>
         </div>
       </div>
+
+      {/* REQUISITO 1: CARD PARÂMETROS DA EMPRESA NA PRÓPRIA TELA */}
+      <CompanyParamsCard
+        parameters={companyParams}
+        onSave={handleSaveCompanyParams}
+        saving={savingCompanyParams}
+      />
 
       {/* Tabs Principais */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -535,7 +665,7 @@ export default function Precificacao() {
         {/* ==================================================================== */}
         <TabsContent value="produto" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Coluna Esquerda: Seleção do Produto e Parâmetros */}
+            {/* Coluna Esquerda: Produto e Parâmetros */}
             <div className="lg:col-span-7 space-y-4">
               <Card className="border-slate-200 shadow-2xs">
                 <CardHeader className="pb-3 border-b border-slate-100">
@@ -545,7 +675,7 @@ export default function Precificacao() {
                         1. Selecionar Produto do Estoque
                       </CardTitle>
                       <CardDescription className="text-xs text-slate-500">
-                        Busque pelo nome, código SKU ou código de barras cadastrado
+                        Busque pelo nome, código SKU ou código de barras
                       </CardDescription>
                     </div>
                     <Button
@@ -601,7 +731,9 @@ export default function Precificacao() {
 
                       <div className="grid grid-cols-3 gap-2 pt-2 border-t border-indigo-100 text-xs">
                         <div>
-                          <span className="text-[11px] text-slate-500 block">Custo Atual:</span>
+                          <span className="text-[11px] text-slate-500 block">
+                            Custo Cadastrado:
+                          </span>
                           <span className="font-mono font-bold text-slate-800">
                             {formatCurrencyBRL(selectedProduct.cost || 0)}
                           </span>
@@ -609,7 +741,7 @@ export default function Precificacao() {
                         <div>
                           <span className="text-[11px] text-slate-500 block">Estoque Físico:</span>
                           <span className="font-mono font-bold text-slate-800">
-                            {selectedProduct.stock_quantity ?? 0} unidades
+                            {selectedProduct.stock_quantity ?? 0} un
                           </span>
                         </div>
                         <div>
@@ -628,27 +760,62 @@ export default function Precificacao() {
                         setSearchProductModalOpen(true)
                         handleSearchProducts('')
                       }}
-                      className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/20 transition-colors"
+                      className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/20 transition-colors"
                     >
                       <Package className="h-8 w-8 mx-auto text-slate-400 mb-2" />
                       <p className="text-xs font-bold text-slate-700">Nenhum produto selecionado</p>
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        Clique aqui para buscar uma peça ou produto do seu catálogo
+                        Clique aqui para buscar uma peça ou produto do catálogo
                       </p>
                     </div>
                   )}
 
-                  {/* Parâmetros de Formação de Preço */}
+                  {/* PARÂMETROS DE FORMAÇÃO DE PREÇO (CUSTOS DIRETOS) */}
                   <div className="space-y-3 pt-2">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                      2. Parâmetros de Cálculo
-                    </h4>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                        2. Custos Diretos do Produto
+                      </h4>
+                      {/* TOGGLE R$ / US$ */}
+                      <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => setCurrency1('BRL')}
+                          className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
+                            currency1 === 'BRL'
+                              ? 'bg-white text-indigo-700 shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          R$ (BRL)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCurrency1('USD')}
+                          className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
+                            currency1 === 'USD'
+                              ? 'bg-white text-emerald-700 shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          US$ (Dólar)
+                        </button>
+                      </div>
+                    </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
-                          <span>Custo da Mercadoria (R$) *</span>
-                          <span className="text-[10px] text-slate-400">Preço de compra</span>
+                          <span>Custo do Produto ({currency1}) *</span>
+                          {currency1 === 'USD' && (
+                            <span className="text-[10px] text-emerald-700 font-bold font-mono">
+                              = R${' '}
+                              {(
+                                (parseFloat(costInput1.replace(',', '.')) || 0) *
+                                companyParams.cotacao_dolar
+                              ).toFixed(2)}
+                            </span>
+                          )}
                         </Label>
                         <Input
                           type="number"
@@ -661,87 +828,140 @@ export default function Precificacao() {
                       </div>
 
                       <div className="space-y-1">
-                        <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
-                          <span>Despesas Variáveis (%)</span>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <HelpCircle className="h-3 w-3 text-slate-400 cursor-pointer" />
-                              </TooltipTrigger>
-                              <TooltipContent className="text-xs max-w-xs">
-                                Soma estimada de impostos (ex: Simples), taxas de cartão de crédito
-                                e fretes incidentes na venda.
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                        <Label className="text-xs font-semibold text-slate-700">
+                          Frete Unitário (R$)
                         </Label>
                         <Input
                           type="number"
-                          step="0.1"
-                          placeholder="12.0"
-                          value={expensesInput1}
-                          onChange={(e) => setExpensesInput1(e.target.value)}
+                          step="0.01"
+                          placeholder="0.00"
+                          value={freightInput1}
+                          onChange={(e) => setFreightInput1(e.target.value)}
+                          className="h-9 font-mono text-xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold text-slate-700">
+                          Custo Adicional 1 / Embalagem (R$)
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={extraCost1A}
+                          onChange={(e) => setExtraCost1A(e.target.value)}
+                          className="h-9 font-mono text-xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold text-slate-700">
+                          Custo Adicional 2 / Outros (R$)
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={extraCost1B}
+                          onChange={(e) => setExtraCost1B(e.target.value)}
                           className="h-9 font-mono text-xs"
                         />
                       </div>
                     </div>
 
-                    {/* Bloco Unificado: Margem % vs Markup % */}
-                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs font-bold text-slate-800">
-                          Margem de Lucro desejada OU Markup multiplicador
-                        </Label>
-                        <span className="text-[11px] text-slate-500">
-                          Digitar um recalcula o outro automaticamente
-                        </span>
-                      </div>
+                    {/* DEDUÇÕES: DESPESA FIXA + VARIÁVEIS + LUCRATIVIDADE */}
+                    <div className="pt-2 space-y-2">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                        3. Alíquotas e Margem Alvo (% sobre Preço)
+                      </h4>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between text-[11px] text-slate-600 font-semibold">
-                            <span>Margem Líquida (%)</span>
-                            <span className="text-[10px] text-indigo-600 font-mono font-bold">
-                              Lucro ÷ Preço
-                            </span>
+                      <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-[11px] font-semibold text-slate-600">
+                              Despesa Fixa %
+                            </Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={fixedExpensesPct1}
+                              onChange={(e) => setFixedExpensesPct1(e.target.value)}
+                              className="h-8 font-mono text-xs"
+                            />
                           </div>
-                          <Input
-                            type="number"
-                            step="0.1"
-                            value={marginInput1}
-                            onChange={(e) => {
-                              setMarginInput1(e.target.value)
-                              setLastEditedField1('margem')
-                            }}
-                            className={`h-9 font-mono text-xs font-bold ${
-                              lastEditedField1 === 'margem'
-                                ? 'border-indigo-500 bg-white ring-1 ring-indigo-500'
-                                : 'bg-slate-100'
-                            }`}
-                          />
+                          <div className="space-y-1">
+                            <Label className="text-[11px] font-semibold text-slate-600">
+                              Taxa Cartão %
+                            </Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={cardTaxPct1}
+                              onChange={(e) => setCardTaxPct1(e.target.value)}
+                              className="h-8 font-mono text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[11px] font-semibold text-slate-600">
+                              ICMS/Simples %
+                            </Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={icmsPct1}
+                              onChange={(e) => setIcmsPct1(e.target.value)}
+                              className="h-8 font-mono text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[11px] font-semibold text-slate-600">
+                              Comissão %
+                            </Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={commissionPct1}
+                              onChange={(e) => setCommissionPct1(e.target.value)}
+                              className="h-8 font-mono text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[11px] font-semibold text-slate-600">
+                              IPI / Outros %
+                            </Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={ipiPct1}
+                              onChange={(e) => setIpiPct1(e.target.value)}
+                              className="h-8 font-mono text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[11px] font-bold text-emerald-800">
+                              Lucratividade % *
+                            </Label>
+                            <Input
+                              type="number"
+                              step="0.5"
+                              value={marginInput1}
+                              onChange={(e) => setMarginInput1(e.target.value)}
+                              className="h-8 font-mono text-xs font-bold text-emerald-700 bg-emerald-50/60 border-emerald-300"
+                            />
+                          </div>
                         </div>
 
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between text-[11px] text-slate-600 font-semibold">
-                            <span>Markup Multiplicador (%)</span>
-                            <span className="text-[10px] text-slate-500 font-mono font-bold">
-                              Lucro ÷ Custo
-                            </span>
-                          </div>
-                          <Input
-                            type="number"
-                            step="0.1"
-                            value={markupInput1}
-                            onChange={(e) => {
-                              setMarkupInput1(e.target.value)
-                              setLastEditedField1('markup')
-                            }}
-                            className={`h-9 font-mono text-xs font-bold ${
-                              lastEditedField1 === 'markup'
-                                ? 'border-indigo-500 bg-white ring-1 ring-indigo-500'
-                                : 'bg-slate-100'
-                            }`}
-                          />
+                        {/* Resumo do Markup Divisor */}
+                        <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
+                          <span className="text-slate-600 font-medium">
+                            Markup Divisor / Multiplicador:
+                          </span>
+                          <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                            {calcResult1?.isPossible
+                              ? `${calcResult1.markupMultiplicador}×`
+                              : 'Indefinido'}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -750,7 +970,7 @@ export default function Precificacao() {
               </Card>
             </div>
 
-            {/* Coluna Direita: Resultado, Análise Comparativa e Ação de Aplicar */}
+            {/* Coluna Direita: Preço Sugerido, Cascata 100%, Comparação e Ação */}
             <div className="lg:col-span-5 space-y-4">
               <Card className="border-slate-200 shadow-sm overflow-hidden">
                 <CardHeader className="bg-slate-900 text-white pb-3 pt-4">
@@ -761,7 +981,7 @@ export default function Precificacao() {
                     </CardTitle>
                     {calcResult1?.isPossible && (
                       <Badge className="bg-emerald-500 text-white font-mono text-[10px]">
-                        Margem: {calcResult1.margemPct}%
+                        Markup: {calcResult1.markupMultiplicador}×
                       </Badge>
                     )}
                   </div>
@@ -770,56 +990,90 @@ export default function Precificacao() {
                 <CardContent className="pt-4 space-y-4">
                   {calcResult1?.isPossible ? (
                     <>
-                      {/* Valor Grande Destaque */}
+                      {/* Destaque Principal do Preço */}
                       <div className="text-center py-3 bg-emerald-50/60 rounded-xl border border-emerald-100">
                         <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 block mb-1">
-                          Preço Sugerido para o Produto
+                          Preço Sugerido (Metodologia JUCA)
                         </span>
                         <div className="text-3xl font-extrabold text-emerald-700 font-mono tabular-nums">
                           {formatCurrencyBRL(calcResult1.salePrice)}
                         </div>
                         <p className="text-[11px] text-emerald-800 font-medium mt-1">
-                          Lucro unitário:{' '}
+                          Lucro líquido estimado:{' '}
                           <strong className="font-mono">
                             {formatCurrencyBRL(calcResult1.lucroUnitario)}
                           </strong>{' '}
-                          ({calcResult1.margemPct}% líquido)
+                          ({calcResult1.fatias.lucro.pct}%)
                         </p>
                       </div>
 
-                      {/* Decomposição do Preço */}
-                      <div className="space-y-2 text-xs border border-slate-100 rounded-lg p-3 bg-slate-50/50">
-                        <div className="flex justify-between py-1 border-b border-slate-200/60">
-                          <span className="text-slate-600">Custo da Mercadoria:</span>
-                          <span className="font-mono font-bold text-slate-800 tabular-nums">
-                            {formatCurrencyBRL(calcResult1.cost)}
-                          </span>
+                      {/* REQUISITO 2: GRÁFICO CASCATA 100% */}
+                      <PricingWaterfallCard
+                        salePrice={calcResult1.salePrice}
+                        custoDiretoTotal={calcResult1.custoDiretoTotal}
+                        custoDiretoPct={calcResult1.fatias.custoDireto.pct}
+                        despesaFixaValor={calcResult1.fatias.despesaFixa.valor}
+                        despesaFixaPct={calcResult1.fatias.despesaFixa.pct}
+                        custosVariaveisValor={calcResult1.fatias.custosVariaveis.valor}
+                        custosVariaveisPct={calcResult1.fatias.custosVariaveis.pct}
+                        lucroUnitario={calcResult1.lucroUnitario}
+                        lucroPct={calcResult1.fatias.lucro.pct}
+                        totalPct={calcResult1.fatias.totalPct}
+                        detalheVariaveis={calcResult1.fatias.custosVariaveis.detalhe}
+                      />
+
+                      {/* REQUISITO 4: COMPARAÇÃO COM O PREÇO ATUAL (SE HOUVER) */}
+                      {existingPriceDecomp && (
+                        <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+                          <div className="flex items-center justify-between border-b border-slate-200/70 pb-1.5">
+                            <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                              <ArrowUpDown className="h-3.5 w-3.5 text-indigo-600" />
+                              Comparativo: Preço Atual vs. Sugerido
+                            </span>
+                            <span className="font-mono text-xs font-bold text-slate-700">
+                              {formatCurrencyBRL(existingPriceDecomp.price)}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="p-2 rounded bg-white border border-slate-200/60">
+                              <span className="text-[10px] text-slate-500 block">
+                                Lucro no Preço Atual:
+                              </span>
+                              <span
+                                className={`font-mono font-bold ${
+                                  existingPriceDecomp.isPrejuizo
+                                    ? 'text-rose-600'
+                                    : 'text-slate-800'
+                                }`}
+                              >
+                                {formatCurrencyBRL(existingPriceDecomp.lucroUnitario)} (
+                                {existingPriceDecomp.margemLiquidaPct}%)
+                              </span>
+                            </div>
+
+                            <div className="p-2 rounded bg-emerald-50/70 border border-emerald-200">
+                              <span className="text-[10px] text-emerald-800 block">
+                                Lucro no Preço Sugerido:
+                              </span>
+                              <span className="font-mono font-bold text-emerald-700">
+                                {formatCurrencyBRL(calcResult1.lucroUnitario)} (
+                                {calcResult1.fatias.lucro.pct}%)
+                              </span>
+                            </div>
+                          </div>
+
+                          {existingPriceDecomp.isPrejuizo && (
+                            <div className="p-2 bg-rose-50 border border-rose-200 rounded text-rose-800 text-[11px] flex items-center gap-1.5">
+                              <AlertCircle className="h-3.5 w-3.5 shrink-0 text-rose-600" />
+                              <span>
+                                <strong>Atenção:</strong> O preço atual gera prejuízo líquido após
+                                cobrir despesas fixas e variáveis!
+                              </span>
+                            </div>
+                          )}
                         </div>
-                        <div className="flex justify-between py-1 border-b border-slate-200/60">
-                          <span className="text-slate-600">
-                            Despesas Variáveis ({calcResult1.despesasPct}%):
-                          </span>
-                          <span className="font-mono font-bold text-slate-800 tabular-nums">
-                            {formatCurrencyBRL(
-                              calcResult1.salePrice * (calcResult1.despesasPct / 100),
-                            )}
-                          </span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-slate-200/60">
-                          <span className="text-slate-600 font-medium">
-                            Lucro Líquido Unitário:
-                          </span>
-                          <span className="font-mono font-bold text-emerald-700 tabular-nums">
-                            {formatCurrencyBRL(calcResult1.lucroUnitario)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between py-1 font-bold text-slate-900">
-                          <span>Markup Efetivo:</span>
-                          <span className="font-mono text-indigo-700 tabular-nums">
-                            {calcResult1.markupPct}%
-                          </span>
-                        </div>
-                      </div>
+                      )}
 
                       {/* Lucro no Estoque Total */}
                       {selectedProduct && (
@@ -840,52 +1094,7 @@ export default function Precificacao() {
                         </div>
                       )}
 
-                      {/* Alertas e Comparativo com Preço Atual */}
-                      {selectedProduct && selectedProduct.price != null && (
-                        <div className="space-y-2">
-                          {selectedProduct.price < calcResult1.cost ? (
-                            <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
-                              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
-                              <div>
-                                <strong className="font-bold block">
-                                  Preço Atual Abaixo do Custo!
-                                </strong>
-                                O preço atual cadastrado ({formatCurrencyBRL(selectedProduct.price)}
-                                ) gera prejuízo direto de{' '}
-                                {formatCurrencyBRL(calcResult1.cost - selectedProduct.price)} por
-                                unidade vendida.
-                              </div>
-                            </div>
-                          ) : calcResult1.margemPct < minMargin ? (
-                            <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2">
-                              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
-                              <div>
-                                <strong className="font-bold block">
-                                  Margem Abaixo da Mínima Recomendada ({minMargin}%)
-                                </strong>
-                                A margem calculada ({calcResult1.margemPct}%) pode não cobrir
-                                variações de custos fixos e operacionais.
-                              </div>
-                            </div>
-                          ) : null}
-
-                          <div className="text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-200 flex items-center justify-between">
-                            <span className="text-slate-600">Variação Preço Atual → Sugerido:</span>
-                            <span
-                              className={`font-mono font-bold ${
-                                calcResult1.salePrice >= (selectedProduct.price || 0)
-                                  ? 'text-emerald-700'
-                                  : 'text-amber-700'
-                              }`}
-                            >
-                              {formatCurrencyBRL(selectedProduct.price || 0)} →{' '}
-                              {formatCurrencyBRL(calcResult1.salePrice)}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Ações */}
+                      {/* Botões de Ação */}
                       <div className="space-y-2 pt-2">
                         {selectedProduct ? (
                           <Button
@@ -942,23 +1151,49 @@ export default function Precificacao() {
         </TabsContent>
 
         {/* ==================================================================== */}
-        {/* ABA 2: PRECIFICAÇÃO AVULSA (FORA DO PRODUTO)                         */}
+        {/* ABA 2: PRECIFICAÇÃO AVULSA (Calculadora Livre)                       */}
         {/* ==================================================================== */}
         <TabsContent value="avulsa" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-7 space-y-4">
               <Card className="border-slate-200 shadow-2xs">
                 <CardHeader className="pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2 text-indigo-600">
-                    <Calculator className="h-5 w-5" />
-                    <div>
-                      <CardTitle className="text-sm font-bold text-slate-900">
-                        Calculadora Livre de Precificação
-                      </CardTitle>
-                      <CardDescription className="text-xs text-slate-500">
-                        Calcule preços de venda rápidos e margens sem alterar nenhum cadastro ou
-                        produto
-                      </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-indigo-600">
+                      <Calculator className="h-5 w-5" />
+                      <div>
+                        <CardTitle className="text-sm font-bold text-slate-900">
+                          Calculadora Livre de Precificação
+                        </CardTitle>
+                        <CardDescription className="text-xs text-slate-500">
+                          Calcule preços e simule cotações sem vincular a nenhum produto
+                        </CardDescription>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setCurrency2('BRL')}
+                        className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
+                          currency2 === 'BRL'
+                            ? 'bg-white text-indigo-700 shadow-xs'
+                            : 'text-slate-600'
+                        }`}
+                      >
+                        R$
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCurrency2('USD')}
+                        className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
+                          currency2 === 'USD'
+                            ? 'bg-white text-emerald-700 shadow-xs'
+                            : 'text-slate-600'
+                        }`}
+                      >
+                        US$
+                      </button>
                     </div>
                   </div>
                 </CardHeader>
@@ -966,8 +1201,17 @@ export default function Precificacao() {
                 <CardContent className="pt-4 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label className="text-xs font-semibold text-slate-700">
-                        Custo Base (R$) *
+                      <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                        <span>Custo Base ({currency2}) *</span>
+                        {currency2 === 'USD' && (
+                          <span className="text-[10px] text-emerald-700 font-mono font-bold">
+                            = R${' '}
+                            {(
+                              (parseFloat(costInput2.replace(',', '.')) || 0) *
+                              companyParams.cotacao_dolar
+                            ).toFixed(2)}
+                          </span>
+                        )}
                       </Label>
                       <Input
                         type="number"
@@ -981,67 +1225,117 @@ export default function Precificacao() {
 
                     <div className="space-y-1">
                       <Label className="text-xs font-semibold text-slate-700">
-                        Despesas Variáveis (%)
+                        Frete Estimado (R$)
                       </Label>
                       <Input
                         type="number"
-                        step="0.1"
-                        placeholder="12.0"
-                        value={expensesInput2}
-                        onChange={(e) => setExpensesInput2(e.target.value)}
+                        step="0.01"
+                        value={freightInput2}
+                        onChange={(e) => setFreightInput2(e.target.value)}
+                        className="h-9 font-mono text-xs"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-slate-700">
+                        Custo Adicional 1 (R$)
+                      </Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={extraCost2A}
+                        onChange={(e) => setExtraCost2A(e.target.value)}
+                        className="h-9 font-mono text-xs"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-slate-700">
+                        Custo Adicional 2 (R$)
+                      </Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={extraCost2B}
+                        onChange={(e) => setExtraCost2B(e.target.value)}
                         className="h-9 font-mono text-xs"
                       />
                     </div>
                   </div>
 
-                  <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs font-bold text-slate-800">
-                        Margem de Lucro desejada OU Markup
-                      </Label>
-                      <span className="text-[11px] text-slate-500">
-                        Recálculo bidirecional automático
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Alíquotas e Margem */}
+                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       <div className="space-y-1">
-                        <Label className="text-[11px] text-slate-600 font-semibold">
-                          Margem Líquida (%)
+                        <Label className="text-[11px] font-semibold text-slate-600">
+                          Despesa Fixa %
                         </Label>
                         <Input
                           type="number"
                           step="0.1"
-                          value={marginInput2}
-                          onChange={(e) => {
-                            setMarginInput2(e.target.value)
-                            setLastEditedField2('margem')
-                          }}
-                          className={`h-9 font-mono text-xs font-bold ${
-                            lastEditedField2 === 'margem'
-                              ? 'border-indigo-500 bg-white ring-1 ring-indigo-500'
-                              : 'bg-slate-100'
-                          }`}
+                          value={fixedExpensesPct2}
+                          onChange={(e) => setFixedExpensesPct2(e.target.value)}
+                          className="h-8 font-mono text-xs"
                         />
                       </div>
-
                       <div className="space-y-1">
-                        <Label className="text-[11px] text-slate-600 font-semibold">
-                          Markup (%)
+                        <Label className="text-[11px] font-semibold text-slate-600">
+                          Taxa Cartão %
                         </Label>
                         <Input
                           type="number"
                           step="0.1"
-                          value={markupInput2}
-                          onChange={(e) => {
-                            setMarkupInput2(e.target.value)
-                            setLastEditedField2('markup')
-                          }}
-                          className={`h-9 font-mono text-xs font-bold ${
-                            lastEditedField2 === 'markup'
-                              ? 'border-indigo-500 bg-white ring-1 ring-indigo-500'
-                              : 'bg-slate-100'
-                          }`}
+                          value={cardTaxPct2}
+                          onChange={(e) => setCardTaxPct2(e.target.value)}
+                          className="h-8 font-mono text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold text-slate-600">
+                          ICMS/Simples %
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={icmsPct2}
+                          onChange={(e) => setIcmsPct2(e.target.value)}
+                          className="h-8 font-mono text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold text-slate-600">
+                          Comissão %
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={commissionPct2}
+                          onChange={(e) => setCommissionPct2(e.target.value)}
+                          className="h-8 font-mono text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold text-slate-600">
+                          IPI / Outros %
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={ipiPct2}
+                          onChange={(e) => setIpiPct2(e.target.value)}
+                          className="h-8 font-mono text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-bold text-emerald-800">
+                          Lucratividade % *
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.5"
+                          value={marginInput2}
+                          onChange={(e) => setMarginInput2(e.target.value)}
+                          className="h-8 font-mono text-xs font-bold text-emerald-700 bg-emerald-50/60 border-emerald-300"
                         />
                       </div>
                     </div>
@@ -1050,6 +1344,7 @@ export default function Precificacao() {
               </Card>
             </div>
 
+            {/* Resultado Modo 2 */}
             <div className="lg:col-span-5 space-y-4">
               <Card className="border-slate-200 shadow-sm overflow-hidden">
                 <CardHeader className="bg-slate-900 text-white pb-3 pt-4">
@@ -1060,7 +1355,7 @@ export default function Precificacao() {
                     </span>
                     {calcResult2?.isPossible && (
                       <Badge className="bg-emerald-500 text-white font-mono text-[10px]">
-                        Margem: {calcResult2.margemPct}%
+                        Markup: {calcResult2.markupMultiplicador}×
                       </Badge>
                     )}
                   </CardTitle>
@@ -1084,36 +1379,19 @@ export default function Precificacao() {
                         </p>
                       </div>
 
-                      <div className="space-y-2 text-xs border border-slate-100 rounded-lg p-3 bg-slate-50/50">
-                        <div className="flex justify-between py-1 border-b border-slate-200/60">
-                          <span className="text-slate-600">Custo Informado:</span>
-                          <span className="font-mono font-bold text-slate-800 tabular-nums">
-                            {formatCurrencyBRL(calcResult2.cost)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-slate-200/60">
-                          <span className="text-slate-600">
-                            Despesas ({calcResult2.despesasPct}%):
-                          </span>
-                          <span className="font-mono font-bold text-slate-800 tabular-nums">
-                            {formatCurrencyBRL(
-                              calcResult2.salePrice * (calcResult2.despesasPct / 100),
-                            )}
-                          </span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-slate-200/60">
-                          <span className="text-slate-600">Lucro Líquido:</span>
-                          <span className="font-mono font-bold text-emerald-700 tabular-nums">
-                            {formatCurrencyBRL(calcResult2.lucroUnitario)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between py-1 font-bold text-slate-900">
-                          <span>Markup Multiplicador:</span>
-                          <span className="font-mono text-indigo-700 tabular-nums">
-                            {calcResult2.markupPct}%
-                          </span>
-                        </div>
-                      </div>
+                      <PricingWaterfallCard
+                        salePrice={calcResult2.salePrice}
+                        custoDiretoTotal={calcResult2.custoDiretoTotal}
+                        custoDiretoPct={calcResult2.fatias.custoDireto.pct}
+                        despesaFixaValor={calcResult2.fatias.despesaFixa.valor}
+                        despesaFixaPct={calcResult2.fatias.despesaFixa.pct}
+                        custosVariaveisValor={calcResult2.fatias.custosVariaveis.valor}
+                        custosVariaveisPct={calcResult2.fatias.custosVariaveis.pct}
+                        lucroUnitario={calcResult2.lucroUnitario}
+                        lucroPct={calcResult2.fatias.lucro.pct}
+                        totalPct={calcResult2.fatias.totalPct}
+                        detalheVariaveis={calcResult2.fatias.custosVariaveis.detalhe}
+                      />
 
                       <div className="pt-2 space-y-2">
                         <Button
@@ -1131,13 +1409,25 @@ export default function Precificacao() {
                           onClick={async () => {
                             try {
                               await createPricingHistory({
-                                cost: calcResult2.cost,
+                                cost: calcResult2.custoDiretoTotal,
                                 despesas_pct: calcResult2.despesasPct,
-                                markup_pct: calcResult2.markupPct,
-                                margem_pct: calcResult2.margemPct,
+                                markup_pct: calcResult2.markupSobreCustoPct,
+                                margem_pct: calcResult2.lucratividadePct,
                                 sale_price: calcResult2.salePrice,
                                 lucro_unitario: calcResult2.lucroUnitario,
                                 mode: 'avulsa',
+                                frete: calcResult2.frete,
+                                custos_adicionais:
+                                  calcResult2.custoAdicional1 + calcResult2.custoAdicional2,
+                                custos_variaveis_pct: calcResult2.custosVariaveisPct,
+                                despesa_fixa_pct: calcResult2.despesaFixaPct,
+                                custo_moeda: calcResult2.moeda,
+                                cost_usd: calcResult2.custoProdutoUSD,
+                                cotacao_dolar: calcResult2.cotacaoDolar,
+                                taxa_cartao_pct: calcResult2.taxaCartaoPct,
+                                icms_pct: calcResult2.icmsPct,
+                                comissao_pct: calcResult2.comissaoPct,
+                                ipi_pct: calcResult2.ipiPct,
                               })
                               toast({ title: 'Cálculo salvo no histórico!' })
                               loadHistory()
@@ -1168,7 +1458,7 @@ export default function Precificacao() {
         </TabsContent>
 
         {/* ==================================================================== */}
-        {/* ABA 3: PRECIFICAÇÃO RÁPIDA (Com Vínculo ou Criação Rápida)           */}
+        {/* ABA 3: PRECIFICAÇÃO RÁPIDA (Com Vínculo ou Novo Produto)            */}
         {/* ==================================================================== */}
         <TabsContent value="rapida" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -1181,23 +1471,59 @@ export default function Precificacao() {
                         Precificação Rápida
                       </CardTitle>
                       <CardDescription className="text-xs text-slate-500">
-                        Calcule primeiro e vincule a um produto existente ou crie um novo na hora
+                        Calcule primeiro e vincule a um produto existente ou cadastre um novo na
+                        hora
                       </CardDescription>
                     </div>
 
-                    {linkedProduct3 && (
-                      <Badge className="bg-indigo-600 text-white text-[11px] font-bold">
-                        Vinculado: {linkedProduct3.name}
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {linkedProduct3 && (
+                        <Badge className="bg-indigo-600 text-white text-[11px] font-bold">
+                          {linkedProduct3.name}
+                        </Badge>
+                      )}
+                      <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => setCurrency3('BRL')}
+                          className={`text-xs px-2 py-0.5 rounded-md font-bold ${
+                            currency3 === 'BRL'
+                              ? 'bg-white text-indigo-700 shadow-xs'
+                              : 'text-slate-600'
+                          }`}
+                        >
+                          R$
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCurrency3('USD')}
+                          className={`text-xs px-2 py-0.5 rounded-md font-bold ${
+                            currency3 === 'USD'
+                              ? 'bg-white text-emerald-700 shadow-xs'
+                              : 'text-slate-600'
+                          }`}
+                        >
+                          US$
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </CardHeader>
 
                 <CardContent className="pt-4 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label className="text-xs font-semibold text-slate-700">
-                        Custo Estimado (R$) *
+                      <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                        <span>Custo Estimado ({currency3}) *</span>
+                        {currency3 === 'USD' && (
+                          <span className="text-[10px] text-emerald-700 font-mono font-bold">
+                            = R${' '}
+                            {(
+                              (parseFloat(costInput3.replace(',', '.')) || 0) *
+                              companyParams.cotacao_dolar
+                            ).toFixed(2)}
+                          </span>
+                        )}
                       </Label>
                       <Input
                         type="number"
@@ -1209,58 +1535,40 @@ export default function Precificacao() {
                     </div>
 
                     <div className="space-y-1">
-                      <Label className="text-xs font-semibold text-slate-700">Despesas (%)</Label>
+                      <Label className="text-xs font-semibold text-slate-700">Frete (R$)</Label>
                       <Input
                         type="number"
-                        step="0.1"
-                        value={expensesInput3}
-                        onChange={(e) => setExpensesInput3(e.target.value)}
+                        step="0.01"
+                        value={freightInput3}
+                        onChange={(e) => setFreightInput3(e.target.value)}
                         className="h-9 font-mono text-xs"
                       />
                     </div>
-                  </div>
 
-                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-slate-600 font-semibold">
-                          Margem Líquida (%)
-                        </Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={marginInput3}
-                          onChange={(e) => {
-                            setMarginInput3(e.target.value)
-                            setLastEditedField3('margem')
-                          }}
-                          className={`h-9 font-mono text-xs font-bold ${
-                            lastEditedField3 === 'margem'
-                              ? 'border-indigo-500 bg-white ring-1 ring-indigo-500'
-                              : 'bg-slate-100'
-                          }`}
-                        />
-                      </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-slate-700">
+                        Custos Extras (R$)
+                      </Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={extraCost3A}
+                        onChange={(e) => setExtraCost3A(e.target.value)}
+                        className="h-9 font-mono text-xs"
+                      />
+                    </div>
 
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-slate-600 font-semibold">
-                          Markup (%)
-                        </Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={markupInput3}
-                          onChange={(e) => {
-                            setMarkupInput3(e.target.value)
-                            setLastEditedField3('markup')
-                          }}
-                          className={`h-9 font-mono text-xs font-bold ${
-                            lastEditedField3 === 'markup'
-                              ? 'border-indigo-500 bg-white ring-1 ring-indigo-500'
-                              : 'bg-slate-100'
-                          }`}
-                        />
-                      </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-bold text-emerald-800">
+                        Lucratividade Alvo %
+                      </Label>
+                      <Input
+                        type="number"
+                        step="0.5"
+                        value={marginInput3}
+                        onChange={(e) => setMarginInput3(e.target.value)}
+                        className="h-9 font-mono text-xs font-bold text-emerald-700 bg-emerald-50/60 border-emerald-300"
+                      />
                     </div>
                   </div>
 
@@ -1289,7 +1597,7 @@ export default function Precificacao() {
                           setNewProductName('')
                           setNewProductCategory('Peças')
                           setNewProductSku('')
-                          setNewProductCost(costInput3)
+                          setNewProductCost(String(calcResult3?.custoDiretoTotal || costInput3))
                           setNewProductModalOpen(true)
                         }}
                         className="h-9 text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -1303,6 +1611,7 @@ export default function Precificacao() {
               </Card>
             </div>
 
+            {/* Resultado Modo 3 */}
             <div className="lg:col-span-5 space-y-4">
               <Card className="border-slate-200 shadow-sm overflow-hidden">
                 <CardHeader className="bg-slate-900 text-white pb-3 pt-4">
@@ -1313,7 +1622,7 @@ export default function Precificacao() {
                     </span>
                     {calcResult3?.isPossible && (
                       <Badge className="bg-emerald-500 text-white font-mono text-[10px]">
-                        Margem: {calcResult3.margemPct}%
+                        Markup: {calcResult3.markupMultiplicador}×
                       </Badge>
                     )}
                   </CardTitle>
@@ -1330,43 +1639,26 @@ export default function Precificacao() {
                           {formatCurrencyBRL(calcResult3.salePrice)}
                         </div>
                         <p className="text-[11px] text-emerald-800 font-medium mt-1">
-                          Lucro por unidade:{' '}
+                          Lucro líquido:{' '}
                           <strong className="font-mono">
                             {formatCurrencyBRL(calcResult3.lucroUnitario)}
                           </strong>
                         </p>
                       </div>
 
-                      <div className="space-y-2 text-xs border border-slate-100 rounded-lg p-3 bg-slate-50/50">
-                        <div className="flex justify-between py-1 border-b border-slate-200/60">
-                          <span className="text-slate-600">Custo:</span>
-                          <span className="font-mono font-bold text-slate-800 tabular-nums">
-                            {formatCurrencyBRL(calcResult3.cost)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-slate-200/60">
-                          <span className="text-slate-600">
-                            Despesas ({calcResult3.despesasPct}%):
-                          </span>
-                          <span className="font-mono font-bold text-slate-800 tabular-nums">
-                            {formatCurrencyBRL(
-                              calcResult3.salePrice * (calcResult3.despesasPct / 100),
-                            )}
-                          </span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-slate-200/60">
-                          <span className="text-slate-600 font-medium">Lucro Líquido:</span>
-                          <span className="font-mono font-bold text-emerald-700 tabular-nums">
-                            {formatCurrencyBRL(calcResult3.lucroUnitario)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between py-1 font-bold text-slate-900">
-                          <span>Markup:</span>
-                          <span className="font-mono text-indigo-700 tabular-nums">
-                            {calcResult3.markupPct}%
-                          </span>
-                        </div>
-                      </div>
+                      <PricingWaterfallCard
+                        salePrice={calcResult3.salePrice}
+                        custoDiretoTotal={calcResult3.custoDiretoTotal}
+                        custoDiretoPct={calcResult3.fatias.custoDireto.pct}
+                        despesaFixaValor={calcResult3.fatias.despesaFixa.valor}
+                        despesaFixaPct={calcResult3.fatias.despesaFixa.pct}
+                        custosVariaveisValor={calcResult3.fatias.custosVariaveis.valor}
+                        custosVariaveisPct={calcResult3.fatias.custosVariaveis.pct}
+                        lucroUnitario={calcResult3.lucroUnitario}
+                        lucroPct={calcResult3.fatias.lucro.pct}
+                        totalPct={calcResult3.fatias.totalPct}
+                        detalheVariaveis={calcResult3.fatias.custosVariaveis.detalhe}
+                      />
 
                       {linkedProduct3 && (
                         <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-200 space-y-2">
@@ -1415,17 +1707,17 @@ export default function Precificacao() {
         </TabsContent>
 
         {/* ==================================================================== */}
-        {/* ABA 4: HISTÓRICO DE PRECIFICAÇÕES                                    */}
+        {/* ABA 4: HISTÓRICO DE PRECIFICAÇÕES AMPLIADO                          */}
         {/* ==================================================================== */}
         <TabsContent value="historico" className="space-y-4">
           <Card className="border-slate-200 shadow-2xs">
             <CardHeader className="pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-sm font-bold text-slate-900">
-                  Histórico Recente de Precificações
+                  Histórico Completo de Precificações
                 </CardTitle>
                 <CardDescription className="text-xs text-slate-500">
-                  Registro de preços sugeridos, aplicados e calculados no sistema
+                  Registros com frete, moeda, despesa fixa, custos variáveis e cotação do dólar
                 </CardDescription>
               </div>
 
@@ -1449,13 +1741,15 @@ export default function Precificacao() {
                       <th className="py-2.5 px-3">Data/Hora</th>
                       <th className="py-2.5 px-3">Modo</th>
                       <th className="py-2.5 px-3">Produto</th>
-                      <th className="py-2.5 px-3 text-right">Custo</th>
-                      <th className="py-2.5 px-3 text-center">Desp. %</th>
+                      <th className="py-2.5 px-3 text-center">Moeda / US$</th>
+                      <th className="py-2.5 px-3 text-right">Custo Direto</th>
+                      <th className="py-2.5 px-3 text-right">Frete</th>
+                      <th className="py-2.5 px-3 text-center">Fixa %</th>
+                      <th className="py-2.5 px-3 text-center">Var. %</th>
                       <th className="py-2.5 px-3 text-center">Margem %</th>
-                      <th className="py-2.5 px-3 text-center">Markup %</th>
                       <th className="py-2.5 px-3 text-right">Preço Venda</th>
-                      <th className="py-2.5 px-3 text-right">Lucro Unit.</th>
-                      <th className="py-2.5 px-3">Registrado por</th>
+                      <th className="py-2.5 px-3 text-right">Lucro Líq.</th>
+                      <th className="py-2.5 px-3">Por</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
@@ -1496,17 +1790,34 @@ export default function Precificacao() {
                           <td className="py-2.5 px-3 font-medium text-slate-900 max-w-xs truncate">
                             {prodName}
                           </td>
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            {item.custo_moeda === 'USD' ? (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] bg-emerald-50 text-emerald-800 border-emerald-200"
+                              >
+                                US$ {item.cost_usd ? item.cost_usd.toFixed(2) : '—'}
+                              </Badge>
+                            ) : (
+                              <span className="text-[11px] font-mono text-slate-500">R$</span>
+                            )}
+                          </td>
                           <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-700 tabular-nums whitespace-nowrap">
                             {formatCurrencyBRL(item.cost ?? 0)}
                           </td>
+                          <td className="py-2.5 px-3 text-right font-mono text-slate-600 tabular-nums whitespace-nowrap">
+                            {item.frete ? formatCurrencyBRL(item.frete) : '—'}
+                          </td>
                           <td className="py-2.5 px-3 text-center font-mono text-slate-600 tabular-nums whitespace-nowrap">
-                            {item.despesas_pct ?? 0}%
+                            {item.despesa_fixa_pct ? `${item.despesa_fixa_pct}%` : '—'}
+                          </td>
+                          <td className="py-2.5 px-3 text-center font-mono text-slate-600 tabular-nums whitespace-nowrap">
+                            {item.custos_variaveis_pct
+                              ? `${item.custos_variaveis_pct}%`
+                              : `${item.despesas_pct ?? 0}%`}
                           </td>
                           <td className="py-2.5 px-3 text-center font-mono font-bold text-indigo-700 tabular-nums whitespace-nowrap">
                             {item.margem_pct ?? 0}%
-                          </td>
-                          <td className="py-2.5 px-3 text-center font-mono text-slate-600 tabular-nums whitespace-nowrap">
-                            {item.markup_pct ?? 0}%
                           </td>
                           <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700 tabular-nums whitespace-nowrap">
                             {formatCurrencyBRL(item.sale_price)}
@@ -1514,7 +1825,7 @@ export default function Precificacao() {
                           <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800 tabular-nums whitespace-nowrap">
                             {formatCurrencyBRL(item.lucro_unitario ?? 0)}
                           </td>
-                          <td className="py-2.5 px-3 text-slate-500 text-[11px] truncate max-w-[120px]">
+                          <td className="py-2.5 px-3 text-slate-500 text-[11px] truncate max-w-[100px]">
                             {userName}
                           </td>
                         </tr>
@@ -1523,7 +1834,7 @@ export default function Precificacao() {
 
                     {historyList.length === 0 && (
                       <tr>
-                        <td colSpan={10} className="py-12 text-center text-slate-400">
+                        <td colSpan={12} className="py-12 text-center text-slate-400">
                           {loadingHistory
                             ? 'Carregando histórico...'
                             : 'Nenhum histórico de precificação registrado ainda.'}
@@ -1694,17 +2005,21 @@ export default function Precificacao() {
 
               <div className="space-y-1 text-[11px] text-slate-600">
                 <div className="flex justify-between">
-                  <span>Custo Atualizado:</span>
-                  <strong className="font-mono">{formatCurrencyBRL(calcResult1.cost)}</strong>
+                  <span>Custo Direto Total:</span>
+                  <strong className="font-mono">
+                    {formatCurrencyBRL(calcResult1.custoDiretoTotal)}
+                  </strong>
                 </div>
                 <div className="flex justify-between">
-                  <span>Margem Líquida Resultante:</span>
-                  <strong className="font-mono text-indigo-700">{calcResult1.margemPct}%</strong>
+                  <span>Markup Multiplicador:</span>
+                  <strong className="font-mono text-indigo-700">
+                    {calcResult1.markupMultiplicador}×
+                  </strong>
                 </div>
                 <div className="flex justify-between">
-                  <span>Lucro por unidade:</span>
+                  <span>Lucro Líquido Unitário:</span>
                   <strong className="font-mono text-emerald-700">
-                    {formatCurrencyBRL(calcResult1.lucroUnitario)}
+                    {formatCurrencyBRL(calcResult1.lucroUnitario)} ({calcResult1.fatias.lucro.pct}%)
                   </strong>
                 </div>
               </div>
@@ -1830,79 +2145,6 @@ export default function Precificacao() {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ==================================================================== */}
-      {/* MODAL DE CONFIGURAÇÕES GLOBAIS DE PRECIFICAÇÃO                      */}
-      {/* ==================================================================== */}
-      <Dialog open={configModalOpen} onOpenChange={setConfigModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Settings className="h-4 w-4 text-slate-600" />
-              <span>Configurações Padrão de Precificação</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Valores padrão salvos no sistema para novas precificações e alertas de margem mínima.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2 text-xs">
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">
-                Despesas Variáveis Padrão (%)
-              </Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={editExpensesInput}
-                onChange={(e) => setEditExpensesInput(e.target.value)}
-                className="h-9 text-xs font-mono"
-              />
-              <p className="text-[11px] text-slate-500">
-                Alíquota estimada de impostos (ex: Simples Nacional) + taxas de maquininha de cartão
-                + comissões/embalagem.
-              </p>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">
-                Margem Líquida Mínima Alvo (%)
-              </Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={editMinMarginInput}
-                onChange={(e) => setEditMinMarginInput(e.target.value)}
-                className="h-9 text-xs font-mono"
-              />
-              <p className="text-[11px] text-slate-500">
-                Dispara aviso em destaque quando o produto estiver com margem menor que a mínima
-                desejada.
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setConfigModalOpen(false)}
-              disabled={savingConfig}
-              className="text-xs"
-            >
-              Cancelar
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleSaveConfig}
-              disabled={savingConfig}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
-            >
-              <span>{savingConfig ? 'Salvando...' : 'Salvar Padrões'}</span>
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
