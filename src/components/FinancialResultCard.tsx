@@ -8,9 +8,21 @@ interface FinancialResultCardProps {
   summary: FinancialSummary
   chartData: EvolutionDataPoint[]
   periodLabel: string
+  totalOrcamentosAprovados?: number
+  countOrcamentosAprovados?: number
+  totalOrcamentosPendentes?: number
+  countOrcamentosPendentes?: number
 }
 
-export function FinancialResultCard({ summary, chartData, periodLabel }: FinancialResultCardProps) {
+export function FinancialResultCard({
+  summary,
+  chartData,
+  periodLabel,
+  totalOrcamentosAprovados = 0,
+  countOrcamentosAprovados = 0,
+  totalOrcamentosPendentes = 0,
+  countOrcamentosPendentes = 0,
+}: FinancialResultCardProps) {
   const { recebido, aReceber, ticketMedio, paidOrdersCount, growthPct } = summary
 
   return (
@@ -23,11 +35,11 @@ export function FinancialResultCard({ summary, chartData, periodLabel }: Financi
                 <DollarSign className="h-4 w-4" />
               </div>
               <CardTitle className="text-base font-semibold text-slate-900 tracking-tight">
-                Resultado Financeiro
+                Valores de O.S. no Período e Orçamentos
               </CardTitle>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Recebimentos consolidados, pendências e desempenho ({periodLabel})
+              Acompanhamento de produção em O.S. e orçamentos ({periodLabel})
             </p>
           </div>
 
@@ -35,28 +47,28 @@ export function FinancialResultCard({ summary, chartData, periodLabel }: Financi
             to="/relatorios"
             className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline self-start sm:self-auto"
           >
-            <span>Relatórios Financeiros</span>
+            <span>Relatórios Detalhados</span>
             <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
         </div>
       </CardHeader>
 
       <CardContent className="pt-4 space-y-4">
-        {/* Métricas Principais em Grade */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {/* 1. Recebido no Período */}
+        {/* Métricas Principais em Grade — 4 blocos de acompanhamento */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* 1. Valores de O.S. Liquidados */}
           <Link
             to="/ordens?status=completed"
             className="group block rounded-xl border border-emerald-100 bg-emerald-50/40 p-3.5 transition-all duration-200 hover:bg-emerald-50 hover:shadow-md hover:scale-[1.015] hover:border-emerald-300 cursor-pointer"
             title="Ver ordens concluídas no período"
           >
             <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-emerald-800">
-              <span>Recebido no Período</span>
+              <span>Valores de O.S. Liquidados</span>
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 transition-transform group-hover:scale-105">
                 <DollarSign className="h-4 w-4" />
               </div>
             </div>
-            <div className="mt-2 text-3xl font-bold tracking-tight text-emerald-950 tabular-nums">
+            <div className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-emerald-950 tabular-nums">
               R${' '}
               {recebido.toLocaleString('pt-BR', {
                 minimumFractionDigits: 2,
@@ -65,7 +77,7 @@ export function FinancialResultCard({ summary, chartData, periodLabel }: Financi
             </div>
             <div className="mt-2 flex items-center justify-between text-xs">
               <span className="text-muted-foreground text-xs">
-                {paidOrdersCount} {paidOrdersCount === 1 ? 'O.S. quitada' : 'O.S. quitadas'}
+                {paidOrdersCount} {paidOrdersCount === 1 ? 'O.S. liquidada' : 'O.S. liquidadas'}
               </span>
               {growthPct !== null && (
                 <span
@@ -84,19 +96,69 @@ export function FinancialResultCard({ summary, chartData, periodLabel }: Financi
             </div>
           </Link>
 
-          {/* 2. A Receber */}
+          {/* 2. Orçamentos Aprovados */}
+          <Link
+            to="/orcamentos?status=aprovado"
+            className="group block rounded-xl border border-teal-100 bg-teal-50/40 p-3.5 transition-all duration-200 hover:bg-teal-50 hover:shadow-md hover:scale-[1.015] hover:border-teal-300 cursor-pointer"
+            title="Ver orçamentos aprovados no período"
+          >
+            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-teal-800">
+              <span>Orçamentos Aprovados</span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-100 text-teal-700 transition-transform group-hover:scale-105">
+                <Receipt className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-teal-950 tabular-nums">
+              R${' '}
+              {totalOrcamentosAprovados.toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </div>
+            <div className="mt-2 text-xs text-muted-foreground">
+              {countOrcamentosAprovados}{' '}
+              {countOrcamentosAprovados === 1 ? 'orçamento aprovado' : 'orçamentos aprovados'}
+            </div>
+          </Link>
+
+          {/* 3. Orçamentos Pendentes */}
+          <Link
+            to="/orcamentos"
+            className="group block rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 transition-all duration-200 hover:bg-indigo-50 hover:shadow-md hover:scale-[1.015] hover:border-indigo-300 cursor-pointer"
+            title="Ver orçamentos pendentes no período"
+          >
+            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-indigo-800">
+              <span>Orçamentos Pendentes</span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700 transition-transform group-hover:scale-105">
+                <Clock className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-indigo-950 tabular-nums">
+              R${' '}
+              {totalOrcamentosPendentes.toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </div>
+            <div className="mt-2 text-xs text-muted-foreground">
+              {countOrcamentosPendentes}{' '}
+              {countOrcamentosPendentes === 1 ? 'aguardando resposta' : 'aguardando resposta'}
+            </div>
+          </Link>
+
+          {/* 4. Valores em Aberto / Pendências */}
           <Link
             to="/ordens?status=open"
             className="group block rounded-xl border border-amber-100 bg-amber-50/40 p-3.5 transition-all duration-200 hover:bg-amber-50 hover:shadow-md hover:scale-[1.015] hover:border-amber-300 cursor-pointer"
             title="Ver ordens em andamento e pagamentos pendentes"
           >
             <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-amber-800">
-              <span>A Receber (Pendente)</span>
+              <span>Valores de O.S. em Aberto</span>
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 text-amber-700 transition-transform group-hover:scale-105">
                 <Clock className="h-4 w-4" />
               </div>
             </div>
-            <div className="mt-2 text-3xl font-bold tracking-tight text-amber-950 tabular-nums">
+            <div className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-amber-950 tabular-nums">
               R${' '}
               {aReceber.toLocaleString('pt-BR', {
                 minimumFractionDigits: 2,
@@ -104,35 +166,17 @@ export function FinancialResultCard({ summary, chartData, periodLabel }: Financi
               })}
             </div>
             <div className="mt-2 text-xs text-muted-foreground">
-              Aguardando liquidação ou conclusão
+              Em atendimento ou aguardando conclusão
             </div>
           </Link>
-
-          {/* 3. Ticket Médio */}
-          <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5">
-            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-indigo-800">
-              <span>Ticket Médio por O.S.</span>
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700">
-                <Receipt className="h-4 w-4" />
-              </div>
-            </div>
-            <div className="mt-2 text-3xl font-bold tracking-tight text-indigo-950 tabular-nums">
-              R${' '}
-              {ticketMedio.toLocaleString('pt-BR', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
-            </div>
-            <div className="mt-2 text-xs text-muted-foreground">Média por atendimento faturado</div>
-          </div>
         </div>
 
-        {/* Mini-Gráfico de Evolução do Recebido no Período */}
+        {/* Mini-Gráfico de Evolução no Período */}
         {chartData && chartData.length > 0 && (
           <div className="pt-2 border-t border-slate-100">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-slate-700">
-                Evolução dos Recebimentos no Período
+                Evolução dos Valores de O.S. no Período
               </span>
               <span className="text-xs text-muted-foreground">Valores diários/semanais</span>
             </div>

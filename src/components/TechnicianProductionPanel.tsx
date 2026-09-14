@@ -14,12 +14,14 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/StatusBadge'
-import { ServiceOrder, Payment, StatusHistory, User } from '@/types'
+import { ServiceOrder, Payment, StatusHistory, User, Orcamento } from '@/types'
 import {
   getTechPeriodRange,
   computeAverageServiceTime,
   countCompletedInPeriod,
   computeBilling,
+  formatCurrencyBRL,
+  getOrcamentoTechnicianId,
   STATUS_PRIORITY_MAP,
   type TechPeriod,
 } from '@/lib/dashboard-utils'
@@ -29,6 +31,7 @@ interface TechnicianProductionPanelProps {
   orders: ServiceOrder[]
   payments: Payment[]
   history: StatusHistory[]
+  orcamentos?: Orcamento[]
 }
 
 export function TechnicianProductionPanel({
@@ -36,6 +39,7 @@ export function TechnicianProductionPanel({
   orders,
   payments,
   history,
+  orcamentos = [],
 }: TechnicianProductionPanelProps) {
   const [techPeriod, setTechPeriod] = useState<TechPeriod>('today')
 
@@ -75,6 +79,24 @@ export function TechnicianProductionPanel({
   const billingInPeriod = useMemo(() => {
     return computeBilling(myPayments, techRange.start, techRange.end)
   }, [myPayments, techRange])
+
+  // Orçamentos aprovados do técnico no período
+  const myOrcamentosSummary = useMemo(() => {
+    const ordersMap = new Map<string, ServiceOrder>()
+    orders.forEach((o) => ordersMap.set(o.id, o))
+
+    const techOrcs = orcamentos.filter((orc) => {
+      const tId = getOrcamentoTechnicianId(orc, ordersMap)
+      if (tId !== user.id) return false
+      if (!orc.created) return false
+      const d = orc.created.substring(0, 10)
+      return d >= techRange.start && d <= techRange.end
+    })
+
+    const aprovados = techOrcs.filter((o) => o.status === 'aprovado' || o.status === 'faturado')
+    const amount = aprovados.reduce((s, o) => s + (o.total_geral || 0), 0)
+    return { count: aprovados.length, amount }
+  }, [orcamentos, orders, user.id, techRange])
 
   // O.S. dele do dia (criadas ou atualizadas hoje)
   const todayStr = useMemo(() => new Date().toISOString().substring(0, 10), [])
@@ -145,12 +167,16 @@ export function TechnicianProductionPanel({
       </CardHeader>
 
       <CardContent className="pt-4 space-y-4">
-        {/* 4 KPIs de Produtividade do Técnico */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs hover:shadow-xs transition-shadow">
+        {/* KPIs de Produção e Acompanhamento do Técnico */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <Link
+            to={`/ordens?tecnico=${encodeURIComponent(user.name || user.id)}`}
+            className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs hover:shadow-xs transition-all hover:border-blue-300 block"
+            title="Ver O.S. atribuídas"
+          >
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Atribuídas
+                O.S. Atribuídas
               </span>
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                 <Wrench className="h-4 w-4" />
@@ -162,12 +188,16 @@ export function TechnicianProductionPanel({
               </span>
               <span className="text-[11px] text-slate-400 font-medium">no período</span>
             </div>
-          </div>
+          </Link>
 
-          <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs hover:shadow-xs transition-shadow">
+          <Link
+            to={`/ordens?status=completed&tecnico=${encodeURIComponent(user.name || user.id)}`}
+            className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs hover:shadow-xs transition-all hover:border-emerald-300 block"
+            title="Ver O.S. concluídas"
+          >
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Concluídas
+                O.S. Concluídas
               </span>
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
                 <CheckCircle2 className="h-4 w-4" />
@@ -179,7 +209,7 @@ export function TechnicianProductionPanel({
               </span>
               <span className="text-[11px] text-slate-400 font-medium">no período</span>
             </div>
-          </div>
+          </Link>
 
           <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs hover:shadow-xs transition-shadow">
             <div className="flex items-center justify-between">
@@ -201,17 +231,42 @@ export function TechnicianProductionPanel({
           <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs hover:shadow-xs transition-shadow">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Valor Gerado
+                Valores em O.S.
               </span>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                 <DollarSign className="h-4 w-4" />
               </div>
             </div>
             <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-xl sm:text-2xl font-bold font-mono text-amber-600 tracking-tight">
-                R$ {billingInPeriod.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              <span className="text-xl sm:text-2xl font-bold font-mono text-blue-700 tracking-tight">
+                R${' '}
+                {myOrders
+                  .filter((o) => {
+                    if (!o.created) return false
+                    const d = o.created.substring(0, 10)
+                    return d >= techRange.start && d <= techRange.end
+                  })
+                  .reduce((sum, o) => sum + (o.total || 0), 0)
+                  .toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </span>
-              <span className="text-[11px] text-slate-400 font-medium">pago</span>
+              <span className="text-[11px] text-slate-400 font-medium">produzido</span>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs hover:shadow-xs transition-shadow col-span-2 lg:col-span-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Orçamentos Aprovados
+              </span>
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                <Sparkles className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-2 flex items-baseline justify-between">
+              <span className="text-xl sm:text-2xl font-bold font-mono text-emerald-600 tracking-tight">
+                {myOrcamentosSummary.count} ({formatCurrencyBRL(myOrcamentosSummary.amount)})
+              </span>
+              <span className="text-[11px] text-slate-400 font-medium">no período</span>
             </div>
           </div>
         </div>

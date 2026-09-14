@@ -1,4 +1,4 @@
-import { ServiceOrder, StatusHistory, Payment, OrderStatus } from '@/types'
+import { ServiceOrder, StatusHistory, Payment, OrderStatus, Orcamento, User } from '@/types'
 
 export type Period = 'today' | 'week' | 'month' | 'custom'
 export type TechPeriod = 'today' | 'month' | 'year'
@@ -196,6 +196,7 @@ export interface DonutSlice {
   value: number
   color: string
   percentage: number
+  amount?: number // Valor financeiro opcional em R$ (pt-BR)
 }
 
 const STATUS_COLOR_MAP: Record<string, string> = {
@@ -389,6 +390,416 @@ export function computeAverageServiceTime(
 
 export function countOrdersInPeriod(orders: ServiceOrder[], start: string, end: string) {
   return orders.filter((o) => isDateInRange(o.created, start, end)).length
+}
+
+export function isDateInRangeString(dateStr: string | undefined, start: string, end: string) {
+  return isDateInRange(dateStr, start, end)
+}
+
+/**
+ * Resolução do técnico de um orçamento:
+ * 1) orcamento.responsavel_id (se houver)
+ * 2) orcamento.id_usuario_criador (se criador tiver role technician)
+ * 3) orcamento.expand?.responsavel_id?.id
+ * 4) técnico da O.S. vinculada via id_os / expand.id_os
+ */
+export function getOrcamentoTechnicianId(
+  orc: Orcamento,
+  ordersMap?: Map<string, ServiceOrder>,
+): string | undefined {
+  if (orc.responsavel_id) return orc.responsavel_id
+  if (orc.expand?.responsavel_id?.id) return orc.expand.responsavel_id.id
+  if (orc.id_os) {
+    if (ordersMap && ordersMap.has(orc.id_os)) {
+      const so = ordersMap.get(orc.id_os)
+      if (so?.technician) return so.technician
+    }
+    if (orc.expand?.id_os?.technician) {
+      return orc.expand.id_os.technician
+    }
+  }
+  return undefined
+}
+
+export interface TechnicianProductionRow {
+  technicianId: string
+  technicianName: string
+  // (a) Ordens de Serviço
+  osCriadas: number
+  osConcluidas: number
+  osValorTotal: number
+  // (b) Orçamentos
+  orcCriados: number
+  orcAprovados: number
+  orcPendentes: number
+  orcRejeitados: number
+  orcValorAprovados: number
+}
+
+export interface TechnicianProductionSummary {
+  rows: TechnicianProductionRow[]
+  totals: {
+    osCriadas: number
+    osConcluidas: number
+    osValorTotal: number
+    orcCriados: number
+    orcAprovados: number
+    orcPendentes: number
+    orcRejeitados: number
+    orcValorAprovados: number
+  }
+}
+
+/**
+ * Agrega resultado e produção por técnico no período selecionado.
+ * Regra: técnicos com role='technician' (NUNCA admin/attendant).
+ */
+export function computeTechnicianProduction(
+  technicians: User[],
+  orders: ServiceOrder[],
+  orcamentos: Orcamento[],
+  history: StatusHistory[],
+  start: string,
+  end: string,
+): TechnicianProductionSummary {
+  // Apenas role='technician'
+  const pureTechs = technicians.filter((t) => t.role === 'technician')
+
+  const ordersMap = new Map<string, ServiceOrder>()
+  for (const o of orders) {
+    ordersMap.set(o.id, o)
+  }
+
+  const rows: TechnicianProductionRow[] = pureTechs.map((tech) => {
+    // (a) O.S. do técnico
+    const techOrders = orders.filter((o) => o.technician === tech.id)
+
+    // O.S. criadas no período
+    const createdOrders = techOrders.filter((o) => isDateInRange(o.created, start, end))
+    const osCriadas = createdOrders.length
+
+    // O.S. concluídas/fechadas no período
+    const osConcluidas = techOrders.filter((o) => {
+      if (o.status !== 'completed' && o.status !== 'closed') return false
+      const recs = history.filter((h) => h.service_order === o.id && h.status === 'completed')
+      const completedDate = recs[recs.length - 1]?.created || o.updated
+      return isDateInRange(completedDate, start, end)
+    }).length
+
+    // Valor total das O.S. dele no período (soma de o.total das O.S. criadas no período, ou total gerado)
+    // O requisito diz: "VALOR TOTAL das O.S. dele (soma dos itens/valor da O.S.)"
+    const osValorTotal = createdOrders.reduce((sum, o) => sum + (o.total || 0), 0)
+
+    // (b) Orçamentos do técnico no período
+    const techOrcamentos = orcamentos.filter((orc) => {
+      const techId = getOrcamentoTechnicianId(orc, ordersMap)
+      return techId === tech.id && isDateInRange(orc.created, start, end)
+    })
+
+    const orcCriados = techOrcamentos.length
+    // Aprovados: status 'aprovado' ou 'faturado'
+    const orcAprovados = techOrcamentos.filter(
+      (orc) => orc.status === 'aprovado' || orc.status === 'faturado',
+    ).length
+    // Pendentes: rascunho, enviado, aguardando_aprovacao
+    const orcPendentes = techOrcamentos.filter(
+      (orc) =>
+        orc.status === 'rascunho' ||
+        orc.status === 'enviado' ||
+        orc.status === 'aguardando_aprovacao',
+    ).length
+    // Rejeitados: status 'rejeitado'
+    const orcRejeitados = techOrcamentos.filter((orc) => orc.status === 'rejeitado').length
+
+    // Valor total dos orçamentos aprovados: soma de total_geral
+    const orcValorAprovados = techOrcamentos
+      .filter((orc) => orc.status === 'aprovado' || orc.status === 'faturado')
+      .reduce((sum, orc) => sum + (orc.total_geral || 0), 0)
+
+    return {
+      technicianId: tech.id,
+      technicianName: tech.name || 'Técnico',
+      osCriadas,
+      osConcluidas,
+      osValorTotal,
+      orcCriados,
+      orcAprovados,
+      orcPendentes,
+      orcRejeitados,
+      orcValorAprovados,
+    }
+  })
+
+  // Ordena por nome
+  rows.sort((a, b) => a.technicianName.localeCompare(b.technicianName))
+
+  const totals = rows.reduce(
+    (acc, r) => ({
+      osCriadas: acc.osCriadas + r.osCriadas,
+      osConcluidas: acc.osConcluidas + r.osConcluidas,
+      osValorTotal: acc.osValorTotal + r.osValorTotal,
+      orcCriados: acc.orcCriados + r.orcCriados,
+      orcAprovados: acc.orcAprovados + r.orcAprovados,
+      orcPendentes: acc.orcPendentes + r.orcPendentes,
+      orcRejeitados: acc.orcRejeitados + r.orcRejeitados,
+      orcValorAprovados: acc.orcValorAprovados + r.orcValorAprovados,
+    }),
+    {
+      osCriadas: 0,
+      osConcluidas: 0,
+      osValorTotal: 0,
+      orcCriados: 0,
+      orcAprovados: 0,
+      orcPendentes: 0,
+      orcRejeitados: 0,
+      orcValorAprovados: 0,
+    },
+  )
+
+  return { rows, totals }
+}
+
+export const ORCAMENTO_STATUS_CONFIG = [
+  { value: 'aprovado', label: 'Aprovado', color: '#10b981' },
+  { value: 'enviado', label: 'Enviado', color: '#6366f1' },
+  { value: 'rascunho', label: 'Rascunho', color: '#64748b' },
+  { value: 'aguardando_aprovacao', label: 'Pendente', color: '#f59e0b' },
+  { value: 'faturado', label: 'Faturado', color: '#8b5cf6' },
+  { value: 'rejeitado', label: 'Rejeitado', color: '#ef4444' },
+  { value: 'substituido', label: 'Substituído', color: '#94a3b8' },
+] as const
+
+/**
+ * 3.b) Orçamentos por status no período (donut: máx 6 fatias e Outros)
+ * Legenda: quantidade + valor R$ pt-BR + %
+ */
+export function computeOrcamentosStatusDistribution(
+  orcamentos: Orcamento[],
+  start: string,
+  end: string,
+): DonutSlice[] {
+  const periodOrcs = orcamentos.filter((orc) => isDateInRange(orc.created, start, end))
+  const totalCount = periodOrcs.length
+  if (totalCount === 0) return []
+
+  const groups = new Map<string, { count: number; amount: number; label: string; color: string }>()
+
+  // Mapeamento normalizado
+  for (const orc of periodOrcs) {
+    const statusKey = orc.status
+    let label: string = statusKey
+    let color: string = '#94a3b8'
+
+    if (statusKey === 'aprovado' || statusKey === 'faturado') {
+      label = statusKey === 'faturado' ? 'Faturado' : 'Aprovado'
+      color = statusKey === 'faturado' ? '#8b5cf6' : '#10b981'
+    } else if (statusKey === 'rascunho') {
+      label = 'Rascunho'
+      color = '#64748b'
+    } else if (statusKey === 'enviado') {
+      label = 'Enviado'
+      color = '#6366f1'
+    } else if (statusKey === 'aguardando_aprovacao') {
+      label = 'Pendente'
+      color = '#f59e0b'
+    } else if (statusKey === 'rejeitado') {
+      label = 'Rejeitado'
+      color = '#ef4444'
+    } else if (statusKey === 'substituido') {
+      label = 'Substituído'
+      color = '#94a3b8'
+    }
+
+    const current = groups.get(statusKey) || { count: 0, amount: 0, label, color }
+    current.count++
+    current.amount += orc.total_geral || 0
+    groups.set(statusKey, current)
+  }
+
+  const items = Array.from(groups.values()).sort((a, b) => b.count - a.count)
+
+  if (items.length > 6) {
+    const top5 = items.slice(0, 5)
+    const rest = items.slice(5)
+    const restCount = rest.reduce((s, r) => s + r.count, 0)
+    const restAmount = rest.reduce((s, r) => s + r.amount, 0)
+
+    const result: DonutSlice[] = top5.map((it) => ({
+      name: it.label,
+      value: it.count,
+      amount: it.amount,
+      color: it.color,
+      percentage: Math.round((it.count / totalCount) * 100),
+    }))
+
+    if (restCount > 0) {
+      result.push({
+        name: 'Outros',
+        value: restCount,
+        amount: restAmount,
+        color: '#94a3b8',
+        percentage: Math.round((restCount / totalCount) * 100),
+      })
+    }
+    return result
+  }
+
+  return items.map((it) => ({
+    name: it.label,
+    value: it.count,
+    amount: it.amount,
+    color: it.color,
+    percentage: Math.round((it.count / totalCount) * 100),
+  }))
+}
+
+/**
+ * 3.c) Valor gerado por técnico (pizza comparando o valor das O.S. de cada técnico no período)
+ * Legenda: quantidade de OSs + valor R$ pt-BR + %
+ */
+export function computeTechnicianValueDistribution(
+  technicians: User[],
+  orders: ServiceOrder[],
+  start: string,
+  end: string,
+): DonutSlice[] {
+  const pureTechs = technicians.filter((t) => t.role === 'technician')
+  const periodOrders = orders.filter((o) => isDateInRange(o.created, start, end))
+
+  const techMap = new Map<string, string>()
+  pureTechs.forEach((t) => techMap.set(t.id, t.name || 'Sem nome'))
+
+  const techData = new Map<string, { count: number; amount: number }>()
+  let unassignedCount = 0
+  let unassignedAmount = 0
+
+  for (const o of periodOrders) {
+    const val = o.total || 0
+    if (!o.technician || !techMap.has(o.technician)) {
+      unassignedCount++
+      unassignedAmount += val
+    } else {
+      const name = techMap.get(o.technician)!
+      const cur = techData.get(name) || { count: 0, amount: 0 }
+      cur.count++
+      cur.amount += val
+      techData.set(name, cur)
+    }
+  }
+
+  const items: { name: string; count: number; amount: number }[] = []
+  techData.forEach((data, name) => {
+    items.push({ name, count: data.count, amount: data.amount })
+  })
+
+  // Ordenar decrescente pelo valor gerado
+  items.sort((a, b) => b.amount - a.amount)
+
+  if (unassignedAmount > 0 || unassignedCount > 0) {
+    items.push({
+      name: 'Não atribuídas',
+      count: unassignedCount,
+      amount: unassignedAmount,
+    })
+  }
+
+  const totalAmount = items.reduce((s, it) => s + it.amount, 0)
+  if (totalAmount === 0 && items.length === 0) return []
+
+  let topItems = items
+  let othersCount = 0
+  let othersAmount = 0
+  if (items.length > 6) {
+    topItems = items.slice(0, 5)
+    const rest = items.slice(5)
+    othersCount = rest.reduce((s, it) => s + it.count, 0)
+    othersAmount = rest.reduce((s, it) => s + it.amount, 0)
+  }
+
+  const result: DonutSlice[] = topItems.map((item, idx) => ({
+    name: item.name,
+    value: item.amount, // value é o montante para o arco da pizza
+    amount: item.amount,
+    color: item.name === 'Não atribuídas' ? '#cbd5e1' : TECH_PALETTE[idx % TECH_PALETTE.length],
+    percentage: totalAmount > 0 ? Math.round((item.amount / totalAmount) * 100) : 0,
+  }))
+
+  if (othersAmount > 0 || othersCount > 0) {
+    result.push({
+      name: 'Outros',
+      value: othersAmount,
+      amount: othersAmount,
+      color: '#94a3b8',
+      percentage: totalAmount > 0 ? Math.round((othersAmount / totalAmount) * 100) : 0,
+    })
+  }
+
+  return result
+}
+
+/**
+ * 3.d) Resultado do período como donut:
+ * Valor em O.S. vs Valor em Orçamentos Aprovados vs Orçamentos pendentes
+ */
+export function computePeriodResultDistribution(
+  orders: ServiceOrder[],
+  orcamentos: Orcamento[],
+  start: string,
+  end: string,
+): DonutSlice[] {
+  const periodOrders = orders.filter((o) => isDateInRange(o.created, start, end))
+  const periodOrcs = orcamentos.filter((orc) => isDateInRange(orc.created, start, end))
+
+  const valorOS = periodOrders.reduce((sum, o) => sum + (o.total || 0), 0)
+  const countOS = periodOrders.length
+
+  const orcAprovados = periodOrcs.filter(
+    (orc) => orc.status === 'aprovado' || orc.status === 'faturado',
+  )
+  const valorOrcAprovados = orcAprovados.reduce((sum, orc) => sum + (orc.total_geral || 0), 0)
+  const countOrcAprovados = orcAprovados.length
+
+  const orcPendentes = periodOrcs.filter(
+    (orc) =>
+      orc.status === 'rascunho' ||
+      orc.status === 'enviado' ||
+      orc.status === 'aguardando_aprovacao',
+  )
+  const valorOrcPendentes = orcPendentes.reduce((sum, orc) => sum + (orc.total_geral || 0), 0)
+  const countOrcPendentes = orcPendentes.length
+
+  const totalGeral = valorOS + valorOrcAprovados + valorOrcPendentes
+
+  const slices: DonutSlice[] = [
+    {
+      name: 'Valores em O.S.',
+      value: valorOS,
+      amount: valorOS,
+      color: '#3b82f6', // blue-500
+      percentage: totalGeral > 0 ? Math.round((valorOS / totalGeral) * 100) : 0,
+    },
+    {
+      name: 'Orçamentos Aprovados',
+      value: valorOrcAprovados,
+      amount: valorOrcAprovados,
+      color: '#10b981', // emerald-500
+      percentage: totalGeral > 0 ? Math.round((valorOrcAprovados / totalGeral) * 100) : 0,
+    },
+    {
+      name: 'Orçamentos Pendentes',
+      value: valorOrcPendentes,
+      amount: valorOrcPendentes,
+      color: '#f59e0b', // amber-500
+      percentage: totalGeral > 0 ? Math.round((valorOrcPendentes / totalGeral) * 100) : 0,
+    },
+  ]
+
+  // Se tudo for 0, retorna vazio para emptyMessage
+  if (totalGeral === 0 && countOS === 0 && countOrcAprovados === 0 && countOrcPendentes === 0) {
+    return []
+  }
+
+  return slices
 }
 
 export interface EvolutionDataPoint {

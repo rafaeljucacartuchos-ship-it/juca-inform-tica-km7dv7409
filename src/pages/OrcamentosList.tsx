@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   FileText,
   Plus,
@@ -113,7 +113,17 @@ export default function OrcamentosList() {
   const [deleteTarget, setDeleteTarget] = useState<Orcamento | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('todos')
+  const [searchParams] = useSearchParams()
+  const initialStatus = searchParams.get('status') || 'todos'
+  const [statusFilter, setStatusFilter] = useState<string>(initialStatus)
+
+  // Sincroniza se a URL mudar (ex: link do dashboard)
+  useEffect(() => {
+    const s = searchParams.get('status')
+    if (s) {
+      setStatusFilter(s)
+    }
+  }, [searchParams])
 
   // Modal Novo Orçamento
   const [createModalOpen, setCreateModalOpen] = useState(false)
