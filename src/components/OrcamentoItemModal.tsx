@@ -29,9 +29,11 @@ interface OrcamentoItemModalProps {
   onOpenChange: (open: boolean) => void
   orcamentoId: string
   itemToEdit?: OrcamentoItem | null
-  onSaved: () => void
+  onSaved: (itemResult?: OrcamentoItem) => void
   defaultKind?: 'produto' | 'servico'
   lockKind?: boolean
+  isDraftMode?: boolean
+  onSaveDraftItem?: (savedItem: OrcamentoItem, isEdit: boolean) => void
 }
 
 export function OrcamentoItemModal({
@@ -42,6 +44,8 @@ export function OrcamentoItemModal({
   onSaved,
   defaultKind = 'produto',
   lockKind = false,
+  isDraftMode = false,
+  onSaveDraftItem,
 }: OrcamentoItemModalProps) {
   const { toast } = useToast()
   const isEditing = Boolean(itemToEdit)
@@ -248,6 +252,57 @@ export function OrcamentoItemModal({
 
     setSaving(true)
     try {
+      const isDraftBudget =
+        isDraftMode ||
+        orcamentoId === 'novo' ||
+        !orcamentoId ||
+        (itemToEdit && itemToEdit.id && itemToEdit.id.startsWith('draft-'))
+
+      // Se for modo rascunho em memória OU id "novo" OU item de rascunho com id draft-*
+      if (isDraftBudget) {
+        const itemResult: OrcamentoItem = {
+          id:
+            isEditing && itemToEdit
+              ? itemToEdit.id
+              : `draft-item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          id_orcamento: orcamentoId || 'novo',
+          tipo: kind,
+          id_produto: selectedProductId || undefined,
+          descricao: finalDesc,
+          quantidade: finalQty,
+          valor_unitario: finalUnitPrice,
+          desconto_item: Number(descontoItem) || 0,
+          desconto_item_tipo: descontoItemTipo,
+          valor_total_item: finalTotalItem,
+          created: itemToEdit?.created || new Date().toISOString(),
+          updated: new Date().toISOString(),
+        } as OrcamentoItem
+
+        if (onSaveDraftItem) {
+          onSaveDraftItem(itemResult, isEditing)
+        }
+        toast({
+          title: isEditing ? 'Item atualizado com sucesso!' : 'Item adicionado ao orçamento!',
+        })
+
+        // Reseta estados internos
+        setDescricao('')
+        setSelectedProductId(undefined)
+        setQuantidade('1')
+        setValorUnitario(0)
+        setDescontoItem(0)
+        setQuery('')
+        setResults([])
+
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur()
+        }
+
+        onSaved(itemResult)
+        onOpenChange(false)
+        return
+      }
+
       const dataPayload: Partial<OrcamentoItem> = {
         id_orcamento: orcamentoId,
         tipo: kind,
@@ -260,16 +315,73 @@ export function OrcamentoItemModal({
         valor_total_item: finalTotalItem,
       }
 
-      if (isEditing && itemToEdit) {
-        await updateOrcamentoItem(itemToEdit.id, dataPayload)
-        toast({ title: 'Item atualizado com sucesso!' })
-      } else {
-        await createOrcamentoItem(dataPayload)
-        toast({ title: 'Item adicionado ao orçamento!' })
-      }
+      try {
+        if (isEditing && itemToEdit) {
+          await updateOrcamentoItem(itemToEdit.id, dataPayload)
+          toast({ title: 'Item atualizado com sucesso!' })
+        } else {
+          await createOrcamentoItem(dataPayload)
+          toast({ title: 'Item adicionado ao orçamento!' })
+        }
 
-      // Recalcula totais do orçamento
-      await recalculateOrcamentoTotals(orcamentoId)
+        // Recalcula totais do orçamento no banco
+        await recalculateOrcamentoTotals(orcamentoId)
+      } catch (err: any) {
+        // Proteção extra: se for 404 (not found) e tiver handler local, faz fallback gracioso para salvar em memória
+        const errMsg = getErrorMessage(err).toLowerCase()
+        const isNotFound =
+          err?.status === 404 ||
+          errMsg.includes("wasn't found") ||
+          errMsg.includes('not found') ||
+          errMsg.includes('não encontrado')
+
+        if (isNotFound && onSaveDraftItem) {
+          console.warn(
+            'Item ou orçamento não encontrado no banco (404). Aplicando fallback em memória:',
+            err,
+          )
+          const fallbackItem: OrcamentoItem = {
+            id:
+              isEditing && itemToEdit
+                ? itemToEdit.id
+                : `draft-item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            id_orcamento: orcamentoId || 'novo',
+            tipo: kind,
+            id_produto: selectedProductId || undefined,
+            descricao: finalDesc,
+            quantidade: finalQty,
+            valor_unitario: finalUnitPrice,
+            desconto_item: Number(descontoItem) || 0,
+            desconto_item_tipo: descontoItemTipo,
+            valor_total_item: finalTotalItem,
+            created: itemToEdit?.created || new Date().toISOString(),
+            updated: new Date().toISOString(),
+          } as OrcamentoItem
+
+          onSaveDraftItem(fallbackItem, isEditing)
+          toast({
+            title: isEditing ? 'Item atualizado com sucesso!' : 'Item adicionado ao orçamento!',
+          })
+
+          setDescricao('')
+          setSelectedProductId(undefined)
+          setQuantidade('1')
+          setValorUnitario(0)
+          setDescontoItem(0)
+          setQuery('')
+          setResults([])
+
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur()
+          }
+
+          onSaved(fallbackItem)
+          onOpenChange(false)
+          return
+        }
+
+        throw err
+      }
 
       // Reseta os estados internos para garantir que reaberturas fiquem limpas
       setDescricao('')

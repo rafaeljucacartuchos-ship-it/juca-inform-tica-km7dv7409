@@ -641,6 +641,16 @@ export default function OrcamentoDetail() {
     }
   }
 
+  // Handler para salvar/editar item no modo rascunho em memória
+  const handleSaveDraftItem = (savedItem: OrcamentoItem, isEdit: boolean) => {
+    setItems((prev) => {
+      if (isEdit) {
+        return prev.map((it) => (it.id === savedItem.id ? savedItem : it))
+      }
+      return [...prev, savedItem]
+    })
+  }
+
   // Salvar novo orçamento no banco a partir do rascunho em memória
   const handleSalvarOrcamentoNovo = async () => {
     if (!isNew || savingNewOrcamento) return
@@ -3183,6 +3193,8 @@ export default function OrcamentoDetail() {
         itemToEdit={editingItem}
         defaultKind={modalDefaultKind}
         lockKind={modalLockKind}
+        isDraftMode={isNew}
+        onSaveDraftItem={handleSaveDraftItem}
         onSaved={() => {
           if (!isNew) {
             loadAll()
