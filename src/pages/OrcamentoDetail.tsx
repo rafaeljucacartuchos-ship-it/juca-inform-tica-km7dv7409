@@ -16,6 +16,8 @@ import {
   CreditCard,
   DollarSign,
   AlertTriangle,
+  AlertCircle,
+  RefreshCw,
   Send,
   Loader2,
   FileText,
@@ -166,13 +168,14 @@ export default function OrcamentoDetail() {
   const { user } = useAuth()
   const { toast } = useToast()
 
-  const isNew = id === 'novo'
+  const isNew = id === 'novo' || !id || location.pathname.endsWith('/novo')
   const navState = (location.state as PricingLocationState) || null
 
   const [orcamento, setOrcamento] = useState<Orcamento | null>(null)
   const [items, setItems] = useState<OrcamentoItem[]>([])
   const [anexos, setAnexos] = useState<OrcamentoAnexo[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [parcelasInput, setParcelasInput] = useState<string>('1')
   const [savingNewOrcamento, setSavingNewOrcamento] = useState(false)
 
@@ -217,10 +220,10 @@ export default function OrcamentoDetail() {
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const loadAll = useCallback(async () => {
-    if (!id) return
+    setLoadError(null)
 
-    // Se for rota de novo orçamento (/orcamentos/novo), monta rascunho em memória sem nenhuma chamada ao banco
-    if (id === 'novo') {
+    // Se for modo criação (isNew), monta rascunho em memória sem nenhuma chamada ao banco
+    if (isNew) {
       const initialItems: OrcamentoItem[] = []
       if (navState?.item) {
         const itemTipo = navState.item.tipo || 'produto'
@@ -291,6 +294,13 @@ export default function OrcamentoDetail() {
       return
     }
 
+    // Se não tiver ID e não for modo novo: encerra carregamento com aviso amigável
+    if (!id) {
+      setLoading(false)
+      setLoadError('Identificador do orçamento não informado na URL.')
+      return
+    }
+
     try {
       // 1. Tenta buscar o orçamento diretamente pelo ID
       let o: Orcamento | null = null
@@ -316,6 +326,7 @@ export default function OrcamentoDetail() {
 
       if (!o) {
         toast({ title: 'Orçamento não encontrado', variant: 'destructive' })
+        setLoadError('Orçamento não encontrado no sistema.')
         setLoading(false)
         return
       }
@@ -334,10 +345,11 @@ export default function OrcamentoDetail() {
     } catch (errTotal) {
       console.error('Erro total ao carregar orçamento:', errTotal)
       toast({ title: 'Erro ao carregar orçamento', variant: 'destructive' })
+      setLoadError('Falha de conexão ao carregar os dados do orçamento.')
     } finally {
       setLoading(false)
     }
-  }, [id, toast])
+  }, [id, isNew, navState, toast, user?.id])
 
   useEffect(() => {
     loadAll()
@@ -345,6 +357,22 @@ export default function OrcamentoDetail() {
       .then((u) => setSystemUsers(u))
       .catch(() => {})
   }, [loadAll])
+
+  // Timeout de segurança (~8s): se por qualquer falha assíncrona o loading continuar true, desliga
+  useEffect(() => {
+    if (!loading) return
+    const timer = setTimeout(() => {
+      setLoading((prev) => {
+        if (prev) {
+          console.warn('Timeout de segurança atingido (8s) em OrcamentoDetail.')
+          setLoadError((old) => old || 'Tempo limite para carregar o orçamento esgotado.')
+          return false
+        }
+        return false
+      })
+    }, 8000)
+    return () => clearTimeout(timer)
+  }, [loading])
 
   // Busca de clientes para autocomplete
   useEffect(() => {
@@ -1367,8 +1395,47 @@ export default function OrcamentoDetail() {
     )
   }
 
-  if (!orcamento) {
-    return <div className="p-8 text-center text-xs text-slate-500">Orçamento não encontrado.</div>
+  if (loadError || !orcamento) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center p-6 text-center">
+        <div className="max-w-md w-full bg-white rounded-xl border border-slate-200 p-8 shadow-sm space-y-4">
+          <div className="h-12 w-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+            <AlertCircle className="h-6 w-6" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-base font-bold text-slate-900">
+              {loadError || 'Orçamento não encontrado'}
+            </h2>
+            <p className="text-xs text-slate-500">
+              Não foi possível localizar as informações deste orçamento ou a URL informada é
+              inválida.
+            </p>
+          </div>
+          <div className="pt-2 flex flex-col sm:flex-row gap-2 justify-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/orcamentos')}
+              className="text-xs font-semibold gap-1.5"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span>Voltar para Orçamentos</span>
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setLoading(true)
+                loadAll()
+              }}
+              className="text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span>Tentar Novamente</span>
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const os = orcamento.expand?.id_os
