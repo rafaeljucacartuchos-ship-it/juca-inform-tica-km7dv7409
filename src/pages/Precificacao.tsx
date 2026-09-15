@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
   Tag,
   Calculator,
@@ -19,6 +19,7 @@ import {
   DollarSign,
   Layers,
   ArrowUpDown,
+  FileText,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -64,6 +65,7 @@ import { PaymentMethodsTableCard } from '@/components/PaymentMethodsTableCard'
 
 export default function Precificacao() {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const initialProductId = searchParams.get('productId') || ''
   const initialMode = (searchParams.get('tab') as string) || 'produto'
 
@@ -672,7 +674,7 @@ export default function Precificacao() {
                   variant="outline"
                   className="border-indigo-200 bg-indigo-50 text-indigo-700 text-[10px] font-bold"
                 >
-                  v0.0.189
+                  v0.0.197
                 </Badge>
               </div>
               <p className="text-xs text-slate-500">
@@ -1335,11 +1337,37 @@ export default function Precificacao() {
 
                       {/* Botões de Ação */}
                       <div className="space-y-2 pt-2">
+                        <Button
+                          type="button"
+                          disabled={!calcResult1?.isPossible || !calcResult1?.salePrice}
+                          onClick={() => {
+                            const item = {
+                              tipo: 'produto',
+                              id_produto: selectedProduct ? selectedProduct.id : null,
+                              descricao: selectedProduct?.name || 'Item Precificado',
+                              quantidade: 1,
+                              valor_unitario: calcResult1?.salePrice || 0,
+                              valor_total_item: calcResult1?.salePrice || 0,
+                            }
+                            navigate('/orcamentos/novo', {
+                              state: {
+                                fromPricing: true,
+                                item,
+                                cliente: null,
+                              },
+                            })
+                          }}
+                          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 gap-1.5"
+                        >
+                          <FileText className="h-4 w-4" />
+                          <span>Enviar para Orçamento</span>
+                        </Button>
+
                         {selectedProduct ? (
                           <Button
                             type="button"
                             onClick={() => setConfirmApplyModalOpen(true)}
-                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 gap-1.5 shadow-xs"
+                            className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold h-10 gap-1.5 shadow-xs"
                           >
                             <CheckCircle2 className="h-4 w-4" />
                             <span>Aplicar preço ao produto</span>
@@ -1798,8 +1826,35 @@ export default function Precificacao() {
                       <div className="pt-2 space-y-2">
                         <Button
                           type="button"
+                          disabled={!calcResult2?.isPossible || !calcResult2?.salePrice}
+                          onClick={() => {
+                            const item = {
+                              tipo: 'produto',
+                              id_produto: null,
+                              descricao: 'Item Avulso Precificado',
+                              quantidade: 1,
+                              valor_unitario: calcResult2?.salePrice || 0,
+                              valor_total_item: calcResult2?.salePrice || 0,
+                            }
+                            navigate('/orcamentos/novo', {
+                              state: {
+                                fromPricing: true,
+                                item,
+                                cliente: null,
+                              },
+                            })
+                          }}
+                          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 gap-1.5"
+                        >
+                          <FileText className="h-4 w-4" />
+                          <span>Enviar para Orçamento</span>
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
                           onClick={() => handleCopySummary(calcResult2, 'Precificação Avulsa')}
-                          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 gap-1.5 shadow-xs"
+                          className="w-full text-slate-700 font-bold h-9 gap-1.5 border-slate-200"
                         >
                           <Copy className="h-4 w-4" />
                           <span>Copiar Resultado</span>
@@ -2247,40 +2302,73 @@ export default function Precificacao() {
                         detalheVariaveis={calcResult3.fatias.custosVariaveis.detalhe}
                       />
 
-                      {linkedProduct3 && (
-                        <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-200 space-y-2">
-                          <div className="text-xs">
-                            <span className="text-slate-600 block">Produto Vinculado:</span>
-                            <span className="font-bold text-indigo-950">{linkedProduct3.name}</span>
-                          </div>
-                          <Button
-                            type="button"
-                            onClick={() =>
-                              handleApplyPriceToProduct(linkedProduct3, calcResult3, 'rapida')
+                      <div className="space-y-2 pt-2">
+                        <Button
+                          type="button"
+                          disabled={!calcResult3?.isPossible || !calcResult3?.salePrice}
+                          onClick={() => {
+                            const item = {
+                              tipo: 'produto',
+                              id_produto: linkedProduct3?.id || null,
+                              descricao:
+                                linkedProduct3?.name ||
+                                newProductName ||
+                                'Item Precificado (Rápida)',
+                              quantidade: 1,
+                              valor_unitario: calcResult3?.salePrice || 0,
+                              valor_total_item: calcResult3?.salePrice || 0,
                             }
-                            disabled={applyingPrice}
-                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-9"
-                          >
-                            <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                            <span>
-                              {applyingPrice
-                                ? 'Aplicando...'
-                                : 'Aplicar Preço ao Produto Vinculado'}
-                            </span>
-                          </Button>
-                        </div>
-                      )}
+                            navigate('/orcamentos/novo', {
+                              state: {
+                                fromPricing: true,
+                                item,
+                                cliente: null,
+                              },
+                            })
+                          }}
+                          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 gap-1.5"
+                        >
+                          <FileText className="h-4 w-4" />
+                          <span>Enviar para Orçamento</span>
+                        </Button>
 
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleCopySummary(calcResult3, 'Precificação Rápida')}
-                        className="w-full text-xs text-slate-600 hover:text-slate-900 gap-1.5"
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                        <span>Copiar Resumo</span>
-                      </Button>
+                        {linkedProduct3 && (
+                          <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-200 space-y-2">
+                            <div className="text-xs">
+                              <span className="text-slate-600 block">Produto Vinculado:</span>
+                              <span className="font-bold text-indigo-950">
+                                {linkedProduct3.name}
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              onClick={() =>
+                                handleApplyPriceToProduct(linkedProduct3, calcResult3, 'rapida')
+                              }
+                              disabled={applyingPrice}
+                              className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs h-9"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                              <span>
+                                {applyingPrice
+                                  ? 'Aplicando...'
+                                  : 'Aplicar Preço ao Produto Vinculado'}
+                              </span>
+                            </Button>
+                          </div>
+                        )}
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCopySummary(calcResult3, 'Precificação Rápida')}
+                          className="w-full text-xs text-slate-600 hover:text-slate-900 gap-1.5"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          <span>Copiar Resumo</span>
+                        </Button>
+                      </div>
                     </>
                   ) : (
                     <div className="text-center py-8 text-rose-600 text-xs">

@@ -98,6 +98,7 @@ const App = () => {
                     <Route element={<PermissionRoute module="ordens" />}>
                       <Route path="/ordens/:id/imprimir" element={<OrdemPrint />} />
                       <Route path="/ordens/:id/assinatura" element={<OrdemAssinatura />} />
+                      <Route path="/orcamentos/novo" element={<OrcamentoDetail />} />
                       <Route path="/orcamentos/:id" element={<OrcamentoDetail />} />
                       <Route path="/orcamentos/:id/imprimir" element={<OrcamentoPrint />} />
                     </Route>{' '}
