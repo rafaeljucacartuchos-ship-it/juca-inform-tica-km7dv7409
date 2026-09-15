@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowLeft,
   Plus,
@@ -25,6 +25,7 @@ import {
   ExternalLink,
   Package,
   Wrench,
+  Save,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -61,6 +62,7 @@ import {
   getOrcamento,
   getOrcamentoItens,
   getOrcamentoAnexos,
+  createOrcamento,
   updateOrcamento,
   deleteOrcamentoItem,
   createOrcamentoItem,
@@ -140,17 +142,39 @@ const STATUS_CONFIG: Record<
   },
 }
 
+interface PricingLocationState {
+  fromPricing?: boolean
+  item?: {
+    tipo?: 'produto' | 'servico'
+    id_produto?: string | null
+    descricao?: string
+    quantidade?: number
+    valor_unitario?: number
+    valor_total_item?: number
+  }
+  cliente?: {
+    id?: string
+    name?: string
+    phone?: string
+  } | null
+}
+
 export default function OrcamentoDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
   const { toast } = useToast()
+
+  const isNew = id === 'novo'
+  const navState = (location.state as PricingLocationState) || null
 
   const [orcamento, setOrcamento] = useState<Orcamento | null>(null)
   const [items, setItems] = useState<OrcamentoItem[]>([])
   const [anexos, setAnexos] = useState<OrcamentoAnexo[]>([])
   const [loading, setLoading] = useState(true)
   const [parcelasInput, setParcelasInput] = useState<string>('1')
+  const [savingNewOrcamento, setSavingNewOrcamento] = useState(false)
 
   // Modais auxiliares
   const [itemModalOpen, setItemModalOpen] = useState(false)
@@ -194,6 +218,79 @@ export default function OrcamentoDetail() {
 
   const loadAll = useCallback(async () => {
     if (!id) return
+
+    // Se for rota de novo orçamento (/orcamentos/novo), monta rascunho em memória sem nenhuma chamada ao banco
+    if (id === 'novo') {
+      const initialItems: OrcamentoItem[] = []
+      if (navState?.item) {
+        const itemTipo = navState.item.tipo || 'produto'
+        const itemQtd =
+          navState.item.quantidade && navState.item.quantidade > 0 ? navState.item.quantidade : 1
+        const itemUnit = navState.item.valor_unitario || 0
+        const itemTotal = navState.item.valor_total_item ?? itemQtd * itemUnit
+
+        initialItems.push({
+          id: `draft-item-${Date.now()}`,
+          id_orcamento: 'novo',
+          tipo: itemTipo,
+          id_produto: navState.item.id_produto || undefined,
+          descricao:
+            navState.item.descricao ||
+            (itemTipo === 'servico' ? 'Serviço Precificado' : 'Item Precificado'),
+          quantidade: itemQtd,
+          valor_unitario: itemUnit,
+          desconto_item: 0,
+          desconto_item_tipo: 'valor',
+          valor_total_item: itemTotal,
+          created: new Date().toISOString(),
+          updated: new Date().toISOString(),
+        } as OrcamentoItem)
+      }
+
+      const initialSubtotal = initialItems.reduce((acc, it) => acc + (it.valor_total_item || 0), 0)
+
+      const draftOrcamento: Orcamento = {
+        id: 'novo',
+        numero_orcamento: 'NOVO ORÇAMENTO',
+        status: 'rascunho',
+        validade: 15,
+        forma_pagamento: 'pix',
+        parcelas: 1,
+        entrada: 0,
+        restante: initialSubtotal,
+        desconto_total_valor: 0,
+        desconto_total_tipo: 'valor',
+        desconto_total_percentual: 0,
+        subtotal: initialSubtotal,
+        total_geral: initialSubtotal,
+        cliente_id: navState?.cliente?.id || undefined,
+        nome_cliente_livre: navState?.cliente?.name || '',
+        telefone_cliente_livre: navState?.cliente?.phone || '',
+        id_usuario_criador: user?.id,
+        created: new Date().toISOString(),
+        updated: new Date().toISOString(),
+        expand: navState?.cliente?.id
+          ? {
+              cliente_id: {
+                id: navState.cliente.id,
+                name: navState.cliente.name || '',
+                phone: navState.cliente.phone || '',
+                created: '',
+                updated: '',
+              } as Customer,
+            }
+          : undefined,
+      } as Orcamento
+
+      setOrcamento(draftOrcamento)
+      setItems(initialItems)
+      setAnexos([])
+      setParcelasInput('1')
+      setJustificativaDesconto('')
+      setLoading(false)
+      return
+    }
+
     try {
       // 1. Tenta buscar o orçamento diretamente pelo ID
       let o: Orcamento | null = null
@@ -270,18 +367,22 @@ export default function OrcamentoDetail() {
   }, [customerSearchQuery])
 
   useRealtime('orcamentos', (e) => {
-    // Evita sobrescrever estado local se usuário estiver digitando
-    if (e.record?.id === id && !autoSaveTimerRef.current) {
+    // Evita sobrescrever estado local se usuário estiver digitando ou se for orçamento novo em memória
+    if (!isNew && e.record?.id === id && !autoSaveTimerRef.current) {
       loadAll()
     }
   })
-  useRealtime('orcamento_itens', () => loadAll())
-  useRealtime('orcamento_anexos', () => loadAll())
+  useRealtime('orcamento_itens', () => {
+    if (!isNew) loadAll()
+  })
+  useRealtime('orcamento_anexos', () => {
+    if (!isNew) loadAll()
+  })
 
-  // Salvamento automático com debounce de 600ms
+  // Salvamento automático com debounce de 600ms (apenas quando não é novo em memória)
   const triggerAutoSave = (fields: Partial<Orcamento>) => {
-    if (!id || isLocked) return
     setOrcamento((prev) => (prev ? { ...prev, ...fields } : prev))
+    if (!id || isNew || isLocked) return
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
     autoSaveTimerRef.current = setTimeout(async () => {
       autoSaveTimerRef.current = null
@@ -360,12 +461,14 @@ export default function OrcamentoDetail() {
 
     setOrcamento((prev) => (prev ? { ...prev, ...payload } : prev))
 
-    try {
-      await updateOrcamento(id, payload)
-      await recalculateOrcamentoTotals(id)
-      await loadAll()
-    } catch {
-      /* best-effort */
+    if (!isNew) {
+      try {
+        await updateOrcamento(id, payload)
+        await recalculateOrcamentoTotals(id)
+        await loadAll()
+      } catch {
+        /* best-effort */
+      }
     }
   }
 
@@ -396,6 +499,30 @@ export default function OrcamentoDetail() {
       }
 
       const unitPrice = found.price || 0
+
+      if (isNew) {
+        const newItem: OrcamentoItem = {
+          id: `draft-item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          id_orcamento: 'novo',
+          tipo: 'produto',
+          id_produto: found.id,
+          descricao: found.name,
+          quantidade: 1,
+          valor_unitario: unitPrice,
+          desconto_item: 0,
+          desconto_item_tipo: 'valor',
+          valor_total_item: unitPrice,
+          created: new Date().toISOString(),
+          updated: new Date().toISOString(),
+        } as OrcamentoItem
+        setItems((prev) => [...prev, newItem])
+        toast({
+          title: 'Produto adicionado com sucesso!',
+          description: `${found.name} (Qtd: 1)`,
+        })
+        return
+      }
+
       await createOrcamentoItem({
         id_orcamento: id,
         tipo: 'produto',
@@ -421,6 +548,11 @@ export default function OrcamentoDetail() {
   // Exclusão de item com confirmação
   const handleDeleteItem = async (itemId: string, desc: string) => {
     if (!confirm(`Deseja remover o item "${desc}" do orçamento?`)) return
+    if (isNew) {
+      setItems((prev) => prev.filter((it) => it.id !== itemId))
+      toast({ title: 'Item removido do orçamento' })
+      return
+    }
     try {
       await deleteOrcamentoItem(itemId)
       if (id) await recalculateOrcamentoTotals(id)
@@ -434,8 +566,31 @@ export default function OrcamentoDetail() {
   // Adição direta de linha de serviço cadastrado
   const handleSelectServicoCadastrado = async (servico: SelectedServicoCadastrado) => {
     if (!id || isLocked) return
+    const unitPrice = servico.valorUnitario || 0
+    if (isNew) {
+      const newItem: OrcamentoItem = {
+        id: `draft-item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        id_orcamento: 'novo',
+        tipo: 'servico',
+        id_produto: servico.id,
+        descricao: servico.descricao,
+        quantidade: 1,
+        valor_unitario: unitPrice,
+        desconto_item: 0,
+        desconto_item_tipo: 'valor',
+        valor_total_item: unitPrice,
+        created: new Date().toISOString(),
+        updated: new Date().toISOString(),
+      } as OrcamentoItem
+      setItems((prev) => [...prev, newItem])
+      toast({
+        title: 'Serviço adicionado!',
+        description: `${servico.descricao} (R$ ${unitPrice.toFixed(2)})`,
+      })
+      return
+    }
+
     try {
-      const unitPrice = servico.valorUnitario || 0
       await createOrcamentoItem({
         id_orcamento: id,
         tipo: 'servico',
@@ -455,6 +610,83 @@ export default function OrcamentoDetail() {
       await loadAll()
     } catch {
       toast({ title: 'Erro ao incluir serviço selecionado', variant: 'destructive' })
+    }
+  }
+
+  // Salvar novo orçamento no banco a partir do rascunho em memória
+  const handleSalvarOrcamentoNovo = async () => {
+    if (!isNew || savingNewOrcamento) return
+    if (items.length === 0) {
+      toast({
+        title: 'Adicione pelo menos um item',
+        description: 'Inclua ao menos um produto ou serviço antes de salvar o orçamento.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setSavingNewOrcamento(true)
+    try {
+      // 1. Cria o registro do orçamento no PocketBase
+      const createdOrcamento = await createOrcamento({
+        id_os: null,
+        id_usuario_criador: user?.id,
+        validade: orcamento?.validade || 15,
+        observacoes: orcamento?.observacoes || '',
+        cliente_id: orcamento?.cliente_id || null,
+        nome_cliente_livre: orcamento?.nome_cliente_livre || '',
+        telefone_cliente_livre: orcamento?.telefone_cliente_livre || '',
+        responsavel_id: orcamento?.responsavel_id || null,
+        equipamento_independente: orcamento?.equipamento_independente || '',
+        defeito_independente: orcamento?.defeito_independente || '',
+      })
+
+      // 2. Cria cada item em memória associado ao novo ID
+      for (const it of items) {
+        await createOrcamentoItem({
+          id_orcamento: createdOrcamento.id,
+          tipo: it.tipo,
+          id_produto: it.id_produto || null,
+          descricao: it.descricao,
+          quantidade: it.quantidade,
+          valor_unitario: it.valor_unitario,
+          desconto_item: it.desconto_item || 0,
+          desconto_item_tipo: it.desconto_item_tipo || 'valor',
+          valor_total_item: it.valor_total_item || 0,
+        })
+      }
+
+      // 3. Atualiza condições de pagamento e descontos globais do rascunho
+      await updateOrcamento(createdOrcamento.id, {
+        forma_pagamento: orcamento?.forma_pagamento || 'pix',
+        parcelas: orcamento?.parcelas || 1,
+        entrada: orcamento?.entrada || 0,
+        restante: orcamento?.restante || 0,
+        desconto_total_tipo: orcamento?.desconto_total_tipo || 'valor',
+        desconto_total_valor: orcamento?.desconto_total_valor || 0,
+        desconto_total_percentual: orcamento?.desconto_total_percentual || 0,
+        justificativa_desconto: justificativaDesconto || orcamento?.justificativa_desconto || '',
+      })
+
+      // 4. Recalcula os totais finais persistidos
+      await recalculateOrcamentoTotals(createdOrcamento.id)
+
+      toast({
+        title: 'Orçamento salvo com sucesso!',
+        description: `Orçamento ${createdOrcamento.numero_orcamento} gerado com sucesso.`,
+      })
+
+      // 5. Redireciona para a tela do orçamento persistido
+      navigate(`/orcamentos/${createdOrcamento.id}`, { replace: true })
+    } catch (err: any) {
+      console.error('Erro ao salvar novo orçamento:', err)
+      toast({
+        title: 'Erro ao salvar orçamento',
+        description: err?.message || 'Não foi possível gravar o orçamento. Tente novamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingNewOrcamento(false)
     }
   }
 
@@ -1147,53 +1379,77 @@ export default function OrcamentoDetail() {
     <div className="space-y-6 pb-12">
       {/* Top Bar e Navegação */}
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() =>
-              orcamento.id_os ? navigate(`/ordens/${orcamento.id_os}`) : navigate('/orcamentos')
-            }
-            className="h-9 w-9 shrink-0"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 font-mono">
-                {orcamento.numero_orcamento}
-              </h1>
-              <Badge
-                className={`${statusCfg.bg} ${statusCfg.color} ${statusCfg.border} border text-xs font-semibold`}
-              >
-                {statusCfg.label}
-              </Badge>
-              {!orcamento.id_os && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() =>
+                orcamento.id_os ? navigate(`/ordens/${orcamento.id_os}`) : navigate('/orcamentos')
+              }
+              className="h-9 w-9 shrink-0"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 font-mono">
+                  {orcamento.numero_orcamento}
+                </h1>
                 <Badge
-                  variant="outline"
-                  className="text-[10px] bg-slate-50 text-slate-600 border-slate-300"
+                  className={`${statusCfg.bg} ${statusCfg.color} ${statusCfg.border} border text-xs font-semibold`}
                 >
-                  Orçamento Independente
+                  {isNew ? 'Rascunho (Não Salvo)' : statusCfg.label}
                 </Badge>
-              )}
-              {orcamento.status === 'substituido' && (
-                <span className="text-[11px] text-slate-400 italic">
-                  (Histórico - substituído por novo orçamento)
-                </span>
-              )}
+                {!orcamento.id_os && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] bg-slate-50 text-slate-600 border-slate-300"
+                  >
+                    Orçamento Independente
+                  </Badge>
+                )}
+                {orcamento.status === 'substituido' && (
+                  <span className="text-[11px] text-slate-400 italic">
+                    (Histórico - substituído por novo orçamento)
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 truncate">
+                {orcamento.id_os
+                  ? `Vinculado à O.S. #${os?.number || '—'} • Cliente: ${activeCustomerName}`
+                  : `Cliente: ${activeCustomerName} • Resp: ${activeResponsibleName}`}
+              </p>
             </div>
-            <p className="text-xs text-slate-500 truncate">
-              {orcamento.id_os
-                ? `Vinculado à O.S. #${os?.number || '—'} • Cliente: ${activeCustomerName}`
-                : `Cliente: ${activeCustomerName} • Resp: ${activeResponsibleName}`}
-            </p>
           </div>
+
+          {/* Botão de Destaque para Salvar Orçamento Novo em Memória */}
+          {isNew && (
+            <Button
+              size="default"
+              disabled={savingNewOrcamento || items.length === 0}
+              onClick={handleSalvarOrcamentoNovo}
+              className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2 shadow-sm shrink-0"
+            >
+              {savingNewOrcamento ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Salvando Orçamento...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  <span>Salvar Orçamento</span>
+                </>
+              )}
+            </Button>
+          )}
         </div>
 
         {/* Resumo compacto de Alertas / Ações de Status */}
         <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs">
           <span className="font-semibold text-slate-700">Fluxo do Orçamento:</span>
-          {orcamento.status === 'rascunho' && (
+          {!isNew && orcamento.status === 'rascunho' && (
             <Button
               size="sm"
               variant="outline"
@@ -1210,9 +1466,14 @@ export default function OrcamentoDetail() {
           {/* Botão Enviar link ao cliente (copia URL e abre WhatsApp) */}
           <Button
             size="sm"
+            disabled={isNew}
             onClick={handleEnviarLinkCliente}
             className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shadow-xs font-semibold"
-            title="Copiar URL pública da proposta e abrir WhatsApp do cliente"
+            title={
+              isNew
+                ? 'Salve o orçamento antes de enviar o link'
+                : 'Copiar URL pública da proposta e abrir WhatsApp do cliente'
+            }
           >
             <LinkIcon className="h-3.5 w-3.5" /> Enviar link ao cliente
           </Button>
@@ -2167,12 +2428,14 @@ export default function OrcamentoDetail() {
           </Card>
 
           {/* FOTOS DO ORÇAMENTO (CÂMERA / GALERIA - MÁX 5) */}
-          <OrcamentoPhotos
-            orcamentoId={orcamento.id}
-            anexos={anexos}
-            canEdit={canEdit}
-            onUpdated={loadAll}
-          />
+          {!isNew && (
+            <OrcamentoPhotos
+              orcamentoId={orcamento.id}
+              anexos={anexos}
+              canEdit={canEdit}
+              onUpdated={loadAll}
+            />
+          )}
 
           {/* OBSERVAÇÕES E CONDIÇÕES */}
           <Card className="border-slate-200 shadow-xs">
@@ -2853,7 +3116,11 @@ export default function OrcamentoDetail() {
         itemToEdit={editingItem}
         defaultKind={modalDefaultKind}
         lockKind={modalLockKind}
-        onSaved={loadAll}
+        onSaved={() => {
+          if (!isNew) {
+            loadAll()
+          }
+        }}
       />
 
       {/* Modal de Assinatura com Screen Orientation API Retrato */}
