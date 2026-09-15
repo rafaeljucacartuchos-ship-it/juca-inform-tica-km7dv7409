@@ -147,8 +147,8 @@ routerAdd('POST', '/backend/v1/proposta/{token}/aprovar', (e) => {
       techId = osRecord.getString('technician')
 
       osRecord.set('status', 'orcamento_aprovado')
-      // Seta o total da O.S. com o total_geral do orçamento aprovado
-      if (orcTotalGeral >= 0) {
+      // Seta o total da O.S. com o total_geral do orçamento aprovado (mesmo se for 0 ou maior)
+      if (orcTotalGeral !== undefined && orcTotalGeral !== null) {
         osRecord.set('total', orcTotalGeral)
       }
       $app.save(osRecord)

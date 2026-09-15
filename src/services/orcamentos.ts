@@ -360,7 +360,7 @@ export async function createOrcamento(params: {
 
   const novo = await pb.collection('orcamentos').create<Orcamento>(createPayload)
 
-  // 4. Se vinculado a OS, atualiza o status da OS para "aguardando_orcamento"
+  // 4. Se vinculado a OS, atualiza o status da OS para "aguardando_orcamento" e sincroniza total
   if (id_os) {
     try {
       await updateOsStatus(
@@ -372,6 +372,12 @@ export async function createOrcamento(params: {
     } catch (e) {
       console.warn('Erro ao atualizar status da OS para aguardando_orcamento:', e)
     }
+
+    try {
+      await syncServiceOrderTotal(id_os)
+    } catch (e) {
+      console.warn('Erro ao sincronizar total da OS após criação do orçamento:', e)
+    }
   }
 
   return novo
@@ -381,15 +387,41 @@ export async function createOrcamento(params: {
  * Atualiza campos de um orçamento
  */
 export async function updateOrcamento(id: string, data: Partial<Orcamento>): Promise<Orcamento> {
-  return await pb.collection('orcamentos').update<Orcamento>(id, data)
+  const updated = await pb.collection('orcamentos').update<Orcamento>(id, data)
+  if (updated.id_os) {
+    try {
+      await syncServiceOrderTotal(updated.id_os)
+    } catch {
+      /* best effort */
+    }
+  }
+  return updated
 }
 
 /**
  * Exclui um orçamento e seus itens/anexos
  */
 export async function deleteOrcamento(id: string): Promise<boolean> {
+  let targetOsId: string | null = null
+  try {
+    const existing = await pb.collection('orcamentos').getOne<Orcamento>(id, {
+      fields: 'id,id_os',
+    })
+    targetOsId = existing.id_os || null
+  } catch {
+    /* ignore */
+  }
+
   // Itens e anexos possuem cascadeDelete: true, mas removemos por garantia
-  return await pb.collection('orcamentos').delete(id)
+  const res = await pb.collection('orcamentos').delete(id)
+  if (targetOsId) {
+    try {
+      await syncServiceOrderTotal(targetOsId)
+    } catch {
+      /* best effort */
+    }
+  }
+  return res
 }
 
 /**
@@ -541,6 +573,7 @@ export async function uploadOrcamentoSignature(
         'orcamento_aprovado',
         `Orçamento ${updatedOrc.numero_orcamento} com assinatura do ${signerLabel} registrada.`,
       )
+      await syncServiceOrderTotal(updatedOrc.id_os)
     }
   } catch (err) {
     console.warn('Erro ao atualizar status da O.S. para orcamento_aprovado após assinatura:', err)
@@ -771,7 +804,7 @@ export async function sendOrcamentoToFaturamento(
     status: 'faturado',
   })
 
-  // 5. Se vinculado a OS, registra no histórico da OS (status da O.S. = 'closed' com histórico)
+  // 5. Se vinculado a OS, registra no histórico da OS (status da O.S. = 'closed' com histórico) e sincroniza total
   if (orc.id_os) {
     try {
       await updateOsStatus(
@@ -780,6 +813,11 @@ export async function sendOrcamentoToFaturamento(
         `Orçamento ${orc.numero_orcamento} faturado e O.S. finalizada com sucesso. Lançamento financeiro de R$ ${totalAmount.toFixed(2)} gerado.`,
         userId,
       )
+    } catch {
+      /* intentionally ignored */
+    }
+    try {
+      await syncServiceOrderTotal(orc.id_os)
     } catch {
       /* intentionally ignored */
     }

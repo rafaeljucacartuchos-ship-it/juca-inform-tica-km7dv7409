@@ -316,6 +316,12 @@ export default function OrdensDeServico() {
         note: `Status alterado no Kanban`,
         changed_by: user?.id,
       })
+      // Sincroniza o total da OS ao mudar status (especialmente ao concluir/fechar)
+      try {
+        await syncServiceOrderTotal(orderId)
+      } catch {
+        /* best effort */
+      }
       toast({ title: 'Status da OS atualizado com sucesso!' })
       const changedOrder = orders.find((o) => o.id === orderId)
       if (changedOrder && user?.role !== 'technician') {

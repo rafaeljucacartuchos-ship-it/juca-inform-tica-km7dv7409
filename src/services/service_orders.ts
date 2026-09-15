@@ -36,13 +36,53 @@ export const getAllOrderItems = () =>
     sort: 'created',
   })
 
-export const createOrderItem = (data: Partial<ServiceOrderItem>) =>
-  pb.collection('service_order_items').create<ServiceOrderItem>(data)
+export const createOrderItem = async (data: Partial<ServiceOrderItem>) => {
+  const item = await pb.collection('service_order_items').create<ServiceOrderItem>(data)
+  if (data.service_order) {
+    try {
+      await syncServiceOrderTotal(data.service_order)
+    } catch {
+      /* best effort */
+    }
+  }
+  return item
+}
 
-export const updateOrderItem = (id: string, data: Partial<ServiceOrderItem>) =>
-  pb.collection('service_order_items').update<ServiceOrderItem>(id, data)
+export const updateOrderItem = async (id: string, data: Partial<ServiceOrderItem>) => {
+  const item = await pb.collection('service_order_items').update<ServiceOrderItem>(id, data)
+  const orderId = data.service_order || item.service_order
+  if (orderId) {
+    try {
+      await syncServiceOrderTotal(orderId)
+    } catch {
+      /* best effort */
+    }
+  }
+  return item
+}
 
-export const deleteOrderItem = (id: string) => pb.collection('service_order_items').delete(id)
+export const deleteOrderItem = async (id: string, orderId?: string) => {
+  let targetOrderId = orderId
+  if (!targetOrderId) {
+    try {
+      const item = await pb.collection('service_order_items').getOne<ServiceOrderItem>(id, {
+        fields: 'id,service_order',
+      })
+      targetOrderId = item.service_order
+    } catch {
+      /* ignore */
+    }
+  }
+  const result = await pb.collection('service_order_items').delete(id)
+  if (targetOrderId) {
+    try {
+      await syncServiceOrderTotal(targetOrderId)
+    } catch {
+      /* best effort */
+    }
+  }
+  return result
+}
 
 export const deleteServiceOrder = async (id: string) => {
   // Remove itens associados em cascata antes de deletar a OS para manter integridade

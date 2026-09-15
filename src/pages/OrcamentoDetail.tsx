@@ -1100,6 +1100,11 @@ export default function OrcamentoDetail() {
           `Orçamento ${orcamento.numero_orcamento} rejeitado. Motivo: ${motivoRejeicao.trim()}`,
           user?.id,
         )
+        try {
+          await syncServiceOrderTotal(orcamento.id_os)
+        } catch {
+          /* best effort */
+        }
       }
       toast({ title: 'Orçamento marcado como rejeitado.' })
       setRejeicaoModalOpen(false)
