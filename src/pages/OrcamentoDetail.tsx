@@ -188,6 +188,8 @@ export default function OrcamentoDetail() {
   const [scannerOpen, setScannerOpen] = useState(false)
   const [signatureModalOpen, setSignatureModalOpen] = useState(false)
   const [signerRole, setSignerRole] = useState<'customer' | 'technician'>('customer')
+  const [aprovarSemAssinaturaOpen, setAprovarSemAssinaturaOpen] = useState(false)
+  const [approvingSemAssinatura, setApprovingSemAssinatura] = useState(false)
   const [faturamentoConfirmOpen, setFaturamentoConfirmOpen] = useState(false)
   const [faturamentoSuccessModalOpen, setFaturamentoSuccessModalOpen] = useState(false)
   const [faturamentoSuccessData, setFaturamentoSuccessData] = useState<{
@@ -1021,6 +1023,59 @@ export default function OrcamentoDetail() {
     }
   }
 
+  // Aprovação Manual sem Assinatura (v0.0.205)
+  const handleAprovarSemAssinatura = async () => {
+    if (!orcamento || isLocked) return
+
+    setApprovingSemAssinatura(true)
+    try {
+      const now = new Date()
+      const dataFormatada = now.toLocaleDateString('pt-BR')
+      const horaFormatada = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      const userName = user?.name ? ` por ${user.name}` : ''
+      const manualLog = `[Aprovado manualmente sem assinatura em ${dataFormatada} às ${horaFormatada}${userName}]`
+
+      const currentObs = (orcamento.observacoes || '').trim()
+      const updatedObs = currentObs ? `${currentObs}\n\n${manualLog}` : manualLog
+
+      await updateOrcamento(orcamento.id, {
+        status: 'aprovado',
+        observacoes: updatedObs,
+      })
+
+      // Recalcula totais do orçamento garantindo valores atualizados no banco
+      await recalculateOrcamentoTotals(orcamento.id)
+
+      // Atualiza status da OS vinculada e sincroniza o total na OS (mantém cadeia)
+      if (orcamento.id_os) {
+        await updateOsStatus(
+          orcamento.id_os,
+          'orcamento_aprovado',
+          `Orçamento ${orcamento.numero_orcamento} aprovado manualmente sem assinatura${userName} em ${dataFormatada} às ${horaFormatada}.`,
+          user?.id,
+        )
+        await syncServiceOrderTotal(orcamento.id_os)
+      }
+
+      toast({
+        title: 'Orçamento aprovado sem assinatura!',
+        description: 'Status atualizado para aprovado e total da O.S. sincronizado.',
+      })
+
+      setAprovarSemAssinaturaOpen(false)
+      loadAll()
+    } catch (err: any) {
+      console.error('Erro ao aprovar sem assinatura:', err)
+      toast({
+        title: 'Erro ao aprovar orçamento',
+        description: err?.message || 'Falha ao registrar aprovação manual.',
+        variant: 'destructive',
+      })
+    } finally {
+      setApprovingSemAssinatura(false)
+    }
+  }
+
   // Rejeição com motivo OBRIGATÓRIO
   const handleRejeitar = async () => {
     if (!orcamento) return
@@ -1612,21 +1667,43 @@ export default function OrcamentoDetail() {
             </Button>
           )}
 
-          {orcamento.status !== 'aprovado' && orcamento.status !== 'faturado' && (
-            <Button
-              size="sm"
-              onClick={() => {
-                if (!orcamento.assinatura_cliente) {
-                  setSignerRole('customer')
-                  setSignatureModalOpen(true)
-                } else {
-                  handleAprovar()
-                }
-              }}
-              className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
-            >
-              <CheckCircle className="h-3.5 w-3.5" /> Aprovar Orçamento (com Assinatura)
-            </Button>
+          {orcamento.status !== 'aprovado' &&
+            orcamento.status !== 'faturado' &&
+            orcamento.status !== 'rejeitado' &&
+            orcamento.status !== 'substituido' &&
+            canEdit && (
+              <>
+                <Button
+                  size="sm"
+                  onClick={() => setAprovarSemAssinaturaOpen(true)}
+                  className="h-8 text-xs bg-teal-600 hover:bg-teal-700 text-white gap-1 font-semibold shadow-xs"
+                  title="Aprovar orçamento diretamente sem exigir assinatura digital do cliente"
+                >
+                  <CheckCircle className="h-3.5 w-3.5" /> Aprovar sem Assinatura
+                </Button>
+
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (!orcamento.assinatura_cliente) {
+                      setSignerRole('customer')
+                      setSignatureModalOpen(true)
+                    } else {
+                      handleAprovar()
+                    }
+                  }}
+                  className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1 font-semibold shadow-xs"
+                >
+                  <CheckCircle className="h-3.5 w-3.5" /> Aprovar Orçamento (com Assinatura)
+                </Button>
+              </>
+            )}
+
+          {orcamento.status === 'aprovado' && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+              <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+              <span>Orçamento Aprovado</span>
+            </div>
           )}
 
           {orcamento.status !== 'rejeitado' && orcamento.status !== 'faturado' && (
@@ -2689,20 +2766,40 @@ export default function OrcamentoDetail() {
                 )}
 
                 {canEdit && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setSignerRole('customer')
-                      setSignatureModalOpen(true)
-                    }}
-                    className="w-full text-xs h-8 font-semibold text-indigo-700 bg-white hover:bg-indigo-50 border-indigo-200"
-                  >
-                    {orcamento.assinatura_cliente
-                      ? 'Refazer Assinatura do Cliente'
-                      : 'Coletar Assinatura do Cliente'}
-                  </Button>
+                  <div className="space-y-1.5 pt-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSignerRole('customer')
+                        setSignatureModalOpen(true)
+                      }}
+                      className="w-full text-xs h-8 font-semibold text-indigo-700 bg-white hover:bg-indigo-50 border-indigo-200"
+                    >
+                      {orcamento.assinatura_cliente
+                        ? 'Refazer Assinatura do Cliente'
+                        : 'Coletar Assinatura do Cliente'}
+                    </Button>
+
+                    {!orcamento.assinatura_cliente &&
+                      orcamento.status !== 'aprovado' &&
+                      orcamento.status !== 'faturado' &&
+                      orcamento.status !== 'rejeitado' &&
+                      orcamento.status !== 'substituido' && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setAprovarSemAssinaturaOpen(true)}
+                          className="w-full text-[11px] h-7 text-teal-700 hover:bg-teal-50 hover:text-teal-800 font-semibold gap-1"
+                          title="Aprovar sem assinatura digital"
+                        >
+                          <CheckCircle className="h-3 w-3 text-teal-600" />
+                          Aprovar sem Assinatura
+                        </Button>
+                      )}
+                  </div>
                 )}
               </div>
 
@@ -3090,6 +3187,92 @@ export default function OrcamentoDetail() {
               className="bg-purple-600 hover:bg-purple-700 text-white font-bold"
             >
               {orcamento.status === 'faturado' ? 'Reenviar ao Grupo' : 'Confirmar e Faturar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmação: Aprovar sem Assinatura (v0.0.205) */}
+      <Dialog open={aprovarSemAssinaturaOpen} onOpenChange={setAprovarSemAssinaturaOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-teal-600" /> Aprovar Orçamento sem Assinatura
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs text-slate-600">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-900 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-amber-950">
+                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                <span>Atenção: aprovação manual sem assinatura do cliente</span>
+              </div>
+              <p className="text-[11px] text-amber-900 leading-relaxed">
+                O orçamento <strong>{orcamento.numero_orcamento}</strong> será marcado como{' '}
+                <strong>Aprovado</strong> sem exigir a coleta de assinatura digital.
+              </p>
+            </div>
+
+            <p>Ao confirmar esta ação:</p>
+            <ul className="list-disc list-inside space-y-1 text-slate-700 pl-1">
+              <li>
+                O status do orçamento será alterado para <strong>Aprovado</strong>.
+              </li>
+              <li>
+                Será registrado nas observações o log de aprovação manual com data, hora e
+                responsável.
+              </li>
+              {orcamento.id_os ? (
+                <li>
+                  A O.S. vinculada terá o status atualizado para <strong>Orçamento Aprovado</strong>{' '}
+                  e seu total recalculado e sincronizado.
+                </li>
+              ) : (
+                <li>Os totais do orçamento serão recalculados e persistidos.</li>
+              )}
+              <li>O orçamento ficará pronto para posterior faturamento e baixa no estoque.</li>
+            </ul>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-700 text-[11px] space-y-0.5">
+              <div>
+                <strong>Cliente:</strong> {activeCustomerName}
+              </div>
+              <div>
+                <strong>Total Geral:</strong> R${' '}
+                {financialSummary.totalGeral.toLocaleString('pt-BR', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={approvingSemAssinatura}
+              onClick={() => setAprovarSemAssinaturaOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={approvingSemAssinatura}
+              onClick={handleAprovarSemAssinatura}
+              className="bg-teal-600 hover:bg-teal-700 text-white font-bold gap-1.5"
+            >
+              {approvingSemAssinatura ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Aprovando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  Confirmar Aprovação sem Assinatura
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
