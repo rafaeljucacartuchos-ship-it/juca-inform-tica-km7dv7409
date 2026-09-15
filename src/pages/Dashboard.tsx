@@ -135,19 +135,26 @@ export default function Dashboard() {
 
   const range = getPeriodRange(period, customStart, customEnd)
 
-  // 1) Métricas de O.S. no período (necessárias para o donut de Valor Gerado por Técnico e Resultado do Período)
-  const periodOrders = useMemo(() => {
+  // 1) Métricas de O.S. no período para cômputo de valor (cada O.S. conta na data de conclusão se concluída/fechada, senão na data de criação)
+  const periodOrdersForValue = useMemo(() => {
     return orders.filter((o) => {
+      if (o.status === 'completed' || o.status === 'closed') {
+        const recs = history.filter((h) => h.service_order === o.id && h.status === 'completed')
+        const completedDate = recs[recs.length - 1]?.created || o.updated
+        if (!completedDate) return false
+        const d = completedDate.substring(0, 10)
+        return d >= range.start && d <= range.end
+      }
       if (!o.created) return false
       const d = o.created.substring(0, 10)
       return d >= range.start && d <= range.end
     })
-  }, [orders, range.start, range.end])
+  }, [orders, history, range.start, range.end])
 
-  // Valor total em O.S. do período (soma do campo total das O.S. criadas no período para os donuts c e d)
+  // Valor total em O.S. do período (soma do campo total das O.S. com data efetiva no período para os donuts c e d)
   const totalValorEmOS = useMemo(() => {
-    return periodOrders.reduce((sum, o) => sum + (o.total || 0), 0)
-  }, [periodOrders])
+    return periodOrdersForValue.reduce((sum, o) => sum + (o.total || 0), 0)
+  }, [periodOrdersForValue])
 
   // 2) Métricas de Orçamentos no período (necessárias para os donuts b e d)
   const periodOrcamentos = useMemo(() => {
@@ -204,13 +211,13 @@ export default function Dashboard() {
 
   // (c) Valor gerado por técnico (pizza comparando o valor das O.S. de cada técnico no período)
   const techValueDistribution = useMemo(() => {
-    return computeTechnicianValueDistribution(technicians, orders, range.start, range.end)
-  }, [technicians, orders, range.start, range.end])
+    return computeTechnicianValueDistribution(technicians, orders, range.start, range.end, history)
+  }, [technicians, orders, range.start, range.end, history])
 
   // (d) Resultado do período como donut: Valor em O.S. vs Orçamentos Aprovados vs Orçamentos Pendentes
   const periodResultDistribution = useMemo(() => {
-    return computePeriodResultDistribution(orders, orcamentos, range.start, range.end)
-  }, [orders, orcamentos, range.start, range.end])
+    return computePeriodResultDistribution(orders, orcamentos, range.start, range.end, history)
+  }, [orders, orcamentos, range.start, range.end, history])
 
   const sortedRecentOrders = useMemo(() => {
     return [...orders].sort((a, b) => {

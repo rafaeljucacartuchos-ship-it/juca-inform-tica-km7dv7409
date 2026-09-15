@@ -343,6 +343,42 @@ export function computeTechnicianDistribution(
   return result
 }
 
+/**
+ * Retorna a data efetiva da O.S. para fins de dashboard:
+ * - Se concluída ou fechada ('completed' ou 'closed'): usa a data do registro 'completed' no status_history,
+ *   com fallback para o campo updated da O.S.
+ * - Caso contrário (não concluída): usa a data de criação (created).
+ */
+export function getOrderEffectiveDate(
+  order: ServiceOrder,
+  history?: StatusHistory[],
+): string | undefined {
+  if (order.status === 'completed' || order.status === 'closed') {
+    if (history && history.length > 0) {
+      const recs = history.filter((h) => h.service_order === order.id && h.status === 'completed')
+      const date = recs[recs.length - 1]?.created || order.updated
+      if (date) return date
+    }
+    return order.updated || order.created
+  }
+  return order.created
+}
+
+/**
+ * Verifica se a O.S. conta seu valor/resultado no período especificado:
+ * Usa a data de conclusão (status_history 'completed' -> updated) se concluída/fechada,
+ * ou a data de criação (created) se em aberto/outros status.
+ */
+export function isOrderInPeriodForValue(
+  order: ServiceOrder,
+  history: StatusHistory[] | undefined,
+  start: string,
+  end: string,
+): boolean {
+  const effectiveDate = getOrderEffectiveDate(order, history)
+  return isDateInRange(effectiveDate, start, end)
+}
+
 export function countCompletedInPeriod(
   orders: ServiceOrder[],
   history: StatusHistory[],
@@ -486,9 +522,11 @@ export function computeTechnicianProduction(
       return isDateInRange(completedDate, start, end)
     }).length
 
-    // Valor total das O.S. dele no período (soma de o.total das O.S. criadas no período, ou total gerado)
-    // O requisito diz: "VALOR TOTAL das O.S. dele (soma dos itens/valor da O.S.)"
-    const osValorTotal = createdOrders.reduce((sum, o) => sum + (o.total || 0), 0)
+    // Valor total das O.S. dele no período:
+    // Conta na DATA DE CONCLUSÃO se concluída/fechada ('completed' ou 'closed');
+    // senão na data de criação (created).
+    const valueOrders = techOrders.filter((o) => isOrderInPeriodForValue(o, history, start, end))
+    const osValorTotal = valueOrders.reduce((sum, o) => sum + (o.total || 0), 0)
 
     // (b) Orçamentos do técnico no período
     const techOrcamentos = orcamentos.filter((orc) => {
@@ -662,9 +700,10 @@ export function computeTechnicianValueDistribution(
   orders: ServiceOrder[],
   start: string,
   end: string,
+  history?: StatusHistory[],
 ): DonutSlice[] {
   const pureTechs = technicians.filter((t) => t.role === 'technician')
-  const periodOrders = orders.filter((o) => isDateInRange(o.created, start, end))
+  const periodOrders = orders.filter((o) => isOrderInPeriodForValue(o, history, start, end))
 
   const techMap = new Map<string, string>()
   pureTechs.forEach((t) => techMap.set(t.id, t.name || 'Sem nome'))
@@ -746,8 +785,9 @@ export function computePeriodResultDistribution(
   orcamentos: Orcamento[],
   start: string,
   end: string,
+  history?: StatusHistory[],
 ): DonutSlice[] {
-  const periodOrders = orders.filter((o) => isDateInRange(o.created, start, end))
+  const periodOrders = orders.filter((o) => isOrderInPeriodForValue(o, history, start, end))
   const periodOrcs = orcamentos.filter((orc) => isDateInRange(orc.created, start, end))
 
   const valorOS = periodOrders.reduce((sum, o) => sum + (o.total || 0), 0)

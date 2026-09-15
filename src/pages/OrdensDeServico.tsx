@@ -37,6 +37,7 @@ import {
   updateServiceOrder,
   addStatusHistory,
   deleteServiceOrder,
+  syncServiceOrderTotal,
 } from '@/services/service_orders'
 import { getCustomers, getCustomerDisplayName, getCustomerPhone } from '@/services/customers'
 import { getTechnicians } from '@/services/users'
