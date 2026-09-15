@@ -131,8 +131,9 @@ routerAdd('POST', '/backend/v1/proposta/{token}/aprovar', (e) => {
 
   const osId = orcamento.getString('id_os')
   const numOrc = orcamento.getString('numero_orcamento')
+  const orcTotalGeral = orcamento.getFloat('total_geral') || 0
 
-  // Aplica efeitos na O.S. (muda status para orcamento_aprovado e cria status_history)
+  // Aplica efeitos na O.S. (muda status para orcamento_aprovado, atualiza total e cria status_history)
   let osNumber = ''
   let custName = ''
   let equipName = ''
@@ -146,6 +147,10 @@ routerAdd('POST', '/backend/v1/proposta/{token}/aprovar', (e) => {
       techId = osRecord.getString('technician')
 
       osRecord.set('status', 'orcamento_aprovado')
+      // Seta o total da O.S. com o total_geral do orçamento aprovado
+      if (orcTotalGeral >= 0) {
+        osRecord.set('total', orcTotalGeral)
+      }
       $app.save(osRecord)
 
       // Histórico de status

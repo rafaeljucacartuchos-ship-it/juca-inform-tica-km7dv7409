@@ -126,7 +126,6 @@ export const addStatusHistory = (data: Partial<StatusHistory>) =>
 export const uploadSignature = async (
   id: string,
   field: 'technician_signature' | 'customer_signature',
-  // O SignaturePad agora entrega um data URL base64 ("data:image/png;base64,...").
   signature: string,
 ) => {
   // Fluxo autenticado (técnico): continua usando multipart/form-data via SDK
@@ -140,4 +139,74 @@ export const uploadSignature = async (
   return pb.collection('service_orders').update<ServiceOrder>(id, formData, {
     expand: 'customer,technician',
   })
+}
+
+/**
+ * Sincroniza e recalcula o campo `total` de uma service_order com base na hierarquia:
+ * (a) Orçamento vinculado (id_os = orderId) com status aprovado ou faturado → total = total_geral dele;
+ * (b) Senão qualquer orçamento vinculado com total_geral > 0 → usar total_geral dele;
+ * (c) Senão soma dos itens de service_order_items (quantity * unit_price, menos desconto + acréscimo da OS quando houver).
+ * Grava em service_orders.total via update e retorna o total atualizado.
+ */
+export async function syncServiceOrderTotal(orderId: string): Promise<number> {
+  if (!orderId) return 0
+
+  let computedTotal = 0
+
+  try {
+    // 1. Busca orçamentos vinculados ordenados pelo mais recente
+    const orcamentosVinculados = await pb.collection('orcamentos').getFullList<{
+      id: string
+      status: string
+      total_geral: number
+      created: string
+    }>({
+      filter: `id_os = "${orderId}"`,
+      sort: '-created',
+    })
+
+    // (a) Orçamento aprovado ou faturado
+    const orcAprovadoOuFaturado = orcamentosVinculados.find(
+      (o) => (o.status === 'aprovado' || o.status === 'faturado') && Number(o.total_geral) >= 0,
+    )
+
+    if (orcAprovadoOuFaturado) {
+      computedTotal = Number(orcAprovadoOuFaturado.total_geral) || 0
+    } else {
+      // (b) Qualquer orçamento vinculado com total_geral > 0
+      const orcComValor = orcamentosVinculados.find((o) => Number(o.total_geral) > 0)
+      if (orcComValor) {
+        computedTotal = Number(orcComValor.total_geral) || 0
+      } else {
+        // (c) Soma de service_order_items
+        const [items, order] = await Promise.all([
+          pb.collection('service_order_items').getFullList<ServiceOrderItem>({
+            filter: `service_order = "${orderId}"`,
+          }),
+          pb.collection('service_orders').getOne<ServiceOrder>(orderId),
+        ])
+
+        const subtotal = items.reduce((sum, item) => {
+          const qty = Number(item.quantity) || 0
+          const unit = Number(item.unit_price) || 0
+          const itemTotal = typeof item.total === 'number' ? item.total : qty * unit
+          return sum + itemTotal
+        }, 0)
+
+        const desc = Number(order.desconto) || 0
+        const acresc = Number(order.acrescimo) || 0
+        computedTotal = Math.max(0, subtotal - desc + acresc)
+      }
+    }
+
+    // Grava no PocketBase
+    await pb.collection('service_orders').update(orderId, {
+      total: computedTotal,
+    })
+
+    return computedTotal
+  } catch (err) {
+    console.error(`[syncServiceOrderTotal] Erro ao sincronizar total da OS ${orderId}:`, err)
+    return computedTotal
+  }
 }

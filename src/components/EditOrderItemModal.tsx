@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { offlinePb } from '@/lib/offline-pb'
 import pb from '@/lib/pocketbase/client'
+import { syncServiceOrderTotal } from '@/services/service_orders'
 
 type Props = {
   open: boolean
@@ -69,27 +70,9 @@ export function EditOrderItemModal({ open, onOpenChange, item, orderId, onSaved 
         total: calculatedSubtotal,
       })
 
-      // Recalcula o subtotal e o total da OS imediatamente
+      // Recalcula o subtotal e o total da OS imediatamente via hierarquia central
       try {
-        const [currentItems, freshOrderData] = await Promise.all([
-          pb.collection('service_order_items').getFullList({
-            filter: `service_order = "${orderId}"`,
-          }),
-          pb.collection('service_orders').getOne(orderId),
-        ])
-        const updatedItems = currentItems.map((it) =>
-          it.id === item.id
-            ? { ...it, quantity: validQty, unit_price: validUnitPrice, total: calculatedSubtotal }
-            : it,
-        )
-        const subtotal = updatedItems.reduce((acc, it) => acc + (Number(it.total) || 0), 0)
-        const desc = Number(freshOrderData.desconto) || 0
-        const acresc = Number(freshOrderData.acrescimo) || 0
-        const newTotal = Math.max(0, subtotal + acresc - desc)
-
-        await offlinePb.update('service_orders', orderId, {
-          total: newTotal,
-        })
+        await syncServiceOrderTotal(orderId)
       } catch {
         /* best effort */
       }

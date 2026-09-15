@@ -53,7 +53,12 @@ import {
   Orcamento,
   OrcamentoItem,
 } from '@/types'
-import { getServiceOrder, getStatusHistory, deleteServiceOrder } from '@/services/service_orders'
+import {
+  getServiceOrder,
+  getStatusHistory,
+  deleteServiceOrder,
+  syncServiceOrderTotal,
+} from '@/services/service_orders'
 import { getCustomerPhone, getCustomerDisplayName } from '@/services/customers'
 import { getActiveOrcamento, getOrcamentoItens, createOrcamento } from '@/services/orcamentos'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
@@ -289,6 +294,13 @@ export default function OrdemDetail() {
         toast({ title: 'Histórico salvo localmente. Será sincronizado quando houver conexão.' })
       }
 
+      // Sincroniza o total da OS com a hierarquia de orçamento e itens
+      try {
+        await syncServiceOrderTotal(order.id)
+      } catch {
+        /* best effort */
+      }
+
       const productItems = orcamentoItens.filter((it) => it.tipo === 'produto')
       toast({
         title: 'Ordem de Serviço finalizada com sucesso!',
@@ -368,6 +380,15 @@ export default function OrdemDetail() {
       if (hist.queued) {
         toast({ title: 'Histórico salvo localmente. Será sincronizado quando houver conexão.' })
       }
+      // Ao transicionar para completed ou closed, sincroniza o total da OS
+      if (newStatus === 'completed' || newStatus === 'closed') {
+        try {
+          await syncServiceOrderTotal(order.id)
+        } catch {
+          /* best effort */
+        }
+      }
+
       if (newStatus === 'completed') {
         const productItems = orcamentoItens.filter((it) => it.tipo === 'produto')
         toast({
@@ -467,6 +488,14 @@ export default function OrdemDetail() {
       if (hist.queued && !upd.queued) {
         toast({ title: 'Histórico salvo localmente. Será sincronizado quando houver conexão.' })
       }
+
+      // Sincroniza o total da OS com a hierarquia de orçamento e itens
+      try {
+        await syncServiceOrderTotal(order.id)
+      } catch {
+        /* best effort */
+      }
+
       if (!upd.queued && !hist.queued) toast({ title: 'Serviço concluído com sucesso!' })
 
       const phone = getCustomerPhone(order.expand?.customer)
@@ -790,6 +819,9 @@ export default function OrdemDetail() {
     try {
       await deleteOrcamentoItem(itemId)
       await recalculateOrcamentoTotals(activeOrcamento.id)
+      if (order?.id) {
+        await syncServiceOrderTotal(order.id)
+      }
       toast({ title: 'Item removido do orçamento!' })
       loadAll()
     } catch {

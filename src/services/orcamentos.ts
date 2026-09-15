@@ -8,6 +8,7 @@ import {
   OrderStatus,
 } from '@/types'
 import { offlinePb } from '@/lib/offline-pb'
+import { syncServiceOrderTotal } from './service_orders'
 
 /**
  * Retorna todos os orçamentos de uma O.S. (mais recente primeiro)
@@ -605,6 +606,15 @@ export async function recalculateOrcamentoTotals(orcamentoId: string): Promise<{
     total_geral: totalGeral,
     desconto_total_valor: descontoTotalValor,
   })
+
+  // Se o orçamento estiver vinculado a uma OS, sincroniza o total da OS
+  if (orc.id_os) {
+    try {
+      await syncServiceOrderTotal(orc.id_os)
+    } catch {
+      /* best effort */
+    }
+  }
 
   return {
     subtotal,

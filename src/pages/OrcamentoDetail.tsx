@@ -72,7 +72,7 @@ import {
   sendOrcamentoToFaturamento,
   updateOsStatus,
 } from '@/services/orcamentos'
-import { getServiceOrder } from '@/services/service_orders'
+import { getServiceOrder, syncServiceOrderTotal } from '@/services/service_orders'
 import { getProduct } from '@/services/products'
 import { getCustomerPhone, getCustomerDisplayName, getCustomers } from '@/services/customers'
 import { getUsers } from '@/services/users'
@@ -1001,7 +1001,7 @@ export default function OrcamentoDetail() {
         status: 'aprovado',
         data_assinatura_cliente: orcamento.data_assinatura_cliente || new Date().toISOString(),
       })
-      // Status da OS controlado (se vinculado): aprovado+assinado -> 'orcamento_aprovado'
+      // Status da OS controlado (se vinculado): aprovado+assinado -> 'orcamento_aprovado' e sincroniza total
       if (orcamento.id_os) {
         await updateOsStatus(
           orcamento.id_os,
@@ -1009,6 +1009,7 @@ export default function OrcamentoDetail() {
           `Orçamento ${orcamento.numero_orcamento} aprovado e assinado pelo cliente.`,
           user?.id,
         )
+        await syncServiceOrderTotal(orcamento.id_os)
       }
       toast({
         title: 'Orçamento aprovado!',
@@ -3208,7 +3209,10 @@ export default function OrcamentoDetail() {
         onOpenChange={setSignatureModalOpen}
         orcamento={orcamento}
         signerRole={signerRole}
-        onSigned={() => {
+        onSigned={async () => {
+          if (orcamento.id_os) {
+            await syncServiceOrderTotal(orcamento.id_os).catch(() => {})
+          }
           loadAll()
         }}
       />

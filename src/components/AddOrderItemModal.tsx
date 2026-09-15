@@ -3,7 +3,7 @@ import { Search, Package, Wrench, X } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { Product, CatalogService } from '@/types'
 import { getProducts } from '@/services/products'
-import { createOrderItem } from '@/services/service_orders'
+import { createOrderItem, syncServiceOrderTotal } from '@/services/service_orders'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -172,21 +172,9 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
         unit_price: validUnitPrice,
         total: itemSubtotal,
       })
-      // Recalcula o total da OS buscando todos os itens atualizados
+      // Recalcula o total da OS via hierarquia centralizada
       try {
-        const [freshItems, freshOrder] = await Promise.all([
-          pb.collection('service_order_items').getFullList({
-            filter: `service_order = "${orderId}"`,
-          }),
-          pb.collection('service_orders').getOne(orderId),
-        ])
-        const subtotal = freshItems.reduce((sum, it) => sum + (Number(it.total) || 0), 0)
-        const desc = Number(freshOrder.desconto) || 0
-        const acresc = Number(freshOrder.acrescimo) || 0
-        const newTotal = Math.max(0, subtotal + acresc - desc)
-        await pb.collection('service_orders').update(orderId, {
-          total: newTotal,
-        })
+        await syncServiceOrderTotal(orderId)
       } catch {
         /* total update best-effort */
       }
