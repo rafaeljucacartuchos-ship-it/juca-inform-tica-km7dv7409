@@ -241,7 +241,7 @@ export default function LocacaoImpressoras() {
                 Locação de Impressoras
               </h1>
               <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                v0.0.196
+                v0.0.199
               </span>
             </div>
             <p className="text-xs text-slate-500">

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Printer,
@@ -5,10 +6,16 @@ import {
   ArrowLeft,
   CheckCircle2,
   ShieldCheck,
-  HelpCircle,
+  Share2,
+  MessageCircle,
+  Copy,
+  Check,
 } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
 import { JUCA_LOGO_URL } from '@/lib/company'
 import { RENTAL_LOCADORA_FIXA, formatBRL, formatCPP } from '@/lib/rental-contract-template'
+import { buildRentalProposalMessage, openWhatsApp } from '@/lib/whatsapp'
+import { sanitizePhone } from '@/lib/phones'
 import type { RentalQuote, RentalMachineCalculation } from '@/types'
 
 interface RentalProposalPrintViewProps {
@@ -28,11 +35,133 @@ export function RentalProposalPrintView({
   const clienteTel = quote.cliente_telefone || quote.expand?.cliente_id?.phone || '—'
   const clienteEnd = quote.cliente_endereco || '—'
 
+  const { toast } = useToast()
+  const [copied, setCopied] = useState(false)
+
   const dataFormatada = new Date(quote.created || Date.now()).toLocaleDateString('pt-BR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
   })
+
+  const rawPhone = quote.cliente_telefone || quote.expand?.cliente_id?.phone || ''
+  const sanitizedPhone = sanitizePhone(rawPhone)
+
+  // Monta o texto formatado para compartilhamento
+  const shareMessage = buildRentalProposalMessage({
+    customerName: clienteNome,
+    titulo: quote.titulo,
+    franquiaPaginas: quote.franquia_paginas || 1000,
+    contratoMeses: quote.contrato_meses || 12,
+    machines: machines.map((m) => ({
+      machineName: m.machineName,
+      serial: m.serial,
+      franquiaSugerida: m.franquiaSugerida,
+      excedenteSugerido: m.excedenteSugerido,
+      scanner: m.scanner,
+      scannerDados: m.scannerDados,
+    })),
+  })
+
+  // Helper síncrono para cópia imediata no clique (iOS / Safari)
+  const copyToClipboardSync = (text: string): boolean => {
+    let textArea: HTMLTextAreaElement | null = null
+    try {
+      textArea = document.createElement('textarea')
+      textArea.value = text
+      textArea.style.position = 'fixed'
+      textArea.style.left = '-9999px'
+      textArea.style.top = '0'
+      textArea.style.opacity = '0'
+      textArea.setAttribute('readonly', '')
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      const successful = document.execCommand('copy')
+      if (successful) return true
+    } catch {
+      /* ignore */
+    } finally {
+      if (textArea && textArea.parentNode) {
+        try {
+          textArea.parentNode.removeChild(textArea)
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).catch(() => {})
+        return true
+      }
+    } catch {
+      /* ignore */
+    }
+
+    return false
+  }
+
+  // Compartilhamento via Web Share API com fallback para cópia
+  const handleShare = async () => {
+    const shareTitle = `Proposta de Locação - ${clienteNome} - JUCA Informática`
+    const shareData = {
+      title: shareTitle,
+      text: shareMessage,
+    }
+
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData)
+        toast({
+          title: 'Proposta compartilhada com sucesso!',
+          description: 'Apresentação da proposta enviada.',
+        })
+        return
+      } catch (err: any) {
+        if (err?.name === 'AbortError') {
+          // Usuário apenas cancelou o seletor nativo
+          return
+        }
+      }
+    }
+
+    // Fallback: cópia direta para a área de transferência
+    const copiedOk = copyToClipboardSync(shareMessage)
+    if (copiedOk) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+      toast({
+        title: 'Proposta copiada com sucesso!',
+        description: 'Texto completo da proposta pronto para colar e enviar ao cliente.',
+      })
+    } else {
+      toast({
+        title: 'Texto da proposta pronto para cópia',
+        description: shareMessage.slice(0, 80) + '...',
+      })
+    }
+  }
+
+  // Envio direto via WhatsApp
+  const handleWhatsApp = () => {
+    if (!sanitizedPhone) {
+      toast({
+        title: 'Cliente sem telefone cadastrado',
+        description: 'Copie a proposta através do botão Compartilhar.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    copyToClipboardSync(shareMessage)
+    openWhatsApp(sanitizedPhone, shareMessage)
+    toast({
+      title: 'WhatsApp aberto!',
+      description: 'Texto da proposta de locação copiado e conversa iniciada.',
+    })
+  }
 
   return (
     <div className="space-y-4">
@@ -54,7 +183,36 @@ export function RentalProposalPrintView({
             Proposta de Locação ({quote.titulo || 'Impressoras Corporativas'})
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* BOTÃO COMPARTILHAR PROPOSTA */}
+          <Button
+            type="button"
+            onClick={handleShare}
+            className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold gap-1.5 border border-slate-700 shadow-sm"
+            title="Compartilhar resumo da proposta (WhatsApp, e-mail ou copiar texto)"
+          >
+            {copied ? (
+              <Check className="h-4 w-4 text-emerald-400" />
+            ) : (
+              <Share2 className="h-4 w-4 text-indigo-400" />
+            )}
+            <span>{copied ? 'Copiado!' : 'Compartilhar Proposta'}</span>
+          </Button>
+
+          {/* BOTÃO WHATSAPP SE CLIENTE TIVER TELEFONE */}
+          {sanitizedPhone && (
+            <Button
+              type="button"
+              onClick={handleWhatsApp}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1.5 shadow-sm"
+              title={`Enviar proposta diretamente no WhatsApp (${clienteTel})`}
+            >
+              <MessageCircle className="h-4 w-4" />
+              <span>WhatsApp</span>
+            </Button>
+          )}
+
+          {/* BOTÃO IMPRIMIR / PDF */}
           <Button
             type="button"
             onClick={() => window.print()}

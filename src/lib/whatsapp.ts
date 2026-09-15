@@ -363,3 +363,82 @@ export function triggerWhatsAppEvaluation(
   const msg = buildCompletionEvaluationMessage(customerName, orderNumber, link, details)
   openWhatsApp(phone, msg)
 }
+
+/**
+ * Mensagem em pt-BR apresentando a Proposta de Locação de Impressoras da JUCA INFORMÁTICA.
+ * Apresenta dados do cliente, opções de equipamentos, franquia mensal, valor mensal,
+ * valor da página excedente, vigência do contrato e itens inclusos.
+ */
+export function buildRentalProposalMessage(params: {
+  customerName: string
+  titulo?: string
+  franquiaPaginas: number
+  contratoMeses: number
+  machines: Array<{
+    machineName: string
+    serial?: string
+    franquiaSugerida: number
+    excedenteSugerido: number
+    scanner?: boolean
+    scannerDados?: string
+  }>
+  propostaUrl?: string
+}): string {
+  const { customerName, titulo, franquiaPaginas, contratoMeses, machines, propostaUrl } = params
+  const firstName = customerName.split(' ')[0] || customerName
+
+  const fmtBRL = (v: number) =>
+    (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const fmtCPP = (v: number) =>
+    (v || 0).toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 4,
+      maximumFractionDigits: 4,
+    })
+  const fmtInt = (v: number) => (v || 0).toLocaleString('pt-BR')
+
+  const machinesText =
+    machines.length > 0
+      ? machines
+          .map((m, idx) => {
+            const num = machines.length > 1 ? `*Opção ${idx + 1}:* ` : ''
+            const serialTxt = m.serial ? ` (Série: ${m.serial})` : ''
+            const scannerTxt = m.scanner
+              ? `  • Scanner/Digitalização: Incluso (${m.scannerDados || 'Em rede'})\n`
+              : ''
+            return (
+              `🖨️ ${num}*${m.machineName}*${serialTxt}\n` +
+              `  • Mensalidade (Franquia): *${fmtBRL(m.franquiaSugerida)}/mês*\n` +
+              `  • Franquia de Impressão: *${fmtInt(franquiaPaginas)} páginas/mês*\n` +
+              `  • Página Excedente: *${fmtCPP(m.excedenteSugerido)}/página*\n` +
+              scannerTxt
+            ).trimEnd()
+          })
+          .join('\n\n')
+      : `🖨️ *Plano de Locação Corporativa*\n  • Franquia: *${fmtInt(franquiaPaginas)} páginas/mês*\n`
+
+  const linkText = propostaUrl
+    ? `\n📄 *Visualize a proposta detalhada online:*\n👉 ${propostaUrl}\n`
+    : ''
+
+  return (
+    `🖨️ *JUCA INFORMÁTICA - PROPOSTA DE LOCAÇÃO*\n\n` +
+    `Olá, *${firstName}*! Tudo bem?\n\n` +
+    `Elaboramos a sua *Proposta de Locação de Equipamentos de Impressão* (${titulo || 'Impressoras Corporativas'}).\n\n` +
+    `👤 *Cliente / Locatário:* ${customerName}\n` +
+    `📅 *Prazo Contratual:* ${contratoMeses || 12} meses\n` +
+    `📄 *Franquia Base:* ${fmtInt(franquiaPaginas)} páginas/mês\n\n` +
+    `📋 *Equipamento(s) e Valores:*\n${machinesText}\n\n` +
+    `✅ *Incluso no Plano JUCA:*\n` +
+    `  • Fornecimento completo de toners, cartuchos e cilindros sem custo extra\n` +
+    `  • Peças de reposição e manutenção preventiva periódica inclusas\n` +
+    `  • Atendimento prioritário e suporte técnico especializado\n` +
+    `  • Equipamento reserva em caso de manutenção complexa\n` +
+    linkText +
+    `\nFicamos à total disposição para esclarecer qualquer dúvida ou ajustar os termos conforme a necessidade da sua empresa!\n\n` +
+    `*JUCA INFORMÁTICA*\n` +
+    `Telefone: (67) 3441-4981 | Celular: (67) 99654-4981\n` +
+    `Rua Vearni Castro, 1515, Centro - Nova Andradina/MS`
+  )
+}
