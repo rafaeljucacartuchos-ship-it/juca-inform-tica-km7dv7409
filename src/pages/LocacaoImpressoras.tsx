@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Printer,
   Calculator,
@@ -7,7 +7,7 @@ import {
   Layers,
   Settings as SettingsIcon,
   RefreshCw,
-  Plus,
+  FolderClock,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -25,6 +25,7 @@ import { RentalSimulator } from '@/components/RentalSimulator'
 import { RentalProposalPrintView } from '@/components/RentalProposalPrintView'
 import { RentalContractPrintView } from '@/components/RentalContractPrintView'
 import { RentalContractsList } from '@/components/RentalContractsList'
+import { RentalQuotesList } from '@/components/RentalQuotesList'
 import {
   getRentalQuotes,
   getRentalQuote,
@@ -34,20 +35,28 @@ import {
   getRentalSettings,
   updateRentalSettings,
 } from '@/services/rental'
+import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import type { RentalQuote, RentalContract, RentalMachineCalculation } from '@/types'
 
 export default function LocacaoImpressoras() {
   const { toast } = useToast()
 
-  // Aba ativa: 'simulador' | 'proposta' | 'contrato' | 'contratos_lista'
+  // Aba ativa: 'simulador' | 'proposta' | 'propostas_lista' | 'contrato' | 'contratos_lista'
   const [activeTab, setActiveTab] = useState<string>('simulador')
 
   // Proposta ativa no visualizador
   const [currentQuote, setCurrentQuote] = useState<RentalQuote | null>(null)
 
+  // Proposta para edição/reabertura no simulador
+  const [quoteForEdit, setQuoteForEdit] = useState<RentalQuote | null>(null)
+
   // Contrato ativo no visualizador
   const [currentContract, setCurrentContract] = useState<RentalContract | null>(null)
+
+  // Histórico de propostas cadastradas (rental_quotes)
+  const [quotesList, setQuotesList] = useState<RentalQuote[]>([])
+  const [loadingQuotes, setLoadingQuotes] = useState(false)
 
   // Lista de contratos cadastrados
   const [contractsList, setContractsList] = useState<RentalContract[]>([])
@@ -69,8 +78,19 @@ export default function LocacaoImpressoras() {
   const [marginDefaultInput, setMarginDefaultInput] = useState('50')
   const [savingSettings, setSavingSettings] = useState(false)
 
+  // Carrega propostas existentes
+  const loadQuotes = useCallback(async () => {
+    setLoadingQuotes(true)
+    try {
+      const list = await getRentalQuotes()
+      setQuotesList(list)
+    } finally {
+      setLoadingQuotes(false)
+    }
+  }, [])
+
   // Carrega contratos existentes
-  const loadContracts = async () => {
+  const loadContracts = useCallback(async () => {
     setLoadingContracts(true)
     try {
       const list = await getRentalContracts()
@@ -78,11 +98,27 @@ export default function LocacaoImpressoras() {
     } finally {
       setLoadingContracts(false)
     }
-  }
+  }, [])
+
+  // Atualiza tudo
+  const reloadAll = useCallback(() => {
+    loadQuotes()
+    loadContracts()
+  }, [loadQuotes, loadContracts])
 
   useEffect(() => {
+    loadQuotes()
     loadContracts()
-  }, [])
+  }, [loadQuotes, loadContracts])
+
+  // Inscrição Realtime para atualizar propostas e contratos automaticamente
+  useRealtime('rental_quotes', () => {
+    loadQuotes()
+  })
+
+  useRealtime('rental_contracts', () => {
+    loadContracts()
+  })
 
   // Carrega configurações
   const handleOpenSettings = async () => {
@@ -121,7 +157,24 @@ export default function LocacaoImpressoras() {
   // Quando proposta é gerada pelo simulador
   const handleQuoteGenerated = (quote: RentalQuote) => {
     setCurrentQuote(quote)
+    loadQuotes()
     setActiveTab('proposta')
+  }
+
+  // Ao selecionar uma proposta no histórico para abrir
+  const handleOpenQuote = (quote: RentalQuote) => {
+    setCurrentQuote(quote)
+    setActiveTab('proposta')
+  }
+
+  // Ao selecionar uma proposta para reabrir/editar no simulador
+  const handleEditQuote = (quote: RentalQuote) => {
+    setQuoteForEdit(quote)
+    setActiveTab('simulador')
+    toast({
+      title: 'Proposta carregada no simulador',
+      description: `Parâmetros de ${quote.cliente_nome_livre || 'Cliente'} prontos para novo cálculo.`,
+    })
   }
 
   // Ao clicar em "Gerar Contrato" dentro da proposta
@@ -227,6 +280,8 @@ export default function LocacaoImpressoras() {
     }
   }
 
+  const isRefreshing = loadingQuotes || loadingContracts
+
   return (
     <div className="space-y-6">
       {/* CABEÇALHO DO MÓDULO */}
@@ -241,12 +296,12 @@ export default function LocacaoImpressoras() {
                 Locação de Impressoras
               </h1>
               <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                v0.0.200
+                v0.0.201
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              Funil completo: Precificação com vínculo ao catálogo → Proposta Comercial → Contrato
-              com cláusulas fixas.
+              Funil completo: Precificação com vínculo ao catálogo → Histórico de Propostas →
+              Contrato com cláusulas fixas.
             </p>
           </div>
         </div>
@@ -265,11 +320,11 @@ export default function LocacaoImpressoras() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={loadContracts}
-            disabled={loadingContracts}
+            onClick={reloadAll}
+            disabled={isRefreshing}
             className="text-xs font-semibold text-slate-700 gap-1.5"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loadingContracts ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
             Atualizar
           </Button>
         </div>
@@ -277,7 +332,7 @@ export default function LocacaoImpressoras() {
 
       {/* TABS PRINCIPAIS DO MÓDULO */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-slate-100 p-1 rounded-xl grid grid-cols-2 sm:grid-cols-4 max-w-2xl print:hidden">
+        <TabsList className="bg-slate-100 p-1 rounded-xl grid grid-cols-2 sm:grid-cols-5 max-w-3xl print:hidden">
           <TabsTrigger
             value="simulador"
             className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm gap-1.5"
@@ -292,6 +347,13 @@ export default function LocacaoImpressoras() {
           >
             <FileText className="h-3.5 w-3.5" />
             <span>2. Proposta</span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="propostas_lista"
+            className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm gap-1.5"
+          >
+            <FolderClock className="h-3.5 w-3.5" />
+            <span>Propostas ({quotesList.length})</span>
           </TabsTrigger>
           <TabsTrigger
             value="contrato"
@@ -312,27 +374,38 @@ export default function LocacaoImpressoras() {
 
         {/* 1. SIMULADOR */}
         <TabsContent value="simulador">
-          <RentalSimulator onQuoteGenerated={handleQuoteGenerated} />
+          <RentalSimulator onQuoteGenerated={handleQuoteGenerated} initialQuote={quoteForEdit} />
         </TabsContent>
 
-        {/* 2. PROPOSTA COMERCIAL */}
+        {/* 2. PROPOSTA COMERCIAL VISUALIZAÇÃO */}
         <TabsContent value="proposta">
           {currentQuote ? (
             <RentalProposalPrintView
               quote={currentQuote}
               onGenerateContract={handleOpenGenerateContractModal}
-              onBack={() => setActiveTab('simulador')}
+              onBack={() => setActiveTab('propostas_lista')}
             />
           ) : (
             <div className="p-8 text-center bg-white rounded-xl border border-slate-200">
               <p className="text-xs text-slate-500">
-                Nenhuma proposta selecionada. Utilize o Simulador para gerar uma proposta.
+                Nenhuma proposta selecionada. Utilize o Simulador ou o Histórico de Propostas para
+                abrir uma proposta.
               </p>
             </div>
           )}
         </TabsContent>
 
-        {/* 3. CONTRATO IMPRESSÃO / VISUALIZAÇÃO */}
+        {/* 3. HISTÓRICO DE PROPOSTAS (COM BUSCA EM TEMPO REAL) */}
+        <TabsContent value="propostas_lista">
+          <RentalQuotesList
+            quotes={quotesList}
+            onOpenQuote={handleOpenQuote}
+            onEditQuote={handleEditQuote}
+            onReload={loadQuotes}
+          />
+        </TabsContent>
+
+        {/* 4. CONTRATO IMPRESSÃO / VISUALIZAÇÃO */}
         <TabsContent value="contrato">
           {currentContract ? (
             <RentalContractPrintView
@@ -349,7 +422,7 @@ export default function LocacaoImpressoras() {
           )}
         </TabsContent>
 
-        {/* 4. LISTA DE CONTRATOS */}
+        {/* 5. LISTA DE CONTRATOS */}
         <TabsContent value="contratos_lista">
           <RentalContractsList
             contracts={contractsList}
