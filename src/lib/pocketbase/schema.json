@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-14T23:06:48.523Z",
+  "generatedAt": "2026-09-14T23:53:12.254Z",
   "collections": [
     {
       "name": "users",
@@ -2201,6 +2201,358 @@
         "CREATE INDEX idx_pricing_history_product ON pricing_history (product)",
         "CREATE INDEX idx_pricing_history_created ON pricing_history (created DESC)",
         "CREATE INDEX idx_pricing_history_mode ON pricing_history (mode)"
+      ]
+    },
+    {
+      "name": "rental_machines",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "produto",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "products"
+        },
+        {
+          "name": "serial",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "contador_inicial",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "supplies",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor_compra",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "payback_meses",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "scanner",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "scanner_tipo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "scanner_velocidade",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "observacoes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ativo",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_rental_machines_produto ON rental_machines (produto)",
+        "CREATE INDEX idx_rental_machines_serial ON rental_machines (serial)"
+      ]
+    },
+    {
+      "name": "rental_quotes",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "cliente_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "customers"
+        },
+        {
+          "name": "cliente_nome_livre",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cliente_telefone",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cliente_documento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cliente_endereco",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "maquinas",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "rental_machines"
+        },
+        {
+          "name": "maquinas_comparadas",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "volume_mensal",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "franquia_paginas",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "contrato_meses",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "excesso_pagina_valor",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "scanner",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "scanner_dados",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "margem_pct",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "payback_meses",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "resultados",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["simulacao", "proposta_gerada", "contratado", "cancelado"]
+        },
+        {
+          "name": "titulo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "observacoes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_rental_quotes_cliente ON rental_quotes (cliente_id)",
+        "CREATE INDEX idx_rental_quotes_status ON rental_quotes (status)"
+      ]
+    },
+    {
+      "name": "rental_contracts",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "proposta",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "rental_quotes"
+        },
+        {
+          "name": "numero",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "locatario_dados",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "equipamento_dados",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "franquia_paginas",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor_mensal",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "excesso_pagina_valor",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "contrato_meses",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_inicio",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["rascunho", "ativo", "encerrado"]
+        },
+        {
+          "name": "observacoes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "clausulas_adicionais",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_rental_contracts_numero ON rental_contracts (numero)",
+        "CREATE INDEX idx_rental_contracts_proposta ON rental_contracts (proposta)",
+        "CREATE INDEX idx_rental_contracts_status ON rental_contracts (status)"
       ]
     }
   ]

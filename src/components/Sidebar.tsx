@@ -19,6 +19,7 @@ import {
   Sparkles,
   ShoppingCart,
   Megaphone,
+  Printer,
   FileText,
   Download,
 } from 'lucide-react'
@@ -101,6 +102,12 @@ export function Sidebar({ onNavClick }: SidebarProps) {
       path: '/precificacao',
       icon: Tag,
       show: hasPermission('precificacao') || user?.role === 'admin' || user?.role === 'attendant',
+    },
+    {
+      label: 'Impressoras Locadas',
+      path: '/locacao',
+      icon: Printer,
+      show: hasPermission('locacao') || user?.role === 'admin' || user?.role === 'attendant',
     },
     {
       label: 'Pedido de Mercadoria',

@@ -2,7 +2,7 @@
   "name": "skip-react-template",
   "description": "JUCA INFORMÁTICA - Sistema de Gestão",
   "private": true,
-  "version": "0.0.195",
+  "version": "0.0.196",
   "type": "module",
   "scripts": {
     "start": "vite dev",

@@ -21,6 +21,7 @@ import OrcamentosList from '@/pages/OrcamentosList'
 import PosVendaJuquinha from '@/pages/PosVenda'
 import PedidoMercadorias from '@/pages/PedidoMercadorias'
 import Precificacao from '@/pages/Precificacao'
+import LocacaoImpressoras from '@/pages/LocacaoImpressoras'
 import Campanhas from '@/pages/Campanhas'
 import Clientes from '@/pages/Clientes'
 import ClienteDetail from '@/pages/ClienteDetail'
@@ -118,6 +119,9 @@ const App = () => {
                       </Route>
                       <Route element={<PermissionRoute module="precificacao" />}>
                         <Route path="/precificacao" element={<Precificacao />} />
+                      </Route>
+                      <Route element={<PermissionRoute module="locacao" />}>
+                        <Route path="/locacao" element={<LocacaoImpressoras />} />
                       </Route>
                       <Route element={<PermissionRoute module="pedido_mercadoria" />}>
                         <Route path="/pedido-mercadorias" element={<PedidoMercadorias />} />

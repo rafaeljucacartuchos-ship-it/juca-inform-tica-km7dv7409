@@ -522,3 +522,145 @@ export interface PricingHistory {
     created_by?: User
   }
 }
+
+// ============================================================================
+// MÓDULO LOCAÇÃO DE IMPRESSORAS (v0.0.196)
+// ============================================================================
+
+export interface RentalSupplyItem {
+  product: string // product id
+  nome: string
+  categoria?: string
+  valor: number
+  durabilidade_paginas: number
+  cpp: number // valor / durabilidade_paginas (4 casas)
+}
+
+export interface RentalMachine {
+  id: string
+  produto: string // relation products
+  serial?: string
+  contador_inicial?: number
+  supplies: RentalSupplyItem[]
+  valor_compra?: number
+  payback_meses?: number
+  scanner?: boolean
+  scanner_tipo?: string
+  scanner_velocidade?: string
+  observacoes?: string
+  ativo?: boolean
+  created?: string
+  updated?: string
+  expand?: {
+    produto?: Product
+  }
+}
+
+export interface RentalMachineCalculation {
+  machineId?: string
+  machineName: string
+  serial?: string
+  contador_inicial?: number
+  valorCompra: number
+  paybackMeses: number
+  locacaoMensal: number // valor_compra / payback_meses
+  supplies: RentalSupplyItem[]
+  cppFornecedor: number // soma do cpp dos insumos (4 casas)
+  cppRevenda: number // cppFornecedor * (1 + margem_pct / 100)
+  franquiaSugerida: number // locacaoMensal + (franquia_paginas * cppRevenda)
+  excedenteSugerido: number // cppRevenda * (1 + margem_pct / 100) (ou editável)
+  tco: number // franquiaSugerida * contrato_meses
+  scanner?: boolean
+  scannerDados?: string
+}
+
+export interface RentalQuoteResults {
+  machines: RentalMachineCalculation[]
+  volumeMensal: number
+  franquiaPaginas: number
+  contratoMeses: number
+  margemPct: number
+  paybackMesesPadrao: number
+  breakEvenPaginas?: number | null
+  vantagemDescricao?: string | null
+  melhorOpcaoIndex?: number | null
+}
+
+export type RentalQuoteStatus = 'simulacao' | 'proposta_gerada' | 'contratado' | 'cancelado'
+
+export interface RentalQuote {
+  id: string
+  cliente_id?: string
+  cliente_nome_livre?: string
+  cliente_telefone?: string
+  cliente_documento?: string
+  cliente_endereco?: string
+  maquinas?: string[]
+  maquinas_comparadas?: RentalMachineCalculation[]
+  volume_mensal?: number
+  franquia_paginas?: number
+  contrato_meses?: number
+  excesso_pagina_valor?: number
+  scanner?: boolean
+  scanner_dados?: string
+  margem_pct?: number
+  payback_meses?: number
+  resultados?: RentalQuoteResults
+  status?: RentalQuoteStatus
+  titulo?: string
+  observacoes?: string
+  created?: string
+  updated?: string
+  expand?: {
+    cliente_id?: Customer
+    maquinas?: RentalMachine[]
+  }
+}
+
+export type RentalContractStatus = 'rascunho' | 'ativo' | 'encerrado'
+
+export interface RentalContractFrozenLocatario {
+  nome: string
+  cpf_cnpj: string
+  rg_ie?: string
+  endereco: string
+  bairro?: string
+  cidade?: string
+  estado?: string
+  cep?: string
+  telefone: string
+  email?: string
+}
+
+export interface RentalContractFrozenEquipamento {
+  produto_id?: string
+  nome: string
+  marca?: string
+  modelo?: string
+  serial?: string
+  contador_inicial?: number
+  scanner?: boolean
+  scanner_dados?: string
+  supplies?: RentalSupplyItem[]
+}
+
+export interface RentalContract {
+  id: string
+  proposta: string // relation rental_quotes
+  numero: string // ex: CT-2025-001
+  locatario_dados: RentalContractFrozenLocatario
+  equipamento_dados: RentalContractFrozenEquipamento
+  franquia_paginas: number
+  valor_mensal: number
+  excesso_pagina_valor: number
+  contrato_meses: number
+  data_inicio: string
+  status: RentalContractStatus
+  observacoes?: string
+  clausulas_adicionais?: string
+  created?: string
+  updated?: string
+  expand?: {
+    proposta?: RentalQuote
+  }
+}
