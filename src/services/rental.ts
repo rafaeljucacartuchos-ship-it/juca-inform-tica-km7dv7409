@@ -140,18 +140,88 @@ export async function getRentalQuotes(): Promise<RentalQuote[]> {
   }
 }
 
+/**
+ * Gera token aleatório alfanumérico seguro para compartilhamento de propostas
+ */
+export async function generateRentalToken(len = 32): Promise<string> {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  let res = ''
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const arr = new Uint8Array(len)
+    crypto.getRandomValues(arr)
+    for (let i = 0; i < len; i++) {
+      res += chars[arr[i] % chars.length]
+    }
+    return res
+  }
+  for (let i = 0; i < len; i++) {
+    res += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return res
+}
+
 export async function getRentalQuote(id: string): Promise<RentalQuote | null> {
   try {
-    return await pb.collection('rental_quotes').getOne<RentalQuote>(id, {
+    const quote = await pb.collection('rental_quotes').getOne<RentalQuote>(id, {
       expand: 'cliente_id,maquinas',
     })
+    // Se não tiver token_acesso (registro antigo), gera e salva se autenticado
+    if (!quote.token_acesso && pb.authStore.isValid) {
+      try {
+        const token = await generateRentalToken(32)
+        const updated = await pb.collection('rental_quotes').update<RentalQuote>(id, {
+          token_acesso: token,
+        })
+        quote.token_acesso = updated.token_acesso || token
+      } catch {
+        /* ignore */
+      }
+    }
+    return quote
   } catch {
     return null
   }
 }
 
+/**
+ * Busca proposta pública por ID e token_acesso (sem exigir login)
+ */
+export async function getPublicRentalQuote(id: string, token: string): Promise<RentalQuote | null> {
+  if (!id || !token) return null
+  try {
+    // Passa query param ?token=... para satisfazer a API rule de view/list
+    return await pb.collection('rental_quotes').getOne<RentalQuote>(id, {
+      expand: 'cliente_id,maquinas',
+      query: { token },
+    })
+  } catch (err) {
+    console.error('Erro ao buscar proposta de locação pública por token:', err)
+    return null
+  }
+}
+
+/**
+ * Garante que uma proposta de locação possua token_acesso persistido.
+ * Se já tiver, retorna o existente; se não, gera e salva no PocketBase.
+ */
+export async function ensureRentalQuoteToken(quote: RentalQuote): Promise<string> {
+  if (quote.token_acesso) return quote.token_acesso
+  const token = await generateRentalToken(32)
+  try {
+    await pb.collection('rental_quotes').update(quote.id, { token_acesso: token })
+    quote.token_acesso = token
+  } catch (err) {
+    console.warn('Erro ao persistir token_acesso na proposta:', err)
+  }
+  return token
+}
+
 export async function createRentalQuote(data: Partial<RentalQuote>): Promise<RentalQuote> {
-  return await pb.collection('rental_quotes').create<RentalQuote>(data)
+  const token = data.token_acesso || (await generateRentalToken(32))
+  return await pb.collection('rental_quotes').create<RentalQuote>({
+    ...data,
+    token_acesso: token,
+  })
 }
 
 export async function updateRentalQuote(

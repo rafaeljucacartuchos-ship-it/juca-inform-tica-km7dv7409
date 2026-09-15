@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15T14:50:14.887Z",
+  "generatedAt": "2026-09-15T15:17:15.805Z",
   "collections": [
     {
       "name": "users",
@@ -2305,8 +2305,8 @@
       "name": "rental_quotes",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
+        "list": "@request.auth.id != '' || (token_acesso != '' && @request.query.token != '' && token_acesso = @request.query.token)",
+        "view": "@request.auth.id != '' || (token_acesso != '' && @request.query.token != '' && token_acesso = @request.query.token)",
         "create": "@request.auth.id != ''",
         "update": "@request.auth.id != ''",
         "delete": "@request.auth.id != ''"
@@ -2442,11 +2442,18 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "token_acesso",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
         "CREATE INDEX idx_rental_quotes_cliente ON rental_quotes (cliente_id)",
-        "CREATE INDEX idx_rental_quotes_status ON rental_quotes (status)"
+        "CREATE INDEX idx_rental_quotes_status ON rental_quotes (status)",
+        "CREATE INDEX `idx_rental_quotes_token` ON `rental_quotes` (token_acesso)"
       ]
     },
     {

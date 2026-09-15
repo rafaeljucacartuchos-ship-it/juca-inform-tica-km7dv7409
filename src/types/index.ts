@@ -590,6 +590,7 @@ export type RentalQuoteStatus = 'simulacao' | 'proposta_gerada' | 'contratado' |
 
 export interface RentalQuote {
   id: string
+  token_acesso?: string
   cliente_id?: string
   cliente_nome_livre?: string
   cliente_telefone?: string

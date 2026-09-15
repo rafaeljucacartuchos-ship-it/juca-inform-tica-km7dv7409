@@ -369,6 +369,33 @@ export function triggerWhatsAppEvaluation(
  * Apresenta dados do cliente, opções de equipamentos, franquia mensal, valor mensal,
  * valor da página excedente, vigência do contrato e itens inclusos.
  */
+/**
+ * Constrói a mensagem curta e direta focada em fechamento com link do documento de locação:
+ * "Olá, {cliente}! 👋 Segue a proposta de locação da JUCA INFORMÁTICA: {link} — {equipamento} • Franquia {franquia} páginas/mês • R$ {valor mensal}/mês. Qualquer dúvida estou à disposição — pode fechar por aqui mesmo! ✅"
+ */
+export function buildRentalProposalClosingMessage(params: {
+  customerName: string
+  propostaUrl: string
+  equipamento: string
+  franquiaPaginas: number
+  valorMensal: number
+}): string {
+  const { customerName, propostaUrl, equipamento, franquiaPaginas, valorMensal } = params
+  const firstName = customerName.split(' ')[0] || customerName
+  const fmtValor = (valorMensal || 0).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+  const fmtFranquia = (franquiaPaginas || 0).toLocaleString('pt-BR')
+  const equipNome = equipamento?.trim() || 'Equipamento de Impressão'
+
+  return (
+    `Olá, ${firstName}! 👋 Segue a proposta de locação da JUCA INFORMÁTICA: ${propostaUrl} — ` +
+    `${equipNome} • Franquia ${fmtFranquia} páginas/mês • R$ ${fmtValor}/mês. ` +
+    `Qualquer dúvida estou à disposição — pode fechar por aqui mesmo! ✅`
+  )
+}
+
 export function buildRentalProposalMessage(params: {
   customerName: string
   titulo?: string
@@ -386,6 +413,24 @@ export function buildRentalProposalMessage(params: {
 }): string {
   const { customerName, titulo, franquiaPaginas, contratoMeses, machines, propostaUrl } = params
   const firstName = customerName.split(' ')[0] || customerName
+
+  // Se houver URL da proposta, preferir a mensagem curta e direta de fechamento solicitada pelo usuário
+  if (propostaUrl) {
+    const mainMachine = machines[0]
+    const equipNome =
+      machines.length > 1
+        ? `${mainMachine?.machineName || 'Equipamento'} (+1 opção)`
+        : mainMachine?.machineName || 'Equipamento'
+    const valorMensal = mainMachine?.franquiaSugerida || 0
+
+    return buildRentalProposalClosingMessage({
+      customerName,
+      propostaUrl,
+      equipamento: equipNome,
+      franquiaPaginas,
+      valorMensal,
+    })
+  }
 
   const fmtBRL = (v: number) =>
     (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -418,10 +463,6 @@ export function buildRentalProposalMessage(params: {
           .join('\n\n')
       : `🖨️ *Plano de Locação Corporativa*\n  • Franquia: *${fmtInt(franquiaPaginas)} páginas/mês*\n`
 
-  const linkText = propostaUrl
-    ? `\n📄 *Visualize a proposta detalhada online:*\n👉 ${propostaUrl}\n`
-    : ''
-
   return (
     `🖨️ *JUCA INFORMÁTICA - PROPOSTA DE LOCAÇÃO*\n\n` +
     `Olá, *${firstName}*! Tudo bem?\n\n` +
@@ -434,9 +475,8 @@ export function buildRentalProposalMessage(params: {
     `  • Fornecimento completo de toners, cartuchos e cilindros sem custo extra\n` +
     `  • Peças de reposição e manutenção preventiva periódica inclusas\n` +
     `  • Atendimento prioritário e suporte técnico especializado\n` +
-    `  • Equipamento reserva em caso de manutenção complexa\n` +
-    linkText +
-    `\nFicamos à total disposição para esclarecer qualquer dúvida ou ajustar os termos conforme a necessidade da sua empresa!\n\n` +
+    `  • Equipamento reserva em caso de manutenção complexa\n\n` +
+    `Ficamos à total disposição para esclarecer qualquer dúvida ou ajustar os termos conforme a necessidade da sua empresa!\n\n` +
     `*JUCA INFORMÁTICA*\n` +
     `Telefone: (67) 3441-4981 | Celular: (67) 99654-4981\n` +
     `Rua Vearni Castro, 1515, Centro - Nova Andradina/MS`

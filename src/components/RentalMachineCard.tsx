@@ -50,12 +50,25 @@ export function RentalMachineCard({
 }: RentalMachineCardProps) {
   const [selectedSupplyCategory, setSelectedSupplyCategory] = useState<string>('toner')
 
+  // Regra do usuário: usar products.cost; se cost vazio/zero, usar products.price como fallback.
+  // O valor cadastrado do produto é o default do campo de valor — nunca abrir vazio quando o produto tem preço.
+  const getProductDefaultValue = (prod: Product): number => {
+    if (typeof prod.cost === 'number' && prod.cost > 0) {
+      return prod.cost
+    }
+    if (typeof prod.price === 'number' && prod.price > 0) {
+      return prod.price
+    }
+    return 0
+  }
+
   const handleSelectProduct = (prod: Product) => {
+    const defaultVal = getProductDefaultValue(prod)
     onChange({
       ...data,
       productId: prod.id,
       machineName: prod.name,
-      valorCompra: data.valorCompra > 0 ? data.valorCompra : prod.cost || prod.price || 0,
+      valorCompra: defaultVal > 0 ? defaultVal : data.valorCompra,
     })
   }
 
@@ -68,15 +81,15 @@ export function RentalMachineCard({
   }
 
   const handleAddSupply = (supplyProd: Product) => {
-    const cost = supplyProd.cost || supplyProd.price || 0
+    const defaultVal = getProductDefaultValue(supplyProd)
     const defaultPages = 3000
-    const cpp = calculateSupplyCpp(cost, defaultPages)
+    const cpp = calculateSupplyCpp(defaultVal, defaultPages)
 
     const newItem: RentalSupplyItem = {
       product: supplyProd.id,
       nome: supplyProd.name,
       categoria: supplyProd.category || 'Insumo',
-      valor: cost,
+      valor: defaultVal,
       durabilidade_paginas: defaultPages,
       cpp,
     }

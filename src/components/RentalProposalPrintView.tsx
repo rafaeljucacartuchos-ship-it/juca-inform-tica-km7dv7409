@@ -10,24 +10,28 @@ import {
   MessageCircle,
   Copy,
   Check,
+  ExternalLink,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { JUCA_LOGO_URL } from '@/lib/company'
 import { RENTAL_LOCADORA_FIXA, formatBRL, formatCPP } from '@/lib/rental-contract-template'
-import { buildRentalProposalMessage, openWhatsApp } from '@/lib/whatsapp'
+import { buildRentalProposalClosingMessage, openWhatsApp } from '@/lib/whatsapp'
 import { sanitizePhone } from '@/lib/phones'
+import { ensureRentalQuoteToken } from '@/services/rental'
 import type { RentalQuote, RentalMachineCalculation } from '@/types'
 
 interface RentalProposalPrintViewProps {
   quote: RentalQuote
   onGenerateContract?: (machine: RentalMachineCalculation) => void
   onBack?: () => void
+  isPublicView?: boolean
 }
 
 export function RentalProposalPrintView({
   quote,
   onGenerateContract,
   onBack,
+  isPublicView = false,
 }: RentalProposalPrintViewProps) {
   const machines = quote.maquinas_comparadas || quote.resultados?.machines || []
   const clienteNome = quote.cliente_nome_livre || quote.expand?.cliente_id?.name || 'Cliente'
@@ -37,6 +41,7 @@ export function RentalProposalPrintView({
 
   const { toast } = useToast()
   const [copied, setCopied] = useState(false)
+  const [sharing, setSharing] = useState(false)
 
   const dataFormatada = new Date(quote.created || Date.now()).toLocaleDateString('pt-BR', {
     day: '2-digit',
@@ -47,21 +52,32 @@ export function RentalProposalPrintView({
   const rawPhone = quote.cliente_telefone || quote.expand?.cliente_id?.phone || ''
   const sanitizedPhone = sanitizePhone(rawPhone)
 
-  // Monta o texto formatado para compartilhamento
-  const shareMessage = buildRentalProposalMessage({
-    customerName: clienteNome,
-    titulo: quote.titulo,
-    franquiaPaginas: quote.franquia_paginas || 1000,
-    contratoMeses: quote.contrato_meses || 12,
-    machines: machines.map((m) => ({
-      machineName: m.machineName,
-      serial: m.serial,
-      franquiaSugerida: m.franquiaSugerida,
-      excedenteSugerido: m.excedenteSugerido,
-      scanner: m.scanner,
-      scannerDados: m.scannerDados,
-    })),
-  })
+  // Obtém o link público da proposta ({origin}/proposta-locacao/{id}?token={token})
+  const getProposalPublicUrl = async (): Promise<string> => {
+    const origin =
+      typeof window !== 'undefined' && window.location.origin ? window.location.origin : ''
+    const token = await ensureRentalQuoteToken(quote)
+    return `${origin}/proposta-locacao/${quote.id}?token=${encodeURIComponent(token)}`
+  }
+
+  // Gera a mensagem curta e direta focada em fechar
+  const getShortClosingMessage = async (): Promise<string> => {
+    const proposalUrl = await getProposalPublicUrl()
+    const mainMachine = machines[0]
+    const equipNome =
+      machines.length > 1
+        ? `${mainMachine?.machineName || 'Multifuncional'} (+1 opção)`
+        : mainMachine?.machineName || 'Multifuncional'
+    const valorMensal = mainMachine?.franquiaSugerida || 0
+
+    return buildRentalProposalClosingMessage({
+      customerName: clienteNome,
+      propostaUrl: proposalUrl,
+      equipamento: equipNome,
+      franquiaPaginas: quote.franquia_paginas || 1000,
+      valorMensal,
+    })
+  }
 
   // Helper síncrono para cópia imediata no clique (iOS / Safari)
   const copyToClipboardSync = (text: string): boolean => {
@@ -103,49 +119,64 @@ export function RentalProposalPrintView({
     return false
   }
 
-  // Compartilhamento via Web Share API com fallback para cópia
+  // Compartilhamento via Web Share API com link do documento + fallback para cópia
   const handleShare = async () => {
-    const shareTitle = `Proposta de Locação - ${clienteNome} - JUCA Informática`
-    const shareData = {
-      title: shareTitle,
-      text: shareMessage,
-    }
+    setSharing(true)
+    try {
+      const closingMessage = await getShortClosingMessage()
+      const proposalUrl = await getProposalPublicUrl()
+      const shareTitle = `Proposta de Locação - ${clienteNome} - JUCA Informática`
 
-    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
-      try {
-        await navigator.share(shareData)
-        toast({
-          title: 'Proposta compartilhada com sucesso!',
-          description: 'Apresentação da proposta enviada.',
-        })
-        return
-      } catch (err: any) {
-        if (err?.name === 'AbortError') {
-          // Usuário apenas cancelou o seletor nativo
+      const shareData = {
+        title: shareTitle,
+        text: closingMessage,
+        url: proposalUrl,
+      }
+
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+        try {
+          await navigator.share(shareData)
+          toast({
+            title: 'Proposta compartilhada com sucesso!',
+            description: 'Link do documento e mensagem de fechamento enviados.',
+          })
           return
+        } catch (err: any) {
+          if (err?.name === 'AbortError') {
+            return
+          }
         }
       }
-    }
 
-    // Fallback: cópia direta para a área de transferência
-    const copiedOk = copyToClipboardSync(shareMessage)
-    if (copiedOk) {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2500)
+      // Fallback: cópia direta da mensagem curta com link para o clipboard
+      const copiedOk = copyToClipboardSync(closingMessage)
+      if (copiedOk) {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2500)
+        toast({
+          title: 'Link e mensagem copiados!',
+          description: 'Mensagem com link direto para o cliente fechar a proposta copiada.',
+        })
+      } else {
+        toast({
+          title: 'Link da proposta pronto',
+          description: closingMessage.slice(0, 100) + '...',
+        })
+      }
+    } catch (err) {
+      console.error(err)
       toast({
-        title: 'Proposta copiada com sucesso!',
-        description: 'Texto completo da proposta pronto para colar e enviar ao cliente.',
+        title: 'Erro ao gerar link da proposta',
+        description: 'Tente novamente em instantes.',
+        variant: 'destructive',
       })
-    } else {
-      toast({
-        title: 'Texto da proposta pronto para cópia',
-        description: shareMessage.slice(0, 80) + '...',
-      })
+    } finally {
+      setSharing(false)
     }
   }
 
-  // Envio direto via WhatsApp
-  const handleWhatsApp = () => {
+  // Envio direto via WhatsApp wa.me com a mensagem curta de fechamento contendo o link
+  const handleWhatsApp = async () => {
     if (!sanitizedPhone) {
       toast({
         title: 'Cliente sem telefone cadastrado',
@@ -155,12 +186,24 @@ export function RentalProposalPrintView({
       return
     }
 
-    copyToClipboardSync(shareMessage)
-    openWhatsApp(sanitizedPhone, shareMessage)
-    toast({
-      title: 'WhatsApp aberto!',
-      description: 'Texto da proposta de locação copiado e conversa iniciada.',
-    })
+    setSharing(true)
+    try {
+      const closingMessage = await getShortClosingMessage()
+      copyToClipboardSync(closingMessage)
+      openWhatsApp(sanitizedPhone, closingMessage)
+      toast({
+        title: 'WhatsApp aberto!',
+        description: 'Mensagem com o link do documento da proposta enviada para o WhatsApp.',
+      })
+    } catch (err) {
+      console.error(err)
+      toast({
+        title: 'Erro ao preparar mensagem',
+        variant: 'destructive',
+      })
+    } finally {
+      setSharing(false)
+    }
   }
 
   return (
@@ -188,8 +231,9 @@ export function RentalProposalPrintView({
           <Button
             type="button"
             onClick={handleShare}
+            disabled={sharing}
             className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold gap-1.5 border border-slate-700 shadow-sm"
-            title="Compartilhar resumo da proposta (WhatsApp, e-mail ou copiar texto)"
+            title="Compartilhar proposta com link do documento e mensagem de fechamento"
           >
             {copied ? (
               <Check className="h-4 w-4 text-emerald-400" />

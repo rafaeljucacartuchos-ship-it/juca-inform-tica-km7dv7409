@@ -36,6 +36,7 @@ import TiposAtendimento from '@/pages/TiposAtendimento'
 import OrdemShare from '@/pages/OrdemShare'
 import OrdemPrint from '@/pages/OrdemPrint'
 import PropostaPublica from '@/pages/PropostaPublica'
+import PropostaLocacaoPublica from '@/pages/PropostaLocacaoPublica'
 import NotFound from '@/pages/NotFound'
 import { PwaInstallHint } from '@/components/PwaInstallHint'
 import { offlinePb } from '@/lib/offline-pb'
@@ -160,6 +161,7 @@ const App = () => {
                   </Route>
                   <Route path="/share/:id" element={<OrdemShare />} />
                   <Route path="/proposta/:token" element={<PropostaPublica />} />
+                  <Route path="/proposta-locacao/:id" element={<PropostaLocacaoPublica />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </TooltipProvider>
