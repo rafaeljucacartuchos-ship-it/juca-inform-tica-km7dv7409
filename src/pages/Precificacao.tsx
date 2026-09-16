@@ -861,7 +861,9 @@ export default function Precificacao() {
       `Custo Base (${res.moeda}): ${res.moeda === 'USD' ? `US$ ${res.custoProdutoUSD?.toFixed(2)} (R$ ${res.custoProdutoBRL.toFixed(2)})` : formatCurrencyBRL(res.custoProdutoBRL)}\n` +
       `Frete + Extras: ${formatCurrencyBRL(res.frete + res.custoAdicional1 + res.custoAdicional2)}\n` +
       `Custo Direto: ${formatCurrencyBRL(res.custoDiretoTotal)} (${res.fatias.custoDireto.pct}%)\n` +
-      (res.custoFixoRateado > 0 ? `Custo Fixo Rateado: ${formatCurrencyBRL(res.custoFixoRateado)} (${res.fatias.custoFixoRateado.pct}%)\n` : '') +
+      (res.custoFixoRateado > 0
+        ? `Custo Fixo Rateado: ${formatCurrencyBRL(res.custoFixoRateado)} (${res.fatias.custoFixoRateado.pct}%)\n`
+        : '') +
       `Despesa Fixa (${res.despesaFixaPct}%): ${formatCurrencyBRL(res.fatias.despesaFixa.valor)}\n` +
       `Custos Variáveis (${res.custosVariaveisPct}%): ${formatCurrencyBRL(res.fatias.custosVariaveis.valor)}\n` +
       `Lucratividade Alvo: ${res.lucratividadePct}%\n` +
@@ -978,7 +980,7 @@ export default function Precificacao() {
                   variant="outline"
                   className="border-indigo-200 bg-indigo-50 text-indigo-700 text-[10px] font-bold"
                 >
-                  v0.0.197
+                  v0.0.209
                 </Badge>
               </div>
               <p className="text-xs text-slate-500">
@@ -2237,8 +2239,10 @@ export default function Precificacao() {
                                 ipi_pct: calcResult2.ipiPct,
                                 custo_fixo_rateado_unitario: calcResult2.custoFixoRateado,
                                 custo_fixo_mensal: companyParams.custo_fixo_mensal,
-                                volume_estimado_servicos_mes: companyParams.volume_estimado_servicos_mes,
-                              })                              toast({ title: 'Cálculo salvo no histórico!' })
+                                volume_estimado_servicos_mes:
+                                  companyParams.volume_estimado_servicos_mes,
+                              })
+                              toast({ title: 'Cálculo salvo no histórico!' })
                               loadHistory()
                             } catch {
                               toast({

@@ -74,7 +74,12 @@ import {
 } from '@/services/orcamentos'
 import { getServiceOrder, syncServiceOrderTotal } from '@/services/service_orders'
 import { getProduct } from '@/services/products'
-import { getCustomerPhone, getCustomerDisplayName, getCustomers } from '@/services/customers'
+import {
+  getCustomerPhone,
+  getCustomerDisplayName,
+  getCustomers,
+  createCustomer,
+} from '@/services/customers'
 import { getUsers } from '@/services/users'
 import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/hooks/use-auth'
@@ -155,6 +160,17 @@ interface PricingLocationState {
     valor_unitario?: number
     valor_total_item?: number
   }
+  pricingItem?: {
+    tipo?: 'produto' | 'servico'
+    id_produto?: string | null
+    descricao?: string
+    quantidade?: number
+    valor_unitario?: number
+    valor_total_item?: number
+  }
+  customer_id?: string
+  customer_name?: string
+  customer_phone?: string
   cliente?: {
     id?: string
     name?: string
