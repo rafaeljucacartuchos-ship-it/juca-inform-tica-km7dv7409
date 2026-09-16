@@ -32,6 +32,7 @@ import {
   createRentalMachine,
   updateRentalSettings,
 } from '@/services/rental'
+import { useDraftState } from '@/hooks/use-draft-state'
 import { useToast } from '@/hooks/use-toast'
 import type { RentalQuote, RentalMachineCalculation, RentalQuoteResults } from '@/types'
 
@@ -78,6 +79,58 @@ export function RentalSimulator({ onQuoteGenerated, initialQuote }: RentalSimula
   // Máquinas (1 ou 2)
   const [machines, setMachines] = useState<MachineFormData[]>([
     { ...EMPTY_MACHINE, machineName: '' },
+  ])
+
+  // Rascunho de simulação/máquina de locação
+  const {
+    draft: draftRental,
+    saveDraft: saveDraftRental,
+    clearDraft: clearDraftRental,
+  } = useDraftState<any>('juca:draft:locacao-maquina', '/locacao', 'Locação de Impressoras')
+
+  // Restaura rascunho de locação se não houver initialQuote
+  useEffect(() => {
+    if (initialQuote) return
+    if (draftRental && draftRental.formData) {
+      const data = draftRental.formData
+      if (data.customer) setCustomer(data.customer)
+      if (data.volumeMensal) setVolumeMensal(data.volumeMensal)
+      if (data.franquiaPaginas) setFranquiaPaginas(data.franquiaPaginas)
+      if (data.contratoMeses) setContratoMeses(data.contratoMeses)
+      if (data.margemPct) setMargemPct(data.margemPct)
+      if (data.tituloProposta) setTituloProposta(data.tituloProposta)
+      if (Array.isArray(data.machines) && data.machines.length > 0) {
+        setMachines(data.machines)
+      }
+    }
+  }, [])
+
+  // Salva rascunho com debounce quando os dados da máquina/locação mudam
+  useEffect(() => {
+    if (initialQuote) return
+    const hasData =
+      customer.cliente_nome_livre || machines.some((m) => m.machineName || m.valorCompra > 0)
+    if (hasData) {
+      saveDraftRental({
+        customer,
+        volumeMensal,
+        franquiaPaginas,
+        contratoMeses,
+        margemPct,
+        tituloProposta,
+        machines,
+      })
+    }
+  }, [
+    customer,
+    volumeMensal,
+    franquiaPaginas,
+    contratoMeses,
+    margemPct,
+    tituloProposta,
+    machines,
+    initialQuote,
+    saveDraftRental,
   ])
 
   const [savingQuote, setSavingQuote] = useState(false)
@@ -257,6 +310,7 @@ export function RentalSimulator({ onQuoteGenerated, initialQuote }: RentalSimula
         description: `Proposta vinculada a ${customer.cliente_nome_livre}.`,
       })
 
+      clearDraftRental()
       onQuoteGenerated(createdQuote)
     } catch (err) {
       console.error(err)

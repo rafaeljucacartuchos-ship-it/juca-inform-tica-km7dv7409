@@ -95,6 +95,7 @@ import {
   buildOrcamentoAprovadoAgradecimentoMessage,
 } from '@/lib/whatsapp'
 import { generateRandomToken } from '@/services/orcamentos'
+import { useDraftState } from '@/hooks/use-draft-state'
 
 const STATUS_CONFIG: Record<
   OrcamentoStatus,
@@ -175,6 +176,14 @@ export default function OrcamentoDetail() {
   const [items, setItems] = useState<OrcamentoItem[]>([])
   const [anexos, setAnexos] = useState<OrcamentoAnexo[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Hook de rascunho para criação de novos orçamentos
+  const {
+    draft: draftOrcamentoNovo,
+    saveDraft: saveDraftOrcamentoNovo,
+    clearDraft: clearDraftOrcamentoNovo,
+  } = useDraftState<any>('juca:draft:orcamento-novo', '/orcamentos/novo', 'Novo Orçamento')
+
   const [loadError, setLoadError] = useState<string | null>(null)
   const [parcelasInput, setParcelasInput] = useState<string>('1')
   const [savingNewOrcamento, setSavingNewOrcamento] = useState(false)
@@ -227,20 +236,37 @@ export default function OrcamentoDetail() {
     // Se for modo criação (isNew), monta rascunho em memória sem nenhuma chamada ao banco
     if (isNew) {
       const initialItems: OrcamentoItem[] = []
-      if (navState?.item) {
-        const itemTipo = navState.item.tipo || 'produto'
+      const pricingItem = navState?.pricingItem || navState?.item
+
+      // Se houver rascunho gravado no localStorage e não veio de transição explícita com novo pricingItem
+      const savedDraftData = draftOrcamentoNovo?.formData
+      const shouldUseSavedDraft =
+        !pricingItem && savedDraftData && Array.isArray(savedDraftData.items)
+
+      if (shouldUseSavedDraft) {
+        setOrcamento(savedDraftData.orcamento)
+        setItems(savedDraftData.items || [])
+        setAnexos([])
+        setParcelasInput(String(savedDraftData.orcamento?.parcelas || 1))
+        setJustificativaDesconto(savedDraftData.orcamento?.justificativa_desconto || '')
+        setLoading(false)
+        return
+      }
+
+      if (pricingItem) {
+        const itemTipo = pricingItem.tipo || 'produto'
         const itemQtd =
-          navState.item.quantidade && navState.item.quantidade > 0 ? navState.item.quantidade : 1
-        const itemUnit = navState.item.valor_unitario || 0
-        const itemTotal = navState.item.valor_total_item ?? itemQtd * itemUnit
+          pricingItem.quantidade && pricingItem.quantidade > 0 ? pricingItem.quantidade : 1
+        const itemUnit = pricingItem.valor_unitario || 0
+        const itemTotal = pricingItem.valor_total_item ?? itemQtd * itemUnit
 
         initialItems.push({
           id: `draft-item-${Date.now()}`,
           id_orcamento: 'novo',
           tipo: itemTipo,
-          id_produto: navState.item.id_produto || undefined,
+          id_produto: pricingItem.id_produto || undefined,
           descricao:
-            navState.item.descricao ||
+            pricingItem.descricao ||
             (itemTipo === 'servico' ? 'Serviço Precificado' : 'Item Precificado'),
           quantidade: itemQtd,
           valor_unitario: itemUnit,
@@ -253,6 +279,10 @@ export default function OrcamentoDetail() {
       }
 
       const initialSubtotal = initialItems.reduce((acc, it) => acc + (it.valor_total_item || 0), 0)
+
+      const resolvedCustId = navState?.customer_id || navState?.cliente?.id || undefined
+      const resolvedCustName = navState?.customer_name || navState?.cliente?.name || ''
+      const resolvedCustPhone = navState?.customer_phone || navState?.cliente?.phone || ''
 
       const draftOrcamento: Orcamento = {
         id: 'novo',
@@ -268,18 +298,18 @@ export default function OrcamentoDetail() {
         desconto_total_percentual: 0,
         subtotal: initialSubtotal,
         total_geral: initialSubtotal,
-        cliente_id: navState?.cliente?.id || undefined,
-        nome_cliente_livre: navState?.cliente?.name || '',
-        telefone_cliente_livre: navState?.cliente?.phone || '',
+        cliente_id: resolvedCustId,
+        nome_cliente_livre: resolvedCustName,
+        telefone_cliente_livre: resolvedCustPhone,
         id_usuario_criador: user?.id,
         created: new Date().toISOString(),
         updated: new Date().toISOString(),
-        expand: navState?.cliente?.id
+        expand: resolvedCustId
           ? {
               cliente_id: {
-                id: navState.cliente.id,
-                name: navState.cliente.name || '',
-                phone: navState.cliente.phone || '',
+                id: resolvedCustId,
+                name: resolvedCustName,
+                phone: resolvedCustPhone,
                 created: '',
                 updated: '',
               } as Customer,
@@ -359,6 +389,25 @@ export default function OrcamentoDetail() {
       .then((u) => setSystemUsers(u))
       .catch(() => {})
   }, [loadAll])
+
+  // Salva rascunho de novo orçamento automaticamente no localStorage com debounce
+  useEffect(() => {
+    if (!isNew || !orcamento) return
+    const hasAnyContent =
+      items.length > 0 ||
+      Boolean(orcamento.nome_cliente_livre) ||
+      Boolean(orcamento.cliente_id) ||
+      Boolean(orcamento.telefone_cliente_livre) ||
+      Boolean(orcamento.equipamento_independente)
+
+    if (hasAnyContent) {
+      saveDraftOrcamentoNovo({
+        orcamento,
+        items,
+        updatedAt: new Date().toISOString(),
+      })
+    }
+  }, [isNew, orcamento, items, saveDraftOrcamentoNovo])
 
   // Timeout de segurança (~8s): se por qualquer falha assíncrona o loading continuar true, desliga
   useEffect(() => {
@@ -667,13 +716,34 @@ export default function OrcamentoDetail() {
 
     setSavingNewOrcamento(true)
     try {
+      let finalClienteId = orcamento?.cliente_id || null
+      const nomeLivre = (orcamento?.nome_cliente_livre || '').trim()
+
+      // Se houver nome_cliente_livre sem cliente_id, cria o registro em customers e vincula
+      if (!finalClienteId && nomeLivre) {
+        try {
+          const newCust = await createCustomer({
+            razao_social: nomeLivre,
+            celular: orcamento?.telefone_cliente_livre || '',
+          })
+          if (newCust && newCust.id) {
+            finalClienteId = newCust.id
+          }
+        } catch (errCust) {
+          console.warn(
+            'Não foi possível cadastrar cliente automaticamente ao salvar orçamento:',
+            errCust,
+          )
+        }
+      }
+
       // 1. Cria o registro do orçamento no PocketBase
       const createdOrcamento = await createOrcamento({
         id_os: null,
         id_usuario_criador: user?.id,
         validade: orcamento?.validade || 15,
         observacoes: orcamento?.observacoes || '',
-        cliente_id: orcamento?.cliente_id || null,
+        cliente_id: finalClienteId,
         nome_cliente_livre: orcamento?.nome_cliente_livre || '',
         telefone_cliente_livre: orcamento?.telefone_cliente_livre || '',
         responsavel_id: orcamento?.responsavel_id || null,
@@ -715,6 +785,9 @@ export default function OrcamentoDetail() {
         title: 'Orçamento salvo com sucesso!',
         description: `Orçamento ${createdOrcamento.numero_orcamento} gerado com sucesso.`,
       })
+
+      // Limpa o rascunho salvo do localStorage
+      clearDraftOrcamentoNovo()
 
       // 5. Redireciona para a tela do orçamento persistido
       navigate(`/orcamentos/${createdOrcamento.id}`, { replace: true })

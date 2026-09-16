@@ -46,6 +46,9 @@ import {
   PaymentMethodTax,
 } from '@/types'
 import { getProducts, getProduct, updateProduct, createProduct } from '@/services/products'
+import { getCustomers, createCustomer } from '@/services/customers'
+import { Customer } from '@/types'
+import { useDraftState } from '@/hooks/use-draft-state'
 import {
   getCompanyPricingParameters,
   updateCompanyPricingParameters,
@@ -72,6 +75,21 @@ export default function Precificacao() {
   const [activeTab, setActiveTab] = useState<string>(
     ['produto', 'avulsa', 'rapida', 'historico'].includes(initialMode) ? initialMode : 'produto',
   )
+
+  // Cliente para envio ao orçamento (compartilhado ou específico)
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('')
+  const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([])
+  const [searchingCustomers, setSearchingCustomers] = useState(false)
+  const [customerSearchDropdownOpen, setCustomerSearchDropdownOpen] = useState(false)
+  const [customerManualPhone, setCustomerManualPhone] = useState('')
+
+  // Rascunho de Precificação (nos 3 modos)
+  const {
+    draft: draftPrecificacao,
+    saveDraft: saveDraftPrecificacao,
+    clearDraft: clearDraftPrecificacao,
+  } = useDraftState<any>('juca:draft:precificacao', '/precificacao', 'Precificação')
 
   const { toast } = useToast()
 
@@ -165,7 +183,280 @@ export default function Precificacao() {
   useEffect(() => {
     loadCompanyParams()
     loadHistory()
+
+    // Restaura rascunho de formulário da Precificação se houver
+    if (draftPrecificacao && draftPrecificacao.formData) {
+      const d = draftPrecificacao.formData
+      if (d.activeTab && !searchParams.get('tab')) setActiveTab(d.activeTab)
+      if (d.customerSearchQuery) setCustomerSearchQuery(d.customerSearchQuery)
+      if (d.customerManualPhone) setCustomerManualPhone(d.customerManualPhone)
+      if (d.selectedCustomer) setSelectedCustomer(d.selectedCustomer)
+
+      // Modo 1
+      if (d.costInput1 !== undefined) setCostInput1(d.costInput1)
+      if (d.marginInput1 !== undefined) setMarginInput1(d.marginInput1)
+      if (d.freightInput1 !== undefined) setFreightInput1(d.freightInput1)
+
+      // Modo 2
+      if (d.costInput2 !== undefined) setCostInput2(d.costInput2)
+      if (d.marginInput2 !== undefined) setMarginInput2(d.marginInput2)
+      if (d.freightInput2 !== undefined) setFreightInput2(d.freightInput2)
+      if (d.extraCost2A !== undefined) setExtraCost2A(d.extraCost2A)
+      if (d.extraCost2B !== undefined) setExtraCost2B(d.extraCost2B)
+
+      // Modo 3
+      if (d.costInput3 !== undefined) setCostInput3(d.costInput3)
+      if (d.marginInput3 !== undefined) setMarginInput3(d.marginInput3)
+      if (d.freightInput3 !== undefined) setFreightInput3(d.freightInput3)
+      if (d.newProductName !== undefined) setNewProductName(d.newProductName)
+    }
   }, [])
+
+  // Salva rascunho com debounce ao alterar campos de precificação
+  useEffect(() => {
+    saveDraftPrecificacao({
+      activeTab,
+      selectedCustomer,
+      customerSearchQuery,
+      customerManualPhone,
+      // Modo 1
+      costInput1,
+      marginInput1,
+      freightInput1,
+      // Modo 2
+      costInput2,
+      marginInput2,
+      freightInput2,
+      extraCost2A,
+      extraCost2B,
+      // Modo 3
+      costInput3,
+      marginInput3,
+      freightInput3,
+      newProductName,
+    })
+  }, [
+    activeTab,
+    selectedCustomer,
+    customerSearchQuery,
+    customerManualPhone,
+    costInput1,
+    marginInput1,
+    freightInput1,
+    costInput2,
+    marginInput2,
+    freightInput2,
+    extraCost2A,
+    extraCost2B,
+    costInput3,
+    marginInput3,
+    freightInput3,
+    newProductName,
+    saveDraftPrecificacao,
+  ])
+
+  // Renderiza caixa unificada de cliente da precificação
+  const renderCustomerSelector = () => (
+    <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+          <FileText className="h-3.5 w-3.5 text-indigo-600" />
+          <span>Vincular Cliente ao Orçamento (Opcional)</span>
+        </Label>
+        {selectedCustomer && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setSelectedCustomer(null)
+              setCustomerSearchQuery('')
+              setCustomerManualPhone('')
+            }}
+            className="h-6 text-[10px] text-rose-600 hover:bg-rose-50 px-1.5"
+          >
+            Trocar
+          </Button>
+        )}
+      </div>
+
+      {selectedCustomer ? (
+        <div className="p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-md text-xs">
+          <div className="font-bold text-indigo-950">
+            {selectedCustomer.razao_social || selectedCustomer.name}
+          </div>
+          <div className="text-[11px] text-indigo-700 flex items-center gap-2 mt-0.5">
+            <span>
+              Tel:{' '}
+              {selectedCustomer.celular ||
+                selectedCustomer.phone ||
+                customerManualPhone ||
+                'Sem telefone'}
+            </span>
+            {selectedCustomer.cpf_cnpj && <span>• CPF/CNPJ: {selectedCustomer.cpf_cnpj}</span>}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+            <Input
+              type="text"
+              placeholder="Buscar cliente cadastrado ou digitar novo nome..."
+              value={customerSearchQuery}
+              onChange={(e) => {
+                setCustomerSearchQuery(e.target.value)
+                setCustomerSearchDropdownOpen(true)
+              }}
+              onFocus={() => {
+                if (customerSearchResults.length > 0) setCustomerSearchDropdownOpen(true)
+              }}
+              className="pl-8 h-8 text-xs bg-slate-50"
+            />
+            {searchingCustomers && (
+              <span className="absolute right-2.5 top-2.5 text-[10px] text-slate-400">
+                buscando...
+              </span>
+            )}
+          </div>
+
+          {customerSearchDropdownOpen && customerSearchResults.length > 0 && (
+            <div className="relative z-20 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-md shadow-md divide-y divide-slate-100 text-xs">
+              <div className="p-1.5 bg-slate-50 text-[10px] font-semibold text-slate-500 uppercase">
+                Clientes encontrados:
+              </div>
+              {customerSearchResults.map((cust) => (
+                <button
+                  key={cust.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedCustomer(cust)
+                    setCustomerSearchQuery(cust.razao_social || cust.name || '')
+                    setCustomerManualPhone(cust.celular || cust.phone || '')
+                    setCustomerSearchDropdownOpen(false)
+                  }}
+                  className="w-full text-left p-2 hover:bg-indigo-50 transition-colors flex items-center justify-between"
+                >
+                  <div>
+                    <div className="font-semibold text-slate-900">
+                      {cust.razao_social || cust.name}
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      {cust.celular || cust.phone || 'Sem telefone'} •{' '}
+                      {cust.cpf_cnpj || 'Sem documento'}
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="text-[9px] border-indigo-200 text-indigo-700">
+                    Selecionar
+                  </Badge>
+                </button>
+              ))}
+              <div className="p-1.5 bg-slate-50 flex justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-5 text-[10px]"
+                  onClick={() => setCustomerSearchDropdownOpen(false)}
+                >
+                  Fechar
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <Label className="text-[10px] font-semibold text-slate-500 block mb-0.5">
+              Telefone / WhatsApp (se for novo cliente):
+            </Label>
+            <Input
+              type="text"
+              placeholder="(00) 00000-0000"
+              value={customerManualPhone}
+              onChange={(e) => setCustomerManualPhone(e.target.value)}
+              className="h-8 text-xs font-mono"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+
+  // Autocomplete de clientes para envio a orçamento
+  useEffect(() => {
+    if (!customerSearchQuery.trim() || customerSearchQuery.trim().length < 2) {
+      setCustomerSearchResults([])
+      return
+    }
+    const timer = setTimeout(async () => {
+      setSearchingCustomers(true)
+      try {
+        const res = await getCustomers(customerSearchQuery.trim())
+        setCustomerSearchResults(res.slice(0, 8))
+      } catch {
+        setCustomerSearchResults([])
+      } finally {
+        setSearchingCustomers(false)
+      }
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [customerSearchQuery])
+
+  /**
+   * Helper unificado para resolver o cliente antes de enviar para Orçamento:
+   * - Cliente selecionado do cadastro -> { customer_id, customer_name, customer_phone }
+   * - Cliente digitado novo -> tenta createCustomer({ razao_social, celular }),
+   *   se sucesso envia o id, se falhar envia apenas customer_name sem travar.
+   */
+  const resolveCustomerForOrcamento = async (): Promise<{
+    customer_id?: string | null
+    customer_name?: string
+    customer_phone?: string
+  }> => {
+    if (selectedCustomer) {
+      return {
+        customer_id: selectedCustomer.id,
+        customer_name: selectedCustomer.name || selectedCustomer.razao_social || 'Cliente',
+        customer_phone:
+          selectedCustomer.phone || selectedCustomer.celular || customerManualPhone || '',
+      }
+    }
+
+    const typedName = customerSearchQuery.trim()
+    if (!typedName) {
+      return {
+        customer_id: null,
+        customer_name: '',
+        customer_phone: customerManualPhone.trim(),
+      }
+    }
+
+    // Tenta cadastrar o cliente novo antes de navegar
+    try {
+      const created = await createCustomer({
+        razao_social: typedName,
+        celular: customerManualPhone.trim(),
+      })
+      if (created && created.id) {
+        return {
+          customer_id: created.id,
+          customer_name: created.name || created.razao_social || typedName,
+          customer_phone: created.phone || created.celular || customerManualPhone.trim(),
+        }
+      }
+    } catch (err) {
+      console.warn(
+        'Não foi possível pré-cadastrar cliente na precificação, seguindo com nome avulso:',
+        err,
+      )
+    }
+
+    return {
+      customer_id: null,
+      customer_name: typedName,
+      customer_phone: customerManualPhone.trim(),
+    }
+  }
 
   const loadCompanyParams = async () => {
     try {
@@ -1335,12 +1626,16 @@ export default function Precificacao() {
                         </div>
                       )}
 
+                      {/* Seletor de Cliente integrado ao envio de Orçamento */}
+                      {renderCustomerSelector()}
+
                       {/* Botões de Ação */}
                       <div className="space-y-2 pt-2">
                         <Button
                           type="button"
                           disabled={!calcResult1?.isPossible || !calcResult1?.salePrice}
-                          onClick={() => {
+                          onClick={async () => {
+                            const resolvedCust = await resolveCustomerForOrcamento()
                             const item = {
                               tipo: 'produto',
                               id_produto: selectedProduct ? selectedProduct.id : null,
@@ -1353,7 +1648,23 @@ export default function Precificacao() {
                               state: {
                                 fromPricing: true,
                                 item,
-                                cliente: null,
+                                pricingItem: item,
+                                customer_id: resolvedCust.customer_id,
+                                customer_name: resolvedCust.customer_name,
+                                customer_phone: resolvedCust.customer_phone,
+                                cliente: resolvedCust.customer_id
+                                  ? {
+                                      id: resolvedCust.customer_id,
+                                      name: resolvedCust.customer_name,
+                                      phone: resolvedCust.customer_phone,
+                                    }
+                                  : resolvedCust.customer_name
+                                    ? {
+                                        id: '',
+                                        name: resolvedCust.customer_name,
+                                        phone: resolvedCust.customer_phone,
+                                      }
+                                    : null,
                               },
                             })
                           }}
@@ -1823,11 +2134,15 @@ export default function Precificacao() {
                         detalheVariaveis={calcResult2.fatias.custosVariaveis.detalhe}
                       />
 
+                      {/* Seletor de Cliente no Modo 2 (Avulsa) */}
+                      {renderCustomerSelector()}
+
                       <div className="pt-2 space-y-2">
                         <Button
                           type="button"
                           disabled={!calcResult2?.isPossible || !calcResult2?.salePrice}
-                          onClick={() => {
+                          onClick={async () => {
+                            const resolvedCust = await resolveCustomerForOrcamento()
                             const item = {
                               tipo: 'produto',
                               id_produto: null,
@@ -1840,7 +2155,23 @@ export default function Precificacao() {
                               state: {
                                 fromPricing: true,
                                 item,
-                                cliente: null,
+                                pricingItem: item,
+                                customer_id: resolvedCust.customer_id,
+                                customer_name: resolvedCust.customer_name,
+                                customer_phone: resolvedCust.customer_phone,
+                                cliente: resolvedCust.customer_id
+                                  ? {
+                                      id: resolvedCust.customer_id,
+                                      name: resolvedCust.customer_name,
+                                      phone: resolvedCust.customer_phone,
+                                    }
+                                  : resolvedCust.customer_name
+                                    ? {
+                                        id: '',
+                                        name: resolvedCust.customer_name,
+                                        phone: resolvedCust.customer_phone,
+                                      }
+                                    : null,
                               },
                             })
                           }}
@@ -2302,11 +2633,15 @@ export default function Precificacao() {
                         detalheVariaveis={calcResult3.fatias.custosVariaveis.detalhe}
                       />
 
+                      {/* Seletor de Cliente no Modo 3 (Rápida) */}
+                      {renderCustomerSelector()}
+
                       <div className="space-y-2 pt-2">
                         <Button
                           type="button"
                           disabled={!calcResult3?.isPossible || !calcResult3?.salePrice}
-                          onClick={() => {
+                          onClick={async () => {
+                            const resolvedCust = await resolveCustomerForOrcamento()
                             const item = {
                               tipo: 'produto',
                               id_produto: linkedProduct3?.id || null,
@@ -2322,7 +2657,23 @@ export default function Precificacao() {
                               state: {
                                 fromPricing: true,
                                 item,
-                                cliente: null,
+                                pricingItem: item,
+                                customer_id: resolvedCust.customer_id,
+                                customer_name: resolvedCust.customer_name,
+                                customer_phone: resolvedCust.customer_phone,
+                                cliente: resolvedCust.customer_id
+                                  ? {
+                                      id: resolvedCust.customer_id,
+                                      name: resolvedCust.customer_name,
+                                      phone: resolvedCust.customer_phone,
+                                    }
+                                  : resolvedCust.customer_name
+                                    ? {
+                                        id: '',
+                                        name: resolvedCust.customer_name,
+                                        phone: resolvedCust.customer_phone,
+                                      }
+                                    : null,
                               },
                             })
                           }}

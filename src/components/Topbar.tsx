@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Search, Bell, Plus, Menu, Download } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { Search, Bell, Plus, Menu, Download, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
@@ -18,6 +18,8 @@ export function Topbar() {
   const [newOrderOpen, setNewOrderOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const navigate = useNavigate()
+  const location = useLocation()
+  const showBackButton = location.pathname !== '/' && location.pathname !== '/dashboard'
   const { notifications, unreadCount, markAllAsRead, requestBrowserPermission, browserPermission } =
     useNotifications()
   const { hasPermission } = usePermissions()
@@ -48,6 +50,19 @@ export function Topbar() {
               <Sidebar onNavClick={() => setMobileOpen(false)} />
             </SheetContent>
           </Sheet>
+
+          {showBackButton && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(-1)}
+              className="h-9 w-9 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg shrink-0"
+              title="Voltar para a página anterior"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          )}
 
           <form
             onSubmit={handleSearch}

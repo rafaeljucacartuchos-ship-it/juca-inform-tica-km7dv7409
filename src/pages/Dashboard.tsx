@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
   UserCheck,
@@ -8,6 +8,7 @@ import {
   Search,
   Calendar,
   TrendingUp,
+  Clock,
 } from 'lucide-react'
 import { ExportReportsModal } from '@/components/ExportReportsModal'
 import { ExportOrdersListModal } from '@/components/ExportOrdersListModal'
@@ -27,6 +28,7 @@ import { getOrcamentos } from '@/services/orcamentos'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useAuth } from '@/hooks/use-auth'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
+import { getLatestDraft, removeDraftByKey, type DraftEnvelope } from '@/hooks/use-draft-state'
 import {
   STATUS_PRIORITY_MAP,
   getPeriodRange,
@@ -71,6 +73,7 @@ const PERIOD_LABELS: Record<Period, string> = {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate()
   const [orders, setOrders] = useState<ServiceOrder[]>([])
   const [technicians, setTechnicians] = useState<User[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
@@ -84,6 +87,38 @@ export default function Dashboard() {
   const [exportOpen, setExportOpen] = useState(false)
   const [exportOrdersOpen, setExportOrdersOpen] = useState(false)
   const [productSearchOpen, setProductSearchOpen] = useState(false)
+
+  // Banner "Continuar de onde parei"
+  const [activeDraft, setActiveDraft] = useState<{ key: string; draft: DraftEnvelope } | null>(null)
+
+  const checkDraft = useCallback(() => {
+    const latest = getLatestDraft()
+    setActiveDraft(latest)
+  }, [])
+
+  useEffect(() => {
+    checkDraft()
+    const handleDraftChanged = () => checkDraft()
+    window.addEventListener('juca:draft-changed', handleDraftChanged)
+    window.addEventListener('storage', handleDraftChanged)
+    return () => {
+      window.removeEventListener('juca:draft-changed', handleDraftChanged)
+      window.removeEventListener('storage', handleDraftChanged)
+    }
+  }, [checkDraft])
+
+  const handleDiscardDraft = () => {
+    if (activeDraft) {
+      removeDraftByKey(activeDraft.key)
+      setActiveDraft(null)
+    }
+  }
+
+  const handleContinueDraft = () => {
+    if (activeDraft?.draft?.route) {
+      navigate(activeDraft.draft.route)
+    }
+  }
   const { user } = useAuth()
   const isTech = user?.role === 'technician'
 
@@ -242,6 +277,58 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* BANNER DISCRETO: CONTINUAR DE ONDE PAREI */}
+      {activeDraft && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-gradient-to-r from-indigo-50 via-blue-50 to-indigo-50 border border-indigo-200/90 rounded-xl shadow-2xs animate-in fade-in duration-300">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-xs shrink-0">
+              <Clock className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-indigo-950 uppercase tracking-wide">
+                  Continuar de onde parei
+                </span>
+                <span className="text-[10px] font-semibold text-indigo-600 bg-white/80 px-2 py-0.5 rounded-full border border-indigo-200">
+                  {activeDraft.draft.title || activeDraft.draft.route}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600">
+                Você tem alterações não salvas gravadas às{' '}
+                <span className="font-semibold text-slate-900">
+                  {new Date(activeDraft.draft.updatedAt).toLocaleTimeString('pt-BR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>{' '}
+                de {new Date(activeDraft.draft.updatedAt).toLocaleDateString('pt-BR')}.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleDiscardDraft}
+              className="h-8 text-xs font-semibold text-slate-600 hover:text-rose-600 hover:bg-rose-50"
+            >
+              Descartar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleContinueDraft}
+              className="h-8 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs gap-1.5"
+            >
+              <span>Continuar</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* 1. Cabeçalho Moderno e Limpo com Saudação, Data e Ações Discretas */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between pb-4 border-b border-slate-200">
         <div>

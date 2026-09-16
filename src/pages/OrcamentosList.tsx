@@ -20,7 +20,9 @@ import {
   Printer,
   Share2,
   Trash2,
+  Share,
 } from 'lucide-react'
+import { openWhatsApp, buildOrcamentoRetomadaNegociacaoMessage } from '@/lib/whatsapp'
 import { RecordActionsMenu, RecordActionItem } from '@/components/RecordActionsMenu'
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
 import { deleteOrcamento } from '@/services/orcamentos'
@@ -266,6 +268,88 @@ export default function OrcamentosList() {
       loadData()
     } catch {
       toast({ title: 'Erro ao excluir orçamento', variant: 'destructive' })
+    }
+  }
+
+  // Encaminhar Orçamento ao Cliente (Share / WhatsApp / Clipboard fallback)
+  const handleForwardToCustomer = async (orc: Orcamento, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+
+    const osRec = orc.expand?.id_os
+    const custRec =
+      osRec?.expand?.customer ||
+      orc.expand?.cliente_id ||
+      (orc.nome_cliente_livre
+        ? ({
+            name: orc.nome_cliente_livre,
+            celular: orc.telefone_cliente_livre || '',
+            phone: orc.telefone_cliente_livre || '',
+          } as Customer)
+        : null)
+
+    const custName = custRec ? getCustomerDisplayName(custRec) : orc.nome_cliente_livre || 'Cliente'
+    const phone = custRec ? getCustomerPhone(custRec) : orc.telefone_cliente_livre || ''
+
+    const equipName =
+      osRec?.expand?.equipment_ref?.name ||
+      osRec?.equipment ||
+      orc.equipamento_independente ||
+      orc.observacoes ||
+      'Serviços e Peças'
+
+    const propostaUrl = orc.token_acesso
+      ? `${window.location.origin}/proposta/${orc.token_acesso}`
+      : `${window.location.origin}/orcamentos/${orc.id}/imprimir`
+
+    const msg = buildOrcamentoRetomadaNegociacaoMessage({
+      customerName: custName,
+      numeroOrcamento: orc.numero_orcamento,
+      resumoServico: equipName,
+      validadeDias: orc.validade || 15,
+      totalGeral: orc.total_geral || 0,
+      propostaUrl,
+    })
+
+    // 1. Tenta navigator.share (dispositivos móveis suportados)
+    const shareData = {
+      title: `Orçamento ${orc.numero_orcamento} - JUCA Informática`,
+      text: msg,
+      url: propostaUrl,
+    }
+
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData)
+        toast({ title: 'Proposta encaminhada com sucesso!' })
+        return
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return
+      }
+    }
+
+    // 2. Se cliente tem telefone, abre WhatsApp
+    if (phone && phone.trim().length >= 8) {
+      openWhatsApp(phone, msg)
+      toast({
+        title: 'Abrindo WhatsApp...',
+        description: `Encaminhando proposta de ${orc.numero_orcamento} para ${custName}.`,
+      })
+      return
+    }
+
+    // 3. Fallback no PC / Sem telefone: copiar mensagem + link para clipboard
+    try {
+      await navigator.clipboard.writeText(msg)
+      toast({
+        title: 'Mensagem copiada para a área de transferência!',
+        description: 'Cole no WhatsApp ou envie diretamente ao cliente.',
+      })
+    } catch {
+      toast({
+        title: 'Não foi possível copiar',
+        description: 'Selecione o orçamento para visualizar o link completo.',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -695,6 +779,22 @@ export default function OrcamentosList() {
                       {orc.assinatura_cliente ? '✓ Cliente Assinou' : 'Assinatura Pendente'}
                     </span>
                   </div>
+
+                  {/* BOTÃO EM DESTAQUE: ENCAMINHAR AO CLIENTE (status aguardando_aprovacao ou enviado) */}
+                  {(orc.status === 'aguardando_aprovacao' || orc.status === 'enviado') && (
+                    <div className="pt-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={(e) => handleForwardToCustomer(orc, e)}
+                        className="w-full h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-2xs"
+                        title="Encaminhar proposta ou retomar negociação via WhatsApp / Compartilhar"
+                      >
+                        <Share className="h-3.5 w-3.5" />
+                        <span>Encaminhar ao Cliente</span>
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
 
                 <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs">

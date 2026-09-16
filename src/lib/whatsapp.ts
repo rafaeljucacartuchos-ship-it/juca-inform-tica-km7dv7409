@@ -396,6 +396,36 @@ export function buildRentalProposalClosingMessage(params: {
   )
 }
 
+/**
+ * Mensagem amigável de retomada de negociação para orçamentos pendentes/enviados.
+ * 'Olá, {primeiro nome}! Passando para saber se consegui te ajudar com o orçamento {numero} — {resumo}? A proposta fica válida por {X dias|tempo limitado} e temos condição de fechar por {total BRL}. {link da proposta, se houver} Qualquer dúvida me chama por aqui! 😉'
+ */
+export function buildOrcamentoRetomadaNegociacaoMessage(params: {
+  customerName: string
+  numeroOrcamento: string
+  resumoServico?: string
+  validadeDias?: number
+  totalGeral?: number
+  propostaUrl?: string
+}): string {
+  const { customerName, numeroOrcamento, resumoServico, validadeDias, totalGeral, propostaUrl } =
+    params
+  const firstName = customerName.split(' ')[0] || customerName
+  const resumo = resumoServico && resumoServico.trim() ? ` — ${resumoServico.trim()}` : ''
+  const validadeTxt = validadeDias && validadeDias > 0 ? `${validadeDias} dias` : 'tempo limitado'
+  const totalTxt =
+    typeof totalGeral === 'number' && totalGeral > 0
+      ? totalGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      : 'ótimas condições'
+  const linkTxt = propostaUrl ? `\n\n👉 Acesse a proposta: ${propostaUrl}` : ''
+
+  return (
+    `Olá, ${firstName}! Passando para saber se consegui te ajudar com o orçamento ${numeroOrcamento}${resumo}? ` +
+    `A proposta fica válida por ${validadeTxt} e temos condição de fechar por ${totalTxt}.${linkTxt} ` +
+    `Qualquer dúvida me chama por aqui! 😉`
+  )
+}
+
 export function buildRentalProposalMessage(params: {
   customerName: string
   titulo?: string
