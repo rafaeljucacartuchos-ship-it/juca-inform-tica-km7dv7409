@@ -63,10 +63,10 @@ const STATUS_CONFIG: Record<
   { label: string; color: string; bg: string; border: string }
 > = {
   rascunho: {
-    label: 'Rascunho',
-    color: 'text-slate-700',
-    bg: 'bg-slate-100',
-    border: 'border-slate-300',
+    label: 'Aguardando Aprovação',
+    color: 'text-amber-700',
+    bg: 'bg-amber-100',
+    border: 'border-amber-300',
   },
   enviado: {
     label: 'Enviado',
@@ -469,7 +469,6 @@ export default function OrcamentosList() {
   const counts = useMemo(() => {
     const res: Record<string, number> = {
       todos: orcamentos.length,
-      rascunho: 0,
       enviado: 0,
       aguardando_aprovacao: 0,
       aprovado: 0,
@@ -477,7 +476,9 @@ export default function OrcamentosList() {
       rejeitado: 0,
     }
     for (const o of orcamentos) {
-      if (res[o.status] !== undefined) {
+      if (o.status === 'rascunho') {
+        res.aguardando_aprovacao = (res.aguardando_aprovacao || 0) + 1
+      } else if (res[o.status] !== undefined) {
         res[o.status]++
       }
     }
@@ -586,7 +587,7 @@ export default function OrcamentosList() {
       </div>
 
       {/* Cartões de Status / Filtros Rápidos */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         <button
           type="button"
           onClick={() => setStatusFilter('todos')}
@@ -598,21 +599,6 @@ export default function OrcamentosList() {
         >
           <span className="text-[11px] font-semibold text-slate-500 block">Todos</span>
           <span className="text-base font-bold text-slate-900 font-mono">{counts.todos || 0}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStatusFilter('rascunho')}
-          className={`p-2.5 rounded-lg border text-left transition-all ${
-            statusFilter === 'rascunho'
-              ? 'bg-slate-100 border-slate-400 ring-1 ring-slate-400'
-              : 'bg-white border-slate-200 hover:bg-slate-50'
-          }`}
-        >
-          <span className="text-[11px] font-semibold text-slate-500 block">Rascunho</span>
-          <span className="text-base font-bold text-slate-700 font-mono">
-            {counts.rascunho || 0}
-          </span>
         </button>
 
         <button
@@ -742,9 +728,8 @@ export default function OrcamentosList() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos os status</SelectItem>
-              <SelectItem value="rascunho">Rascunho</SelectItem>
-              <SelectItem value="enviado">Enviado</SelectItem>
               <SelectItem value="aguardando_aprovacao">Aguardando Aprovação</SelectItem>
+              <SelectItem value="enviado">Enviado</SelectItem>
               <SelectItem value="aprovado">Aprovado</SelectItem>
               <SelectItem value="faturado">Faturado</SelectItem>
               <SelectItem value="rejeitado">Rejeitado</SelectItem>

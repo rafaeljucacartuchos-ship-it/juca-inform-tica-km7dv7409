@@ -108,10 +108,10 @@ const STATUS_CONFIG: Record<
   { label: string; color: string; bg: string; border: string }
 > = {
   rascunho: {
-    label: 'Rascunho',
-    color: 'text-slate-700',
-    bg: 'bg-slate-100',
-    border: 'border-slate-300',
+    label: 'Aguardando Aprovação',
+    color: 'text-amber-700',
+    bg: 'bg-amber-100',
+    border: 'border-amber-300',
   },
   enviado: {
     label: 'Enviado',
@@ -306,7 +306,7 @@ export default function OrcamentoDetail() {
       const draftOrcamento: Orcamento = {
         id: 'novo',
         numero_orcamento: 'NOVO ORÇAMENTO',
-        status: 'rascunho',
+        status: 'aguardando_aprovacao',
         validade: 15,
         forma_pagamento: 'pix',
         parcelas: 1,
@@ -937,8 +937,8 @@ export default function OrcamentoDetail() {
       /* intentionally ignored */
     }
 
-    // Transição de status do orçamento: rascunho -> enviado
-    if (orcamento.status === 'rascunho') {
+    // Transição de status do orçamento: rascunho/aguardando_aprovacao -> enviado
+    if (orcamento.status === 'rascunho' || orcamento.status === 'aguardando_aprovacao') {
       try {
         await updateOrcamento(orcamento.id, { status: 'enviado' })
         if (orcamento.id_os) {
@@ -1028,8 +1028,8 @@ export default function OrcamentoDetail() {
       /* intentionally ignored */
     }
 
-    // Transição de status do orçamento: rascunho -> enviado
-    if (orcamento.status === 'rascunho') {
+    // Transição de status do orçamento: rascunho/aguardando_aprovacao -> enviado
+    if (orcamento.status === 'rascunho' || orcamento.status === 'aguardando_aprovacao') {
       try {
         await updateOrcamento(orcamento.id, { status: 'enviado' })
         if (orcamento.id_os) {
@@ -1688,20 +1688,6 @@ export default function OrcamentoDetail() {
         {/* Resumo compacto de Alertas / Ações de Status */}
         <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs">
           <span className="font-semibold text-slate-700">Fluxo do Orçamento:</span>
-          {!isNew && orcamento.status === 'rascunho' && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                updateOrcamento(orcamento.id, { status: 'aguardando_aprovacao' })
-                loadAll()
-              }}
-              className="h-8 text-xs border-amber-300 bg-amber-50 text-amber-800"
-            >
-              Marcar como "Aguardando Aprovação"
-            </Button>
-          )}
-
           {/* Botão Enviar link ao cliente (copia URL e abre WhatsApp) */}
           <Button
             size="sm"

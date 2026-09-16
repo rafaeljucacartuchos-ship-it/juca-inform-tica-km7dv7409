@@ -37,6 +37,10 @@ import {
   recalculateOrcamentoTotals,
   updateOrcamento,
   autoApproveOrcamentosOnOsClosed,
+  getActiveOrcamento,
+  getOrcamentoItens,
+  createOrcamento,
+  getOrcamentosByOs,
 } from '@/services/orcamentos'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -61,7 +65,6 @@ import {
   syncServiceOrderTotal,
 } from '@/services/service_orders'
 import { getCustomerPhone, getCustomerDisplayName } from '@/services/customers'
-import { getActiveOrcamento, getOrcamentoItens, createOrcamento } from '@/services/orcamentos'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { offlinePb } from '@/lib/offline-pb'
 import {
@@ -303,6 +306,16 @@ export default function OrdemDetail() {
       }
 
       try {
+        const vinculados = await getOrcamentosByOs(order.id)
+        const hasPendentes = vinculados.some(
+          (o) =>
+            o.status !== 'aprovado' &&
+            o.status !== 'faturado' &&
+            o.status !== 'substituido' &&
+            (o.status === 'rascunho' ||
+              o.status === 'aguardando_aprovacao' ||
+              o.status === 'enviado'),
+        )
         const approvedCount = await autoApproveOrcamentosOnOsClosed(
           order.id,
           order.number,
@@ -314,9 +327,20 @@ export default function OrdemDetail() {
             title: 'O.S. fechada',
             description: 'Orçamento aprovado automaticamente',
           })
+        } else if (hasPendentes) {
+          toast({
+            title: 'Falha ao aprovar orçamento automaticamente',
+            description: 'Verifique o orçamento vinculado.',
+            variant: 'destructive',
+          })
         }
-      } catch {
-        /* best effort */
+      } catch (errAuto) {
+        console.error('Falha ao auto-aprovar orçamentos vinculados:', errAuto)
+        toast({
+          title: 'Falha ao aprovar orçamento automaticamente',
+          description: 'Verifique o orçamento vinculado.',
+          variant: 'destructive',
+        })
       }
 
       const productItems = orcamentoItens.filter((it) => it.tipo === 'produto')
@@ -407,6 +431,16 @@ export default function OrdemDetail() {
         }
 
         try {
+          const vinculados = await getOrcamentosByOs(order.id)
+          const hasPendentes = vinculados.some(
+            (o) =>
+              o.status !== 'aprovado' &&
+              o.status !== 'faturado' &&
+              o.status !== 'substituido' &&
+              (o.status === 'rascunho' ||
+                o.status === 'aguardando_aprovacao' ||
+                o.status === 'enviado'),
+          )
           const approvedCount = await autoApproveOrcamentosOnOsClosed(
             order.id,
             order.number,
@@ -418,9 +452,20 @@ export default function OrdemDetail() {
               title: 'O.S. fechada',
               description: 'Orçamento aprovado automaticamente',
             })
+          } else if (hasPendentes) {
+            toast({
+              title: 'Falha ao aprovar orçamento automaticamente',
+              description: 'Verifique o orçamento vinculado.',
+              variant: 'destructive',
+            })
           }
-        } catch {
-          /* best effort */
+        } catch (errAuto) {
+          console.error('Falha ao auto-aprovar orçamentos vinculados:', errAuto)
+          toast({
+            title: 'Falha ao aprovar orçamento automaticamente',
+            description: 'Verifique o orçamento vinculado.',
+            variant: 'destructive',
+          })
         }
       }
 
@@ -532,6 +577,16 @@ export default function OrdemDetail() {
       }
 
       try {
+        const vinculados = await getOrcamentosByOs(order.id)
+        const hasPendentes = vinculados.some(
+          (o) =>
+            o.status !== 'aprovado' &&
+            o.status !== 'faturado' &&
+            o.status !== 'substituido' &&
+            (o.status === 'rascunho' ||
+              o.status === 'aguardando_aprovacao' ||
+              o.status === 'enviado'),
+        )
         const approvedCount = await autoApproveOrcamentosOnOsClosed(
           order.id,
           order.number,
@@ -543,9 +598,20 @@ export default function OrdemDetail() {
             title: 'O.S. fechada',
             description: 'Orçamento aprovado automaticamente',
           })
+        } else if (hasPendentes) {
+          toast({
+            title: 'Falha ao aprovar orçamento automaticamente',
+            description: 'Verifique o orçamento vinculado.',
+            variant: 'destructive',
+          })
         }
-      } catch {
-        /* best effort */
+      } catch (errAuto) {
+        console.error('Falha ao auto-aprovar orçamentos vinculados:', errAuto)
+        toast({
+          title: 'Falha ao aprovar orçamento automaticamente',
+          description: 'Verifique o orçamento vinculado.',
+          variant: 'destructive',
+        })
       }
 
       if (!upd.queued && !hist.queued) toast({ title: 'Serviço concluído com sucesso!' })

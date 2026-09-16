@@ -39,7 +39,7 @@ import {
   deleteServiceOrder,
   syncServiceOrderTotal,
 } from '@/services/service_orders'
-import { autoApproveOrcamentosOnOsClosed } from '@/services/orcamentos'
+import { autoApproveOrcamentosOnOsClosed, getOrcamentosByOs } from '@/services/orcamentos'
 import { getCustomers, getCustomerDisplayName, getCustomerPhone } from '@/services/customers'
 import { getTechnicians } from '@/services/users'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -329,6 +329,16 @@ export default function OrdensDeServico() {
 
       if (newStatus === 'completed' || newStatus === 'closed') {
         try {
+          const vinculados = await getOrcamentosByOs(orderId)
+          const hasPendentes = vinculados.some(
+            (o) =>
+              o.status !== 'aprovado' &&
+              o.status !== 'faturado' &&
+              o.status !== 'substituido' &&
+              (o.status === 'rascunho' ||
+                o.status === 'aguardando_aprovacao' ||
+                o.status === 'enviado'),
+          )
           const approvedCount = await autoApproveOrcamentosOnOsClosed(
             orderId,
             changedOrder?.number,
@@ -340,9 +350,20 @@ export default function OrdensDeServico() {
               title: 'O.S. fechada',
               description: 'Orçamento aprovado automaticamente',
             })
+          } else if (hasPendentes) {
+            toast({
+              title: 'Falha ao aprovar orçamento automaticamente',
+              description: 'Verifique o orçamento vinculado.',
+              variant: 'destructive',
+            })
           }
-        } catch {
-          /* best effort */
+        } catch (errAuto) {
+          console.error('Falha ao auto-aprovar orçamentos vinculados:', errAuto)
+          toast({
+            title: 'Falha ao aprovar orçamento automaticamente',
+            description: 'Verifique o orçamento vinculado.',
+            variant: 'destructive',
+          })
         }
       }
 
