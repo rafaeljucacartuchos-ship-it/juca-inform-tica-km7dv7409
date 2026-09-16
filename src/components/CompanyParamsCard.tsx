@@ -28,6 +28,7 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
   const [despesaFixa, setDespesaFixa] = useState(String(parameters.despesa_fixa_mensal))
   const [faturamento, setFaturamento] = useState(String(parameters.faturamento_medio_mensal))
   const [lucratividade, setLucratividade] = useState(String(parameters.lucratividade_desejada_pct))
+  const [custoFixoPctInput, setCustoFixoPctInput] = useState(String(parameters.custo_fixo_pct ?? 0))
   const [custoFixoMensal, setCustoFixoMensal] = useState(
     String(parameters.custo_fixo_mensal ?? 12000),
   )
@@ -47,6 +48,7 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
     setDespesaFixa(String(parameters.despesa_fixa_mensal))
     setFaturamento(String(parameters.faturamento_medio_mensal))
     setLucratividade(String(parameters.lucratividade_desejada_pct))
+    setCustoFixoPctInput(String(parameters.custo_fixo_pct ?? 0))
     setCustoFixoMensal(String(parameters.custo_fixo_mensal ?? 12000))
     setVolumeServicosMes(String(parameters.volume_estimado_servicos_mes ?? 300))
   }, [parameters])
@@ -63,6 +65,7 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
       ? Math.round((custoFixoMensalNum / volumeServicosMesNum) * 100) / 100
       : 0
 
+  const tCustoFixoPct = parseFloat(custoFixoPctInput.replace(',', '.')) || 0
   const tCartao = parseFloat(taxaCartao.replace(',', '.')) || 0
   const tIcms = parseFloat(icms.replace(',', '.')) || 0
   const tImpSaida = parseFloat(impostoSaida.replace(',', '.')) || 0
@@ -82,6 +85,7 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
       despesa_fixa_mensal: despFixaNum,
       faturamento_medio_mensal: fatNum,
       lucratividade_desejada_pct: parseFloat(lucratividade.replace(',', '.')) || 25,
+      custo_fixo_pct: tCustoFixoPct,
       custo_fixo_mensal: custoFixoMensalNum,
       volume_estimado_servicos_mes: volumeServicosMesNum,
     })
@@ -285,6 +289,29 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <div className="space-y-1">
+                  <Label className="text-[10px] font-bold text-sky-900 flex items-center justify-between">
+                    <span>Custo Fixo (%)</span>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-3 w-3 text-sky-500 cursor-pointer" />
+                        </TooltipTrigger>
+                        <TooltipContent className="text-xs max-w-xs">
+                          Percentual de custo fixo incidente sobre o preço sugerido na composição.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={custoFixoPctInput}
+                    onChange={(e) => setCustoFixoPctInput(e.target.value)}
+                    className="h-8 font-mono text-xs font-bold text-sky-900 bg-sky-50/50 border-sky-200"
+                    placeholder="0.0"
+                  />
+                </div>
+                <div className="space-y-1">
                   <Label className="text-[10px] font-semibold text-slate-600">Taxa Cartão %</Label>
                   <Input
                     type="number"
@@ -367,6 +394,7 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
                   <span>Dedução Total:</span>
                   <span className="font-mono font-bold text-slate-800">
                     {(
+                      tCustoFixoPct +
                       despesaFixaCalculadaPct +
                       custosVariaveisCalculadosPct +
                       (parseFloat(lucratividade) || 0)
@@ -379,6 +407,7 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
                   <span className="font-mono font-bold text-indigo-700">
                     {(() => {
                       const soma =
+                        tCustoFixoPct +
                         despesaFixaCalculadaPct +
                         custosVariaveisCalculadosPct +
                         (parseFloat(lucratividade) || 0)

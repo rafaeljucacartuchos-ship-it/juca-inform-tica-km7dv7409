@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-16T14:49:37.897Z",
+  "generatedAt": "2026-09-16T15:48:04.456Z",
   "collections": [
     {
       "name": "users",
@@ -2210,6 +2210,12 @@
         },
         {
           "name": "volume_estimado_servicos_mes",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "custo_fixo_pct",
           "type": "number",
           "required": false,
           "system": false

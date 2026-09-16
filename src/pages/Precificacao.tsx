@@ -124,6 +124,7 @@ export default function Precificacao() {
   const [freightInput1, setFreightInput1] = useState('0')
   const [extraCost1A, setExtraCost1A] = useState('0') // Ex: embalagem
   const [extraCost1B, setExtraCost1B] = useState('0') // Ex: outros
+  const [custoFixoPct1, setCustoFixoPct1] = useState('0')
   const [fixedExpensesPct1, setFixedExpensesPct1] = useState('15')
   const [cardTaxPct1, setCardTaxPct1] = useState('3.5')
   const [icmsPct1, setIcmsPct1] = useState('4.0')
@@ -144,6 +145,7 @@ export default function Precificacao() {
   const [freightInput2, setFreightInput2] = useState('0')
   const [extraCost2A, setExtraCost2A] = useState('0')
   const [extraCost2B, setExtraCost2B] = useState('0')
+  const [custoFixoPct2, setCustoFixoPct2] = useState('0')
   const [fixedExpensesPct2, setFixedExpensesPct2] = useState('15')
   const [cardTaxPct2, setCardTaxPct2] = useState('3.5')
   const [icmsPct2, setIcmsPct2] = useState('4.0')
@@ -162,6 +164,7 @@ export default function Precificacao() {
   const [freightInput3, setFreightInput3] = useState('0')
   const [extraCost3A, setExtraCost3A] = useState('0')
   const [extraCost3B, setExtraCost3B] = useState('0')
+  const [custoFixoPct3, setCustoFixoPct3] = useState('0')
   const [fixedExpensesPct3, setFixedExpensesPct3] = useState('15')
   const [cardTaxPct3, setCardTaxPct3] = useState('3.5')
   const [icmsPct3, setIcmsPct3] = useState('4.0')
@@ -470,6 +473,7 @@ export default function Precificacao() {
   }
 
   const applyParamsToInputs = (params: CompanyPricingParameters) => {
+    const cfPct = String(params.custo_fixo_pct ?? 0)
     const fPct = String(params.despesa_fixa_pct)
     const cTax = String(params.taxa_cartao_pct)
     const icms = String(params.icms_pct)
@@ -481,6 +485,7 @@ export default function Precificacao() {
     const varTotal = String(params.custos_variaveis_pct)
 
     // Modo 1
+    setCustoFixoPct1(cfPct)
     setFixedExpensesPct1(fPct)
     setCardTaxPct1(cTax)
     setIcmsPct1(icms)
@@ -492,6 +497,7 @@ export default function Precificacao() {
     setFreightInput1(frete)
 
     // Modo 2
+    setCustoFixoPct2(cfPct)
     setFixedExpensesPct2(fPct)
     setCardTaxPct2(cTax)
     setIcmsPct2(icms)
@@ -503,6 +509,7 @@ export default function Precificacao() {
     setFreightInput2(frete)
 
     // Modo 3
+    setCustoFixoPct3(cfPct)
     setFixedExpensesPct3(fPct)
     setCardTaxPct3(cTax)
     setIcmsPct3(icms)
@@ -572,6 +579,7 @@ export default function Precificacao() {
     const frete = parseFloat(freightInput1.replace(',', '.')) || 0
     const add1 = parseFloat(extraCost1A.replace(',', '.')) || 0
     const add2 = parseFloat(extraCost1B.replace(',', '.')) || 0
+    const cfPct = parseFloat(custoFixoPct1.replace(',', '.')) || 0
     const fExp = parseFloat(fixedExpensesPct1.replace(',', '.')) || 0
     const cTax = parseFloat(cardTaxPct1.replace(',', '.')) || 0
     const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
@@ -589,6 +597,7 @@ export default function Precificacao() {
       custoAdicional1: add1,
       custoAdicional2: add2,
       custoFixoRateado: companyParams.custo_fixo_rateado_unitario || 0,
+      custoFixoPct: cfPct,
       despesaFixaPct: fExp,
       taxaCartaoPct: cTax,
       icmsPct: icms,
@@ -605,6 +614,7 @@ export default function Precificacao() {
     freightInput1,
     extraCost1A,
     extraCost1B,
+    custoFixoPct1,
     fixedExpensesPct1,
     cardTaxPct1,
     icmsPct1,
@@ -625,6 +635,7 @@ export default function Precificacao() {
     const frete = parseFloat(freightInput2.replace(',', '.')) || 0
     const add1 = parseFloat(extraCost2A.replace(',', '.')) || 0
     const add2 = parseFloat(extraCost2B.replace(',', '.')) || 0
+    const cfPct = parseFloat(custoFixoPct2.replace(',', '.')) || 0
     const fExp = parseFloat(fixedExpensesPct2.replace(',', '.')) || 0
     const cTax = parseFloat(cardTaxPct2.replace(',', '.')) || 0
     const icms = parseFloat(icmsPct2.replace(',', '.')) || 0
@@ -642,6 +653,7 @@ export default function Precificacao() {
       custoAdicional1: add1,
       custoAdicional2: add2,
       custoFixoRateado: companyParams.custo_fixo_rateado_unitario || 0,
+      custoFixoPct: cfPct,
       despesaFixaPct: fExp,
       taxaCartaoPct: cTax,
       icmsPct: icms,
@@ -658,6 +670,7 @@ export default function Precificacao() {
     freightInput2,
     extraCost2A,
     extraCost2B,
+    custoFixoPct2,
     fixedExpensesPct2,
     cardTaxPct2,
     icmsPct2,
@@ -678,6 +691,7 @@ export default function Precificacao() {
     const frete = parseFloat(freightInput3.replace(',', '.')) || 0
     const add1 = parseFloat(extraCost3A.replace(',', '.')) || 0
     const add2 = parseFloat(extraCost3B.replace(',', '.')) || 0
+    const cfPct = parseFloat(custoFixoPct3.replace(',', '.')) || 0
     const fExp = parseFloat(fixedExpensesPct3.replace(',', '.')) || 0
     const cTax = parseFloat(cardTaxPct3.replace(',', '.')) || 0
     const icms = parseFloat(icmsPct3.replace(',', '.')) || 0
@@ -695,6 +709,7 @@ export default function Precificacao() {
       custoAdicional1: add1,
       custoAdicional2: add2,
       custoFixoRateado: companyParams.custo_fixo_rateado_unitario || 0,
+      custoFixoPct: cfPct,
       despesaFixaPct: fExp,
       taxaCartaoPct: cTax,
       icmsPct: icms,
@@ -711,6 +726,7 @@ export default function Precificacao() {
     freightInput3,
     extraCost3A,
     extraCost3B,
+    custoFixoPct3,
     fixedExpensesPct3,
     cardTaxPct3,
     icmsPct3,
@@ -820,6 +836,7 @@ export default function Precificacao() {
         payment_method_nome: paymentMethodNome,
         comissao_pct: res.comissaoPct,
         ipi_pct: res.ipiPct,
+        custo_fixo_pct: res.custoFixoPct,
         custo_fixo_rateado_unitario: res.custoFixoRateado,
         custo_fixo_mensal: companyParams.custo_fixo_mensal,
         volume_estimado_servicos_mes: companyParams.volume_estimado_servicos_mes,
@@ -863,6 +880,9 @@ export default function Precificacao() {
       `Custo Direto: ${formatCurrencyBRL(res.custoDiretoTotal)} (${res.fatias.custoDireto.pct}%)\n` +
       (res.custoFixoRateado > 0
         ? `Custo Fixo Rateado: ${formatCurrencyBRL(res.custoFixoRateado)} (${res.fatias.custoFixoRateado.pct}%)\n`
+        : '') +
+      (res.custoFixoPct > 0
+        ? `Custo Fixo (${res.custoFixoPct}%): ${formatCurrencyBRL(res.fatias.custoFixo.valor)} (${res.fatias.custoFixo.pct}%)\n`
         : '') +
       `Despesa Fixa (${res.despesaFixaPct}%): ${formatCurrencyBRL(res.fatias.despesaFixa.valor)}\n` +
       `Custos Variáveis (${res.custosVariaveisPct}%): ${formatCurrencyBRL(res.fatias.custosVariaveis.valor)}\n` +
@@ -927,6 +947,7 @@ export default function Precificacao() {
           payment_method_nome: selectedMethod3?.nome,
           comissao_pct: calcResult3.comissaoPct,
           ipi_pct: calcResult3.ipiPct,
+          custo_fixo_pct: calcResult3.custoFixoPct,
           custo_fixo_rateado_unitario: calcResult3.custoFixoRateado,
           custo_fixo_mensal: companyParams.custo_fixo_mensal,
           volume_estimado_servicos_mes: companyParams.volume_estimado_servicos_mes,
@@ -980,7 +1001,7 @@ export default function Precificacao() {
                   variant="outline"
                   className="border-indigo-200 bg-indigo-50 text-indigo-700 text-[10px] font-bold"
                 >
-                  v0.0.209
+                  v0.0.211
                 </Badge>
               </div>
               <p className="text-xs text-slate-500">
@@ -1285,20 +1306,20 @@ export default function Precificacao() {
                       </div>
 
                       <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
-                        {/* Destaque dos 3 Componentes Principais da Fórmula */}
+                        {/* Destaque dos Componentes Principais da Fórmula */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-2.5 bg-white rounded-lg border border-indigo-100 shadow-2xs">
                           <div className="space-y-1">
                             <Label className="text-[11px] font-bold text-sky-900 flex items-center justify-between">
                               <span>CUSTO FIXO %</span>
                               <span className="text-[10px] text-sky-600 font-mono font-normal">
-                                Empresa
+                                % Preço
                               </span>
                             </Label>
                             <Input
                               type="number"
                               step="0.1"
-                              value={fixedExpensesPct1}
-                              onChange={(e) => setFixedExpensesPct1(e.target.value)}
+                              value={custoFixoPct1}
+                              onChange={(e) => setCustoFixoPct1(e.target.value)}
                               className="h-8 font-mono text-xs font-bold text-sky-800 bg-sky-50/50 border-sky-200"
                             />
                           </div>
@@ -1358,7 +1379,20 @@ export default function Precificacao() {
                             </button>
                           </div>
 
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-semibold text-slate-600">
+                                Despesa Fixa %
+                              </Label>
+                              <Input
+                                type="number"
+                                step="0.1"
+                                value={fixedExpensesPct1}
+                                onChange={(e) => setFixedExpensesPct1(e.target.value)}
+                                className="h-8 font-mono text-xs"
+                              />
+                            </div>
+
                             <div className="space-y-1">
                               <Label className="text-[10px] font-semibold text-slate-600 flex items-center justify-between">
                                 <span>Taxa Cartão %</span>
@@ -1561,6 +1595,9 @@ export default function Precificacao() {
                         custoDiretoPct={calcResult1.fatias.custoDireto.pct}
                         custoFixoRateado={calcResult1.custoFixoRateado}
                         custoFixoRateadoPct={calcResult1.fatias.custoFixoRateado?.pct}
+                        custoFixoPct={calcResult1.custoFixoPct}
+                        custoFixoValor={calcResult1.fatias.custoFixo?.valor}
+                        custoFixoPctDoPreco={calcResult1.fatias.custoFixo?.pct}
                         despesaFixaValor={calcResult1.fatias.despesaFixa.valor}
                         despesaFixaPct={calcResult1.fatias.despesaFixa.pct}
                         custosVariaveisValor={calcResult1.fatias.custosVariaveis.valor}
@@ -1905,14 +1942,14 @@ export default function Precificacao() {
                         <Label className="text-[11px] font-bold text-sky-900 flex items-center justify-between">
                           <span>CUSTO FIXO %</span>
                           <span className="text-[10px] text-sky-600 font-mono font-normal">
-                            Empresa
+                            % Preço
                           </span>
                         </Label>
                         <Input
                           type="number"
                           step="0.1"
-                          value={fixedExpensesPct2}
-                          onChange={(e) => setFixedExpensesPct2(e.target.value)}
+                          value={custoFixoPct2}
+                          onChange={(e) => setCustoFixoPct2(e.target.value)}
                           className="h-8 font-mono text-xs font-bold text-sky-800 bg-sky-50/50 border-sky-200"
                         />
                       </div>
@@ -1971,7 +2008,20 @@ export default function Precificacao() {
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-semibold text-slate-600">
+                            Despesa Fixa %
+                          </Label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={fixedExpensesPct2}
+                            onChange={(e) => setFixedExpensesPct2(e.target.value)}
+                            className="h-8 font-mono text-xs"
+                          />
+                        </div>
+
                         <div className="space-y-1">
                           <Label className="text-[10px] font-semibold text-slate-600 flex items-center justify-between">
                             <span>Taxa Cartão %</span>
@@ -2143,6 +2193,9 @@ export default function Precificacao() {
                         custoDiretoPct={calcResult2.fatias.custoDireto.pct}
                         custoFixoRateado={calcResult2.custoFixoRateado}
                         custoFixoRateadoPct={calcResult2.fatias.custoFixoRateado?.pct}
+                        custoFixoPct={calcResult2.custoFixoPct}
+                        custoFixoValor={calcResult2.fatias.custoFixo?.valor}
+                        custoFixoPctDoPreco={calcResult2.fatias.custoFixo?.pct}
                         despesaFixaValor={calcResult2.fatias.despesaFixa.valor}
                         despesaFixaPct={calcResult2.fatias.despesaFixa.pct}
                         custosVariaveisValor={calcResult2.fatias.custosVariaveis.valor}
@@ -2237,6 +2290,7 @@ export default function Precificacao() {
                                 payment_method_nome: selectedMethod2?.nome,
                                 comissao_pct: calcResult2.comissaoPct,
                                 ipi_pct: calcResult2.ipiPct,
+                                custo_fixo_pct: calcResult2.custoFixoPct,
                                 custo_fixo_rateado_unitario: calcResult2.custoFixoRateado,
                                 custo_fixo_mensal: companyParams.custo_fixo_mensal,
                                 volume_estimado_servicos_mes:
@@ -2414,12 +2468,15 @@ export default function Precificacao() {
                       <div className="space-y-1">
                         <Label className="text-[11px] font-bold text-sky-900 flex items-center justify-between">
                           <span>CUSTO FIXO %</span>
+                          <span className="text-[10px] text-sky-600 font-mono font-normal">
+                            % Preço
+                          </span>
                         </Label>
                         <Input
                           type="number"
                           step="0.1"
-                          value={fixedExpensesPct3}
-                          onChange={(e) => setFixedExpensesPct3(e.target.value)}
+                          value={custoFixoPct3}
+                          onChange={(e) => setCustoFixoPct3(e.target.value)}
                           className="h-8 font-mono text-xs font-bold text-sky-800 bg-sky-50/50 border-sky-200"
                         />
                       </div>
@@ -2451,7 +2508,19 @@ export default function Precificacao() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 pt-1">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 pt-1">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-semibold text-slate-600">
+                          Despesa Fixa %
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={fixedExpensesPct3}
+                          onChange={(e) => setFixedExpensesPct3(e.target.value)}
+                          className="h-8 font-mono text-xs"
+                        />
+                      </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-semibold text-slate-600">
                           Taxa Cartão %
@@ -2648,6 +2717,9 @@ export default function Precificacao() {
                         custoDiretoPct={calcResult3.fatias.custoDireto.pct}
                         custoFixoRateado={calcResult3.custoFixoRateado}
                         custoFixoRateadoPct={calcResult3.fatias.custoFixoRateado?.pct}
+                        custoFixoPct={calcResult3.custoFixoPct}
+                        custoFixoValor={calcResult3.fatias.custoFixo?.valor}
+                        custoFixoPctDoPreco={calcResult3.fatias.custoFixo?.pct}
                         despesaFixaValor={calcResult3.fatias.despesaFixa.valor}
                         despesaFixaPct={calcResult3.fatias.despesaFixa.pct}
                         custosVariaveisValor={calcResult3.fatias.custosVariaveis.valor}
@@ -2819,6 +2891,7 @@ export default function Precificacao() {
                       <th className="py-2.5 px-3 text-center">Moeda / US$</th>
                       <th className="py-2.5 px-3 text-right">Custo Direto</th>
                       <th className="py-2.5 px-3 text-right">Frete</th>
+                      <th className="py-2.5 px-3 text-center">C. Fixo %</th>
                       <th className="py-2.5 px-3 text-center">Fixa %</th>
                       <th className="py-2.5 px-3 text-center">Var. %</th>
                       <th className="py-2.5 px-3 text-center">Margem %</th>
@@ -2895,8 +2968,13 @@ export default function Precificacao() {
                           <td className="py-2.5 px-3 text-right font-mono text-slate-600 tabular-nums whitespace-nowrap">
                             {item.frete ? formatCurrencyBRL(item.frete) : '—'}
                           </td>
+                          <td className="py-2.5 px-3 text-center font-mono text-sky-700 font-semibold tabular-nums whitespace-nowrap">
+                            {item.custo_fixo_pct !== undefined ? `${item.custo_fixo_pct}%` : '—'}
+                          </td>
                           <td className="py-2.5 px-3 text-center font-mono text-slate-600 tabular-nums whitespace-nowrap">
-                            {item.despesa_fixa_pct ? `${item.despesa_fixa_pct}%` : '—'}
+                            {item.despesa_fixa_pct !== undefined
+                              ? `${item.despesa_fixa_pct}%`
+                              : '—'}
                           </td>
                           <td className="py-2.5 px-3 text-center font-mono text-slate-600 tabular-nums whitespace-nowrap">
                             {item.custos_variaveis_pct
@@ -2921,7 +2999,7 @@ export default function Precificacao() {
 
                     {historyList.length === 0 && (
                       <tr>
-                        <td colSpan={13} className="py-12 text-center text-slate-400">
+                        <td colSpan={14} className="py-12 text-center text-slate-400">
                           {loadingHistory
                             ? 'Carregando histórico...'
                             : 'Nenhum histórico de precificação registrado ainda.'}
