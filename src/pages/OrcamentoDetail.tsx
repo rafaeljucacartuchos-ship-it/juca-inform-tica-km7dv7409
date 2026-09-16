@@ -171,6 +171,7 @@ interface PricingLocationState {
   customer_id?: string
   customer_name?: string
   customer_phone?: string
+  responsavel_id?: string
   cliente?: {
     id?: string
     name?: string
@@ -299,6 +300,7 @@ export default function OrcamentoDetail() {
       const resolvedCustId = navState?.customer_id || navState?.cliente?.id || undefined
       const resolvedCustName = navState?.customer_name || navState?.cliente?.name || ''
       const resolvedCustPhone = navState?.customer_phone || navState?.cliente?.phone || ''
+      const resolvedRespId = navState?.responsavel_id || user?.id || null
 
       const draftOrcamento: Orcamento = {
         id: 'novo',
@@ -317,6 +319,7 @@ export default function OrcamentoDetail() {
         cliente_id: resolvedCustId,
         nome_cliente_livre: resolvedCustName,
         telefone_cliente_livre: resolvedCustPhone,
+        responsavel_id: resolvedRespId,
         id_usuario_criador: user?.id,
         created: new Date().toISOString(),
         updated: new Date().toISOString(),

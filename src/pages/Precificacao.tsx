@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useToast } from '@/hooks/use-toast'
+import { useAuth } from '@/hooks/use-auth'
 import {
   Product,
   PricingHistory,
@@ -67,6 +68,7 @@ import { PricingWaterfallCard } from '@/components/PricingWaterfallCard'
 import { PaymentMethodsTableCard } from '@/components/PaymentMethodsTableCard'
 
 export default function Precificacao() {
+  const { user } = useAuth()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const initialProductId = searchParams.get('productId') || ''
@@ -1706,6 +1708,7 @@ export default function Precificacao() {
                                 customer_id: resolvedCust.customer_id,
                                 customer_name: resolvedCust.customer_name,
                                 customer_phone: resolvedCust.customer_phone,
+                                responsavel_id: user?.id,
                                 cliente: resolvedCust.customer_id
                                   ? {
                                       id: resolvedCust.customer_id,
@@ -2231,6 +2234,7 @@ export default function Precificacao() {
                                 customer_id: resolvedCust.customer_id,
                                 customer_name: resolvedCust.customer_name,
                                 customer_phone: resolvedCust.customer_phone,
+                                responsavel_id: user?.id,
                                 cliente: resolvedCust.customer_id
                                   ? {
                                       id: resolvedCust.customer_id,
@@ -2758,6 +2762,7 @@ export default function Precificacao() {
                                 customer_id: resolvedCust.customer_id,
                                 customer_name: resolvedCust.customer_name,
                                 customer_phone: resolvedCust.customer_phone,
+                                responsavel_id: user?.id,
                                 cliente: resolvedCust.customer_id
                                   ? {
                                       id: resolvedCust.customer_id,

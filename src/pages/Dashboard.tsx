@@ -9,7 +9,10 @@ import {
   Calendar,
   TrendingUp,
   Clock,
+  FileText,
+  AlertTriangle,
 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { ExportReportsModal } from '@/components/ExportReportsModal'
 import { ExportOrdersListModal } from '@/components/ExportOrdersListModal'
 import { DashboardProductSearchModal } from '@/components/DashboardProductSearchModal'
@@ -21,7 +24,7 @@ import { Input } from '@/components/ui/input'
 import { StatusBadge } from '@/components/StatusBadge'
 import { ServiceOrder, User, Payment, StatusHistory, Orcamento } from '@/types'
 import { getServiceOrders } from '@/services/service_orders'
-import { getTechnicians } from '@/services/users'
+import { getTechnicians, getAllUsers } from '@/services/users'
 import { getAllPayments } from '@/services/payments'
 import { getAllStatusHistory } from '@/services/status_history'
 import { getOrcamentos } from '@/services/orcamentos'
@@ -76,6 +79,7 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const [orders, setOrders] = useState<ServiceOrder[]>([])
   const [technicians, setTechnicians] = useState<User[]>([])
+  const [allUsers, setAllUsers] = useState<User[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([])
   const [history, setHistory] = useState<StatusHistory[]>([])
@@ -127,12 +131,13 @@ export default function Dashboard() {
       setError(null)
       const isTechRole = user?.role === 'technician'
       const techFilter = isTechRole && user?.id ? `technician = "${user.id}"` : ''
-      const [so, rawTechs, pay, hist, orc] = await Promise.all([
+      const [so, rawTechs, pay, hist, orc, usersList] = await Promise.all([
         getServiceOrders(techFilter),
         getTechnicians(),
         getAllPayments(),
         getAllStatusHistory(),
         getOrcamentos(),
+        getAllUsers().catch(() => []),
       ])
 
       // Regra: Listar SOMENTE usuários role='technician' (FABIO, RAFAEL, ROBERT, JOÃO VICTOR, etc.)
@@ -141,6 +146,7 @@ export default function Dashboard() {
 
       setOrders(so)
       setTechnicians(pureTechs)
+      setAllUsers(usersList)
       setOrcamentos(orc)
 
       if (isTechRole) {
@@ -220,6 +226,174 @@ export default function Dashboard() {
   const totalValorOrcPendentes = useMemo(() => {
     return orcamentosPendentes.reduce((sum, orc) => sum + (orc.total_geral || 0), 0)
   }, [orcamentosPendentes])
+
+  // v0.0.213: Mapa de usuários para resolução ágil de nomes de responsáveis
+  const userMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const u of allUsers) {
+      if (u.id && u.name) map.set(u.id, u.name)
+    }
+    for (const t of technicians) {
+      if (t.id && t.name) map.set(t.id, t.name)
+    }
+    return map
+  }, [allUsers, technicians])
+
+  // v0.0.213: Orçamentos aguardando aprovação desdobrados por responsável
+  const orcamentosAguardandoAprovacao = useMemo(() => {
+    return orcamentos.filter((orc) => orc.status === 'aguardando_aprovacao')
+  }, [orcamentos])
+
+  const orcamentosPorResponsavel = useMemo(() => {
+    const groupMap = new Map<
+      string,
+      {
+        responsavelId: string
+        nome: string
+        quantidade: number
+        valorTotal: number
+        itensAntigos: number
+      }
+    >()
+
+    const now = Date.now()
+    const seteDiasMs = 7 * 24 * 60 * 60 * 1000
+
+    for (const orc of orcamentosAguardandoAprovacao) {
+      const respId = orc.responsavel_id || orc.id_usuario_criador || 'sem_responsavel'
+      const nome =
+        orc.expand?.responsavel_id?.name ||
+        orc.expand?.id_usuario_criador?.name ||
+        userMap.get(respId) ||
+        (respId === 'sem_responsavel' ? 'Não Atribuído' : 'Sem Responsável')
+
+      const valor = orc.total_geral || 0
+      const isAntigo = orc.created ? now - new Date(orc.created).getTime() > seteDiasMs : false
+
+      const existing = groupMap.get(respId)
+      if (existing) {
+        existing.quantidade += 1
+        existing.valorTotal += valor
+        if (isAntigo) existing.itensAntigos += 1
+      } else {
+        groupMap.set(respId, {
+          responsavelId: respId,
+          nome,
+          quantidade: 1,
+          valorTotal: valor,
+          itensAntigos: isAntigo ? 1 : 0,
+        })
+      }
+    }
+
+    const list = Array.from(groupMap.values())
+    // Ordenado por valor desc
+    list.sort((a, b) => b.valorTotal - a.valorTotal)
+
+    const totalQtd = list.reduce((sum, item) => sum + item.quantidade, 0)
+    const totalVal = list.reduce((sum, item) => sum + item.valorTotal, 0)
+    const totalAntigos = list.reduce((sum, item) => sum + item.itensAntigos, 0)
+
+    return {
+      list,
+      totalQtd,
+      totalVal,
+      totalAntigos,
+    }
+  }, [orcamentosAguardandoAprovacao, userMap])
+
+  // v0.0.213: Resumo por todos os status de orçamentos (botões clicáveis)
+  const orcamentosStatusResumo = useMemo(() => {
+    const STATUS_ORDER = [
+      'aguardando_aprovacao',
+      'aprovado',
+      'faturado',
+      'enviado',
+      'rascunho',
+      'rejeitado',
+      'substituido',
+    ]
+
+    const STATUS_META: Record<
+      string,
+      { label: string; badgeClass: string; bgClass: string; borderClass: string }
+    > = {
+      aguardando_aprovacao: {
+        label: 'Aguardando Aprovação',
+        badgeClass: 'bg-amber-100 text-amber-800 border-amber-300',
+        bgClass: 'hover:bg-amber-50/70',
+        borderClass: 'border-amber-200',
+      },
+      aprovado: {
+        label: 'Aprovado',
+        badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+        bgClass: 'hover:bg-emerald-50/70',
+        borderClass: 'border-emerald-200',
+      },
+      faturado: {
+        label: 'Faturado',
+        badgeClass: 'bg-purple-100 text-purple-800 border-purple-300',
+        bgClass: 'hover:bg-purple-50/70',
+        borderClass: 'border-purple-200',
+      },
+      enviado: {
+        label: 'Enviado',
+        badgeClass: 'bg-blue-100 text-blue-800 border-blue-300',
+        bgClass: 'hover:bg-blue-50/70',
+        borderClass: 'border-blue-200',
+      },
+      rascunho: {
+        label: 'Rascunho',
+        badgeClass: 'bg-slate-100 text-slate-700 border-slate-300',
+        bgClass: 'hover:bg-slate-50',
+        borderClass: 'border-slate-200',
+      },
+      rejeitado: {
+        label: 'Rejeitado',
+        badgeClass: 'bg-rose-100 text-rose-800 border-rose-300',
+        bgClass: 'hover:bg-rose-50/70',
+        borderClass: 'border-rose-200',
+      },
+      substituido: {
+        label: 'Substituído',
+        badgeClass: 'bg-zinc-100 text-zinc-700 border-zinc-300',
+        bgClass: 'hover:bg-zinc-50',
+        borderClass: 'border-zinc-200',
+      },
+    }
+
+    const counts: Record<string, { status: string; label: string; count: number; total: number }> =
+      {}
+
+    for (const orc of orcamentos) {
+      const st = orc.status || 'rascunho'
+      if (!counts[st]) {
+        const meta = STATUS_META[st]
+        counts[st] = {
+          status: st,
+          label: meta ? meta.label : st,
+          count: 0,
+          total: 0,
+        }
+      }
+      counts[st].count += 1
+      counts[st].total += orc.total_geral || 0
+    }
+
+    // Ordena de acordo com STATUS_ORDER e adiciona eventuais extras no fim
+    const sorted = Object.values(counts).sort((a, b) => {
+      const idxA = STATUS_ORDER.indexOf(a.status)
+      const idxB = STATUS_ORDER.indexOf(b.status)
+      const orderA = idxA === -1 ? 99 : idxA
+      const orderB = idxB === -1 ? 99 : idxB
+      return orderA - orderB
+    })
+
+    return {
+      items: sorted,
+      meta: STATUS_META,
+    }
+  }, [orcamentos])
 
   // 1) TABELA CENTRAL: RESULTADO POR TÉCNICO (role='technician' apenas)
   const technicianProduction = useMemo(() => {
@@ -599,6 +773,242 @@ export default function Dashboard() {
                 </tr>
               </tfoot>
             </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* CARD DE ORÇAMENTOS: DESDOBRADO POR RESPONSÁVEL E POR STATUS (v0.0.213) */}
+      <Card className="rounded-xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden">
+        <CardHeader className="pb-3 border-b border-slate-100 bg-white">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                <FileText className="h-5 w-5 text-indigo-600" />
+                Orçamentos — Pendentes por Responsável e Visão por Status
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Propostas comerciais ativas aguardando aprovação desdobradas por técnico e resumo
+                geral
+              </p>
+            </div>
+            <Link
+              to="/orcamentos"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+            >
+              Ver todos os orçamentos <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-6 space-y-6">
+          {/* SEÇÃO 1: AGRUPAMENTO POR RESPONSÁVEL (STATUS 'AGUARDANDO_APROVACAO') */}
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                  Orçamentos Aguardando Aprovação por Responsável
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Valores e propostas em negociação com clientes. Clique no responsável para filtrar
+                  na listagem.
+                </p>
+              </div>
+              {orcamentosPorResponsavel.totalAntigos > 0 && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-0.5">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                  {orcamentosPorResponsavel.totalAntigos}{' '}
+                  {orcamentosPorResponsavel.totalAntigos === 1
+                    ? 'pendência antiga'
+                    : 'pendências antigas'}{' '}
+                  (&gt; 7 dias)
+                </span>
+              )}
+            </div>
+
+            <div className="overflow-x-auto w-full border border-slate-200 rounded-lg">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+                  <tr>
+                    <th className="py-2.5 px-4">Responsável</th>
+                    <th className="py-2.5 px-3 text-center">Quantidade</th>
+                    <th className="py-2.5 px-3 text-center">Antigos (&gt; 7 dias)</th>
+                    <th className="py-2.5 px-4 text-right">Total Geral</th>
+                    <th className="py-2.5 px-3 text-center w-24">Ação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {orcamentosPorResponsavel.list.map((item) => (
+                    <tr
+                      key={item.responsavelId}
+                      onClick={() => {
+                        navigate(
+                          `/orcamentos?status=aguardando_aprovacao&responsavel=${encodeURIComponent(
+                            item.responsavelId,
+                          )}`,
+                        )
+                      }}
+                      className="hover:bg-amber-50/40 cursor-pointer transition-colors group"
+                      title={`Filtrar orçamentos de ${item.nome}`}
+                    >
+                      <td className="py-3 px-4 font-bold text-slate-900 group-hover:text-indigo-600 flex items-center gap-2">
+                        <UserCheck className="h-4 w-4 text-slate-400 group-hover:text-indigo-600 shrink-0" />
+                        <span className="uppercase">{item.nome}</span>
+                      </td>
+                      <td className="py-3 px-3 text-center font-mono font-bold text-slate-700">
+                        {item.quantidade}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        {item.itensAntigos > 0 ? (
+                          <Badge className="bg-amber-100 text-amber-900 border-amber-300 border text-[10px] font-bold">
+                            {item.itensAntigos} antigo{item.itensAntigos > 1 ? 's' : ''} (&gt; 7
+                            dias)
+                          </Badge>
+                        ) : (
+                          <span className="text-slate-400 text-[11px]">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 tabular-nums">
+                        {formatCurrencyBRL(item.valorTotal)}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            navigate(
+                              `/orcamentos?status=aguardando_aprovacao&responsavel=${encodeURIComponent(
+                                item.responsavelId,
+                              )}`,
+                            )
+                          }}
+                        >
+                          Ver <ArrowRight className="h-3 w-3 ml-1" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {orcamentosPorResponsavel.list.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-6 text-center text-slate-500 font-medium">
+                        Nenhum orçamento com status "Aguardando Aprovação".
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+                {/* Linha TOTAL GERAL no fim */}
+                <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-extrabold text-slate-900">
+                  <tr>
+                    <td className="py-3 px-4 uppercase tracking-wider text-[11px]">TOTAL GERAL</td>
+                    <td className="py-3 px-3 text-center font-mono text-sm">
+                      {orcamentosPorResponsavel.totalQtd}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      {orcamentosPorResponsavel.totalAntigos > 0 && (
+                        <Badge className="bg-amber-200 text-amber-950 border-amber-400 border text-[10px] font-bold">
+                          {orcamentosPorResponsavel.totalAntigos} no total
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono text-sm text-indigo-900 tabular-nums">
+                      {formatCurrencyBRL(orcamentosPorResponsavel.totalVal)}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
+                        onClick={() => navigate('/orcamentos?status=aguardando_aprovacao')}
+                      >
+                        Filtrar Todos
+                      </Button>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* SEÇÃO 2: RESUMO POR STATUS COM BOTÕES CLICÁVEIS */}
+          <div className="space-y-3 pt-4 border-t border-slate-200">
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <span>Resumo Geral de Orçamentos por Status</span>
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                Clique no botão de qualquer status para filtrar a listagem de orçamentos
+                imediatamente:
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2.5">
+              {orcamentosStatusResumo.items.map((item) => {
+                const meta = orcamentosStatusResumo.meta[item.status] || {
+                  label: item.status,
+                  badgeClass: 'bg-slate-100 text-slate-700 border-slate-300',
+                  bgClass: 'hover:bg-slate-50',
+                  borderClass: 'border-slate-200',
+                }
+
+                return (
+                  <button
+                    key={item.status}
+                    type="button"
+                    onClick={() =>
+                      navigate(`/orcamentos?status=${encodeURIComponent(item.status)}`)
+                    }
+                    className={`flex flex-col justify-between p-3 rounded-lg border text-left transition-all shadow-2xs hover:shadow-sm cursor-pointer bg-white ${meta.borderClass} ${meta.bgClass} focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                    title={`Ver orçamentos com status ${item.label}`}
+                  >
+                    <div className="space-y-1">
+                      <span
+                        className={`inline-block text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${meta.badgeClass}`}
+                      >
+                        {item.label}
+                      </span>
+                      <div className="font-mono text-lg font-black text-slate-900 mt-1">
+                        {item.count}{' '}
+                        <span className="text-[11px] font-normal text-slate-500">
+                          {item.count === 1 ? 'orç.' : 'orçs.'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-slate-100 mt-2">
+                      <span className="text-[10px] text-slate-400 block font-semibold">
+                        Valor somado:
+                      </span>
+                      <span className="font-mono text-xs font-bold text-slate-800 tabular-nums">
+                        {formatCurrencyBRL(item.total)}
+                      </span>
+                    </div>
+                  </button>
+                )
+              })}
+
+              {/* Botão Ver Todos */}
+              <button
+                type="button"
+                onClick={() => navigate('/orcamentos')}
+                className="flex flex-col justify-between p-3 rounded-lg border border-slate-300 bg-slate-50/60 hover:bg-slate-100 text-left transition-all shadow-2xs hover:shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                title="Ver todos os orçamentos cadastrados"
+              >
+                <div className="space-y-1">
+                  <span className="inline-block text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-slate-200 text-slate-800 border-slate-300">
+                    Todos
+                  </span>
+                  <div className="font-mono text-lg font-black text-slate-900 mt-1">
+                    {orcamentos.length}{' '}
+                    <span className="text-[11px] font-normal text-slate-500">total</span>
+                  </div>
+                </div>
+                <div className="pt-2 border-t border-slate-200 mt-2 flex items-center justify-between text-indigo-600 font-bold text-xs">
+                  <span>Listagem</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </div>
+              </button>
+            </div>
           </div>
         </CardContent>
       </Card>

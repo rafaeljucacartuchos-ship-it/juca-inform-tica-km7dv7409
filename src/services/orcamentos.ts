@@ -224,16 +224,18 @@ export async function createOrcamento(params: {
 }): Promise<Orcamento> {
   const {
     id_os,
-    id_usuario_criador,
     validade = 15,
     observacoes = '',
     cliente_id,
     nome_cliente_livre,
     telefone_cliente_livre,
-    responsavel_id,
     equipamento_independente,
     defeito_independente,
   } = params
+
+  const id_usuario_criador = params.id_usuario_criador || pb.authStore.model?.id || undefined
+  const responsavel_id =
+    params.responsavel_id || params.id_usuario_criador || pb.authStore.model?.id || null
 
   let numero_orcamento: string = ''
 
@@ -346,6 +348,10 @@ export async function createOrcamento(params: {
     token_acesso,
   }
 
+  if (responsavel_id) {
+    createPayload.responsavel_id = responsavel_id
+  }
+
   if (id_os) {
     createPayload.id_os = id_os
   } else {
@@ -353,7 +359,6 @@ export async function createOrcamento(params: {
     if (cliente_id) createPayload.cliente_id = cliente_id
     if (nome_cliente_livre) createPayload.nome_cliente_livre = nome_cliente_livre
     if (telefone_cliente_livre) createPayload.telefone_cliente_livre = telefone_cliente_livre
-    if (responsavel_id) createPayload.responsavel_id = responsavel_id
     if (equipamento_independente) createPayload.equipamento_independente = equipamento_independente
     if (defeito_independente) createPayload.defeito_independente = defeito_independente
   }

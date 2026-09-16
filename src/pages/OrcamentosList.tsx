@@ -21,6 +21,7 @@ import {
   Share2,
   Trash2,
   Share,
+  X,
 } from 'lucide-react'
 import { openWhatsApp, buildOrcamentoRetomadaNegociacaoMessage } from '@/lib/whatsapp'
 import { RecordActionsMenu, RecordActionItem } from '@/components/RecordActionsMenu'
@@ -115,15 +116,25 @@ export default function OrcamentosList() {
   const [deleteTarget, setDeleteTarget] = useState<Orcamento | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const initialStatus = searchParams.get('status') || 'todos'
+  const initialResponsavel = searchParams.get('responsavel') || ''
   const [statusFilter, setStatusFilter] = useState<string>(initialStatus)
+  const [responsavelFilter, setResponsavelFilter] = useState<string>(initialResponsavel)
 
   // Sincroniza se a URL mudar (ex: link do dashboard)
   useEffect(() => {
     const s = searchParams.get('status')
     if (s) {
       setStatusFilter(s)
+    } else {
+      setStatusFilter('todos')
+    }
+    const r = searchParams.get('responsavel')
+    if (r) {
+      setResponsavelFilter(r)
+    } else {
+      setResponsavelFilter('')
     }
   }, [searchParams])
 
@@ -209,12 +220,70 @@ export default function OrcamentosList() {
     return () => clearTimeout(timer)
   }, [clienteSearch])
 
+  // Carrega lista de usuários na inicialização para mapear nomes de responsáveis
+  useEffect(() => {
+    getUsers()
+      .then((u) => setSystemUsers(u))
+      .catch(() => {})
+  }, [])
+
+  // Nome legível do responsável filtrado
+  const responsavelFilterName = useMemo(() => {
+    if (!responsavelFilter) return ''
+    const matchUser = systemUsers.find(
+      (u) =>
+        u.id === responsavelFilter ||
+        u.name.toLowerCase().trim() === responsavelFilter.toLowerCase().trim(),
+    )
+    if (matchUser) return matchUser.name
+    // Verifica se algum orçamento possui esse nome expandido
+    for (const o of orcamentos) {
+      const respId = o.responsavel_id || o.id_usuario_criador
+      if (respId === responsavelFilter) {
+        return (
+          o.expand?.responsavel_id?.name ||
+          o.expand?.id_usuario_criador?.name ||
+          o.expand?.id_os?.expand?.technician?.name ||
+          responsavelFilter
+        )
+      }
+    }
+    return responsavelFilter
+  }, [responsavelFilter, systemUsers, orcamentos])
+
+  // Limpar filtro de responsável
+  const handleClearResponsavelFilter = () => {
+    setResponsavelFilter('')
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('responsavel')
+    setSearchParams(nextParams, { replace: true })
+  }
+
   // Filtragem
   const filteredOrcamentos = useMemo(() => {
     return orcamentos.filter((orc) => {
       // Filtro de status
       if (statusFilter !== 'todos' && orc.status !== statusFilter) {
         return false
+      }
+
+      // Filtro por responsável
+      if (responsavelFilter) {
+        const respId = orc.responsavel_id || orc.id_usuario_criador
+        const respName = (
+          orc.expand?.responsavel_id?.name ||
+          orc.expand?.id_usuario_criador?.name ||
+          orc.expand?.id_os?.expand?.technician?.name ||
+          ''
+        ).toLowerCase()
+        const target = responsavelFilter.toLowerCase().trim()
+
+        const matchesId = respId === responsavelFilter
+        const matchesName = respName === target || respName.includes(target)
+
+        if (!matchesId && !matchesName) {
+          return false
+        }
       }
 
       // Filtro de busca (número, cliente, observação, número da OS, equipamento)
@@ -620,6 +689,28 @@ export default function OrcamentosList() {
         </button>
       </div>
 
+      {/* Indicador de Filtro Ativo por Responsável */}
+      {responsavelFilter && (
+        <div className="flex items-center justify-between gap-2 p-2.5 px-3 bg-indigo-50 border border-indigo-200 rounded-lg text-xs text-indigo-900">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">Filtrando por responsável:</span>
+            <Badge className="bg-indigo-600 text-white font-bold text-xs uppercase px-2 py-0.5">
+              {responsavelFilterName}
+            </Badge>
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleClearResponsavelFilter}
+            className="h-7 px-2 text-xs font-bold text-indigo-700 hover:text-indigo-900 hover:bg-indigo-100 gap-1"
+            title="Limpar filtro de responsável"
+          >
+            <X className="h-3.5 w-3.5" />
+            <span>Limpar</span>
+          </Button>
+        </div>
+      )}
+
       {/* Barra de Filtros e Busca */}
       <div className="flex flex-col sm:flex-row gap-2 items-center justify-between">
         <div className="relative w-full sm:w-96">
@@ -633,7 +724,19 @@ export default function OrcamentosList() {
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select
+            value={statusFilter}
+            onValueChange={(val) => {
+              setStatusFilter(val)
+              const nextParams = new URLSearchParams(searchParams)
+              if (val === 'todos') {
+                nextParams.delete('status')
+              } else {
+                nextParams.set('status', val)
+              }
+              setSearchParams(nextParams, { replace: true })
+            }}
+          >
             <SelectTrigger className="h-10 text-xs w-full sm:w-56 bg-white">
               <SelectValue placeholder="Filtrar por status" />
             </SelectTrigger>
