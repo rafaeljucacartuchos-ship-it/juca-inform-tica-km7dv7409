@@ -511,7 +511,7 @@ export interface PricingCalculationResult {
   custoBaseComRateio: number // custoDiretoTotal + custoFixoRateado
 
   // Percentuais aplicados
-  custoFixoPct: number // Custo Fixo (%) v0.0.211
+  custoFixoPct: number // Custo Fixo (%) v0.0.211/v0.0.212
   despesaFixaPct: number
   taxaCartaoPct: number
   icmsPct: number

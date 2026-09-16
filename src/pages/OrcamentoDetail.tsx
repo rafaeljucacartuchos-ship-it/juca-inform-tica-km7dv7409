@@ -954,7 +954,7 @@ export default function OrcamentoDetail() {
     loadAll()
   }
 
-  // Enviar link da proposta online ao cliente (copia URL e abre WhatsApp)
+  // Enviar link da proposta online ao cliente (copia mensagem e abre WhatsApp)
   const handleEnviarLinkCliente = async () => {
     if (!orcamento) return
     const phone = activeCustomerPhone
@@ -979,18 +979,6 @@ export default function OrcamentoDetail() {
     }
 
     const propostaUrl = `${window.location.origin}/proposta/${token || orcamento.id}`
-
-    // Copia URL para a área de transferência
-    try {
-      await navigator.clipboard.writeText(propostaUrl)
-      toast({
-        title: 'Link da proposta copiado!',
-        description: 'URL pública copiada para a área de transferência e abrindo WhatsApp...',
-      })
-    } catch {
-      /* ignore clipboard rejection */
-    }
-
     const custName = activeCustomerName
     const equipmentName = activeEquipmentName
     const osNum = orcamento.expand?.id_os?.number
@@ -1004,6 +992,17 @@ export default function OrcamentoDetail() {
       subtotalServicos: financialSummary.subtotalServicos,
       totalGeral: financialSummary.totalGeral,
     })
+
+    // Copia mensagem completa com link único para a área de transferência
+    try {
+      await navigator.clipboard.writeText(msg)
+      toast({
+        title: 'Mensagem da proposta copiada!',
+        description: 'Mensagem copiada para a área de transferência e abrindo WhatsApp...',
+      })
+    } catch {
+      /* ignore clipboard rejection */
+    }
 
     // Registra no histórico do cliente / pos_venda_messages
     try {
@@ -1050,12 +1049,20 @@ export default function OrcamentoDetail() {
   const handleNativeShare = async () => {
     if (!orcamento) return
     const custName = activeCustomerName
-    const pdfUrl = `${window.location.origin}/orcamentos/${orcamento.id}/imprimir`
+    const token = orcamento.token_acesso || orcamento.id
+    const propostaUrl = `${window.location.origin}/proposta/${token}`
+    const msg = buildOrcamentoPropostaMessage({
+      customerName: custName,
+      numeroOrcamento: orcamento.numero_orcamento,
+      osNumber: orcamento.expand?.id_os?.number,
+      propostaUrl,
+      equipment: activeEquipmentName,
+    })
 
+    // Compartilhamento nativo sem duplicar URL (apenas texto com link único)
     const shareData = {
-      title: `Orçamento ${orcamento.numero_orcamento} - Juca Informática`,
-      text: `Olá ${custName}, segue o orçamento do seu atendimento na Juca Cartuchos e Informática.`,
-      url: pdfUrl,
+      title: `Orçamento ${orcamento.numero_orcamento} - JUCA Informática`,
+      text: msg,
     }
 
     if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
@@ -1064,13 +1071,13 @@ export default function OrcamentoDetail() {
         toast({ title: 'Orçamento compartilhado com sucesso!' })
       } catch (err: any) {
         if (err?.name !== 'AbortError') {
-          navigator.clipboard.writeText(pdfUrl)
-          toast({ title: 'Link do orçamento copiado para a área de transferência!' })
+          navigator.clipboard.writeText(msg)
+          toast({ title: 'Mensagem copiada para a área de transferência!' })
         }
       }
     } else {
-      navigator.clipboard.writeText(pdfUrl)
-      toast({ title: 'Link do orçamento copiado para a área de transferência!' })
+      navigator.clipboard.writeText(msg)
+      toast({ title: 'Mensagem copiada para a área de transferência!' })
     }
   }
 

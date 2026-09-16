@@ -311,10 +311,11 @@ export default function OrcamentosList() {
     })
 
     // 1. Tenta navigator.share (dispositivos móveis suportados)
+    // ATENÇÃO: NÃO passar `url: propostaUrl` junto com `text: msg` quando `msg` já contém a URL,
+    // pois o WhatsApp e navegadores duplicam o link na mensagem gerada.
     const shareData = {
       title: `Orçamento ${orc.numero_orcamento} - JUCA Informática`,
       text: msg,
-      url: propostaUrl,
     }
 
     if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {

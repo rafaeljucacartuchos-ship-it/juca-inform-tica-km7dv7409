@@ -184,54 +184,33 @@ Qualquer dúvida, estamos à disposição!` +
  */
 export function buildOrcamentoPropostaMessage(params: {
   customerName: string
-  numeroOrcamento: string
+  numeroOrcamento?: string
   propostaUrl: string
   equipment?: string
   osNumber?: string
   subtotalProdutos?: number
   subtotalServicos?: number
   totalGeral?: number
+  resumoServico?: string
 }): string {
-  const {
-    customerName,
-    numeroOrcamento,
-    propostaUrl,
-    equipment,
-    osNumber,
-    subtotalProdutos,
-    subtotalServicos,
-    totalGeral,
-  } = params
-  const firstName = customerName.split(' ')[0] || customerName
-  const equipPart = equipment ? ` para o equipamento *${equipment}*` : ''
-  const osPart = osNumber ? ` vinculado à O.S. *${osNumber}*` : ''
+  const { customerName, propostaUrl, equipment, resumoServico } = params
+  const firstName = customerName.trim().split(/\s+/)[0] || 'Cliente'
 
-  let valoresPart = ''
-  if (typeof totalGeral === 'number' && totalGeral > 0) {
-    const fmt = (v: number) =>
-      v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    const linhas: string[] = []
-    if (typeof subtotalProdutos === 'number' && subtotalProdutos > 0) {
-      linhas.push(`  • *Produtos & Peças:* R$ ${fmt(subtotalProdutos)}`)
-    }
-    if (typeof subtotalServicos === 'number' && subtotalServicos > 0) {
-      linhas.push(`  • *Serviços & Mão de Obra:* R$ ${fmt(subtotalServicos)}`)
-    }
-    linhas.push(`  • *Total Geral:* R$ ${fmt(totalGeral)}`)
-    valoresPart = `\n💰 *Resumo dos Valores:*\n${linhas.join('\n')}\n`
-  }
+  // Resumo opcional da proposta ("a proposta da impressora", "a proposta do notebook", ou apenas "a proposta")
+  const resumo = (resumoServico || equipment || '').trim()
+  const propostaFrase =
+    resumo &&
+    resumo.toLowerCase() !== 'não especificado' &&
+    resumo.toLowerCase() !== 'serviços e peças'
+      ? `a proposta ${resumo.toLowerCase().startsWith('da ') || resumo.toLowerCase().startsWith('do ') || resumo.toLowerCase().startsWith('de ') ? resumo : `do(a) ${resumo}`}`
+      : 'a proposta'
 
   return (
-    `🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n` +
-    `Olá, *${firstName}*! Tudo bem?\n\n` +
-    `Preparamos o seu *Orçamento Comercial (${numeroOrcamento})*${equipPart}${osPart}.\n` +
-    valoresPart +
-    `\n📋 *Modelo de Orçamento:* Contém a discriminação detalhada separada em Produtos & Peças e Serviços & Mão de Obra, com subtotais, descontos e condições de pagamento.\n\n` +
-    `Acesse o link abaixo para visualizar a proposta completa e assinar digitalmente para aprovação:\n\n` +
+    `Oi, ${firstName}! Tudo bem?\n\n` +
+    `Estou acompanhando alguns orçamentos e vi que você recebeu ${propostaFrase}.\n\n` +
+    `Queria saber: ficou dentro do que você estava procurando ou gostaria que eu verificasse outra opção para você?\n\n` +
     `👉 ${propostaUrl}\n\n` +
-    `Qualquer dúvida ou ajuste que precisar, estamos à sua inteira disposição!\n\n` +
-    `JUCA INFORMÁTICA\n` +
-    `(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981`
+    `Pode me falar com sinceridade, assim consigo te ajudar melhor.`
   )
 }
 
@@ -402,27 +381,31 @@ export function buildRentalProposalClosingMessage(params: {
  */
 export function buildOrcamentoRetomadaNegociacaoMessage(params: {
   customerName: string
-  numeroOrcamento: string
+  numeroOrcamento?: string
   resumoServico?: string
   validadeDias?: number
   totalGeral?: number
   propostaUrl?: string
 }): string {
-  const { customerName, numeroOrcamento, resumoServico, validadeDias, totalGeral, propostaUrl } =
-    params
-  const firstName = customerName.split(' ')[0] || customerName
-  const resumo = resumoServico && resumoServico.trim() ? ` — ${resumoServico.trim()}` : ''
-  const validadeTxt = validadeDias && validadeDias > 0 ? `${validadeDias} dias` : 'tempo limitado'
-  const totalTxt =
-    typeof totalGeral === 'number' && totalGeral > 0
-      ? totalGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-      : 'ótimas condições'
-  const linkTxt = propostaUrl ? `\n\n👉 Acesse a proposta: ${propostaUrl}` : ''
+  const { customerName, resumoServico, propostaUrl } = params
+  const firstName = customerName.trim().split(/\s+/)[0] || 'Cliente'
+
+  const resumo = (resumoServico || '').trim()
+  const propostaFrase =
+    resumo &&
+    resumo.toLowerCase() !== 'não especificado' &&
+    resumo.toLowerCase() !== 'serviços e peças'
+      ? `a proposta ${resumo.toLowerCase().startsWith('da ') || resumo.toLowerCase().startsWith('do ') || resumo.toLowerCase().startsWith('de ') ? resumo : `do(a) ${resumo}`}`
+      : 'a proposta'
+
+  const linkBlock = propostaUrl ? `\n\n👉 ${propostaUrl}` : ''
 
   return (
-    `Olá, ${firstName}! Passando para saber se consegui te ajudar com o orçamento ${numeroOrcamento}${resumo}? ` +
-    `A proposta fica válida por ${validadeTxt} e temos condição de fechar por ${totalTxt}.${linkTxt} ` +
-    `Qualquer dúvida me chama por aqui! 😉`
+    `Oi, ${firstName}! Tudo bem?\n\n` +
+    `Estou acompanhando alguns orçamentos e vi que você recebeu ${propostaFrase}.\n\n` +
+    `Queria saber: ficou dentro do que você estava procurando ou gostaria que eu verificasse outra opção para você?` +
+    linkBlock +
+    `\n\nPode me falar com sinceridade, assim consigo te ajudar melhor.`
   )
 }
 

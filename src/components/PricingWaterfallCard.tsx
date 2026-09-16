@@ -159,7 +159,7 @@ export function PricingWaterfallCard({
           </div>
         )}
 
-        {/* Fatia 1.8: Custo Fixo (%) (v0.0.211) */}
+        {/* Fatia 1.8: Custo Fixo (%) (v0.0.211/v0.0.212) */}
         {temCustoFixoPct && (
           <div className="p-2.5 rounded-lg bg-teal-50/70 border border-teal-200 flex flex-col justify-between">
             <div>
