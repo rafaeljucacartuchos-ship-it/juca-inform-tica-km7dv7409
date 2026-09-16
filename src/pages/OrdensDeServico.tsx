@@ -39,6 +39,7 @@ import {
   deleteServiceOrder,
   syncServiceOrderTotal,
 } from '@/services/service_orders'
+import { autoApproveOrcamentosOnOsClosed } from '@/services/orcamentos'
 import { getCustomers, getCustomerDisplayName, getCustomerPhone } from '@/services/customers'
 import { getTechnicians } from '@/services/users'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -323,8 +324,29 @@ export default function OrdensDeServico() {
       } catch {
         /* best effort */
       }
-      toast({ title: 'Status da OS atualizado com sucesso!' })
+
       const changedOrder = orders.find((o) => o.id === orderId)
+
+      if (newStatus === 'completed' || newStatus === 'closed') {
+        try {
+          const approvedCount = await autoApproveOrcamentosOnOsClosed(
+            orderId,
+            changedOrder?.number,
+            user?.id,
+            user?.name,
+          )
+          if (approvedCount > 0) {
+            toast({
+              title: 'O.S. fechada',
+              description: 'Orçamento aprovado automaticamente',
+            })
+          }
+        } catch {
+          /* best effort */
+        }
+      }
+
+      toast({ title: 'Status da OS atualizado com sucesso!' })
       if (changedOrder && user?.role !== 'technician') {
         const phone = getCustomerPhone(changedOrder.expand?.customer)
         if (phone) {

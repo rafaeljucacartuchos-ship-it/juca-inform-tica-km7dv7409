@@ -849,3 +849,67 @@ export async function sendOrcamentoToFaturamento(
 
   return { success: true, paymentId, isReenviado: false }
 }
+
+/**
+ * Aprova automaticamente todos os orçamentos pendentes de uma O.S. quando ela for concluída/fechada.
+ * Ignora orçamentos já aprovados, faturados ou substituídos.
+ */
+export async function autoApproveOrcamentosOnOsClosed(
+  serviceOrderId: string,
+  osNumber?: string | number,
+  userId?: string,
+  userName?: string,
+): Promise<number> {
+  if (!serviceOrderId) return 0
+
+  try {
+    const list = await getOrcamentosByOs(serviceOrderId)
+    const pendentes = list.filter(
+      (o) => o.status !== 'aprovado' && o.status !== 'faturado' && o.status !== 'substituido',
+    )
+
+    if (pendentes.length === 0) {
+      return 0
+    }
+
+    const now = new Date()
+    const dataStr = now.toLocaleDateString('pt-BR')
+    const horaStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    const autor = userName || 'Sistema'
+    const carimbo = `[Aprovado automaticamente por conclusão da O.S. #${osNumber ?? serviceOrderId} em ${dataStr} às ${horaStr} por ${autor}]`
+
+    let count = 0
+    for (const orc of pendentes) {
+      try {
+        const obsAtual = (orc.observacoes || '').trim()
+        const novasObs = obsAtual ? `${obsAtual}\n${carimbo}` : carimbo
+
+        await updateOrcamento(orc.id, {
+          status: 'aprovado',
+          observacoes: novasObs,
+        })
+
+        try {
+          await recalculateOrcamentoTotals(orc.id)
+        } catch {
+          /* best effort */
+        }
+
+        count++
+      } catch (err) {
+        console.warn(`Erro ao auto-aprovar orçamento ${orc.id}:`, err)
+      }
+    }
+
+    try {
+      await syncServiceOrderTotal(serviceOrderId)
+    } catch {
+      /* best effort */
+    }
+
+    return count
+  } catch (err) {
+    console.warn('Erro em autoApproveOrcamentosOnOsClosed:', err)
+    return 0
+  }
+}

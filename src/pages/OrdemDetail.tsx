@@ -36,6 +36,7 @@ import {
   deleteOrcamentoItem,
   recalculateOrcamentoTotals,
   updateOrcamento,
+  autoApproveOrcamentosOnOsClosed,
 } from '@/services/orcamentos'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -301,6 +302,23 @@ export default function OrdemDetail() {
         /* best effort */
       }
 
+      try {
+        const approvedCount = await autoApproveOrcamentosOnOsClosed(
+          order.id,
+          order.number,
+          user?.id,
+          user?.name,
+        )
+        if (approvedCount > 0) {
+          toast({
+            title: 'O.S. fechada',
+            description: 'Orçamento aprovado automaticamente',
+          })
+        }
+      } catch {
+        /* best effort */
+      }
+
       const productItems = orcamentoItens.filter((it) => it.tipo === 'produto')
       toast({
         title: 'Ordem de Serviço finalizada com sucesso!',
@@ -384,6 +402,23 @@ export default function OrdemDetail() {
       if (newStatus === 'completed' || newStatus === 'closed') {
         try {
           await syncServiceOrderTotal(order.id)
+        } catch {
+          /* best effort */
+        }
+
+        try {
+          const approvedCount = await autoApproveOrcamentosOnOsClosed(
+            order.id,
+            order.number,
+            user?.id,
+            user?.name,
+          )
+          if (approvedCount > 0) {
+            toast({
+              title: 'O.S. fechada',
+              description: 'Orçamento aprovado automaticamente',
+            })
+          }
         } catch {
           /* best effort */
         }
@@ -492,6 +527,23 @@ export default function OrdemDetail() {
       // Sincroniza o total da OS com a hierarquia de orçamento e itens
       try {
         await syncServiceOrderTotal(order.id)
+      } catch {
+        /* best effort */
+      }
+
+      try {
+        const approvedCount = await autoApproveOrcamentosOnOsClosed(
+          order.id,
+          order.number,
+          user?.id,
+          user?.name,
+        )
+        if (approvedCount > 0) {
+          toast({
+            title: 'O.S. fechada',
+            description: 'Orçamento aprovado automaticamente',
+          })
+        }
       } catch {
         /* best effort */
       }

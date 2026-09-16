@@ -71,6 +71,7 @@ import {
   recalculateOrcamentoTotals,
   sendOrcamentoToFaturamento,
   updateOsStatus,
+  autoApproveOrcamentosOnOsClosed,
 } from '@/services/orcamentos'
 import { getServiceOrder, syncServiceOrderTotal } from '@/services/service_orders'
 import { getProduct } from '@/services/products'
