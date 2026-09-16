@@ -489,6 +489,9 @@ export interface CompanyPricingParameters {
   despesa_fixa_pct: number // Calculado: despesa_fixa_mensal / faturamento_medio_mensal * 100
   custos_variaveis_pct: number // Calculado: taxa_cartao_pct + icms_pct + imposto_saida_pct + comissao_pct + ipi_pct
   payment_methods_tax?: PaymentMethodTax[]
+  custo_fixo_mensal?: number // R$/mês (v0.0.209)
+  volume_estimado_servicos_mes?: number // qtd serviços estimados / mês (v0.0.209)
+  custo_fixo_rateado_unitario?: number // Calculado: custo_fixo_mensal / volume_estimado_servicos_mes
 }
 
 export interface PricingHistory {
@@ -514,6 +517,9 @@ export interface PricingHistory {
   ipi_pct?: number
   imposto_saida_pct?: number
   payment_method_nome?: string
+  custo_fixo_rateado_unitario?: number
+  custo_fixo_mensal?: number
+  volume_estimado_servicos_mes?: number
   created_by?: string
   created?: string
   updated?: string

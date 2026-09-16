@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-16T12:42:05.768Z",
+  "generatedAt": "2026-09-16T14:35:54.024Z",
   "collections": [
     {
       "name": "users",
@@ -2193,6 +2193,24 @@
         {
           "name": "payment_method_nome",
           "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "custo_fixo_rateado_unitario",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "custo_fixo_mensal",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "volume_estimado_servicos_mes",
+          "type": "number",
           "required": false,
           "system": false
         }

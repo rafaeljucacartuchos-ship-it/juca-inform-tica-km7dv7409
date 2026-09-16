@@ -716,10 +716,11 @@ export default function OrcamentoDetail() {
 
     setSavingNewOrcamento(true)
     try {
+      // Prioridade absoluta: cliente_id já selecionado/vinculado do estado
       let finalClienteId = orcamento?.cliente_id || null
       const nomeLivre = (orcamento?.nome_cliente_livre || '').trim()
 
-      // Se houver nome_cliente_livre sem cliente_id, cria o registro em customers e vincula
+      // Apenas se NÃO houver cliente_id vinculado mas houver texto livre digitado, tenta cadastrar
       if (!finalClienteId && nomeLivre) {
         try {
           const newCust = await createCustomer({
@@ -737,7 +738,7 @@ export default function OrcamentoDetail() {
         }
       }
 
-      // 1. Cria o registro do orçamento no PocketBase
+      // 1. Cria o registro do orçamento no PocketBase (status padrão: aguardando_aprovacao)
       const createdOrcamento = await createOrcamento({
         id_os: null,
         id_usuario_criador: user?.id,
@@ -1894,11 +1895,29 @@ export default function OrcamentoDetail() {
                               size="sm"
                               variant="ghost"
                               onClick={() => {
-                                triggerAutoSave({
-                                  cliente_id: null as any,
-                                  nome_cliente_livre: '',
-                                  telefone_cliente_livre: '',
-                                })
+                                setOrcamento((prev) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        cliente_id: undefined,
+                                        nome_cliente_livre: '',
+                                        telefone_cliente_livre: '',
+                                        expand: {
+                                          ...prev.expand,
+                                          cliente_id: undefined,
+                                        },
+                                      }
+                                    : prev,
+                                )
+                                setCustomerSearchQuery('')
+                                setCustomerSearchDropdownOpen(false)
+                                if (!isNew) {
+                                  triggerAutoSave({
+                                    cliente_id: null as any,
+                                    nome_cliente_livre: '',
+                                    telefone_cliente_livre: '',
+                                  })
+                                }
                               }}
                               className="h-7 text-xs text-rose-600 hover:bg-rose-50"
                             >
@@ -1946,14 +1965,32 @@ export default function OrcamentoDetail() {
                                   key={cust.id}
                                   type="button"
                                   onClick={() => {
-                                    triggerAutoSave({
-                                      cliente_id: cust.id,
-                                      nome_cliente_livre: getCustomerDisplayName(cust),
-                                      telefone_cliente_livre: getCustomerPhone(cust) || '',
-                                    })
+                                    setOrcamento((prev) =>
+                                      prev
+                                        ? {
+                                            ...prev,
+                                            cliente_id: cust.id,
+                                            nome_cliente_livre: getCustomerDisplayName(cust),
+                                            telefone_cliente_livre: getCustomerPhone(cust) || '',
+                                            expand: {
+                                              ...prev.expand,
+                                              cliente_id: cust,
+                                            },
+                                          }
+                                        : prev,
+                                    )
+                                    if (!isNew) {
+                                      triggerAutoSave({
+                                        cliente_id: cust.id,
+                                        nome_cliente_livre: getCustomerDisplayName(cust),
+                                        telefone_cliente_livre: getCustomerPhone(cust) || '',
+                                      })
+                                    }
                                     setCustomerSearchQuery('')
                                     setCustomerSearchDropdownOpen(false)
-                                    loadAll()
+                                    if (!isNew) {
+                                      loadAll()
+                                    }
                                   }}
                                   className="w-full text-left p-2 hover:bg-indigo-50 transition-colors flex items-center justify-between"
                                 >

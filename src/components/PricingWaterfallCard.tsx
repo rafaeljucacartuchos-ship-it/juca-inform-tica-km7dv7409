@@ -5,6 +5,8 @@ interface PricingWaterfallProps {
   salePrice: number
   custoDiretoTotal: number
   custoDiretoPct: number
+  custoFixoRateado?: number
+  custoFixoRateadoPct?: number
   despesaFixaValor: number
   despesaFixaPct: number
   custosVariaveisValor: number
@@ -25,6 +27,8 @@ export function PricingWaterfallCard({
   salePrice,
   custoDiretoTotal,
   custoDiretoPct,
+  custoFixoRateado = 0,
+  custoFixoRateadoPct = 0,
   despesaFixaValor,
   despesaFixaPct,
   custosVariaveisValor,
@@ -36,9 +40,12 @@ export function PricingWaterfallCard({
 }: PricingWaterfallProps) {
   // Garantir limites visuais para barras
   const cPct = Math.max(0, Math.min(100, custoDiretoPct))
+  const cfPct = Math.max(0, Math.min(100, custoFixoRateadoPct))
   const fPct = Math.max(0, Math.min(100, despesaFixaPct))
   const vPct = Math.max(0, Math.min(100, custosVariaveisPct))
   const lPct = Math.max(0, Math.min(100, lucroPct))
+
+  const temRateioFixo = custoFixoRateado > 0
 
   return (
     <div className="space-y-3.5 p-3.5 bg-slate-50/70 rounded-xl border border-slate-200">
@@ -63,6 +70,13 @@ export function PricingWaterfallCard({
           className="bg-amber-500 hover:bg-amber-600 transition-all relative group cursor-pointer"
           title={`Custo Direto: ${formatCurrencyBRL(custoDiretoTotal)} (${custoDiretoPct}%)`}
         />
+        {temRateioFixo && (
+          <div
+            style={{ width: `${cfPct}%` }}
+            className="bg-purple-500 hover:bg-purple-600 transition-all relative group cursor-pointer"
+            title={`Custo Fixo Rateado: ${formatCurrencyBRL(custoFixoRateado)} (${custoFixoRateadoPct}%)`}
+          />
+        )}
         <div
           style={{ width: `${fPct}%` }}
           className="bg-sky-500 hover:bg-sky-600 transition-all relative group cursor-pointer"
@@ -80,8 +94,12 @@ export function PricingWaterfallCard({
         />
       </div>
 
-      {/* 4 Fatias Detalhadas tipo Cascata */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
+      {/* Fatias Detalhadas tipo Cascata */}
+      <div
+        className={`grid gap-2 pt-1 text-xs ${
+          temRateioFixo ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4'
+        }`}
+      >
         {/* Fatia 1: Custo Direto */}
         <div className="p-2.5 rounded-lg bg-amber-50/70 border border-amber-200 flex flex-col justify-between">
           <div>
@@ -100,6 +118,27 @@ export function PricingWaterfallCard({
             </div>
           </div>
         </div>
+
+        {/* Fatia 1.5: Custo Fixo Rateado (v0.0.209) */}
+        {temRateioFixo && (
+          <div className="p-2.5 rounded-lg bg-purple-50/70 border border-purple-200 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="h-2 w-2 rounded-full bg-purple-500 shrink-0" />
+                <span className="text-[11px] font-bold text-purple-900">Custo Fixo Rateado</span>
+              </div>
+              <p className="text-[10px] text-purple-700">Rateio unitário por serviço</p>
+            </div>
+            <div className="mt-2 pt-1.5 border-t border-purple-200/60">
+              <div className="font-mono font-bold text-purple-950 text-xs">
+                {formatCurrencyBRL(custoFixoRateado)}
+              </div>
+              <div className="text-[10px] font-mono text-purple-800 font-semibold">
+                {custoFixoRateadoPct.toFixed(1)}% do preço
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Fatia 2: Despesas Fixas */}
         <div className="p-2.5 rounded-lg bg-sky-50/70 border border-sky-200 flex flex-col justify-between">

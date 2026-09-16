@@ -588,6 +588,7 @@ export default function Precificacao() {
       frete,
       custoAdicional1: add1,
       custoAdicional2: add2,
+      custoFixoRateado: companyParams.custo_fixo_rateado_unitario || 0,
       despesaFixaPct: fExp,
       taxaCartaoPct: cTax,
       icmsPct: icms,
@@ -613,6 +614,7 @@ export default function Precificacao() {
     variableExpensesTotal1,
     marginInput1,
     cotacaoDolarAtiva,
+    companyParams.custo_fixo_rateado_unitario,
   ])
 
   // -------------------------------------------------------------
@@ -639,6 +641,7 @@ export default function Precificacao() {
       frete,
       custoAdicional1: add1,
       custoAdicional2: add2,
+      custoFixoRateado: companyParams.custo_fixo_rateado_unitario || 0,
       despesaFixaPct: fExp,
       taxaCartaoPct: cTax,
       icmsPct: icms,
@@ -664,6 +667,7 @@ export default function Precificacao() {
     variableExpensesTotal2,
     marginInput2,
     cotacaoDolarAtiva,
+    companyParams.custo_fixo_rateado_unitario,
   ])
 
   // -------------------------------------------------------------
@@ -690,6 +694,7 @@ export default function Precificacao() {
       frete,
       custoAdicional1: add1,
       custoAdicional2: add2,
+      custoFixoRateado: companyParams.custo_fixo_rateado_unitario || 0,
       despesaFixaPct: fExp,
       taxaCartaoPct: cTax,
       icmsPct: icms,
@@ -715,6 +720,7 @@ export default function Precificacao() {
     variableExpensesTotal3,
     marginInput3,
     cotacaoDolarAtiva,
+    companyParams.custo_fixo_rateado_unitario,
   ])
 
   // -------------------------------------------------------------
@@ -814,6 +820,9 @@ export default function Precificacao() {
         payment_method_nome: paymentMethodNome,
         comissao_pct: res.comissaoPct,
         ipi_pct: res.ipiPct,
+        custo_fixo_rateado_unitario: res.custoFixoRateado,
+        custo_fixo_mensal: companyParams.custo_fixo_mensal,
+        volume_estimado_servicos_mes: companyParams.volume_estimado_servicos_mes,
       })
 
       // Atualiza estado local
@@ -851,7 +860,8 @@ export default function Precificacao() {
       `*${label} - JUCA INFORMÁTICA*\n` +
       `Custo Base (${res.moeda}): ${res.moeda === 'USD' ? `US$ ${res.custoProdutoUSD?.toFixed(2)} (R$ ${res.custoProdutoBRL.toFixed(2)})` : formatCurrencyBRL(res.custoProdutoBRL)}\n` +
       `Frete + Extras: ${formatCurrencyBRL(res.frete + res.custoAdicional1 + res.custoAdicional2)}\n` +
-      `Custo Direto Total: ${formatCurrencyBRL(res.custoDiretoTotal)} (${res.fatias.custoDireto.pct}%)\n` +
+      `Custo Direto: ${formatCurrencyBRL(res.custoDiretoTotal)} (${res.fatias.custoDireto.pct}%)\n` +
+      (res.custoFixoRateado > 0 ? `Custo Fixo Rateado: ${formatCurrencyBRL(res.custoFixoRateado)} (${res.fatias.custoFixoRateado.pct}%)\n` : '') +
       `Despesa Fixa (${res.despesaFixaPct}%): ${formatCurrencyBRL(res.fatias.despesaFixa.valor)}\n` +
       `Custos Variáveis (${res.custosVariaveisPct}%): ${formatCurrencyBRL(res.fatias.custosVariaveis.valor)}\n` +
       `Lucratividade Alvo: ${res.lucratividadePct}%\n` +
@@ -915,6 +925,9 @@ export default function Precificacao() {
           payment_method_nome: selectedMethod3?.nome,
           comissao_pct: calcResult3.comissaoPct,
           ipi_pct: calcResult3.ipiPct,
+          custo_fixo_rateado_unitario: calcResult3.custoFixoRateado,
+          custo_fixo_mensal: companyParams.custo_fixo_mensal,
+          volume_estimado_servicos_mes: companyParams.volume_estimado_servicos_mes,
         })
       }
 
@@ -1544,6 +1557,8 @@ export default function Precificacao() {
                         salePrice={calcResult1.salePrice}
                         custoDiretoTotal={calcResult1.custoDiretoTotal}
                         custoDiretoPct={calcResult1.fatias.custoDireto.pct}
+                        custoFixoRateado={calcResult1.custoFixoRateado}
+                        custoFixoRateadoPct={calcResult1.fatias.custoFixoRateado?.pct}
                         despesaFixaValor={calcResult1.fatias.despesaFixa.valor}
                         despesaFixaPct={calcResult1.fatias.despesaFixa.pct}
                         custosVariaveisValor={calcResult1.fatias.custosVariaveis.valor}
@@ -2124,6 +2139,8 @@ export default function Precificacao() {
                         salePrice={calcResult2.salePrice}
                         custoDiretoTotal={calcResult2.custoDiretoTotal}
                         custoDiretoPct={calcResult2.fatias.custoDireto.pct}
+                        custoFixoRateado={calcResult2.custoFixoRateado}
+                        custoFixoRateadoPct={calcResult2.fatias.custoFixoRateado?.pct}
                         despesaFixaValor={calcResult2.fatias.despesaFixa.valor}
                         despesaFixaPct={calcResult2.fatias.despesaFixa.pct}
                         custosVariaveisValor={calcResult2.fatias.custosVariaveis.valor}
@@ -2218,8 +2235,10 @@ export default function Precificacao() {
                                 payment_method_nome: selectedMethod2?.nome,
                                 comissao_pct: calcResult2.comissaoPct,
                                 ipi_pct: calcResult2.ipiPct,
-                              })
-                              toast({ title: 'Cálculo salvo no histórico!' })
+                                custo_fixo_rateado_unitario: calcResult2.custoFixoRateado,
+                                custo_fixo_mensal: companyParams.custo_fixo_mensal,
+                                volume_estimado_servicos_mes: companyParams.volume_estimado_servicos_mes,
+                              })                              toast({ title: 'Cálculo salvo no histórico!' })
                               loadHistory()
                             } catch {
                               toast({
@@ -2623,6 +2642,8 @@ export default function Precificacao() {
                         salePrice={calcResult3.salePrice}
                         custoDiretoTotal={calcResult3.custoDiretoTotal}
                         custoDiretoPct={calcResult3.fatias.custoDireto.pct}
+                        custoFixoRateado={calcResult3.custoFixoRateado}
+                        custoFixoRateadoPct={calcResult3.fatias.custoFixoRateado?.pct}
                         despesaFixaValor={calcResult3.fatias.despesaFixa.valor}
                         despesaFixaPct={calcResult3.fatias.despesaFixa.pct}
                         custosVariaveisValor={calcResult3.fatias.custosVariaveis.valor}

@@ -25,6 +25,8 @@ export const SETTING_KEYS = {
   FATURAMENTO_MEDIO_MENSAL: 'faturamento_medio_mensal',
   LUCRATIVIDADE_DESEJADA_PCT: 'lucratividade_desejada_pct',
   PAYMENT_METHODS_TAX: 'payment_methods_tax',
+  CUSTO_FIXO_MENSAL: 'custo_fixo_mensal',
+  VOLUME_ESTIMADO_SERVICOS_MES: 'volume_estimado_servicos_mes',
 } as const
 
 export const DEFAULT_PAYMENT_METHODS_TAX: PaymentMethodTax[] = [
@@ -57,6 +59,9 @@ export const DEFAULT_COMPANY_PARAMS: CompanyPricingParameters = {
   despesa_fixa_pct: 15.0,
   custos_variaveis_pct: 14.0,
   payment_methods_tax: DEFAULT_PAYMENT_METHODS_TAX,
+  custo_fixo_mensal: 12000,
+  volume_estimado_servicos_mes: 300,
+  custo_fixo_rateado_unitario: 40.0,
 }
 
 /**
@@ -148,6 +153,14 @@ export async function getCompanyPricingParameters(): Promise<CompanyPricingParam
       map.get(SETTING_KEYS.LUCRATIVIDADE_DESEJADA_PCT),
       DEFAULT_COMPANY_PARAMS.lucratividade_desejada_pct,
     )
+    const custo_fixo_mensal = parseNum(
+      map.get(SETTING_KEYS.CUSTO_FIXO_MENSAL),
+      DEFAULT_COMPANY_PARAMS.custo_fixo_mensal ?? 12000,
+    )
+    const volume_estimado_servicos_mes = parseNum(
+      map.get(SETTING_KEYS.VOLUME_ESTIMADO_SERVICOS_MES),
+      DEFAULT_COMPANY_PARAMS.volume_estimado_servicos_mes ?? 300,
+    )
 
     let payment_methods_tax = DEFAULT_PAYMENT_METHODS_TAX
     const rawMethods = map.get(SETTING_KEYS.PAYMENT_METHODS_TAX)
@@ -171,6 +184,11 @@ export async function getCompanyPricingParameters(): Promise<CompanyPricingParam
       Math.round((taxa_cartao_pct + icms_pct + imposto_saida_pct + comissao_pct + ipi_pct) * 100) /
       100
 
+    const custo_fixo_rateado_unitario =
+      volume_estimado_servicos_mes > 0
+        ? Math.round((custo_fixo_mensal / volume_estimado_servicos_mes) * 100) / 100
+        : 0
+
     return {
       cotacao_dolar,
       frete_padrao,
@@ -185,6 +203,9 @@ export async function getCompanyPricingParameters(): Promise<CompanyPricingParam
       despesa_fixa_pct,
       custos_variaveis_pct,
       payment_methods_tax,
+      custo_fixo_mensal,
+      volume_estimado_servicos_mes,
+      custo_fixo_rateado_unitario,
     }
   } catch {
     return DEFAULT_COMPANY_PARAMS
@@ -300,6 +321,24 @@ export async function updateCompanyPricingParameters(
       ),
     )
   }
+  if (params.custo_fixo_mensal !== undefined) {
+    updates.push(
+      setSettingValue(
+        SETTING_KEYS.CUSTO_FIXO_MENSAL,
+        String(params.custo_fixo_mensal),
+        'Custo fixo mensal para rateio por serviço (R$/mês)',
+      ),
+    )
+  }
+  if (params.volume_estimado_servicos_mes !== undefined) {
+    updates.push(
+      setSettingValue(
+        SETTING_KEYS.VOLUME_ESTIMADO_SERVICOS_MES,
+        String(params.volume_estimado_servicos_mes),
+        'Volume estimado de serviços realizados por mês (qtd)',
+      ),
+    )
+  }
 
   await Promise.all(updates)
 }
@@ -371,9 +410,12 @@ export async function createPricingHistory(data: {
   ipi_pct?: number
   imposto_saida_pct?: number
   payment_method_nome?: string
+  custo_fixo_rateado_unitario?: number
+  custo_fixo_mensal?: number
+  volume_estimado_servicos_mes?: number
 }): Promise<PricingHistory> {
   const currentUserId = pb.authStore.model?.id || undefined
-  return pb.collection('pricing_history').create<PricingHistory>({
+  const payload: Record<string, any> = {
     product: data.product || null,
     cost: data.cost ?? 0,
     despesas_pct: data.despesas_pct ?? 0,
@@ -396,7 +438,19 @@ export async function createPricingHistory(data: {
     imposto_saida_pct: data.imposto_saida_pct ?? 0,
     payment_method_nome: data.payment_method_nome || null,
     created_by: currentUserId || null,
-  })
+  }
+
+  if (data.custo_fixo_rateado_unitario !== undefined) {
+    payload.custo_fixo_rateado_unitario = data.custo_fixo_rateado_unitario
+  }
+  if (data.custo_fixo_mensal !== undefined) {
+    payload.custo_fixo_mensal = data.custo_fixo_mensal
+  }
+  if (data.volume_estimado_servicos_mes !== undefined) {
+    payload.volume_estimado_servicos_mes = data.volume_estimado_servicos_mes
+  }
+
+  return pb.collection('pricing_history').create<PricingHistory>(payload)
 }
 
 /**
@@ -432,7 +486,9 @@ export interface PricingCalculationResult {
   frete: number
   custoAdicional1: number
   custoAdicional2: number
-  custoDiretoTotal: number // custo BRL + frete + adicional1 + adicional2
+  custoFixoRateado: number // custo_fixo_rateado_unitario (R$/serviço)
+  custoDiretoTotal: number // custo BRL + frete + adicional1 + adicional2 (sem o rateio)
+  custoBaseComRateio: number // custoDiretoTotal + custoFixoRateado
 
   // Percentuais aplicados
   despesaFixaPct: number
@@ -456,6 +512,7 @@ export interface PricingCalculationResult {
   // Fatias decompostas em R$ e em % (para gráfico cascata 100%)
   fatias: {
     custoDireto: { valor: number; pct: number }
+    custoFixoRateado: { valor: number; pct: number }
     despesaFixa: { valor: number; pct: number }
     custosVariaveis: {
       valor: number
@@ -469,7 +526,7 @@ export interface PricingCalculationResult {
       }
     }
     lucro: { valor: number; pct: number }
-    totalPct: number // soma das 4 fatias (deve fechar ~100%)
+    totalPct: number // soma das fatias (deve fechar ~100%)
   }
 
   // Compatibilidade com a interface anterior
@@ -489,6 +546,7 @@ export interface PricingInputData {
   frete?: number
   custoAdicional1?: number
   custoAdicional2?: number
+  custoFixoRateado?: number
   despesaFixaPct: number
   taxaCartaoPct?: number
   icmsPct?: number
@@ -523,9 +581,11 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
   const frete = Math.max(0, input.frete || 0)
   const adicional1 = Math.max(0, input.custoAdicional1 || 0)
   const adicional2 = Math.max(0, input.custoAdicional2 || 0)
+  const custoFixoRateado = Math.max(0, input.custoFixoRateado || 0)
 
   const custoDiretoTotal =
     Math.round((custoProdutoBRL + frete + adicional1 + adicional2) * 100) / 100
+  const custoBaseComRateio = Math.round((custoDiretoTotal + custoFixoRateado) * 100) / 100
 
   const despesaFixaPct = Math.max(0, input.despesaFixaPct || 0)
   const taxaCartaoPct = Math.max(0, input.taxaCartaoPct || 0)
@@ -553,7 +613,9 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
       frete,
       custoAdicional1: adicional1,
       custoAdicional2: adicional2,
+      custoFixoRateado,
       custoDiretoTotal,
+      custoBaseComRateio,
       despesaFixaPct,
       taxaCartaoPct,
       icmsPct,
@@ -569,6 +631,7 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
       lucroUnitario: 0,
       fatias: {
         custoDireto: { valor: 0, pct: 0 },
+        custoFixoRateado: { valor: 0, pct: 0 },
         despesaFixa: { valor: 0, pct: 0 },
         custosVariaveis: {
           valor: 0,
@@ -595,7 +658,8 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
   }
 
   const markupDivisor = 1 / divisorDecimal
-  const rawSalePrice = custoDiretoTotal * markupDivisor
+  // O markup incide sobre a base de custo (custo direto + custo fixo rateado)
+  const rawSalePrice = custoBaseComRateio * markupDivisor
   const salePrice = Math.round(rawSalePrice * 100) / 100
 
   // Cálculo das fatias em R$
@@ -611,23 +675,32 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
       : Math.round((cartaoValor + icmsValor + impostoSaidaValor + comissaoValor + ipiValor) * 100) /
         100
 
-  // Lucro R$ = Preço - custo direto - despesa fixa$ - variáveis$
+  // Lucro R$ = Preço - custo direto - custo fixo rateado - despesa fixa% - variáveis%
   const lucroUnitario =
-    Math.round((salePrice - custoDiretoTotal - despesaFixaValor - custosVariaveisValor) * 100) / 100
+    Math.round(
+      (salePrice - custoDiretoTotal - custoFixoRateado - despesaFixaValor - custosVariaveisValor) *
+        100,
+    ) / 100
 
   // Fatias percentuais sobre o preço final gerado (deve somar 100%)
   const custoDiretoPct = salePrice > 0 ? (custoDiretoTotal / salePrice) * 100 : 0
+  const custoFixoRateadoPct = salePrice > 0 ? (custoFixoRateado / salePrice) * 100 : 0
   const lucroRealPct = salePrice > 0 ? (lucroUnitario / salePrice) * 100 : 0
   const despesaFixaRealPct = salePrice > 0 ? (despesaFixaValor / salePrice) * 100 : 0
   const custosVariaveisRealPct = salePrice > 0 ? (custosVariaveisValor / salePrice) * 100 : 0
   const totalFatiasPct =
     Math.round(
-      (custoDiretoPct + despesaFixaRealPct + custosVariaveisRealPct + lucroRealPct) * 100,
+      (custoDiretoPct +
+        custoFixoRateadoPct +
+        despesaFixaRealPct +
+        custosVariaveisRealPct +
+        lucroRealPct) *
+        100,
     ) / 100
 
-  // Markup sobre o custo (lucro / custo * 100) para compatibilidade
+  // Markup sobre o custo (lucro / custoBaseComRateio * 100) para compatibilidade
   const markupSobreCustoPct =
-    custoDiretoTotal > 0 ? Math.round((lucroUnitario / custoDiretoTotal) * 10000) / 100 : 0
+    custoBaseComRateio > 0 ? Math.round((lucroUnitario / custoBaseComRateio) * 10000) / 100 : 0
 
   return {
     custoProdutoBRL,
@@ -637,7 +710,9 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
     frete,
     custoAdicional1: adicional1,
     custoAdicional2: adicional2,
+    custoFixoRateado,
     custoDiretoTotal,
+    custoBaseComRateio,
     despesaFixaPct,
     taxaCartaoPct,
     icmsPct,
@@ -655,6 +730,10 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
       custoDireto: {
         valor: custoDiretoTotal,
         pct: Math.round(custoDiretoPct * 10) / 10,
+      },
+      custoFixoRateado: {
+        valor: custoFixoRateado,
+        pct: Math.round(custoFixoRateadoPct * 10) / 10,
       },
       despesaFixa: {
         valor: despesaFixaValor,
@@ -692,7 +771,7 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
       },
       totalPct: totalFatiasPct,
     },
-    cost: custoDiretoTotal,
+    cost: custoBaseComRateio,
     despesasPct: Math.round((despesaFixaPct + custosVariaveisPct) * 10) / 10,
     markupPct: markupSobreCustoPct,
     margemPct: Math.round(lucroRealPct * 10) / 10,
@@ -764,6 +843,7 @@ export function calculateFromMargem(
     frete: 0,
     custoAdicional1: 0,
     custoAdicional2: 0,
+    custoFixoRateado: 0,
     despesaFixaPct: 0,
     taxaCartaoPct: despesasPct,
     icmsPct: 0,

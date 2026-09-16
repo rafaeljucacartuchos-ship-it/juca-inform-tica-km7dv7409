@@ -28,6 +28,12 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
   const [despesaFixa, setDespesaFixa] = useState(String(parameters.despesa_fixa_mensal))
   const [faturamento, setFaturamento] = useState(String(parameters.faturamento_medio_mensal))
   const [lucratividade, setLucratividade] = useState(String(parameters.lucratividade_desejada_pct))
+  const [custoFixoMensal, setCustoFixoMensal] = useState(
+    String(parameters.custo_fixo_mensal ?? 12000),
+  )
+  const [volumeServicosMes, setVolumeServicosMes] = useState(
+    String(parameters.volume_estimado_servicos_mes ?? 300),
+  )
 
   // Atualiza os inputs locais quando os parâmetros carregarem
   React.useEffect(() => {
@@ -41,12 +47,21 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
     setDespesaFixa(String(parameters.despesa_fixa_mensal))
     setFaturamento(String(parameters.faturamento_medio_mensal))
     setLucratividade(String(parameters.lucratividade_desejada_pct))
+    setCustoFixoMensal(String(parameters.custo_fixo_mensal ?? 12000))
+    setVolumeServicosMes(String(parameters.volume_estimado_servicos_mes ?? 300))
   }, [parameters])
 
   // Cálculos dinâmicos em tempo real no card
   const despFixaNum = parseFloat(despesaFixa.replace(',', '.')) || 0
   const fatNum = parseFloat(faturamento.replace(',', '.')) || 0
   const despesaFixaCalculadaPct = fatNum > 0 ? (despFixaNum / fatNum) * 100 : 0
+
+  const custoFixoMensalNum = parseFloat(custoFixoMensal.replace(',', '.')) || 0
+  const volumeServicosMesNum = parseFloat(volumeServicosMes.replace(',', '.')) || 0
+  const rateioPorServico =
+    volumeServicosMesNum > 0
+      ? Math.round((custoFixoMensalNum / volumeServicosMesNum) * 100) / 100
+      : 0
 
   const tCartao = parseFloat(taxaCartao.replace(',', '.')) || 0
   const tIcms = parseFloat(icms.replace(',', '.')) || 0
@@ -67,6 +82,8 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
       despesa_fixa_mensal: despFixaNum,
       faturamento_medio_mensal: fatNum,
       lucratividade_desejada_pct: parseFloat(lucratividade.replace(',', '.')) || 25,
+      custo_fixo_mensal: custoFixoMensalNum,
+      volume_estimado_servicos_mes: volumeServicosMesNum,
     })
   }
 
@@ -118,6 +135,61 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
 
       {!collapsed && (
         <CardContent className="pt-4 space-y-4">
+          {/* Linha de Custo Fixo e Rateio por Serviço (v0.0.209) */}
+          <div className="p-3 bg-white rounded-lg border border-indigo-200/90 shadow-2xs space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-indigo-100 pb-2">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-slate-800 text-xs">
+                  Custo Fixo & Rateio Unitário por Serviço
+                </span>
+                <span className="text-[10px] text-slate-500">
+                  (Rateio fixo somado na composição de cada serviço)
+                </span>
+              </div>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                Rateio por serviço: {formatCurrencyBRL(rateioPorServico)}/unidade
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold text-slate-600">
+                  Custo Fixo Mensal (R$/mês)
+                </Label>
+                <Input
+                  type="number"
+                  step="100"
+                  value={custoFixoMensal}
+                  onChange={(e) => setCustoFixoMensal(e.target.value)}
+                  className="h-8 font-mono text-xs font-bold text-slate-900"
+                  placeholder="Ex: 12000"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold text-slate-600">
+                  Volume Estimado de Serviços / Mês (qtd)
+                </Label>
+                <Input
+                  type="number"
+                  step="10"
+                  value={volumeServicosMes}
+                  onChange={(e) => setVolumeServicosMes(e.target.value)}
+                  className="h-8 font-mono text-xs font-bold text-slate-900"
+                  placeholder="Ex: 300"
+                />
+              </div>
+
+              <div className="p-2 rounded bg-indigo-50/60 border border-indigo-100 flex flex-col justify-center text-[11px]">
+                <span className="text-slate-600 text-[10px]">Cálculo do Rateio:</span>
+                <span className="font-mono font-bold text-indigo-900">
+                  {formatCurrencyBRL(custoFixoMensalNum)} ÷ {volumeServicosMesNum || 1} ={' '}
+                  <span className="text-indigo-700">{formatCurrencyBRL(rateioPorServico)}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
             {/* Bloco 1: Cotação e Frete */}
             <div className="p-3 bg-white rounded-lg border border-slate-200/80 space-y-2.5">
