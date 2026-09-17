@@ -52,6 +52,7 @@ import { Switch } from '@/components/ui/switch'
 import { Orcamento, OrcamentoStatus, ServiceOrder, User, Customer } from '@/types'
 import { getOrcamentos, createOrcamento } from '@/services/orcamentos'
 import { getServiceOrders } from '@/services/service_orders'
+import { ServiceOrderLinkSection } from '@/components/ServiceOrderLinkSection'
 import { getCustomerDisplayName, getCustomerPhone, getCustomers } from '@/services/customers'
 import { getUsers } from '@/services/users'
 import { useAuth } from '@/hooks/use-auth'
@@ -143,6 +144,7 @@ export default function OrcamentosList() {
   const [creating, setCreating] = useState(false)
   const [vincularOs, setVincularOs] = useState(false)
   const [selectedOsId, setSelectedOsId] = useState<string>('')
+  const [selectedOsObject, setSelectedOsObject] = useState<ServiceOrder | null>(null)
   const [validade, setValidade] = useState<number>(15)
   const [observacoes, setObservacoes] = useState('')
   const [availableOrders, setAvailableOrders] = useState<ServiceOrder[]>([])
@@ -546,10 +548,13 @@ export default function OrcamentosList() {
     }
   }
 
-  // OS selecionada para exibir prévia
+  // OS selecionada para exibir prévia (seja via dropdown legado ou busca com filtros)
   const selectedOrder = useMemo(() => {
-    return availableOrders.find((o) => o.id === selectedOsId)
-  }, [availableOrders, selectedOsId])
+    if (selectedOsObject && selectedOsObject.id === selectedOsId) {
+      return selectedOsObject
+    }
+    return availableOrders.find((o) => o.id === selectedOsId) || selectedOsObject || null
+  }, [availableOrders, selectedOsId, selectedOsObject])
 
   return (
     <div className="space-y-6">
@@ -569,6 +574,7 @@ export default function OrcamentosList() {
           onClick={() => {
             setVincularOs(false)
             setSelectedOsId('')
+            setSelectedOsObject(null)
             setSelectedCustomer(null)
             setClienteSearch('')
             setNomeClienteLivre('')
@@ -926,7 +932,7 @@ export default function OrcamentosList() {
 
       {/* Modal de Criação de Orçamento */}
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
               <Plus className="h-5 w-5 text-indigo-600" />
@@ -949,61 +955,36 @@ export default function OrcamentosList() {
                 <Switch
                   id="vincular-os-switch"
                   checked={vincularOs}
-                  onCheckedChange={setVincularOs}
+                  onCheckedChange={(checked) => {
+                    setVincularOs(checked)
+                    if (!checked) {
+                      setSelectedOsId('')
+                      setSelectedOsObject(null)
+                    }
+                  }}
                 />
               </div>
 
               {vincularOs && (
-                <div className="space-y-2 pt-2 border-t border-indigo-100">
-                  <Label className="font-semibold text-slate-800 text-xs">
-                    Selecione a Ordem de Serviço *
-                  </Label>
-                  <Select value={selectedOsId} onValueChange={setSelectedOsId}>
-                    <SelectTrigger className="h-9 text-xs bg-white">
-                      <SelectValue
-                        placeholder={
-                          loadingOrders ? 'Carregando ordens...' : 'Escolha a O.S. correspondente'
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-56">
-                      {availableOrders.map((ord) => (
-                        <SelectItem key={ord.id} value={ord.id}>
-                          <span className="font-mono font-bold mr-1.5">{ord.number}</span>
-                          <span>• {getCustomerDisplayName(ord.expand?.customer)}</span>
-                          <span className="text-slate-400 text-[10px] ml-1">
-                            ({ord.equipment || ord.expand?.equipment_ref?.name || 'S/ equipamento'})
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {/* Prévia dos dados herdados */}
-                  {selectedOrder && (
-                    <div className="p-2.5 bg-white rounded border border-indigo-200 text-[11px] space-y-1">
-                      <p className="font-bold text-indigo-900">
-                        Número herdado: ORC-
-                        {selectedOrder.number.startsWith('OS-')
-                          ? selectedOrder.number.replace('OS-', '')
-                          : selectedOrder.number}
-                      </p>
-                      <p className="text-slate-700">
-                        <strong>Cliente:</strong>{' '}
-                        {getCustomerDisplayName(selectedOrder.expand?.customer)}
-                      </p>
-                      <p className="text-slate-700">
-                        <strong>Equipamento:</strong>{' '}
-                        {selectedOrder.equipment ||
-                          selectedOrder.expand?.equipment_ref?.name ||
-                          '—'}
-                      </p>
-                      <p className="text-slate-700">
-                        <strong>Técnico:</strong>{' '}
-                        {selectedOrder.expand?.technician?.name || 'Não atribuído'}
-                      </p>
-                    </div>
-                  )}
+                <div className="pt-2 border-t border-indigo-100 space-y-2">
+                  <ServiceOrderLinkSection
+                    linkedOs={selectedOrder}
+                    idOs={selectedOsId || null}
+                    canEdit={!creating}
+                    technicians={systemUsers}
+                    onSelectOs={(os) => {
+                      setSelectedOsId(os.id)
+                      setSelectedOsObject(os)
+                      toast({
+                        title: 'O.S. selecionada!',
+                        description: `O orçamento herdará os dados da O.S. #${os.number}.`,
+                      })
+                    }}
+                    onUnlinkOs={() => {
+                      setSelectedOsId('')
+                      setSelectedOsObject(null)
+                    }}
+                  />
                 </div>
               )}
             </div>
