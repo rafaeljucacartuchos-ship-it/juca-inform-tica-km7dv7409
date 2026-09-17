@@ -264,6 +264,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
   const isManagerOrAdmin = user?.role === 'admin'
   const isLocked = orcamento?.status === 'faturado' || orcamento?.status === 'substituido'
   const canEdit = !isLocked
+  const canEditOsLink = canEdit || user?.role === 'admin'
 
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -1826,11 +1827,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                   onClose()
                   return
                 }
-                if (orcamento.id_os) {
-                  navigate(`/ordens/${orcamento.id_os}`)
-                } else {
-                  navigate('/orcamentos')
-                }
+                navigate('/orcamentos')
               }}
               className="h-9 w-9 shrink-0"
               title={onClose ? 'Fechar detalhes (ESC)' : 'Voltar'}
@@ -2073,16 +2070,31 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                   ? 'Informações do Atendimento (O.S. Vinculada)'
                   : 'Dados do Orçamento Independente'}
               </CardTitle>
+              {orcamento.id_os && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/ordens/${orcamento.id_os}`)}
+                  className="h-8 text-xs font-semibold gap-1.5 text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                  title="Abrir detalhes da Ordem de Serviço vinculada"
+                >
+                  <ExternalLink className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>Abrir O.S.</span>
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="space-y-4 text-xs">
-              {/* Controle de Vinculação à Ordem de Serviço com busca e filtros (v0.0.216 / v0.0.236) */}
+              {/* Controle de Vinculação à Ordem de Serviço com busca e filtros (v0.0.216 / v0.0.236 / v0.0.238) */}
               <ServiceOrderLinkSection
                 linkedOs={os || null}
                 idOs={orcamento.id_os || null}
-                canEdit={canEdit}
+                canEdit={canEditOsLink}
+                status={orcamento.status}
+                isAdmin={user?.role === 'admin'}
                 technicians={systemUsers}
                 onSelectOs={async (selectedOs) => {
-                  if (isLocked) {
+                  if (isLocked && user?.role !== 'admin') {
                     toast({
                       title: 'Edição bloqueada',
                       description:
@@ -2149,7 +2161,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                   }
                 }}
                 onUnlinkOs={async () => {
-                  if (isLocked) {
+                  if (isLocked && user?.role !== 'admin') {
                     toast({
                       title: 'Edição bloqueada',
                       description:

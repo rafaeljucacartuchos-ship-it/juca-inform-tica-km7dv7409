@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
   ArrowLeft,
+  AlertCircle,
   Play,
   CheckCircle,
   CheckCircle2,
@@ -112,6 +113,7 @@ export default function OrdemDetail() {
   const { toast } = useToast()
   const { hasPermission } = usePermissions()
   const [order, setOrder] = useState<ServiceOrder | null>(null)
+  const [notFound, setNotFound] = useState(false)
   const [activeOrcamento, setActiveOrcamento] = useState<Orcamento | null>(null)
   const [orcamentoItens, setOrcamentoItens] = useState<OrcamentoItem[]>([])
   const [creatingOrcamento, setCreatingOrcamento] = useState(false)
@@ -209,14 +211,15 @@ export default function OrdemDetail() {
   const loadAll = async () => {
     if (!id) return
     try {
+      setNotFound(false)
       const [o, h, orc] = await Promise.all([
         getServiceOrder(id),
-        getStatusHistory(id),
-        getActiveOrcamento(id),
+        getStatusHistory(id).catch(() => []),
+        getActiveOrcamento(id).catch(() => null),
       ])
       setActiveOrcamento(orc)
       if (orc?.id) {
-        const oItens = await getOrcamentoItens(orc.id)
+        const oItens = await getOrcamentoItens(orc.id).catch(() => [])
         setOrcamentoItens(oItens)
         setOrcValidade(orc.validade || 15)
         setOrcObs(orc.observacoes || '')
@@ -230,8 +233,18 @@ export default function OrdemDetail() {
       setEditOsDescription(o.description || '')
       setHistory(h)
       setServiceReport(o.service_report || '')
-    } catch {
-      /* intentionally ignored */
+    } catch (err: any) {
+      console.warn('Erro ao carregar detalhes da ordem de serviço:', err)
+      const status = err?.status || err?.response?.status || err?.statusCode
+      const msg = String(err?.message || err?.data?.message || '').toLowerCase()
+      if (
+        status === 404 ||
+        msg.includes('404') ||
+        msg.includes('not found') ||
+        msg.includes('não encontrad')
+      ) {
+        setNotFound(true)
+      }
     }
   }
 
@@ -254,6 +267,44 @@ export default function OrdemDetail() {
         .then(setHistory)
         .catch(() => {})
   })
+
+  if (notFound) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center p-4">
+        <div className="max-w-md w-full text-center space-y-4 bg-white p-6 sm:p-8 rounded-xl border border-slate-200 shadow-sm">
+          <div className="mx-auto w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shadow-xs">
+            <AlertCircle className="w-8 h-8" />
+          </div>
+          <div className="space-y-1.5">
+            <h2 className="text-lg font-bold text-slate-900">Ordem de Serviço não encontrada</h2>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              A Ordem de Serviço informada não existe ou o identificador pertence a outro módulo
+              (como um orçamento independente). Verifique o link e navegue pelas opções abaixo:
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/orcamentos')}
+              className="flex-1 text-xs font-semibold"
+            >
+              Voltar para Orçamentos
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => navigate('/ordens')}
+              className="flex-1 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              Ir para Ordens de Serviço
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (!order) {
     return <div className="p-8 text-center text-slate-500">Carregando detalhes da ordem...</div>

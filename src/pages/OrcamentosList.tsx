@@ -1193,7 +1193,9 @@ export default function OrcamentosList() {
                   <ServiceOrderLinkSection
                     linkedOs={selectedOrder}
                     idOs={selectedOsId || null}
-                    canEdit={!creating}
+                    canEdit={!creating || user?.role === 'admin'}
+                    isAdmin={user?.role === 'admin'}
+                    status="aguardando_aprovacao"
                     technicians={systemUsers}
                     onSelectOs={(os) => {
                       if (!os?.id) {
