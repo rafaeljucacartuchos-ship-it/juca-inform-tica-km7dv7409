@@ -1035,7 +1035,7 @@ export default function Precificacao() {
                   variant="outline"
                   className="border-indigo-200 bg-indigo-50 text-indigo-700 text-[10px] font-bold"
                 >
-                  v0.0.235
+                  v0.0.236
                 </Badge>{' '}
               </div>
               <p className="text-xs text-slate-500">
