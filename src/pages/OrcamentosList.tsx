@@ -22,6 +22,8 @@ import {
   Trash2,
   Share,
   X,
+  UserCheck,
+  AlertTriangle,
 } from 'lucide-react'
 import { openWhatsApp, buildOrcamentoRetomadaNegociacaoMessage } from '@/lib/whatsapp'
 import { RecordActionsMenu, RecordActionItem } from '@/components/RecordActionsMenu'
@@ -51,6 +53,40 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Orcamento, OrcamentoStatus, ServiceOrder, User, Customer } from '@/types'
+
+/** Formata tempo decorrido relativo em português (ex: "3 dias", "5 horas", "15 minutos") */
+function formatElapsedHuman(isoDate: string): string {
+  const diffMs = Math.max(0, Date.now() - new Date(isoDate).getTime())
+  const min = Math.floor(diffMs / 60000)
+  if (min < 1) return 'poucos segundos'
+  if (min === 1) return '1 minuto'
+  if (min < 60) return `${min} minutos`
+  const h = Math.floor(min / 60)
+  if (h === 1) return '1 hora'
+  if (h < 24) return `${h} horas`
+  const d = Math.floor(h / 24)
+  if (d === 1) return '1 dia'
+  if (d < 30) return `${d} dias`
+  const m = Math.floor(d / 30)
+  if (m === 1) return '1 mês'
+  if (m < 12) return `${m} meses`
+  const y = Math.floor(d / 365)
+  return y === 1 ? '1 ano' : `${y} anos`
+}
+
+/** Formata data/hora de envio (ex: "18/04 às 14:32") */
+function formatEnviadoEmDate(isoDate: string): string {
+  try {
+    const d = new Date(isoDate)
+    const day = String(d.getDate()).padStart(2, '0')
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const hours = String(d.getHours()).padStart(2, '0')
+    const minutes = String(d.getMinutes()).padStart(2, '0')
+    return `${day}/${month} às ${hours}:${minutes}`
+  } catch {
+    return isoDate
+  }
+}
 import { getOrcamentos, createOrcamento } from '@/services/orcamentos'
 import { getServiceOrders } from '@/services/service_orders'
 import { ServiceOrderLinkSection } from '@/components/ServiceOrderLinkSection'
@@ -227,12 +263,42 @@ export default function OrcamentosList() {
     return () => clearTimeout(timer)
   }, [clienteSearch])
 
-  // Carrega lista de usuários na inicialização para mapear nomes de responsáveis
+  // Carrega lista de usuários na inicialização para mapear nomes de responsáveis e preencher o seletor
   useEffect(() => {
     getUsers()
       .then((u) => setSystemUsers(u))
       .catch(() => {})
   }, [])
+
+  // Lista unificada e deduped de técnicos/responsáveis existentes para o filtro
+  const availableResponsavelOptions = useMemo(() => {
+    const map = new Map<string, string>()
+
+    // 1. Usuários do sistema cadastrados
+    for (const u of systemUsers) {
+      if (u.id && u.name) {
+        map.set(u.id, u.name)
+      }
+    }
+
+    // 2. Extrai responsáveis que constam nos orçamentos carregados (mesma unificação do Dashboard v0.0.213)
+    for (const orc of orcamentos) {
+      const respId = orc.responsavel_id || orc.id_usuario_criador
+      if (respId && !map.has(respId)) {
+        const name =
+          orc.expand?.responsavel_id?.name ||
+          orc.expand?.id_usuario_criador?.name ||
+          orc.expand?.id_os?.expand?.technician?.name
+        if (name) {
+          map.set(respId, name)
+        }
+      }
+    }
+
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+  }, [systemUsers, orcamentos])
 
   // Nome legível do responsável filtrado
   const responsavelFilterName = useMemo(() => {
@@ -274,9 +340,9 @@ export default function OrcamentosList() {
         return false
       }
 
-      // Filtro por responsável
+      // Filtro por responsável / técnico (regra unificada v0.0.213: responsavel_id || id_usuario_criador)
       if (responsavelFilter) {
-        const respId = orc.responsavel_id || orc.id_usuario_criador
+        const respId = orc.responsavel_id || orc.id_usuario_criador || ''
         const respName = (
           orc.expand?.responsavel_id?.name ||
           orc.expand?.id_usuario_criador?.name ||
@@ -314,6 +380,7 @@ export default function OrcamentosList() {
         ).toLowerCase()
         const respName = (
           orc.expand?.responsavel_id?.name ||
+          orc.expand?.id_usuario_criador?.name ||
           orc.expand?.id_os?.expand?.technician?.name ||
           ''
         ).toLowerCase()
@@ -330,7 +397,7 @@ export default function OrcamentosList() {
 
       return true
     })
-  }, [orcamentos, statusFilter, searchTerm])
+  }, [orcamentos, statusFilter, responsavelFilter, searchTerm])
 
   // Estatísticas de contagem por status
   const canDeleteOrc = user?.role === 'admin' || hasPermission('os_delete')
@@ -751,8 +818,8 @@ export default function OrcamentosList() {
       )}
 
       {/* Barra de Filtros e Busca */}
-      <div className="flex flex-col sm:flex-row gap-2 items-center justify-between">
-        <div className="relative w-full sm:w-96">
+      <div className="flex flex-col lg:flex-row gap-2 items-stretch lg:items-center justify-between">
+        <div className="relative w-full lg:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
             value={searchTerm}
@@ -762,33 +829,89 @@ export default function OrcamentosList() {
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Select
-            value={statusFilter}
-            onValueChange={(val) => {
-              setStatusFilter(val)
-              const nextParams = new URLSearchParams(searchParams)
-              if (val === 'todos') {
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+          {/* Seletor de Técnico / Responsável */}
+          <div className="flex-1 sm:flex-initial sm:w-60">
+            <Select
+              value={responsavelFilter || 'todos'}
+              onValueChange={(val) => {
+                const nextParams = new URLSearchParams(searchParams)
+                if (val === 'todos' || !val) {
+                  setResponsavelFilter('')
+                  nextParams.delete('responsavel')
+                } else {
+                  setResponsavelFilter(val)
+                  nextParams.set('responsavel', val)
+                }
+                setSearchParams(nextParams, { replace: true })
+              }}
+            >
+              <SelectTrigger className="h-10 text-xs w-full bg-white">
+                <SelectValue placeholder="Todos os técnicos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os técnicos</SelectItem>
+                {availableResponsavelOptions.map((opt) => (
+                  <SelectItem key={opt.id} value={opt.id}>
+                    {opt.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Dropdown de Status */}
+          <div className="flex-1 sm:flex-initial sm:w-52">
+            <Select
+              value={statusFilter}
+              onValueChange={(val) => {
+                setStatusFilter(val)
+                const nextParams = new URLSearchParams(searchParams)
+                if (val === 'todos') {
+                  nextParams.delete('status')
+                } else {
+                  nextParams.set('status', val)
+                }
+                setSearchParams(nextParams, { replace: true })
+              }}
+            >
+              <SelectTrigger className="h-10 text-xs w-full bg-white">
+                <SelectValue placeholder="Todos os status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os status</SelectItem>
+                <SelectItem value="aguardando_aprovacao">Aguardando Aprovação</SelectItem>
+                <SelectItem value="enviado">Enviado</SelectItem>
+                <SelectItem value="aprovado">Aprovado</SelectItem>
+                <SelectItem value="faturado">Faturado</SelectItem>
+                <SelectItem value="rejeitado">Rejeitado</SelectItem>
+                <SelectItem value="substituido">Substituído</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Botão Limpar filtros quando algum estiver ativo */}
+          {(responsavelFilter || statusFilter !== 'todos' || searchTerm.trim()) && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setResponsavelFilter('')
+                setStatusFilter('todos')
+                setSearchTerm('')
+                const nextParams = new URLSearchParams(searchParams)
+                nextParams.delete('responsavel')
                 nextParams.delete('status')
-              } else {
-                nextParams.set('status', val)
-              }
-              setSearchParams(nextParams, { replace: true })
-            }}
-          >
-            <SelectTrigger className="h-10 text-xs w-full sm:w-56 bg-white">
-              <SelectValue placeholder="Filtrar por status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos os status</SelectItem>
-              <SelectItem value="aguardando_aprovacao">Aguardando Aprovação</SelectItem>
-              <SelectItem value="enviado">Enviado</SelectItem>
-              <SelectItem value="aprovado">Aprovado</SelectItem>
-              <SelectItem value="faturado">Faturado</SelectItem>
-              <SelectItem value="rejeitado">Rejeitado</SelectItem>
-              <SelectItem value="substituido">Substituído</SelectItem>
-            </SelectContent>
-          </Select>
+                setSearchParams(nextParams, { replace: true })
+              }}
+              className="h-10 px-3 text-xs font-semibold border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 gap-1.5"
+              title="Limpar todos os filtros"
+            >
+              <X className="h-3.5 w-3.5 text-slate-500" />
+              <span>Limpar</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -827,10 +950,27 @@ export default function OrcamentosList() {
                     phone: orc.telefone_cliente_livre || '',
                   } as Customer)
                 : null)
-            const techRec =
-              osRec?.expand?.technician ||
-              orc.expand?.responsavel_id ||
-              orc.expand?.id_usuario_criador
+            // Nome do responsável conforme requisito 3:
+            // orc.expand?.responsavel_id?.name || orc.expand?.id_usuario_criador?.name || '—'
+            const techName =
+              orc.expand?.responsavel_id?.name ||
+              orc.expand?.id_usuario_criador?.name ||
+              osRec?.expand?.technician?.name ||
+              '—'
+
+            // Cálculo do alerta âmbar "Sem resposta há X dias" para aguardando_aprovacao com enviado_em > 7 dias
+            const isAguardando = orc.status === 'aguardando_aprovacao'
+            let isStaleWaiting = false
+            let staleDays: number | null = null
+            if (isAguardando && orc.enviado_em) {
+              const diffMs = Date.now() - new Date(orc.enviado_em).getTime()
+              const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+              if (diffDays > 7) {
+                isStaleWaiting = true
+                staleDays = diffDays
+              }
+            }
+
             const equipName =
               osRec?.expand?.equipment_ref?.name ||
               osRec?.equipment ||
@@ -903,10 +1043,46 @@ export default function OrcamentosList() {
                       <span className="text-[10px] font-semibold text-slate-400 block">
                         Responsável
                       </span>
-                      <p className="font-medium text-slate-800 truncate">
-                        {techRec?.name || 'Não atribuído'}
-                      </p>
+                      <p className="font-medium text-slate-800 truncate">{techName}</p>
                     </div>
+                  </div>
+
+                  {/* Controle de tempo e envio */}
+                  <div className="space-y-1 pt-1 border-t border-slate-100 text-[11px]">
+                    {orc.enviado_em ? (
+                      <div
+                        className="flex items-center gap-1.5 text-indigo-700 font-medium truncate"
+                        title={`Enviado em ${formatEnviadoEmDate(orc.enviado_em)} — há ${formatElapsedHuman(orc.enviado_em)}`}
+                      >
+                        <Send className="h-3 w-3 shrink-0 text-indigo-500" />
+                        <span className="truncate">
+                          Enviado em {formatEnviadoEmDate(orc.enviado_em)} — há{' '}
+                          {formatElapsedHuman(orc.enviado_em)}
+                        </span>
+                      </div>
+                    ) : (
+                      <div
+                        className="flex items-center gap-1.5 text-slate-500 truncate"
+                        title={`Criado há ${formatElapsedHuman(orc.created)}`}
+                      >
+                        <Clock className="h-3 w-3 shrink-0 text-slate-400" />
+                        <span className="truncate">
+                          Criado há {formatElapsedHuman(orc.created)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Alerta / Badge âmbar: sem resposta há > 7 dias em aguardando aprovação */}
+                    {isStaleWaiting && staleDays !== null && (
+                      <div className="pt-0.5">
+                        <Badge className="bg-amber-100 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[10px] px-1.5 py-0.5 gap-1 inline-flex items-center">
+                          <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
+                          <span>
+                            Sem resposta há {staleDays} {staleDays === 1 ? 'dia' : 'dias'}
+                          </span>
+                        </Badge>
+                      </div>
+                    )}
                   </div>
 
                   {/* Assinaturas */}
