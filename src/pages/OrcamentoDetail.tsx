@@ -51,6 +51,12 @@ import {
 } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Orcamento,
   OrcamentoItem,
   OrcamentoAnexo,
@@ -1075,6 +1081,65 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
     loadAll()
   }
 
+  // Copiar apenas o link da proposta e registrar o envio
+  const handleCopiarLinkCliente = async () => {
+    if (!orcamento) return
+
+    let token = orcamento.token_acesso
+    if (!token) {
+      try {
+        const generated = await generateRandomToken(32)
+        const updated = await updateOrcamento(orcamento.id, { token_acesso: generated })
+        token = updated.token_acesso || generated
+      } catch {
+        /* fallback */
+      }
+    }
+
+    const propostaUrl = `${window.location.origin}/proposta/${token || orcamento.id}`
+
+    try {
+      await navigator.clipboard.writeText(propostaUrl)
+      toast({
+        title: 'Link copiado!',
+        description: 'Link público da proposta copiado para a área de transferência.',
+      })
+    } catch {
+      toast({
+        title: 'Erro ao copiar',
+        description: 'Não foi possível copiar o link automaticamente.',
+        variant: 'destructive',
+      })
+    }
+
+    // Registra atualização de envio
+    try {
+      const nowIso = new Date().toISOString()
+      const updateData: Partial<Orcamento> = {
+        enviado_em: nowIso,
+      }
+      if (orcamento.status === 'rascunho' || orcamento.status === 'aguardando_aprovacao') {
+        updateData.status = 'enviado'
+      }
+      await updateOrcamento(orcamento.id, updateData)
+      if (
+        orcamento.id_os &&
+        (orcamento.status === 'rascunho' || orcamento.status === 'aguardando_aprovacao')
+      ) {
+        await updateOsStatus(
+          orcamento.id_os,
+          'orcamento_enviado',
+          `Link da proposta online ${orcamento.numero_orcamento} copiado e compartilhado`,
+          user?.id,
+        )
+      }
+    } catch {
+      /* intentionally ignored */
+    }
+
+    loadAll()
+  }
+
   // Compartilhamento nativo (navigator.share) para envio direto do link/arquivo
   const handleNativeShare = async () => {
     if (!orcamento) return
@@ -1751,20 +1816,48 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
         {/* Resumo compacto de Alertas / Ações de Status */}
         <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs">
           <span className="font-semibold text-slate-700">Fluxo do Orçamento:</span>
-          {/* Botão Enviar link ao cliente (copia URL e abre WhatsApp) */}
-          <Button
-            size="sm"
-            disabled={isNew}
-            onClick={handleEnviarLinkCliente}
-            className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shadow-xs font-semibold"
-            title={
-              isNew
-                ? 'Salve o orçamento antes de enviar o link'
-                : 'Copiar URL pública da proposta e abrir WhatsApp do cliente'
-            }
-          >
-            <LinkIcon className="h-3.5 w-3.5" /> Enviar link ao cliente
-          </Button>
+          {/* Botão Compartilhar Orçamento (WhatsApp, Copiar Link, Compartilhamento Nativo) */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                disabled={isNew}
+                className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shadow-xs font-semibold"
+                title={
+                  isNew
+                    ? 'Salve o orçamento antes de compartilhar'
+                    : 'Compartilhar orçamento via WhatsApp, link ou aplicativo'
+                }
+              >
+                <Share2 className="h-3.5 w-3.5" /> Compartilhar Orçamento
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuItem
+                onClick={handleEnviarLinkCliente}
+                className="flex items-center gap-2 cursor-pointer text-xs"
+              >
+                <MessageCircle className="h-4 w-4 text-emerald-600" />
+                <span>Enviar pelo WhatsApp</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleCopiarLinkCliente}
+                className="flex items-center gap-2 cursor-pointer text-xs"
+              >
+                <Copy className="h-4 w-4 text-indigo-600" />
+                <span>Copiar Link do Orçamento</span>
+              </DropdownMenuItem>
+              {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+                <DropdownMenuItem
+                  onClick={handleNativeShare}
+                  className="flex items-center gap-2 cursor-pointer text-xs"
+                >
+                  <Share2 className="h-4 w-4 text-sky-600" />
+                  <span>Outros Aplicativos...</span>
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Se aprovado ou faturado, oferece botão de enviar ou reenviar mensagem de agradecimento */}
           {(orcamento.status === 'aprovado' || orcamento.status === 'faturado') && (
