@@ -10,9 +10,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createUser, updateUser } from '@/services/users'
+import { getFuncoes, mapFuncaoNameToRole } from '@/services/funcoes'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
-import { User } from '@/types'
+import { Funcao, User } from '@/types'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { CheckCircle2, Copy } from 'lucide-react'
 
 interface NewTechnicianModalProps {
@@ -20,6 +28,8 @@ interface NewTechnicianModalProps {
   onOpenChange: (open: boolean) => void
   onCreated?: () => void
   editTechnician?: User | null
+  currentUserId?: string
+  isAdmin?: boolean
 }
 
 export function NewTechnicianModal({
@@ -27,6 +37,8 @@ export function NewTechnicianModal({
   onOpenChange,
   onCreated,
   editTechnician,
+  currentUserId,
+  isAdmin,
 }: NewTechnicianModalProps) {
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -34,26 +46,51 @@ export function NewTechnicianModal({
   const { toast } = useToast()
   const isEdit = !!editTechnician
 
+  const [funcoesList, setFuncoesList] = useState<Funcao[]>([])
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
+    funcao: 'Técnico',
     password: '',
     passwordConfirm: '',
   })
+
+  // Carrega lista de funções ao abrir o modal
+  useEffect(() => {
+    if (open) {
+      getFuncoes().then((list) => {
+        setFuncoesList(list)
+      })
+    }
+  }, [open])
 
   useEffect(() => {
     if (open) {
       setErrors({})
       setCreatedCode(null)
       if (editTechnician) {
+        // Resolve a função inicial do usuário
+        let initialFuncao = editTechnician.funcao
+        if (!initialFuncao) {
+          if (editTechnician.role === 'admin') initialFuncao = 'Administrador'
+          else if (editTechnician.role === 'attendant') initialFuncao = 'Atendente'
+          else initialFuncao = 'Técnico'
+        }
         setFormData({
           name: editTechnician.name || '',
           phone: editTechnician.phone || '',
+          funcao: initialFuncao,
           password: '',
           passwordConfirm: '',
         })
       } else {
-        setFormData({ name: '', phone: '', password: '', passwordConfirm: '' })
+        setFormData({
+          name: '',
+          phone: '',
+          funcao: 'Técnico',
+          password: '',
+          passwordConfirm: '',
+        })
       }
     }
   }, [open, editTechnician])
@@ -82,10 +119,25 @@ export function NewTechnicianModal({
     }
     setLoading(true)
     try {
+      const selectedFuncao = formData.funcao || 'Técnico'
+      const derivedRole = mapFuncaoNameToRole(selectedFuncao)
+
       if (isEdit && editTechnician) {
-        await updateUser(editTechnician.id, { name: formData.name, phone: formData.phone })
-        toast({ title: 'Técnico atualizado!', description: formData.name })
+        // Admin não altera a própria função
+        const isSelf = currentUserId === editTechnician.id
+        const updatePayload: Parameters<typeof updateUser>[1] = {
+          name: formData.name,
+          phone: formData.phone,
+        }
+        if (!isSelf) {
+          updatePayload.role = derivedRole
+          updatePayload.funcao = selectedFuncao
+        }
+
+        await updateUser(editTechnician.id, updatePayload)
+        toast({ title: 'Usuário atualizado!', description: `${formData.name} (${selectedFuncao})` })
         onOpenChange(false)
+        if (onCreated) onCreated()
       } else {
         if (!formData.password.trim()) {
           setErrors({ password: 'Senha é obrigatória' })
@@ -113,12 +165,13 @@ export function NewTechnicianModal({
           password: formData.password,
           passwordConfirm: formData.passwordConfirm,
           name: formData.name,
-          role: 'technician',
+          role: derivedRole,
+          funcao: selectedFuncao,
           phone: formData.phone,
           email,
         })
         setCreatedCode(result.username || '')
-        toast({ title: 'Técnico cadastrado!', description: formData.name })
+        toast({ title: 'Usuário cadastrado!', description: `${formData.name} (${selectedFuncao})` })
         if (onCreated) onCreated()
       }
     } catch (err) {
@@ -233,6 +286,49 @@ export function NewTechnicianModal({
             />
             {errors.phone && <p className="text-[11px] text-red-500">{errors.phone}</p>}
           </div>
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold text-slate-700">Função *</Label>
+            {isEdit && currentUserId === editTechnician?.id ? (
+              <div>
+                <Input
+                  value={formData.funcao}
+                  disabled
+                  className="h-9 text-xs bg-slate-50 border-slate-200 text-slate-500 cursor-not-allowed"
+                />
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Você não pode alterar sua própria função
+                </p>
+              </div>
+            ) : (
+              <Select
+                value={formData.funcao}
+                onValueChange={(val) => setFormData({ ...formData, funcao: val })}
+              >
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="Selecione a função" />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* Garante Administrador, Técnico e Atendente se a lista do banco ainda não carregou */}
+                  {(() => {
+                    const names = Array.from(
+                      new Set([
+                        'Administrador',
+                        'Técnico',
+                        'Atendente',
+                        ...funcoesList.map((f) => f.nome),
+                        ...(formData.funcao ? [formData.funcao] : []),
+                      ]),
+                    )
+                    return names.map((name) => (
+                      <SelectItem key={name} value={name} className="text-xs">
+                        {name}
+                      </SelectItem>
+                    ))
+                  })()}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
           {!isEdit && (
             <>
               <div className="space-y-1">
@@ -278,7 +374,7 @@ export function NewTechnicianModal({
               disabled={loading}
               className="bg-indigo-600 hover:bg-indigo-700 text-white"
             >
-              {loading ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Cadastrar Técnico'}
+              {loading ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Cadastrar Usuário'}
             </Button>
           </DialogFooter>
         </form>

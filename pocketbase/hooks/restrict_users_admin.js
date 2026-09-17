@@ -13,8 +13,11 @@ onRecordUpdateRequest((e) => {
 
   // Se não for admin:
   if (!isAdmin) {
-    // 1. Não pode alterar a função (role) de ninguém, nem de si próprio
+    // 1. Não pode alterar a função (role / funcao) de ninguém, nem de si próprio
     if (body.role !== undefined && body.role !== e.record.getString('role')) {
+      return e.forbiddenError('Apenas administradores podem alterar a funcao de usuarios')
+    }
+    if (body.funcao !== undefined && body.funcao !== e.record.getString('funcao')) {
       return e.forbiddenError('Apenas administradores podem alterar a funcao de usuarios')
     }
 

@@ -33,6 +33,7 @@ export const createUser = (data: {
   passwordConfirm: string
   name: string
   role: string
+  funcao?: string
   phone?: string
   email?: string
 }) => pb.collection('users').create<User>(data)
@@ -43,6 +44,7 @@ export const updateUser = (
     name: string
     phone: string
     role: string
+    funcao: string
     email: string
     permissions: Record<string, boolean>
     ativo: boolean

@@ -32,7 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { User, UserRole } from '@/types'
+import { Funcao, User, UserRole } from '@/types'
 import {
   getAllUsers,
   deleteUser,
@@ -40,6 +40,7 @@ import {
   regenerateRegistrationCode,
   toggleUserActive,
 } from '@/services/users'
+import { getFuncoes, createFuncao, deleteFuncao, mapFuncaoNameToRole } from '@/services/funcoes'
 import { getServiceOrders } from '@/services/service_orders'
 import { NewTechnicianModal } from '@/components/NewTechnicianModal'
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
@@ -62,6 +63,7 @@ export default function Tecnicos() {
   const { user } = useAuth()
   const { toast } = useToast()
   const [users, setUsers] = useState<User[]>([])
+  const [funcoesList, setFuncoesList] = useState<Funcao[]>([])
   const [search, setSearch] = useState('')
   const [newModalOpen, setNewModalOpen] = useState(false)
   const [editUser, setEditUser] = useState<User | null>(null)
@@ -73,13 +75,20 @@ export default function Tecnicos() {
   const [checkingOrders, setCheckingOrders] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
+  // Estado do modal de Gerenciar Funções (+ ao lado do cabeçalho da coluna Função)
+  const [funcoesModalOpen, setFuncoesModalOpen] = useState(false)
+  const [novaFuncaoNome, setNovaFuncaoNome] = useState('')
+  const [savingFuncao, setSavingFuncao] = useState(false)
+  const [deletingFuncaoId, setDeletingFuncaoId] = useState<string | null>(null)
+
   const isAdmin = user?.role === 'admin'
   const { hasPermission } = usePermissions()
 
   const loadData = async () => {
     try {
-      const data = await getAllUsers()
-      setUsers(data)
+      const [usersData, funcoesData] = await Promise.all([getAllUsers(), getFuncoes()])
+      setUsers(usersData)
+      setFuncoesList(funcoesData)
     } catch {
       /* ignored */
     }
@@ -89,6 +98,7 @@ export default function Tecnicos() {
     loadData()
   }, [])
   useRealtime('users', loadData)
+  useRealtime('funcoes', loadData)
 
   const handleDelete = async () => {
     if (!isAdmin) {
@@ -110,7 +120,7 @@ export default function Tecnicos() {
     }
   }
 
-  const handleRoleChange = async (userId: string, newRole: string) => {
+  const handleUserFuncaoChange = async (userId: string, selectedFuncao: string) => {
     if (!isAdmin) {
       toast({
         title: 'Ação não permitida',
@@ -120,11 +130,74 @@ export default function Tecnicos() {
       return
     }
     try {
-      await updateUser(userId, { role: newRole })
-      toast({ title: 'Função atualizada!', description: roleLabels[newRole as UserRole] })
+      const derivedRole = mapFuncaoNameToRole(selectedFuncao)
+      await updateUser(userId, {
+        funcao: selectedFuncao,
+        role: derivedRole,
+      })
+      toast({ title: 'Função atualizada!', description: selectedFuncao })
       loadData()
     } catch {
       toast({ title: 'Erro ao atualizar função', variant: 'destructive' })
+    }
+  }
+
+  const handleCreateNovaFuncao = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!isAdmin) {
+      toast({
+        title: 'Ação não permitida',
+        description: 'Apenas administradores podem cadastrar novas funções.',
+        variant: 'destructive',
+      })
+      return
+    }
+    const trimmed = novaFuncaoNome.trim()
+    if (!trimmed) {
+      toast({ title: 'Informe o nome da função', variant: 'destructive' })
+      return
+    }
+    setSavingFuncao(true)
+    try {
+      await createFuncao(trimmed)
+      toast({ title: 'Nova função criada com sucesso!', description: trimmed })
+      setNovaFuncaoNome('')
+      loadData()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao criar função'
+      toast({ title: 'Erro ao cadastrar função', description: msg, variant: 'destructive' })
+    } finally {
+      setSavingFuncao(false)
+    }
+  }
+
+  const handleDeleteFuncao = async (f: Funcao) => {
+    if (!isAdmin) {
+      toast({
+        title: 'Ação não permitida',
+        description: 'Apenas administradores podem excluir funções.',
+        variant: 'destructive',
+      })
+      return
+    }
+    if (f.nome.trim().toLowerCase() === 'administrador') {
+      toast({
+        title: 'Função Imutável',
+        description: 'A função Administrador é essencial para o sistema e não pode ser excluída.',
+        variant: 'destructive',
+      })
+      return
+    }
+    setDeletingFuncaoId(f.id)
+    try {
+      await deleteFuncao(f.id, f.nome)
+      toast({ title: 'Função removida!', description: f.nome })
+      loadData()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao excluir função'
+      toast({ title: 'Erro ao excluir função', description: msg, variant: 'destructive' })
+    } finally {
+      setDeletingFuncaoId(null)
     }
   }
 
@@ -227,7 +300,7 @@ export default function Tecnicos() {
               variant="outline"
               className="border-indigo-200 bg-indigo-50 text-indigo-700 text-[10px] font-bold"
             >
-              v0.0.230
+              v0.0.231
             </Badge>
           </div>
           <p className="text-xs sm:text-sm text-slate-500">
@@ -326,7 +399,34 @@ export default function Tecnicos() {
                   <th className="py-3 px-4">Nome</th>
                   <th className="py-3 px-4 hidden sm:table-cell">Cadastro</th>
                   <th className="py-3 px-4 hidden md:table-cell">Telefone</th>
-                  <th className="py-3 px-4">Função</th>
+                  <th className="py-3 px-4">
+                    <div className="flex items-center gap-1.5">
+                      <span>Função</span>
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          onClick={() => setFuncoesModalOpen(true)}
+                          className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors"
+                          title="Adicionar ou gerenciar funções"
+                        >
+                          <Plus className="h-3 w-3 stroke-[3]" />
+                        </button>
+                      ) : (
+                        <TooltipProvider delayDuration={150}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-slate-300 text-slate-500 cursor-not-allowed">
+                                <Plus className="h-3 w-3" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent className="text-xs">
+                              Apenas administradores podem gerenciar funções
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </div>
+                  </th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Ações</th>
                 </tr>
@@ -425,55 +525,86 @@ export default function Tecnicos() {
                         {u.phone || '-'}
                       </td>
                       <td className="py-3 px-4">
-                        {!isAdmin ? (
-                          <TooltipProvider delayDuration={150}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="inline-block">
-                                  <Select value={u.role} disabled>
-                                    <SelectTrigger className="h-8 w-[140px] text-xs bg-slate-50/70 border-slate-200 text-slate-600 cursor-not-allowed opacity-80">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                  </Select>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent className="text-xs">
-                                Apenas administradores podem alterar a função
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        ) : isSelf ? (
-                          <TooltipProvider delayDuration={150}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="inline-block">
-                                  <Select value={u.role} disabled>
-                                    <SelectTrigger className="h-8 w-[140px] text-xs bg-slate-50 border-slate-200 text-slate-500 cursor-not-allowed">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                  </Select>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent className="text-xs">
-                                Você não pode alterar sua própria função
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        ) : (
-                          <Select
-                            value={u.role}
-                            onValueChange={(value) => handleRoleChange(u.id, value)}
-                          >
-                            <SelectTrigger className="h-8 w-[140px] text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="admin">Administrador</SelectItem>
-                              <SelectItem value="attendant">Atendente</SelectItem>
-                              <SelectItem value="technician">Técnico</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
+                        {(() => {
+                          const currentFuncaoName =
+                            u.funcao ||
+                            (u.role === 'admin'
+                              ? 'Administrador'
+                              : u.role === 'attendant'
+                                ? 'Atendente'
+                                : 'Técnico')
+
+                          // Opções consolidadas para o select
+                          const availableNames = Array.from(
+                            new Set([
+                              'Administrador',
+                              'Técnico',
+                              'Atendente',
+                              ...funcoesList.map((f) => f.nome),
+                              currentFuncaoName,
+                            ]),
+                          )
+
+                          if (!isAdmin) {
+                            return (
+                              <TooltipProvider delayDuration={150}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="inline-block">
+                                      <Select value={currentFuncaoName} disabled>
+                                        <SelectTrigger className="h-8 w-[140px] text-xs bg-slate-50/70 border-slate-200 text-slate-600 cursor-not-allowed opacity-80">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </Select>
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="text-xs">
+                                    Apenas administradores podem alterar a função
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )
+                          }
+
+                          if (isSelf) {
+                            return (
+                              <TooltipProvider delayDuration={150}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="inline-block">
+                                      <Select value={currentFuncaoName} disabled>
+                                        <SelectTrigger className="h-8 w-[140px] text-xs bg-slate-50 border-slate-200 text-slate-500 cursor-not-allowed">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </Select>
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="text-xs">
+                                    Você não pode alterar sua própria função
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )
+                          }
+
+                          return (
+                            <Select
+                              value={currentFuncaoName}
+                              onValueChange={(value) => handleUserFuncaoChange(u.id, value)}
+                            >
+                              <SelectTrigger className="h-8 w-[140px] text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableNames.map((name) => (
+                                  <SelectItem key={name} value={name} className="text-xs">
+                                    {name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )
+                        })()}
                       </td>
                       <td className="py-3 px-4">
                         <Badge
@@ -533,13 +664,143 @@ export default function Tecnicos() {
         </CardContent>
       </Card>
 
-      <NewTechnicianModal open={newModalOpen} onOpenChange={setNewModalOpen} onCreated={loadData} />
+      <NewTechnicianModal
+        open={newModalOpen}
+        onOpenChange={setNewModalOpen}
+        onCreated={loadData}
+        currentUserId={user?.id}
+        isAdmin={isAdmin}
+      />
       <NewTechnicianModal
         open={!!editUser}
         onOpenChange={(o) => !o && setEditUser(null)}
         onCreated={loadData}
         editTechnician={editUser}
+        currentUserId={user?.id}
+        isAdmin={isAdmin}
       />
+      {/* Modal de Criação e Gerenciamento de Funções (+) */}
+      <Dialog open={funcoesModalOpen} onOpenChange={setFuncoesModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <span className="p-1.5 rounded-md bg-indigo-50 text-indigo-600">
+                <Plus className="h-4 w-4" />
+              </span>
+              Gerenciar Funções de Usuários
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Crie novas funções personalizadas para associar aos colaboradores.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Formulário para criar nova função */}
+            <form
+              onSubmit={handleCreateNovaFuncao}
+              className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200"
+            >
+              <label className="text-xs font-semibold text-slate-700 block">
+                Nome da Nova Função
+              </label>
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Ex: Vendedor, Almoxarifado, Gerente"
+                  value={novaFuncaoNome}
+                  onChange={(e) => setNovaFuncaoNome(e.target.value)}
+                  className="h-8 text-xs bg-white flex-1"
+                  disabled={savingFuncao}
+                />
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={savingFuncao || !novaFuncaoNome.trim()}
+                  className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 shrink-0"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  {savingFuncao ? 'Salvando...' : 'Adicionar'}
+                </Button>
+              </div>
+            </form>
+
+            {/* Listagem das funções existentes */}
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                Funções Cadastradas ({funcoesList.length})
+              </p>
+              <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+                {funcoesList.map((f) => {
+                  const isImmutable = f.nome.trim().toLowerCase() === 'administrador'
+                  const isStandard =
+                    isImmutable ||
+                    f.nome.trim().toLowerCase() === 'técnico' ||
+                    f.nome.trim().toLowerCase() === 'atendente'
+
+                  return (
+                    <div
+                      key={f.id}
+                      className="flex items-center justify-between p-2.5 hover:bg-slate-50/70 transition-colors text-xs"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-800">{f.nome}</span>
+                        {isImmutable ? (
+                          <Badge
+                            variant="outline"
+                            className="text-[9px] py-0 px-1 border-indigo-200 bg-indigo-50 text-indigo-700"
+                          >
+                            Padrão Imutável
+                          </Badge>
+                        ) : isStandard ? (
+                          <Badge
+                            variant="outline"
+                            className="text-[9px] py-0 px-1 border-slate-200 bg-slate-50 text-slate-600"
+                          >
+                            Padrão
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="text-[9px] py-0 px-1 border-emerald-200 bg-emerald-50 text-emerald-700"
+                          >
+                            Personalizada
+                          </Badge>
+                        )}
+                      </div>
+
+                      {!isImmutable && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={deletingFuncaoId === f.id}
+                          onClick={() => handleDeleteFuncao(f)}
+                          className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
+                          title={`Excluir função ${f.nome}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setFuncoesModalOpen(false)}
+              className="text-xs h-8"
+            >
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <ConfirmDeleteDialog
         open={!!deleteUserTarget}
         onOpenChange={(o) => !o && setDeleteUserTarget(null)}

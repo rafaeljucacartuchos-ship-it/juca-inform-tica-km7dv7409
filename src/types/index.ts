@@ -31,12 +31,20 @@ export const SERVICE_CATEGORY_LABELS: Record<ServiceCategory, string> = {
   outros: 'Outros',
 }
 
+export interface Funcao {
+  id: string
+  nome: string
+  created?: string
+  updated?: string
+}
+
 export interface User {
   id: string
   email: string
   username?: string
   name: string
   role: UserRole
+  funcao?: string
   phone?: string
   avatar?: string
   permissions?: Record<string, boolean> | null
