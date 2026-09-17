@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   Wrench,
@@ -26,6 +26,7 @@ import {
 import { useAuth } from '@/hooks/use-auth'
 import { usePwaInstall } from '@/hooks/use-pwa-install'
 import { usePermissions } from '@/hooks/use-permissions'
+import { useWorkspace, getModuleInfoFromPath } from '@/hooks/use-workspace'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
@@ -37,9 +38,11 @@ interface SidebarProps {
 
 export function Sidebar({ onNavClick }: SidebarProps) {
   const location = useLocation()
+  const navigate = useNavigate()
   const { user, signOut } = useAuth()
   const { hasPermission } = usePermissions()
   const { isInstallable, promptInstall, isStandalone } = usePwaInstall()
+  const { tabs, activateTab, isDesktopWorkspace } = useWorkspace()
 
   const allCadastroChildren = [
     {
@@ -147,6 +150,31 @@ export function Sidebar({ onNavClick }: SidebarProps) {
     location.pathname === path ||
     (path !== '/' && path !== '/relatorios' && location.pathname.startsWith(path))
 
+  // Ao clicar em um módulo no desktop:
+  // Se já existe aba aberta daquele módulo, ativa ela na última tela em que estava;
+  // se não existe, navega normalmente (o que abrirá uma nova aba).
+  const handleModuleClick = (e: React.MouseEvent, targetPath: string) => {
+    if (onNavClick) {
+      onNavClick()
+    }
+
+    if (!isDesktopWorkspace) {
+      return
+    }
+
+    const { moduleKey } = getModuleInfoFromPath(targetPath)
+    // Procura se já há uma aba ativa desse módulo
+    const existingTab = tabs.find(
+      (t) =>
+        t.moduleKey === moduleKey || t.basePath === targetPath || t.path.startsWith(targetPath),
+    )
+
+    if (existingTab) {
+      e.preventDefault()
+      activateTab(existingTab.id)
+    }
+  }
+
   const getRoleLabel = (role?: string) => {
     switch (role) {
       case 'admin':
@@ -207,7 +235,7 @@ export function Sidebar({ onNavClick }: SidebarProps) {
             <Link
               key={item.path}
               to={item.path}
-              onClick={onNavClick}
+              onClick={(e) => handleModuleClick(e, item.path)}
               className={navLinkClass(isActive)}
             >
               {isActive && (
@@ -249,7 +277,7 @@ export function Sidebar({ onNavClick }: SidebarProps) {
                   <Link
                     key={item.path}
                     to={item.path}
-                    onClick={onNavClick}
+                    onClick={(e) => handleModuleClick(e, item.path)}
                     className={cn(
                       'flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition-all duration-200',
                       isActive
@@ -269,7 +297,7 @@ export function Sidebar({ onNavClick }: SidebarProps) {
         {showTecnicos && (
           <Link
             to="/tecnicos"
-            onClick={onNavClick}
+            onClick={(e) => handleModuleClick(e, '/tecnicos')}
             className={navLinkClass(isPathActive('/tecnicos'))}
           >
             {isPathActive('/tecnicos') && (

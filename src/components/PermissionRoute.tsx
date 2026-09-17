@@ -6,9 +6,10 @@ import type { PermissionModule } from '@/lib/permissions'
 
 interface PermissionRouteProps {
   module: PermissionModule
+  children?: React.ReactNode
 }
 
-export function PermissionRoute({ module }: PermissionRouteProps) {
+export function PermissionRoute({ module, children }: PermissionRouteProps) {
   const { loading } = useAuth()
   const { hasPermission } = usePermissions()
 
@@ -24,5 +25,5 @@ export function PermissionRoute({ module }: PermissionRouteProps) {
     return <Navigate to="/dashboard" replace />
   }
 
-  return <Outlet />
+  return children ? <>{children}</> : <Outlet />
 }

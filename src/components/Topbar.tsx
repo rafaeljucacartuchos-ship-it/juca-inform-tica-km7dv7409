@@ -41,7 +41,7 @@ export function Topbar() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="lg:hidden text-slate-600 hover:bg-slate-100"
+                className="md:hidden text-slate-600 hover:bg-slate-100"
               >
                 <Menu className="h-5 w-5" />
               </Button>

@@ -4,6 +4,7 @@ import { GlobalErrorBoundary } from '@/components/GlobalErrorBoundary'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { WorkspaceProvider } from '@/hooks/use-workspace'
 import { AuthProvider } from '@/hooks/use-auth'
 import { NotificationsProvider } from '@/hooks/use-notifications'
 import { SoundPreferencesProvider } from '@/hooks/use-sound-preferences'
@@ -87,83 +88,85 @@ const App = () => {
           <SoundPreferencesProvider>
             <NotificationsProvider>
               <TooltipProvider>
-                <Toaster />
-                <Sonner />
-                <StaleAppBanner />
-                <PwaInstallHint />
-                <OfflineSyncToasts />
-                <LowStockWatcher />
-                <Routes>
-                  <Route path="/login" element={<Login />} />
-                  <Route element={<ProtectedRoute />}>
-                    <Route element={<PermissionRoute module="ordens" />}>
-                      <Route path="/ordens/:id/imprimir" element={<OrdemPrint />} />
-                      <Route path="/ordens/:id/assinatura" element={<OrdemAssinatura />} />
-                      <Route path="/orcamentos/novo" element={<OrcamentoDetail />} />
-                      <Route path="/orcamentos/:id" element={<OrcamentoDetail />} />
-                      <Route path="/orcamentos/:id/imprimir" element={<OrcamentoPrint />} />
-                    </Route>{' '}
-                    <Route element={<PermissionRoute module="relatorios" />}>
-                      <Route
-                        path="/relatorios/categorias/imprimir"
-                        element={<RelatorioCategoriasPrint />}
-                      />
-                    </Route>
-                    <Route element={<Layout />}>
-                      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                      <Route path="/dashboard" element={<Dashboard />} />
+                <WorkspaceProvider>
+                  <Toaster />
+                  <Sonner />
+                  <StaleAppBanner />
+                  <PwaInstallHint />
+                  <OfflineSyncToasts />
+                  <LowStockWatcher />
+                  <Routes>
+                    <Route path="/login" element={<Login />} />
+                    <Route element={<ProtectedRoute />}>
                       <Route element={<PermissionRoute module="ordens" />}>
-                        <Route path="/ordens" element={<OrdensDeServico />} />
-                        <Route path="/ordens/:id" element={<OrdemDetail />} />
-                      </Route>
-                      <Route element={<PermissionRoute module="orcamentos" />}>
-                        <Route path="/orcamentos" element={<OrcamentosList />} />
-                      </Route>
-                      <Route element={<PermissionRoute module="precificacao" />}>
-                        <Route path="/precificacao" element={<Precificacao />} />
-                      </Route>
-                      <Route element={<PermissionRoute module="locacao" />}>
-                        <Route path="/locacao" element={<LocacaoImpressoras />} />
-                      </Route>
-                      <Route element={<PermissionRoute module="pedido_mercadoria" />}>
-                        <Route path="/pedido-mercadorias" element={<PedidoMercadorias />} />
-                      </Route>
-                      <Route element={<PermissionRoute module="pos_venda" />}>
-                        <Route path="/pos-venda" element={<PosVendaJuquinha />} />
+                        <Route path="/ordens/:id/imprimir" element={<OrdemPrint />} />
+                        <Route path="/ordens/:id/assinatura" element={<OrdemAssinatura />} />
+                        <Route path="/orcamentos/novo" element={<OrcamentoDetail />} />
+                        <Route path="/orcamentos/:id" element={<OrcamentoDetail />} />
+                        <Route path="/orcamentos/:id/imprimir" element={<OrcamentoPrint />} />
                       </Route>{' '}
-                      <Route element={<PermissionRoute module="campanhas" />}>
-                        <Route path="/campanhas" element={<Campanhas />} />
-                      </Route>
-                      <Route element={<PermissionRoute module="clientes" />}>
-                        <Route path="/clientes" element={<Clientes />} />
-                        <Route path="/clientes/:id" element={<ClienteDetail />} />
-                      </Route>
-                      <Route element={<PermissionRoute module="servicos" />}>
-                        <Route path="/servicos" element={<Servicos />} />
-                      </Route>
-                      <Route element={<PermissionRoute module="produtos" />}>
-                        <Route path="/produtos" element={<Produtos />} />
-                      </Route>
-                      <Route element={<PermissionRoute module="equipamentos" />}>
-                        <Route path="/equipamentos" element={<Equipamentos />} />
-                      </Route>
                       <Route element={<PermissionRoute module="relatorios" />}>
-                        <Route path="/relatorios" element={<Relatorios />} />
-                        <Route path="/relatorios/avaliacoes" element={<RelatoriosAvaliacoes />} />
+                        <Route
+                          path="/relatorios/categorias/imprimir"
+                          element={<RelatorioCategoriasPrint />}
+                        />
                       </Route>
-                      <Route element={<PermissionRoute module="tecnicos" />}>
-                        <Route path="/tecnicos" element={<Tecnicos />} />
-                      </Route>
-                      <Route element={<PermissionRoute module="service_types" />}>
-                        <Route path="/tipos-atendimento" element={<TiposAtendimento />} />
+                      <Route element={<Layout />}>
+                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                        <Route path="/dashboard" element={<Dashboard />} />
+                        <Route element={<PermissionRoute module="ordens" />}>
+                          <Route path="/ordens" element={<OrdensDeServico />} />
+                          <Route path="/ordens/:id" element={<OrdemDetail />} />
+                        </Route>
+                        <Route element={<PermissionRoute module="orcamentos" />}>
+                          <Route path="/orcamentos" element={<OrcamentosList />} />
+                        </Route>
+                        <Route element={<PermissionRoute module="precificacao" />}>
+                          <Route path="/precificacao" element={<Precificacao />} />
+                        </Route>
+                        <Route element={<PermissionRoute module="locacao" />}>
+                          <Route path="/locacao" element={<LocacaoImpressoras />} />
+                        </Route>
+                        <Route element={<PermissionRoute module="pedido_mercadoria" />}>
+                          <Route path="/pedido-mercadorias" element={<PedidoMercadorias />} />
+                        </Route>
+                        <Route element={<PermissionRoute module="pos_venda" />}>
+                          <Route path="/pos-venda" element={<PosVendaJuquinha />} />
+                        </Route>{' '}
+                        <Route element={<PermissionRoute module="campanhas" />}>
+                          <Route path="/campanhas" element={<Campanhas />} />
+                        </Route>
+                        <Route element={<PermissionRoute module="clientes" />}>
+                          <Route path="/clientes" element={<Clientes />} />
+                          <Route path="/clientes/:id" element={<ClienteDetail />} />
+                        </Route>
+                        <Route element={<PermissionRoute module="servicos" />}>
+                          <Route path="/servicos" element={<Servicos />} />
+                        </Route>
+                        <Route element={<PermissionRoute module="produtos" />}>
+                          <Route path="/produtos" element={<Produtos />} />
+                        </Route>
+                        <Route element={<PermissionRoute module="equipamentos" />}>
+                          <Route path="/equipamentos" element={<Equipamentos />} />
+                        </Route>
+                        <Route element={<PermissionRoute module="relatorios" />}>
+                          <Route path="/relatorios" element={<Relatorios />} />
+                          <Route path="/relatorios/avaliacoes" element={<RelatoriosAvaliacoes />} />
+                        </Route>
+                        <Route element={<PermissionRoute module="tecnicos" />}>
+                          <Route path="/tecnicos" element={<Tecnicos />} />
+                        </Route>
+                        <Route element={<PermissionRoute module="service_types" />}>
+                          <Route path="/tipos-atendimento" element={<TiposAtendimento />} />
+                        </Route>
                       </Route>
                     </Route>
-                  </Route>
-                  <Route path="/share/:id" element={<OrdemShare />} />
-                  <Route path="/proposta/:token" element={<PropostaPublica />} />
-                  <Route path="/proposta-locacao/:id" element={<PropostaLocacaoPublica />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
+                    <Route path="/share/:id" element={<OrdemShare />} />
+                    <Route path="/proposta/:token" element={<PropostaPublica />} />
+                    <Route path="/proposta-locacao/:id" element={<PropostaLocacaoPublica />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </WorkspaceProvider>
               </TooltipProvider>
             </NotificationsProvider>
           </SoundPreferencesProvider>
