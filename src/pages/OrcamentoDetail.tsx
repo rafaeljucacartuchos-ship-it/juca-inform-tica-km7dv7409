@@ -982,6 +982,11 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
     loadAll()
   }
 
+  // Enviar link da proposta online ao cliente via WhatsApp (copia mensagem e abre WhatsApp)
+  const handleEnviarWhatsAppCliente = async () => {
+    return handleEnviarLinkCliente()
+  }
+
   // Enviar link da proposta online ao cliente (copia mensagem e abre WhatsApp)
   const handleEnviarLinkCliente = async () => {
     if (!orcamento) return
@@ -1816,7 +1821,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
         {/* Resumo compacto de Alertas / Ações de Status */}
         <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs">
           <span className="font-semibold text-slate-700">Fluxo do Orçamento:</span>
-          {/* Botão Compartilhar Orçamento (WhatsApp, Copiar Link, Compartilhamento Nativo) */}
+          {/* Botão Compartilhar Orçamento (WhatsApp, Copiar Link, Compartilhamento Nativo) - v0.0.224 */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -1834,7 +1839,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">
               <DropdownMenuItem
-                onClick={handleEnviarLinkCliente}
+                onClick={handleEnviarWhatsAppCliente}
                 className="flex items-center gap-2 cursor-pointer text-xs"
               >
                 <MessageCircle className="h-4 w-4 text-emerald-600" />
