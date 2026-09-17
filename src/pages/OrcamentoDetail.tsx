@@ -29,6 +29,7 @@ import {
   Wrench,
   Save,
   X,
+  RotateCcw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -80,7 +81,7 @@ import {
   updateOsStatus,
   autoApproveOrcamentosOnOsClosed,
 } from '@/services/orcamentos'
-import { getServiceOrder, syncServiceOrderTotal } from '@/services/service_orders'
+import { getServiceOrder, syncServiceOrderTotal, addStatusHistory } from '@/services/service_orders'
 import { getProduct } from '@/services/products'
 import {
   getCustomerPhone,
@@ -245,6 +246,8 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
   } | null>(null)
   const [rejeicaoModalOpen, setRejeicaoModalOpen] = useState(false)
   const [motivoRejeicao, setMotivoRejeicao] = useState('')
+  const [retomarModalOpen, setRetomarModalOpen] = useState(false)
+  const [retomandoNegociacao, setRetomandoNegociacao] = useState(false)
   const [printSelectOpen, setPrintSelectOpen] = useState(false)
 
   // Usuários para seleção de responsável e clientes para busca/autocomplete
@@ -1362,6 +1365,53 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
     }
   }
 
+  // Retomada de negociação para orçamentos rejeitados
+  const handleRetomarNegociacao = async () => {
+    if (!orcamento) return
+    setRetomandoNegociacao(true)
+
+    try {
+      const motivoAnterior = orcamento.motivo_rejeicao
+        ? ` (Motivo anterior da rejeição: ${orcamento.motivo_rejeicao})`
+        : ''
+
+      await updateOrcamento(orcamento.id, {
+        status: 'aguardando_aprovacao',
+      })
+
+      if (orcamento.id_os) {
+        await addStatusHistory({
+          service_order: orcamento.id_os,
+          status: 'orcamento_enviado',
+          note: `Negociação do Orçamento ${orcamento.numero_orcamento} retomada. Status redefinido para Aguardando Aprovação.${motivoAnterior}`,
+          changed_by: user?.id,
+        })
+        try {
+          await syncServiceOrderTotal(orcamento.id_os)
+        } catch {
+          /* best effort */
+        }
+      }
+
+      toast({
+        title: 'Negociação retomada com sucesso!',
+        description:
+          'O orçamento voltou ao status "Aguardando Aprovação" e está pronto para nova negociação.',
+      })
+      setRetomarModalOpen(false)
+      loadAll()
+    } catch (err: any) {
+      console.error('Erro ao retomar negociação:', err)
+      toast({
+        title: 'Erro ao retomar negociação',
+        description: err?.message || 'Não foi possível alterar o status do orçamento.',
+        variant: 'destructive',
+      })
+    } finally {
+      setRetomandoNegociacao(false)
+    }
+  }
+
   // URL fixa do grupo do WhatsApp de Faturamento da JUCA Informática
   const WHATSAPP_FATURAMENTO_GROUP_URL = 'https://chat.whatsapp.com/GfUlsLlK9SBLa7BUfxS4J3'
 
@@ -1981,6 +2031,17 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
               <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
               <span>Orçamento Aprovado</span>
             </div>
+          )}
+
+          {orcamento.status === 'rejeitado' && canEdit && (
+            <Button
+              size="sm"
+              onClick={() => setRetomarModalOpen(true)}
+              className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1.5 font-bold shadow-xs"
+              title="Retomar a negociação deste orçamento e retorná-lo para Aguardando Aprovação"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Retomar Negociação
+            </Button>
           )}
 
           {orcamento.status !== 'rejeitado' && orcamento.status !== 'faturado' && (
@@ -3722,6 +3783,69 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
               className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
             >
               Confirmar Rejeição
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Retomar Negociação */}
+      <Dialog open={retomarModalOpen} onOpenChange={setRetomarModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-amber-600" /> Retomar Negociação do Orçamento
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <p className="text-slate-600">
+              Ao retomar a negociação, o orçamento sairá do status <strong>Rejeitado</strong> e
+              voltará para <strong>Aguardando Aprovação</strong>. Você poderá alterar itens,
+              reenviar a proposta ao cliente e registrar uma nova aprovação ou recusa.
+            </p>
+
+            {orcamento.motivo_rejeicao && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-900 space-y-1">
+                <span className="font-bold block flex items-center gap-1.5 text-amber-800">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" /> Motivo da Rejeição
+                  Anterior:
+                </span>
+                <p className="text-slate-800 italic bg-white/70 p-2 rounded border border-amber-100">
+                  "{orcamento.motivo_rejeicao}"
+                </p>
+              </div>
+            )}
+
+            <p className="text-slate-500 text-[11px]">
+              Se este orçamento estiver vinculado a uma Ordem de Serviço, o histórico da O.S. será
+              atualizado com o registro de retomada da negociação.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={retomandoNegociacao}
+              onClick={() => setRetomarModalOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              disabled={retomandoNegociacao}
+              onClick={handleRetomarNegociacao}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold gap-1.5"
+            >
+              {retomandoNegociacao ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Retomando...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Confirmar e Retomar
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
