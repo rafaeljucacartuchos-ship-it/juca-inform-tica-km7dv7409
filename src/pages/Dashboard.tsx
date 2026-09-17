@@ -227,7 +227,7 @@ export default function Dashboard() {
     return orcamentosPendentes.reduce((sum, orc) => sum + (orc.total_geral || 0), 0)
   }, [orcamentosPendentes])
 
-  // v0.0.213: Mapa de usuários para resolução ágil de nomes de responsáveis
+  // v0.0.213 / v0.0.230: Mapa de usuários para resolução ágil de nomes e funções de responsáveis
   const userMap = useMemo(() => {
     const map = new Map<string, string>()
     for (const u of allUsers) {
@@ -239,11 +239,24 @@ export default function Dashboard() {
     return map
   }, [allUsers, technicians])
 
+  const userRoleMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const u of allUsers) {
+      if (u.id && u.role) map.set(u.id, u.role)
+    }
+    for (const t of technicians) {
+      if (t.id && t.role) map.set(t.id, t.role)
+    }
+    return map
+  }, [allUsers, technicians])
+
   // v0.0.213: Orçamentos aguardando aprovação desdobrados por responsável
   const orcamentosAguardandoAprovacao = useMemo(() => {
     return orcamentos.filter((orc) => orc.status === 'aguardando_aprovacao')
   }, [orcamentos])
 
+  // v0.0.230: Administrador não deve aparecer na tabela de pendentes por responsável
+  // (exclui do agrupamento qualquer linha cujo responsável resolvido seja admin)
   const orcamentosPorResponsavel = useMemo(() => {
     const groupMap = new Map<
       string,
@@ -261,11 +274,25 @@ export default function Dashboard() {
 
     for (const orc of orcamentosAguardandoAprovacao) {
       const respId = orc.responsavel_id || orc.id_usuario_criador || 'sem_responsavel'
-      const nome =
+
+      // Checa se o responsável resolvido é Administrador (role admin ou nome ADMINISTRADOR)
+      const role =
+        orc.expand?.responsavel_id?.role ||
+        orc.expand?.id_usuario_criador?.role ||
+        userRoleMap.get(respId)
+      const resolvedName =
         orc.expand?.responsavel_id?.name ||
         orc.expand?.id_usuario_criador?.name ||
         userMap.get(respId) ||
-        (respId === 'sem_responsavel' ? 'Não Atribuído' : 'Sem Responsável')
+        ''
+
+      if (role === 'admin' || resolvedName.trim().toUpperCase() === 'ADMINISTRADOR') {
+        // Exclui orçamentos atribuídos / criados por admin da listagem de pendentes por responsável
+        continue
+      }
+
+      const nome =
+        resolvedName || (respId === 'sem_responsavel' ? 'Não Atribuído' : 'Sem Responsável')
 
       const valor = orc.total_geral || 0
       const isAntigo = orc.created ? now - new Date(orc.created).getTime() > seteDiasMs : false
@@ -300,7 +327,7 @@ export default function Dashboard() {
       totalVal,
       totalAntigos,
     }
-  }, [orcamentosAguardandoAprovacao, userMap])
+  }, [orcamentosAguardandoAprovacao, userMap, userRoleMap])
 
   // v0.0.213: Resumo por todos os status de orçamentos (botões clicáveis)
   const orcamentosStatusResumo = useMemo(() => {
@@ -630,8 +657,8 @@ export default function Dashboard() {
                 Resultado por Técnico no Período
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Acompanhamento de produção em O.S. e Orçamentos da equipe técnica (
-                {technicianProduction.rows.length}{' '}
+                Acompanhamento de produção: O.S. / Orçamentos Vinculados e Orçamentos sem Vínculo
+                O.S. da equipe técnica ({technicianProduction.rows.length}{' '}
                 {technicianProduction.rows.length === 1 ? 'técnico' : 'técnicos'})
               </p>
             </div>
@@ -650,18 +677,18 @@ export default function Dashboard() {
                     className="py-2.5 px-3 text-center bg-blue-50/50 font-bold text-blue-900 border-l border-blue-100"
                     colSpan={3}
                   >
-                    Ordens de Serviço (O.S.)
+                    O.S. / Orçamento Vinculado
                   </th>
                   <th
                     className="py-2.5 px-3 text-center bg-emerald-50/50 font-bold text-emerald-900 border-l border-emerald-100"
                     colSpan={5}
                   >
-                    Orçamentos
+                    Orçamentos sem Vínculo O.S.
                   </th>
                 </tr>
                 <tr className="border-t border-slate-200/60 text-[11px] text-slate-600">
                   <th className="py-2 px-4">Nome</th>
-                  {/* O.S. */}
+                  {/* O.S. / Orçamento Vinculado */}
                   <th className="py-2 px-3 text-right bg-blue-50/30 border-l border-blue-100">
                     Criadas
                   </th>
@@ -669,21 +696,21 @@ export default function Dashboard() {
                   <th className="py-2 px-3 text-right bg-blue-50/30 font-bold text-blue-950">
                     Valor Total O.S.
                   </th>
-                  {/* Orçamentos */}
+                  {/* Orçamentos sem Vínculo O.S. */}
                   <th className="py-2 px-3 text-right bg-emerald-50/30 border-l border-emerald-100">
-                    Criados
+                    Orç. sem Vínculo Criados
                   </th>
                   <th className="py-2 px-3 text-right bg-emerald-50/30 text-emerald-700 font-bold">
-                    Aprovados
+                    Orç. sem Vínculo Aprovados
                   </th>
                   <th className="py-2 px-3 text-right bg-emerald-50/30 text-amber-700">
-                    Pendentes
+                    Orç. sem Vínculo Pendentes
                   </th>
                   <th className="py-2 px-3 text-right bg-emerald-50/30 text-rose-700">
-                    Rejeitados
+                    Orç. sem Vínculo Rejeitados
                   </th>
                   <th className="py-2 px-3 text-right bg-emerald-50/30 font-bold text-emerald-950">
-                    Valor Aprovados
+                    Valor Aprovados sem Vínculo
                   </th>
                 </tr>
               </thead>

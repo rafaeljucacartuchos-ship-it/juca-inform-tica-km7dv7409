@@ -227,7 +227,7 @@ export default function Tecnicos() {
               variant="outline"
               className="border-indigo-200 bg-indigo-50 text-indigo-700 text-[10px] font-bold"
             >
-              v0.0.229
+              v0.0.230
             </Badge>
           </div>
           <p className="text-xs sm:text-sm text-slate-500">

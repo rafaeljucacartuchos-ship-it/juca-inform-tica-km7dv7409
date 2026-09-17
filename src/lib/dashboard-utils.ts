@@ -528,29 +528,35 @@ export function computeTechnicianProduction(
     const valueOrders = techOrders.filter((o) => isOrderInPeriodForValue(o, history, start, end))
     const osValorTotal = valueOrders.reduce((sum, o) => sum + (o.total || 0), 0)
 
-    // (b) Orçamentos do técnico no período
-    const techOrcamentos = orcamentos.filter((orc) => {
+    // (b) Orçamentos sem vínculo com O.S. do técnico no período (v0.0.230: orçamentos sem id_os)
+    const techOrcamentosSemVinculo = orcamentos.filter((orc) => {
+      // Orçamento COM O.S. vinculada NÃO entra mais neste bloco — nem na contagem, nem nas somas
+      const temVinculoOs = Boolean(orc.id_os || orc.expand?.id_os)
+      if (temVinculoOs) return false
+
       const techId = getOrcamentoTechnicianId(orc, ordersMap)
       return techId === tech.id && isDateInRange(orc.created, start, end)
     })
 
-    const orcCriados = techOrcamentos.length
+    const orcCriados = techOrcamentosSemVinculo.length
     // Aprovados: status 'aprovado' ou 'faturado'
-    const orcAprovados = techOrcamentos.filter(
+    const orcAprovados = techOrcamentosSemVinculo.filter(
       (orc) => orc.status === 'aprovado' || orc.status === 'faturado',
     ).length
     // Pendentes: rascunho, enviado, aguardando_aprovacao
-    const orcPendentes = techOrcamentos.filter(
+    const orcPendentes = techOrcamentosSemVinculo.filter(
       (orc) =>
         orc.status === 'rascunho' ||
         orc.status === 'enviado' ||
         orc.status === 'aguardando_aprovacao',
     ).length
     // Rejeitados: status 'rejeitado'
-    const orcRejeitados = techOrcamentos.filter((orc) => orc.status === 'rejeitado').length
+    const orcRejeitados = techOrcamentosSemVinculo.filter(
+      (orc) => orc.status === 'rejeitado',
+    ).length
 
-    // Valor total dos orçamentos aprovados: soma de total_geral
-    const orcValorAprovados = techOrcamentos
+    // Valor total dos orçamentos aprovados sem vínculo O.S.: soma de total_geral
+    const orcValorAprovados = techOrcamentosSemVinculo
       .filter((orc) => orc.status === 'aprovado' || orc.status === 'faturado')
       .reduce((sum, orc) => sum + (orc.total_geral || 0), 0)
 
