@@ -94,6 +94,7 @@ import {
 } from '@/components/OrcamentoServicoSelectModal'
 import { OrcamentoPhotos } from '@/components/OrcamentoPhotos'
 import { OrcamentoAssinaturaModal } from '@/components/OrcamentoAssinaturaModal'
+import { ServiceOrderLinkSection } from '@/components/ServiceOrderLinkSection'
 import {
   openWhatsApp,
   buildWhatsAppUrl,
@@ -153,6 +154,7 @@ const STATUS_CONFIG: Record<
 
 interface PricingLocationState {
   fromPricing?: boolean
+  id_os?: string
   item?: {
     tipo?: 'produto' | 'servico'
     id_produto?: string | null
@@ -305,6 +307,7 @@ export default function OrcamentoDetail() {
 
       const draftOrcamento: Orcamento = {
         id: 'novo',
+        id_os: navState?.id_os || undefined,
         numero_orcamento: 'NOVO ORÇAMENTO',
         status: 'aguardando_aprovacao',
         validade: 15,
@@ -760,16 +763,16 @@ export default function OrcamentoDetail() {
 
       // 1. Cria o registro do orçamento no PocketBase (status padrão: aguardando_aprovacao)
       const createdOrcamento = await createOrcamento({
-        id_os: null,
+        id_os: orcamento?.id_os || null,
         id_usuario_criador: user?.id,
         validade: orcamento?.validade || 15,
         observacoes: orcamento?.observacoes || '',
-        cliente_id: finalClienteId,
-        nome_cliente_livre: orcamento?.nome_cliente_livre || '',
-        telefone_cliente_livre: orcamento?.telefone_cliente_livre || '',
+        cliente_id: orcamento?.id_os ? null : finalClienteId,
+        nome_cliente_livre: orcamento?.id_os ? '' : orcamento?.nome_cliente_livre || '',
+        telefone_cliente_livre: orcamento?.id_os ? '' : orcamento?.telefone_cliente_livre || '',
         responsavel_id: orcamento?.responsavel_id || null,
-        equipamento_independente: orcamento?.equipamento_independente || '',
-        defeito_independente: orcamento?.defeito_independente || '',
+        equipamento_independente: orcamento?.id_os ? '' : orcamento?.equipamento_independente || '',
+        defeito_independente: orcamento?.id_os ? '' : orcamento?.defeito_independente || '',
       })
 
       // 2. Cria cada item em memória associado ao novo ID
@@ -1824,19 +1827,115 @@ export default function OrcamentoDetail() {
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <CardTitle className="text-sm font-bold text-slate-900">
                 {orcamento.id_os
-                  ? 'Informações do Atendimento (O.S.)'
+                  ? 'Informações do Atendimento (O.S. Vinculada)'
                   : 'Dados do Orçamento Independente'}
               </CardTitle>
-              {!orcamento.id_os && (
-                <span className="text-[11px] text-slate-500 font-medium">
-                  Sem vínculo com Ordem de Serviço
-                </span>
-              )}
             </CardHeader>
             <CardContent className="space-y-4 text-xs">
+              {/* Controle de Vinculação à Ordem de Serviço com busca e filtros (v0.0.216) */}
+              <ServiceOrderLinkSection
+                linkedOs={os || null}
+                idOs={orcamento.id_os || null}
+                canEdit={canEdit}
+                technicians={systemUsers}
+                onSelectOs={async (selectedOs) => {
+                  const previousOsId = orcamento.id_os
+                  setOrcamento((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          id_os: selectedOs.id,
+                          expand: {
+                            ...prev.expand,
+                            id_os: selectedOs,
+                          },
+                        }
+                      : prev,
+                  )
+                  if (!isNew && id) {
+                    try {
+                      await updateOrcamento(id, { id_os: selectedOs.id })
+                      if (previousOsId && previousOsId !== selectedOs.id) {
+                        try {
+                          await syncServiceOrderTotal(previousOsId)
+                        } catch {
+                          /* ignore */
+                        }
+                      }
+                      try {
+                        await syncServiceOrderTotal(selectedOs.id)
+                      } catch {
+                        /* ignore */
+                      }
+                      toast({
+                        title: 'Ordem de Serviço vinculada!',
+                        description: `Orçamento vinculado à O.S. #${selectedOs.number}.`,
+                      })
+                      await loadAll()
+                    } catch (err: any) {
+                      console.error('Erro ao vincular O.S.:', err)
+                      toast({
+                        title: 'Erro ao vincular O.S.',
+                        description: err?.message || 'Não foi possível vincular a O.S.',
+                        variant: 'destructive',
+                      })
+                    }
+                  } else {
+                    toast({
+                      title: 'O.S. selecionada!',
+                      description: `Vinculada à O.S. #${selectedOs.number}. Salve o orçamento para persistir.`,
+                    })
+                  }
+                }}
+                onUnlinkOs={async () => {
+                  const previousOsId = orcamento.id_os
+                  setOrcamento((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          id_os: undefined,
+                          expand: {
+                            ...prev.expand,
+                            id_os: undefined,
+                          },
+                        }
+                      : prev,
+                  )
+                  if (!isNew && id) {
+                    try {
+                      await updateOrcamento(id, { id_os: null as any })
+                      if (previousOsId) {
+                        try {
+                          await syncServiceOrderTotal(previousOsId)
+                        } catch {
+                          /* ignore */
+                        }
+                      }
+                      toast({
+                        title: 'O.S. desvinculada',
+                        description: 'O orçamento agora é independente.',
+                      })
+                      await loadAll()
+                    } catch (err: any) {
+                      console.error('Erro ao desvincular O.S.:', err)
+                      toast({
+                        title: 'Erro ao desvincular',
+                        description: err?.message || 'Não foi possível desvincular a O.S.',
+                        variant: 'destructive',
+                      })
+                    }
+                  } else {
+                    toast({
+                      title: 'O.S. desvinculada',
+                      description: 'Vínculo removido do rascunho.',
+                    })
+                  }
+                }}
+              />
+
               {orcamento.id_os ? (
                 // Orçamento VINCULADO: dados herdados da O.S. (preservados exatamente como antes)
-                <>
+                <div className="pt-2 border-t border-slate-100 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <span className="font-semibold text-slate-500">Cliente (da O.S.):</span>
@@ -1877,7 +1976,7 @@ export default function OrcamentoDetail() {
                       {os?.description || 'Nenhuma descrição fornecida.'}
                     </p>
                   </div>
-                </>
+                </div>
               ) : (
                 // Orçamento INDEPENDENTE (v0.0.146)
                 // 1) Cliente: autocomplete ou texto livre
