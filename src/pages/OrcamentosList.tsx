@@ -1196,6 +1196,14 @@ export default function OrcamentosList() {
                     canEdit={!creating}
                     technicians={systemUsers}
                     onSelectOs={(os) => {
+                      if (!os?.id) {
+                        toast({
+                          title: 'O.S. sem identificador',
+                          description: 'Não foi possível selecionar esta Ordem de Serviço.',
+                          variant: 'destructive',
+                        })
+                        return
+                      }
                       setSelectedOsId(os.id)
                       setSelectedOsObject(os)
                       toast({
@@ -1206,6 +1214,10 @@ export default function OrcamentosList() {
                     onUnlinkOs={() => {
                       setSelectedOsId('')
                       setSelectedOsObject(null)
+                      toast({
+                        title: 'Vínculo removido',
+                        description: 'A O.S. foi desvinculada do novo orçamento.',
+                      })
                     }}
                   />
                 </div>

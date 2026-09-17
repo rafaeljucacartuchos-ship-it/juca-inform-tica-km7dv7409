@@ -2075,13 +2075,30 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-xs">
-              {/* Controle de Vinculação à Ordem de Serviço com busca e filtros (v0.0.216) */}
+              {/* Controle de Vinculação à Ordem de Serviço com busca e filtros (v0.0.216 / v0.0.236) */}
               <ServiceOrderLinkSection
                 linkedOs={os || null}
                 idOs={orcamento.id_os || null}
                 canEdit={canEdit}
                 technicians={systemUsers}
                 onSelectOs={async (selectedOs) => {
+                  if (isLocked) {
+                    toast({
+                      title: 'Edição bloqueada',
+                      description:
+                        'Orçamentos faturados ou substituídos não podem ter seu vínculo alterado.',
+                      variant: 'destructive',
+                    })
+                    return
+                  }
+                  if (!selectedOs?.id) {
+                    toast({
+                      title: 'O.S. sem identificador',
+                      description: 'A Ordem de Serviço selecionada não pôde ser vinculada.',
+                      variant: 'destructive',
+                    })
+                    return
+                  }
                   const previousOsId = orcamento.id_os
                   setOrcamento((prev) =>
                     prev
@@ -2112,25 +2129,35 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                       }
                       toast({
                         title: 'Ordem de Serviço vinculada!',
-                        description: `Orçamento vinculado à O.S. #${selectedOs.number}.`,
+                        description: `Orçamento vinculado com sucesso à O.S. #${selectedOs.number}.`,
                       })
                       await loadAll()
                     } catch (err: any) {
                       console.error('Erro ao vincular O.S.:', err)
                       toast({
-                        title: 'Erro ao vincular O.S.',
-                        description: err?.message || 'Não foi possível vincular a O.S.',
+                        title: 'Falha ao vincular O.S. no servidor',
+                        description:
+                          err?.message || 'Não foi possível salvar o vínculo no PocketBase.',
                         variant: 'destructive',
                       })
                     }
                   } else {
                     toast({
-                      title: 'O.S. selecionada!',
+                      title: 'O.S. vinculada ao rascunho!',
                       description: `Vinculada à O.S. #${selectedOs.number}. Salve o orçamento para persistir.`,
                     })
                   }
                 }}
                 onUnlinkOs={async () => {
+                  if (isLocked) {
+                    toast({
+                      title: 'Edição bloqueada',
+                      description:
+                        'Orçamentos faturados ou substituídos não podem ter seu vínculo alterado.',
+                      variant: 'destructive',
+                    })
+                    return
+                  }
                   const previousOsId = orcamento.id_os
                   setOrcamento((prev) =>
                     prev
@@ -2162,8 +2189,9 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                     } catch (err: any) {
                       console.error('Erro ao desvincular O.S.:', err)
                       toast({
-                        title: 'Erro ao desvincular',
-                        description: err?.message || 'Não foi possível desvincular a O.S.',
+                        title: 'Falha ao desvincular O.S. no servidor',
+                        description:
+                          err?.message || 'Não foi possível desvincular a O.S. no PocketBase.',
                         variant: 'destructive',
                       })
                     }
