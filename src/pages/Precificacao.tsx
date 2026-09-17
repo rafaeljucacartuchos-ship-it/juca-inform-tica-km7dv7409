@@ -906,24 +906,23 @@ export default function Precificacao() {
       `*${label} - JUCA INFORMÁTICA*\n` +
       `Custo Base (${res.moeda}): ${res.moeda === 'USD' ? `US$ ${res.custoProdutoUSD?.toFixed(2)} (R$ ${res.custoProdutoBRL.toFixed(2)})` : formatCurrencyBRL(res.custoProdutoBRL)}\n` +
       `Frete + Extras: ${formatCurrencyBRL(res.frete + res.custoAdicional1 + res.custoAdicional2)}\n` +
-      `Custo Direto: ${formatCurrencyBRL(res.custoDiretoTotal)} (${res.fatias.custoDireto.pct}%)\n` +
+      `Custo Direto de Entrada: ${formatCurrencyBRL(res.custoDiretoTotal)} (${res.fatias.custoDireto.pct}%)\n` +
+      (res.substTributariaValor > 0
+        ? `Subst. Tributária (${res.substTributariaPct}%): ${formatCurrencyBRL(res.substTributariaValor)} (${res.fatias.substTributaria?.pct ?? 0}%)\n`
+        : '') +
       (res.custoFixoRateado > 0
         ? `Custo Fixo Rateado: ${formatCurrencyBRL(res.custoFixoRateado)} (${res.fatias.custoFixoRateado.pct}%)\n`
-        : '') +
-      (res.substTributariaValor > 0
-        ? `Subst. Tributária (${res.substTributariaPct}%): ${formatCurrencyBRL(res.substTributariaValor)} (${res.fatias.substTributaria?.pct ?? 0}%)\n` +
-          `Custo Total do Produto: ${formatCurrencyBRL(res.custoTotalProduto)}\n`
         : '') +
       (res.custoFixoPct > 0
         ? `Custo Fixo (${res.custoFixoPct}%): ${formatCurrencyBRL(res.fatias.custoFixo.valor)} (${res.fatias.custoFixo.pct}%)\n`
         : '') +
       `Despesa Fixa (${res.despesaFixaPct}%): ${formatCurrencyBRL(res.fatias.despesaFixa.valor)}\n` +
       `Custos Variáveis (${res.custosVariaveisPct}%): ${formatCurrencyBRL(res.fatias.custosVariaveis.valor)}\n` +
-      `Lucratividade Alvo: ${res.lucratividadePct}%\n` +
-      `Markup Multiplicador: ${res.markupMultiplicador}×\n` +
-      `-------------------------\n` +
-      `PREÇO DE VENDA: ${formatCurrencyBRL(res.salePrice)}\n` +
-      `LUCRO LÍQUIDO: ${formatCurrencyBRL(res.lucroUnitario)} (${res.fatias.lucro.pct}%)`
+      `=========================\n` +
+      `CUSTO TOTAL DO PRODUTO (todos os custos): ${formatCurrencyBRL(res.custoTotalCompleto)} (${res.custoTotalCompletoPct}%)\n` +
+      `LUCRO LÍQUIDO: ${formatCurrencyBRL(res.lucroUnitario)} (${res.fatias.lucro.pct}%)\n` +
+      `PREÇO FINAL DE VENDA: ${formatCurrencyBRL(res.salePrice)} (100%)\n` +
+      `Markup Multiplicador: ${res.markupMultiplicador}×`
 
     navigator.clipboard.writeText(text)
     toast({
@@ -1036,8 +1035,8 @@ export default function Precificacao() {
                   variant="outline"
                   className="border-indigo-200 bg-indigo-50 text-indigo-700 text-[10px] font-bold"
                 >
-                  v0.0.226
-                </Badge>
+                  v0.0.227
+                </Badge>{' '}
               </div>
               <p className="text-xs text-slate-500">
                 Metodologia completa JUCA INFORMÁTICA: Markup divisor, conversão US$, despesas
@@ -1329,7 +1328,7 @@ export default function Precificacao() {
                       </div>
                     </div>
 
-                    {/* CARD / LINHA DESTAQUE: CUSTO TOTAL DO PRODUTO (Custo + Frete + Extras + ST) */}
+                    {/* CARD / LINHA DESTAQUE: CUSTO TOTAL DO PRODUTO (TODOS OS CUSTOS SOMADOS) */}
                     <div className="p-3 bg-gradient-to-r from-amber-50/90 via-violet-50/80 to-indigo-50/80 rounded-xl border border-amber-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
                       <div className="flex items-center gap-2">
                         <div className="h-8 w-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
@@ -1341,29 +1340,37 @@ export default function Precificacao() {
                               Custo Total do Produto:
                             </span>
                             <span className="text-base font-extrabold font-mono text-amber-950">
-                              {formatCurrencyBRL(calcResult1?.custoTotalProduto || 0)}
+                              {formatCurrencyBRL(
+                                calcResult1?.isPossible
+                                  ? calcResult1.custoTotalCompleto
+                                  : calcResult1?.custoTotalProduto || 0,
+                              )}
                             </span>
+                            {calcResult1?.isPossible && (
+                              <span className="text-[11px] font-mono text-amber-800 font-bold">
+                                ({calcResult1.custoTotalCompletoPct}%)
+                              </span>
+                            )}
                           </div>
                           <p className="text-[10px] text-slate-600">
-                            Base do cálculo = Custo (
-                            {formatCurrencyBRL(calcResult1?.custoProdutoBRL || 0)}) + Frete (
-                            {formatCurrencyBRL(calcResult1?.frete || 0)}) + Extras (
-                            {formatCurrencyBRL(
-                              (calcResult1?.custoAdicional1 || 0) +
-                                (calcResult1?.custoAdicional2 || 0),
-                            )}
-                            )
+                            Todos os custos somados (Direto + Frete + Extras
                             {(calcResult1?.substTributariaValor || 0) > 0 && (
-                              <strong className="text-violet-800">
-                                {' '}
-                                + ST ({formatCurrencyBRL(calcResult1?.substTributariaValor || 0)})
-                              </strong>
+                              <span className="text-violet-800 font-semibold"> + ST</span>
                             )}
+                            {(calcResult1?.fatias.custoFixo.valor || 0) > 0 && (
+                              <span className="text-teal-800 font-semibold"> + C. Fixo</span>
+                            )}
+                            {' + Desp. Fixa + Var.'}) — separa{' '}
+                            <strong>apenas o Lucro Líquido</strong> (
+                            <strong className="text-emerald-700">
+                              {formatCurrencyBRL(calcResult1?.lucroUnitario || 0)}
+                            </strong>
+                            )
                           </p>
                         </div>
                       </div>
                       <Badge className="self-start sm:self-auto bg-amber-600/90 text-white text-[10px] font-mono">
-                        Base Markup
+                        Custo Completo
                       </Badge>
                     </div>
 
@@ -1686,6 +1693,8 @@ export default function Precificacao() {
                         salePrice={calcResult1.salePrice}
                         custoDiretoTotal={calcResult1.custoDiretoTotal}
                         custoDiretoPct={calcResult1.fatias.custoDireto.pct}
+                        custoTotalCompleto={calcResult1.custoTotalCompleto}
+                        custoTotalCompletoPct={calcResult1.custoTotalCompletoPct}
                         custoAquisicao={calcResult1.fatias.custoAquisicao?.valor}
                         custoAquisicaoPct={calcResult1.fatias.custoAquisicao?.pct}
                         substTributariaValor={calcResult1.fatias.substTributaria?.valor}
@@ -2033,7 +2042,7 @@ export default function Precificacao() {
                     </div>
                   </div>
 
-                  {/* CARD / LINHA DESTAQUE: CUSTO TOTAL DO PRODUTO (Custo + Frete + Extras + ST) */}
+                  {/* CARD / LINHA DESTAQUE: CUSTO TOTAL DO PRODUTO (TODOS OS CUSTOS SOMADOS) */}
                   <div className="p-3 bg-gradient-to-r from-amber-50/90 via-violet-50/80 to-indigo-50/80 rounded-xl border border-amber-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
                     <div className="flex items-center gap-2">
                       <div className="h-8 w-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
@@ -2045,29 +2054,37 @@ export default function Precificacao() {
                             Custo Total do Produto:
                           </span>
                           <span className="text-base font-extrabold font-mono text-amber-950">
-                            {formatCurrencyBRL(calcResult2?.custoTotalProduto || 0)}
+                            {formatCurrencyBRL(
+                              calcResult2?.isPossible
+                                ? calcResult2.custoTotalCompleto
+                                : calcResult2?.custoTotalProduto || 0,
+                            )}
                           </span>
+                          {calcResult2?.isPossible && (
+                            <span className="text-[11px] font-mono text-amber-800 font-bold">
+                              ({calcResult2.custoTotalCompletoPct}%)
+                            </span>
+                          )}
                         </div>
                         <p className="text-[10px] text-slate-600">
-                          Base do cálculo = Custo (
-                          {formatCurrencyBRL(calcResult2?.custoProdutoBRL || 0)}) + Frete (
-                          {formatCurrencyBRL(calcResult2?.frete || 0)}) + Extras (
-                          {formatCurrencyBRL(
-                            (calcResult2?.custoAdicional1 || 0) +
-                              (calcResult2?.custoAdicional2 || 0),
-                          )}
-                          )
+                          Todos os custos somados (Direto + Frete + Extras
                           {(calcResult2?.substTributariaValor || 0) > 0 && (
-                            <strong className="text-violet-800">
-                              {' '}
-                              + ST ({formatCurrencyBRL(calcResult2?.substTributariaValor || 0)})
-                            </strong>
+                            <span className="text-violet-800 font-semibold"> + ST</span>
                           )}
+                          {(calcResult2?.fatias.custoFixo.valor || 0) > 0 && (
+                            <span className="text-teal-800 font-semibold"> + C. Fixo</span>
+                          )}
+                          {' + Desp. Fixa + Var.'}) — separa <strong>apenas o Lucro Líquido</strong>{' '}
+                          (
+                          <strong className="text-emerald-700">
+                            {formatCurrencyBRL(calcResult2?.lucroUnitario || 0)}
+                          </strong>
+                          )
                         </p>
                       </div>
                     </div>
                     <Badge className="self-start sm:self-auto bg-amber-600/90 text-white text-[10px] font-mono">
-                      Base Markup
+                      Custo Completo
                     </Badge>
                   </div>
                   {/* Alíquotas e Margem com Custo Fixo % e Custo Variável % editáveis */}
@@ -2352,6 +2369,8 @@ export default function Precificacao() {
                         salePrice={calcResult2.salePrice}
                         custoDiretoTotal={calcResult2.custoDiretoTotal}
                         custoDiretoPct={calcResult2.fatias.custoDireto.pct}
+                        custoTotalCompleto={calcResult2.custoTotalCompleto}
+                        custoTotalCompletoPct={calcResult2.custoTotalCompletoPct}
                         custoAquisicao={calcResult2.fatias.custoAquisicao?.valor}
                         custoAquisicaoPct={calcResult2.fatias.custoAquisicao?.pct}
                         substTributariaValor={calcResult2.fatias.substTributaria?.valor}
@@ -2630,7 +2649,7 @@ export default function Precificacao() {
                     </div>
                   </div>
 
-                  {/* CARD / LINHA DESTAQUE: CUSTO TOTAL DO PRODUTO NA ABA RÁPIDA */}
+                  {/* CARD / LINHA DESTAQUE: CUSTO TOTAL DO PRODUTO NA ABA RÁPIDA (TODOS OS CUSTOS SOMADOS) */}
                   <div className="p-3 bg-gradient-to-r from-amber-50/90 via-violet-50/80 to-indigo-50/80 rounded-xl border border-amber-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
                     <div className="flex items-center gap-2">
                       <div className="h-8 w-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
@@ -2642,25 +2661,37 @@ export default function Precificacao() {
                             Custo Total do Produto:
                           </span>
                           <span className="text-base font-extrabold font-mono text-amber-950">
-                            {formatCurrencyBRL(calcResult3?.custoTotalProduto || 0)}
+                            {formatCurrencyBRL(
+                              calcResult3?.isPossible
+                                ? calcResult3.custoTotalCompleto
+                                : calcResult3?.custoTotalProduto || 0,
+                            )}
                           </span>
+                          {calcResult3?.isPossible && (
+                            <span className="text-[11px] font-mono text-amber-800 font-bold">
+                              ({calcResult3.custoTotalCompletoPct}%)
+                            </span>
+                          )}
                         </div>
                         <p className="text-[10px] text-slate-600">
-                          Base do cálculo = Custo (
-                          {formatCurrencyBRL(calcResult3?.custoProdutoBRL || 0)}) + Frete (
-                          {formatCurrencyBRL(calcResult3?.frete || 0)}) + Extras (
-                          {formatCurrencyBRL(calcResult3?.custoAdicional1 || 0)})
+                          Todos os custos somados (Direto + Frete + Extras
                           {(calcResult3?.substTributariaValor || 0) > 0 && (
-                            <strong className="text-violet-800">
-                              {' '}
-                              + ST ({formatCurrencyBRL(calcResult3?.substTributariaValor || 0)})
-                            </strong>
+                            <span className="text-violet-800 font-semibold"> + ST</span>
                           )}
+                          {(calcResult3?.fatias.custoFixo.valor || 0) > 0 && (
+                            <span className="text-teal-800 font-semibold"> + C. Fixo</span>
+                          )}
+                          {' + Desp. Fixa + Var.'}) — separa <strong>apenas o Lucro Líquido</strong>{' '}
+                          (
+                          <strong className="text-emerald-700">
+                            {formatCurrencyBRL(calcResult3?.lucroUnitario || 0)}
+                          </strong>
+                          )
                         </p>
                       </div>
                     </div>
                     <Badge className="self-start sm:self-auto bg-amber-600/90 text-white text-[10px] font-mono">
-                      Base Markup
+                      Custo Completo
                     </Badge>
                   </div>
 
@@ -2943,6 +2974,8 @@ export default function Precificacao() {
                         salePrice={calcResult3.salePrice}
                         custoDiretoTotal={calcResult3.custoDiretoTotal}
                         custoDiretoPct={calcResult3.fatias.custoDireto.pct}
+                        custoTotalCompleto={calcResult3.custoTotalCompleto}
+                        custoTotalCompletoPct={calcResult3.custoTotalCompletoPct}
                         custoAquisicao={calcResult3.fatias.custoAquisicao?.valor}
                         custoAquisicaoPct={calcResult3.fatias.custoAquisicao?.pct}
                         substTributariaValor={calcResult3.fatias.substTributaria?.valor}
@@ -3411,7 +3444,14 @@ export default function Precificacao() {
 
               <div className="space-y-1 text-[11px] text-slate-600">
                 <div className="flex justify-between">
-                  <span>Custo Direto Total:</span>
+                  <span>Custo Total do Produto (todos custos):</span>
+                  <strong className="font-mono text-amber-900">
+                    {formatCurrencyBRL(calcResult1.custoTotalCompleto)} (
+                    {calcResult1.custoTotalCompletoPct}%)
+                  </strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Custo Direto de Entrada:</span>
                   <strong className="font-mono">
                     {formatCurrencyBRL(calcResult1.custoDiretoTotal)}
                   </strong>

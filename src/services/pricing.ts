@@ -528,7 +528,9 @@ export interface PricingCalculationResult {
   custoAquisicao: number // custo BRL + frete + adicional1 + adicional2 (sem ST)
   substTributariaPct: number // Alíquota de ST (%)
   substTributariaValor: number // Valor R$ da Substituição Tributária calculada
-  custoTotalProduto: number // Custo Estimado + Frete + Custos Extras + Subst. Tributária (Custo Direto Total com ST)
+  custoTotalProduto: number // Custo Estimado + Frete + Custos Extras + Subst. Tributária (Custo Direto Total de Entrada com ST)
+  custoTotalCompleto: number // Custo Total com TODOS os custos (diretos + fixos + operacionais + variáveis + ST) exceto APENAS Lucro Líquido
+  custoTotalCompletoPct: number // Percentual do Custo Total Completo sobre o Preço Final (% Preço)
   custoDiretoTotal: number // Igual a custoTotalProduto (base direta usada no markup)
   custoBaseComRateio: number // custoTotalProduto + custoFixoRateado
 
@@ -554,6 +556,7 @@ export interface PricingCalculationResult {
 
   // Fatias decompostas em R$ e em % (para gráfico cascata 100%)
   fatias: {
+    custoTotalCompleto?: { valor: number; pct: number } // Agrupamento de TODOS os custos do produto exceto Lucro Líquido
     custoDireto: { valor: number; pct: number }
     custoAquisicao?: { valor: number; pct: number } // Mercadoria + frete + extras (sem ST)
     substTributaria?: { valor: number; pct: number } // Card próprio quando ST > 0
@@ -676,6 +679,8 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
       substTributariaPct,
       substTributariaValor,
       custoTotalProduto,
+      custoTotalCompleto: custoTotalProduto,
+      custoTotalCompletoPct: 0,
       custoDiretoTotal,
       custoBaseComRateio,
       custoFixoPct,
@@ -754,6 +759,22 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
         100,
     ) / 100
 
+  // Custo Total Completo do Produto (TODOS os custos: diretos + fixos + operacionais + variáveis + ST)
+  // Ficando de fora APENAS o Lucro Líquido.
+  // Preço Final = Custo Total Completo + Lucro Líquido
+  const custoTotalCompleto =
+    Math.round(
+      (custoDiretoTotal +
+        custoFixoRateado +
+        custoFixoValor +
+        despesaFixaValor +
+        custosVariaveisValor) *
+        100,
+    ) / 100
+
+  const custoTotalCompletoPct =
+    salePrice > 0 ? Math.round(((salePrice - lucroUnitario) / salePrice) * 1000) / 10 : 0
+
   // Fatias percentuais sobre o preço final gerado (deve somar 100%)
   const custoDiretoPct = salePrice > 0 ? (custoDiretoTotal / salePrice) * 100 : 0
   const custoAquisicaoPct = salePrice > 0 ? (custoAquisicao / salePrice) * 100 : 0
@@ -794,6 +815,8 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
     substTributariaPct,
     substTributariaValor,
     custoTotalProduto,
+    custoTotalCompleto,
+    custoTotalCompletoPct,
     custoDiretoTotal,
     custoBaseComRateio,
     despesaFixaPct,
@@ -811,6 +834,10 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
     lucroUnitario,
     custoFixoPct,
     fatias: {
+      custoTotalCompleto: {
+        valor: custoTotalCompleto,
+        pct: custoTotalCompletoPct,
+      },
       custoDireto: {
         valor: custoDiretoTotal,
         pct: Math.round(custoDiretoPct * 10) / 10,
@@ -907,6 +934,10 @@ export function decomposeExistingPrice(
   const lucroUnitario =
     Math.round((price - custo - despesaFixaValor - custosVariaveisValor) * 100) / 100
 
+  const custoTotalCompleto =
+    Math.round((custo + despesaFixaValor + custosVariaveisValor) * 100) / 100
+  const custoTotalCompletoPct = price > 0 ? Math.round((custoTotalCompleto / price) * 1000) / 10 : 0
+
   const custoPct = price > 0 ? (custo / price) * 100 : 0
   const despesaFixaRealPct = price > 0 ? (despesaFixaValor / price) * 100 : 0
   const custosVariaveisRealPct = price > 0 ? (custosVariaveisValor / price) * 100 : 0
@@ -917,6 +948,8 @@ export function decomposeExistingPrice(
   return {
     price,
     custoDiretoTotal: custo,
+    custoTotalCompleto,
+    custoTotalCompletoPct,
     custoPct: Math.round(custoPct * 10) / 10,
     substTributariaValor,
     substTributariaPctDoPreco: Math.round(substTributariaPctDoPreco * 10) / 10,

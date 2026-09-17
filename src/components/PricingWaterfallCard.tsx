@@ -5,6 +5,8 @@ interface PricingWaterfallProps {
   salePrice: number
   custoDiretoTotal: number
   custoDiretoPct: number
+  custoTotalCompleto?: number
+  custoTotalCompletoPct?: number
   custoAquisicao?: number
   custoAquisicaoPct?: number
   substTributariaValor?: number
@@ -35,6 +37,8 @@ export function PricingWaterfallCard({
   salePrice,
   custoDiretoTotal,
   custoDiretoPct,
+  custoTotalCompleto,
+  custoTotalCompletoPct,
   custoAquisicao = 0,
   custoAquisicaoPct = 0,
   substTributariaValor = 0,
@@ -69,6 +73,27 @@ export function PricingWaterfallCard({
   const temRateioFixo = custoFixoRateado > 0
   const temCustoFixoPct = custoFixoValor > 0 || custoFixoPct > 0
 
+  // Custo Total Completo do Produto (TODOS os custos: diretos + fixos + operacionais + variáveis + ST)
+  // separando APENAS o Lucro Líquido: Custo Total Completo + Lucro Líquido = Preço Final
+  const custoTotalCalculado =
+    custoTotalCompleto !== undefined
+      ? custoTotalCompleto
+      : Math.round(
+          (custoDiretoTotal +
+            custoFixoRateado +
+            custoFixoValor +
+            despesaFixaValor +
+            custosVariaveisValor) *
+            100,
+        ) / 100
+
+  const custoTotalPctCalculado =
+    custoTotalCompletoPct !== undefined
+      ? custoTotalCompletoPct
+      : salePrice > 0
+        ? Math.round(((salePrice - lucroUnitario) / salePrice) * 1000) / 10
+        : 0
+
   return (
     <div className="space-y-3.5 p-3.5 bg-slate-50/70 rounded-xl border border-slate-200">
       <div className="flex items-center justify-between">
@@ -85,53 +110,126 @@ export function PricingWaterfallCard({
         </span>
       </div>
 
-      {/* Barra segmentada horizontal contínua de 100% */}
-      <div className="h-4 w-full bg-slate-200 rounded-md overflow-hidden flex shadow-inner">
-        <div
-          style={{ width: `${cPct}%` }}
-          className="bg-amber-500 hover:bg-amber-600 transition-all relative group cursor-pointer"
-          title={
-            temSubstTributaria
-              ? `Custo Aquisição: ${formatCurrencyBRL(custoAquisicao)} (${custoAquisicaoPct.toFixed(1)}%)`
-              : `Custo Direto: ${formatCurrencyBRL(custoDiretoTotal)} (${custoDiretoPct.toFixed(1)}%)`
-          }
-        />
-        {temSubstTributaria && (
+      {/* CONSOLIDAÇÃO PRINCIPAL: CUSTO TOTAL DO PRODUTO (TODOS OS CUSTOS) + LUCRO LÍQUIDO = PREÇO FINAL */}
+      <div className="p-3 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-xl text-white shadow-xs space-y-2">
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="font-bold uppercase tracking-wider text-slate-300">
+            Visão Consolidada: Todos os Custos vs. Lucro Líquido
+          </span>
+          <span className="font-mono text-emerald-400 font-bold">
+            100% = {formatCurrencyBRL(salePrice)}
+          </span>
+        </div>
+
+        {/* Barra consolidada de 2 blocos: Custo Total Completo + Lucro Líquido */}
+        <div className="h-3 w-full bg-slate-800 rounded overflow-hidden flex shadow-inner">
           <div
-            style={{ width: `${stBarPct}%` }}
-            className="bg-violet-500 hover:bg-violet-600 transition-all relative group cursor-pointer"
-            title={`Subst. Tributária: ${formatCurrencyBRL(substTributariaValor)} (${substTributariaPct.toFixed(1)}%)`}
+            style={{ width: `${Math.max(0, Math.min(100, custoTotalPctCalculado))}%` }}
+            className="bg-amber-500 hover:bg-amber-400 transition-all cursor-pointer"
+            title={`Custo Total do Produto (todos os custos): ${formatCurrencyBRL(custoTotalCalculado)} (${custoTotalPctCalculado.toFixed(1)}%)`}
           />
-        )}
-        {temRateioFixo && (
           <div
-            style={{ width: `${cfPct}%` }}
-            className="bg-purple-500 hover:bg-purple-600 transition-all relative group cursor-pointer"
-            title={`Custo Fixo Rateado: ${formatCurrencyBRL(custoFixoRateado)} (${custoFixoRateadoPct}%)`}
+            style={{ width: `${lPct}%` }}
+            className="bg-emerald-500 hover:bg-emerald-400 transition-all cursor-pointer"
+            title={`Lucro Líquido: ${formatCurrencyBRL(lucroUnitario)} (${lucroPct.toFixed(1)}%)`}
           />
-        )}
-        {temCustoFixoPct && (
+        </div>
+
+        {/* Indicadores numéricos dos 2 blocos principais */}
+        <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
+          <div className="p-2 rounded-lg bg-white/10 border border-white/10 flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
+                <span className="text-[11px] font-bold text-amber-200">Custo Total do Produto</span>
+              </div>
+              <p className="text-[10px] text-slate-300">Todos custos somados (exceto lucro)</p>
+            </div>
+            <div className="text-right">
+              <div className="font-mono font-extrabold text-amber-300 text-xs sm:text-sm">
+                {formatCurrencyBRL(custoTotalCalculado)}
+              </div>
+              <div className="text-[10px] font-mono text-amber-200/80 font-bold">
+                {custoTotalPctCalculado.toFixed(1)}% do preço
+              </div>
+            </div>
+          </div>
+
+          <div className="p-2 rounded-lg bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+                <span className="text-[11px] font-bold text-emerald-200">Lucro Líquido</span>
+              </div>
+              <p className="text-[10px] text-emerald-300/80">Margem limpa separada</p>
+            </div>
+            <div className="text-right">
+              <div className="font-mono font-extrabold text-emerald-300 text-xs sm:text-sm">
+                {formatCurrencyBRL(lucroUnitario)}
+              </div>
+              <div className="text-[10px] font-mono text-emerald-200/80 font-bold">
+                {lucroPct.toFixed(1)}% do preço
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Barra segmentada horizontal contínua de 100% com todas as fatias */}
+      <div className="space-y-1">
+        <div className="flex items-center justify-between text-[11px] text-slate-600 font-semibold px-0.5">
+          <span>Detalhamento por componente:</span>
+          <span className="font-mono text-[10px] text-slate-500">
+            Passe o cursor para ver valores
+          </span>
+        </div>
+        <div className="h-4 w-full bg-slate-200 rounded-md overflow-hidden flex shadow-inner">
           <div
-            style={{ width: `${custoFixoBarPct}%` }}
-            className="bg-teal-500 hover:bg-teal-600 transition-all relative group cursor-pointer"
-            title={`Custo Fixo (%): ${formatCurrencyBRL(custoFixoValor)} (${custoFixoPctDoPreco.toFixed(1)}%)`}
+            style={{ width: `${cPct}%` }}
+            className="bg-amber-500 hover:bg-amber-600 transition-all relative group cursor-pointer"
+            title={
+              temSubstTributaria
+                ? `Custo Aquisição: ${formatCurrencyBRL(custoAquisicao)} (${custoAquisicaoPct.toFixed(1)}%)`
+                : `Custo Direto: ${formatCurrencyBRL(custoDiretoTotal)} (${custoDiretoPct.toFixed(1)}%)`
+            }
           />
-        )}
-        <div
-          style={{ width: `${fPct}%` }}
-          className="bg-sky-500 hover:bg-sky-600 transition-all relative group cursor-pointer"
-          title={`Despesas Fixas: ${formatCurrencyBRL(despesaFixaValor)} (${despesaFixaPct}%)`}
-        />
-        <div
-          style={{ width: `${vPct}%` }}
-          className="bg-indigo-500 hover:bg-indigo-600 transition-all relative group cursor-pointer"
-          title={`Custos Variáveis: ${formatCurrencyBRL(custosVariaveisValor)} (${custosVariaveisPct}%)`}
-        />
-        <div
-          style={{ width: `${lPct}%` }}
-          className="bg-emerald-500 hover:bg-emerald-600 transition-all relative group cursor-pointer"
-          title={`Lucro Líquido: ${formatCurrencyBRL(lucroUnitario)} (${lucroPct}%)`}
-        />
+          {temSubstTributaria && (
+            <div
+              style={{ width: `${stBarPct}%` }}
+              className="bg-violet-500 hover:bg-violet-600 transition-all relative group cursor-pointer"
+              title={`Subst. Tributária: ${formatCurrencyBRL(substTributariaValor)} (${substTributariaPct.toFixed(1)}%)`}
+            />
+          )}
+          {temRateioFixo && (
+            <div
+              style={{ width: `${cfPct}%` }}
+              className="bg-purple-500 hover:bg-purple-600 transition-all relative group cursor-pointer"
+              title={`Custo Fixo Rateado: ${formatCurrencyBRL(custoFixoRateado)} (${custoFixoRateadoPct}%)`}
+            />
+          )}
+          {temCustoFixoPct && (
+            <div
+              style={{ width: `${custoFixoBarPct}%` }}
+              className="bg-teal-500 hover:bg-teal-600 transition-all relative group cursor-pointer"
+              title={`Custo Fixo (%): ${formatCurrencyBRL(custoFixoValor)} (${custoFixoPctDoPreco.toFixed(1)}%)`}
+            />
+          )}
+          <div
+            style={{ width: `${fPct}%` }}
+            className="bg-sky-500 hover:bg-sky-600 transition-all relative group cursor-pointer"
+            title={`Despesas Fixas: ${formatCurrencyBRL(despesaFixaValor)} (${despesaFixaPct}%)`}
+          />
+          <div
+            style={{ width: `${vPct}%` }}
+            className="bg-indigo-500 hover:bg-indigo-600 transition-all relative group cursor-pointer"
+            title={`Custos Variáveis: ${formatCurrencyBRL(custosVariaveisValor)} (${custosVariaveisPct}%)`}
+          />
+          <div
+            style={{ width: `${lPct}%` }}
+            className="bg-emerald-500 hover:bg-emerald-600 transition-all relative group cursor-pointer"
+            title={`Lucro Líquido: ${formatCurrencyBRL(lucroUnitario)} (${lucroPct}%)`}
+          />
+        </div>
       </div>
 
       {/* Fatias Detalhadas tipo Cascata */}
