@@ -1035,7 +1035,7 @@ export default function Precificacao() {
                   variant="outline"
                   className="border-indigo-200 bg-indigo-50 text-indigo-700 text-[10px] font-bold"
                 >
-                  v0.0.227
+                  v0.0.228
                 </Badge>{' '}
               </div>
               <p className="text-xs text-slate-500">
@@ -1340,15 +1340,11 @@ export default function Precificacao() {
                               Custo Total do Produto:
                             </span>
                             <span className="text-base font-extrabold font-mono text-amber-950">
-                              {formatCurrencyBRL(
-                                calcResult1?.isPossible
-                                  ? calcResult1.custoTotalCompleto
-                                  : calcResult1?.custoTotalProduto || 0,
-                              )}
+                              {formatCurrencyBRL(calcResult1?.custoTotalCompleto || 0)}
                             </span>
-                            {calcResult1?.isPossible && (
+                            {(calcResult1?.custoTotalCompletoPct || 0) > 0 && (
                               <span className="text-[11px] font-mono text-amber-800 font-bold">
-                                ({calcResult1.custoTotalCompletoPct}%)
+                                ({calcResult1?.custoTotalCompletoPct}%)
                               </span>
                             )}
                           </div>
@@ -2054,15 +2050,11 @@ export default function Precificacao() {
                             Custo Total do Produto:
                           </span>
                           <span className="text-base font-extrabold font-mono text-amber-950">
-                            {formatCurrencyBRL(
-                              calcResult2?.isPossible
-                                ? calcResult2.custoTotalCompleto
-                                : calcResult2?.custoTotalProduto || 0,
-                            )}
+                            {formatCurrencyBRL(calcResult2?.custoTotalCompleto || 0)}
                           </span>
-                          {calcResult2?.isPossible && (
+                          {(calcResult2?.custoTotalCompletoPct || 0) > 0 && (
                             <span className="text-[11px] font-mono text-amber-800 font-bold">
-                              ({calcResult2.custoTotalCompletoPct}%)
+                              ({calcResult2?.custoTotalCompletoPct}%)
                             </span>
                           )}
                         </div>
@@ -2661,15 +2653,11 @@ export default function Precificacao() {
                             Custo Total do Produto:
                           </span>
                           <span className="text-base font-extrabold font-mono text-amber-950">
-                            {formatCurrencyBRL(
-                              calcResult3?.isPossible
-                                ? calcResult3.custoTotalCompleto
-                                : calcResult3?.custoTotalProduto || 0,
-                            )}
+                            {formatCurrencyBRL(calcResult3?.custoTotalCompleto || 0)}
                           </span>
-                          {calcResult3?.isPossible && (
+                          {(calcResult3?.custoTotalCompletoPct || 0) > 0 && (
                             <span className="text-[11px] font-mono text-amber-800 font-bold">
-                              ({calcResult3.custoTotalCompletoPct}%)
+                              ({calcResult3?.custoTotalCompletoPct}%)
                             </span>
                           )}
                         </div>

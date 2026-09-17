@@ -665,7 +665,12 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
   const somaDeducoesPct = custoFixoPct + despesaFixaPct + custosVariaveisPct + lucratividadePct
   const divisorDecimal = 1 - somaDeducoesPct / 100
 
+  // Quando divisorDecimal <= 0.0001 (markup impossível), ainda assim calculamos o custo consolidado
+  // conhecido até ali (custo direto + rateio fixo, ou custo direto se não houver preço de venda para calcular % de despesas).
+  // Se houver percentual de custos/despesas sobre a base direta ou se o preço não puder ser calculado,
+  // custoTotalCompleto não deve ser zero e deve refletir a base de custo com rateio fixo conhecida.
   if (divisorDecimal <= 0.0001) {
+    const custoConsolidadoAntecipado = custoBaseComRateio
     return {
       custoProdutoBRL,
       custoProdutoUSD,
@@ -679,7 +684,7 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
       substTributariaPct,
       substTributariaValor,
       custoTotalProduto,
-      custoTotalCompleto: custoTotalProduto,
+      custoTotalCompleto: custoConsolidadoAntecipado,
       custoTotalCompletoPct: 0,
       custoDiretoTotal,
       custoBaseComRateio,
@@ -698,6 +703,10 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
       salePrice: 0,
       lucroUnitario: 0,
       fatias: {
+        custoTotalCompleto: {
+          valor: custoConsolidadoAntecipado,
+          pct: 0,
+        },
         custoDireto: { valor: 0, pct: 0 },
         custoAquisicao: { valor: 0, pct: 0 },
         substTributaria: { valor: 0, pct: 0 },
