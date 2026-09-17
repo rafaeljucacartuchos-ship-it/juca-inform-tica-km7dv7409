@@ -1633,6 +1633,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
             <Button
               variant="ghost"
               size="icon"
+              data-workspace-inner-close={onClose ? 'true' : undefined}
               onClick={() => {
                 if (onClose) {
                   onClose()
@@ -1645,7 +1646,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                 }
               }}
               className="h-9 w-9 shrink-0"
-              title={onClose ? 'Fechar detalhes' : 'Voltar'}
+              title={onClose ? 'Fechar detalhes (ESC)' : 'Voltar'}
             >
               {onClose ? <X className="h-5 w-5" /> : <ArrowLeft className="h-4 w-4" />}
             </Button>

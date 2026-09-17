@@ -433,9 +433,17 @@ export default function OrcamentosList() {
   const handleOpenOrcamento = (orcId: string) => {
     if (!isMobile) {
       setSelectedOrcamentoId(orcId)
+      // Mantém a URL sincronizada para restaurar caso recarregue ou reative
+      window.history.replaceState(null, '', `/orcamentos/${orcId}`)
     } else {
       navigate(`/orcamentos/${orcId}`)
     }
+  }
+
+  const handleCloseOrcamentoDetail = () => {
+    setSelectedOrcamentoId(null)
+    window.history.replaceState(null, '', '/orcamentos')
+    loadData()
   }
 
   const buildOrcamentoActions = (orc: Orcamento): RecordActionItem[] => {
@@ -500,6 +508,16 @@ export default function OrcamentosList() {
     return res
   }, [orcamentos])
 
+  // No desktop, ao carregar por rota /orcamentos/:id ou se a URL indicar um ID, podemos sincronizar
+  useEffect(() => {
+    if (!isMobile) {
+      const match = window.location.pathname.match(/^\/orcamentos\/([a-zA-Z0-9_-]+)$/)
+      if (match && match[1] && match[1] !== 'novo') {
+        setSelectedOrcamentoId(match[1])
+      }
+    }
+  }, [isMobile])
+
   // Submissão do modal de novo orçamento
   const handleCreate = async () => {
     if (vincularOs && !selectedOsId) {
@@ -548,9 +566,9 @@ export default function OrcamentosList() {
       })
 
       setCreateModalOpen(false)
-      // Abre os detalhes do novo orçamento (no modal se desktop, ou navega se mobile)
+      // Abre os detalhes do novo orçamento (direto no container se desktop, ou navega se mobile)
       if (!isMobile) {
-        setSelectedOrcamentoId(created.id)
+        handleOpenOrcamento(created.id)
         loadData()
       } else {
         navigate(`/orcamentos/${created.id}`)
@@ -573,6 +591,17 @@ export default function OrcamentosList() {
     }
     return availableOrders.find((o) => o.id === selectedOsId) || selectedOsObject || null
   }, [availableOrders, selectedOsId, selectedOsObject])
+
+  // No desktop, quando um orçamento for selecionado para visualização/edição,
+  // renderizamos <OrcamentoDetail> DIRETAMENTE no container principal da aba (sem modal/backdrop/overlay escuro),
+  // ficando exatamente enquadrado na mesma largura e altura das outras telas, com sidebar e abas intactas.
+  if (!isMobile && selectedOrcamentoId) {
+    return (
+      <div className="w-full">
+        <OrcamentoDetail orcamentoId={selectedOrcamentoId} onClose={handleCloseOrcamentoDetail} />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -1224,38 +1253,6 @@ export default function OrcamentosList() {
               {creating ? 'Criando...' : 'Criar Orçamento'}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Painel / Modal Grande Sobreposto para Detalhes do Orçamento no Desktop (v0.0.220) */}
-      <Dialog
-        open={!isMobile && Boolean(selectedOrcamentoId)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedOrcamentoId(null)
-            loadData()
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-6xl w-[94vw] h-[92vh] max-h-[92vh] p-4 sm:p-6 flex flex-col overflow-hidden bg-white shadow-2xl border-slate-200">
-          <DialogHeader className="sr-only">
-            <DialogTitle>Detalhes do Orçamento</DialogTitle>
-            <DialogDescription>
-              Visualização e edição do orçamento com painel sobreposto à lista.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex-1 overflow-y-auto pr-1">
-            {selectedOrcamentoId && (
-              <OrcamentoDetail
-                orcamentoId={selectedOrcamentoId}
-                onClose={() => {
-                  setSelectedOrcamentoId(null)
-                  loadData()
-                }}
-              />
-            )}
-          </div>
         </DialogContent>
       </Dialog>
     </div>

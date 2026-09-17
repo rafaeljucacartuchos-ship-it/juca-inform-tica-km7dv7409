@@ -14,7 +14,20 @@ export function useWorkspaceEscShortcut() {
       if (e.key !== 'Escape') return
       if (!isDesktopWorkspace) return
 
-      // Verifica se há modais, alertas, dropdowns, sheets ou menus abertos
+      // Prioridade 1: Telas internas/filhas com botão de fechar customizado (ex: [data-workspace-inner-close])
+      // Se houver uma tela interna montada diretamente no container (ex: detalhe de orçamento aberto na lista),
+      // o ESC aciona o fechamento da tela filha antes de tentar fechar a aba inteira.
+      const innerCloseBtn = document.querySelector<HTMLButtonElement>(
+        '[data-workspace-inner-close="true"]:not([disabled])',
+      )
+      if (innerCloseBtn) {
+        e.preventDefault()
+        e.stopPropagation()
+        innerCloseBtn.click()
+        return
+      }
+
+      // Prioridade 2: Modais, alertas, dropdowns, sheets ou menus abertos
       // Radix UI e componentes shadcn definem role="dialog", role="alertdialog", role="menu", etc.
       // e atributos data-state="open".
       const hasOpenModal = Boolean(
@@ -28,7 +41,7 @@ export function useWorkspaceEscShortcut() {
         return
       }
 
-      // Se nenhum modal estiver aberto, fecha a aba ativa
+      // Prioridade 3: Se nenhum elemento interno estiver aberto, fecha a aba ativa do workspace
       e.preventDefault()
       closeActiveTab()
     },

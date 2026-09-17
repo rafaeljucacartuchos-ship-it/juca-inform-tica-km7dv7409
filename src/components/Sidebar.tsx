@@ -151,7 +151,7 @@ export function Sidebar({ onNavClick }: SidebarProps) {
     (path !== '/' && path !== '/relatorios' && location.pathname.startsWith(path))
 
   // Ao clicar em um módulo no desktop:
-  // Se já existe aba aberta daquele módulo, ativa ela na última tela em que estava;
+  // Se já existe aba aberta daquele módulo, ativa ela na última tela em que estava (keep-alive);
   // se não existe, navega normalmente (o que abrirá uma nova aba).
   const handleModuleClick = (e: React.MouseEvent, targetPath: string) => {
     if (onNavClick) {
@@ -163,10 +163,14 @@ export function Sidebar({ onNavClick }: SidebarProps) {
     }
 
     const { moduleKey } = getModuleInfoFromPath(targetPath)
-    // Procura se já há uma aba ativa desse módulo
+    // Procura se já há uma aba desse módulo aberta no workspace
+    // Ordena priorizando a que coincide com o moduleKey ou cujo path inicia por targetPath
     const existingTab = tabs.find(
       (t) =>
-        t.moduleKey === moduleKey || t.basePath === targetPath || t.path.startsWith(targetPath),
+        t.moduleKey === moduleKey ||
+        t.basePath === targetPath ||
+        t.path.startsWith(targetPath + '/') ||
+        t.path === targetPath,
     )
 
     if (existingTab) {

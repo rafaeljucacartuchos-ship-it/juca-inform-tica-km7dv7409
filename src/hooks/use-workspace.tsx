@@ -48,13 +48,13 @@ export function getModuleInfoFromPath(pathname: string): {
   }
   if (pathname.startsWith('/ordens')) {
     if (pathname === '/ordens') return { moduleKey: 'ordens', defaultTitle: 'Ordens de Serviço' }
-    return { moduleKey: 'ordens_detail', defaultTitle: 'Ordem de Serviço' }
+    return { moduleKey: 'ordens', defaultTitle: 'Ordem de Serviço' }
   }
   if (pathname.startsWith('/orcamentos')) {
     if (pathname === '/orcamentos') return { moduleKey: 'orcamentos', defaultTitle: 'Orçamentos' }
     if (pathname === '/orcamentos/novo')
-      return { moduleKey: 'orcamentos_novo', defaultTitle: 'Novo Orçamento' }
-    return { moduleKey: 'orcamentos_detail', defaultTitle: 'Orçamento' }
+      return { moduleKey: 'orcamentos', defaultTitle: 'Novo Orçamento' }
+    return { moduleKey: 'orcamentos', defaultTitle: 'Orçamento' }
   }
   if (pathname.startsWith('/precificacao')) {
     return { moduleKey: 'precificacao', defaultTitle: 'Precificação' }
@@ -73,7 +73,7 @@ export function getModuleInfoFromPath(pathname: string): {
   }
   if (pathname.startsWith('/clientes')) {
     if (pathname === '/clientes') return { moduleKey: 'clientes', defaultTitle: 'Clientes' }
-    return { moduleKey: 'clientes_detail', defaultTitle: 'Cliente' }
+    return { moduleKey: 'clientes', defaultTitle: 'Cliente' }
   }
   if (pathname.startsWith('/servicos')) {
     return { moduleKey: 'servicos', defaultTitle: 'Serviços' }

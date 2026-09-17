@@ -1085,9 +1085,10 @@ export default function OrdemDetail() {
             <Button
               variant="outline"
               size="sm"
+              data-workspace-inner-close="true"
               onClick={() => navigate('/ordens')}
               className="h-9 gap-1.5 shrink-0 text-xs font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 shadow-xs"
-              title="Voltar para a listagem de Ordens de Serviço"
+              title="Voltar para a listagem de Ordens de Serviço (ESC)"
             >
               <ArrowLeft className="h-4 w-4" />
               <span>Voltar</span>

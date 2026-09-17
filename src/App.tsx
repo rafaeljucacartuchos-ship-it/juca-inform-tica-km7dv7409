@@ -101,10 +101,10 @@ const App = () => {
                       <Route element={<PermissionRoute module="ordens" />}>
                         <Route path="/ordens/:id/imprimir" element={<OrdemPrint />} />
                         <Route path="/ordens/:id/assinatura" element={<OrdemAssinatura />} />
-                        <Route path="/orcamentos/novo" element={<OrcamentoDetail />} />
-                        <Route path="/orcamentos/:id" element={<OrcamentoDetail />} />
+                      </Route>
+                      <Route element={<PermissionRoute module="orcamentos" />}>
                         <Route path="/orcamentos/:id/imprimir" element={<OrcamentoPrint />} />
-                      </Route>{' '}
+                      </Route>
                       <Route element={<PermissionRoute module="relatorios" />}>
                         <Route
                           path="/relatorios/categorias/imprimir"
@@ -120,6 +120,8 @@ const App = () => {
                         </Route>
                         <Route element={<PermissionRoute module="orcamentos" />}>
                           <Route path="/orcamentos" element={<OrcamentosList />} />
+                          <Route path="/orcamentos/novo" element={<OrcamentoDetail />} />
+                          <Route path="/orcamentos/:id" element={<OrcamentoDetail />} />
                         </Route>
                         <Route element={<PermissionRoute module="precificacao" />}>
                           <Route path="/precificacao" element={<Precificacao />} />
