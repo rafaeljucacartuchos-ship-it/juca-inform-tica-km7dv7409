@@ -313,7 +313,7 @@ export function Sidebar({ onNavClick }: SidebarProps) {
                 isPathActive('/tecnicos') ? 'text-indigo-400' : 'text-slate-400',
               )}
             />
-            <span>Técnico</span>
+            <span>Usuários &amp; Permissões</span>
           </Link>
         )}
       </nav>
