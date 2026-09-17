@@ -110,6 +110,7 @@ import {
 } from '@/lib/whatsapp'
 import { generateRandomToken } from '@/services/orcamentos'
 import { useDraftState } from '@/hooks/use-draft-state'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 const STATUS_CONFIG: Record<
   OrcamentoStatus,
@@ -680,14 +681,32 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
 
   // Adição direta de linha de serviço cadastrado
   const handleSelectServicoCadastrado = async (servico: SelectedServicoCadastrado) => {
-    if (!id || isLocked) return
-    const unitPrice = servico.valorUnitario || 0
+    if (isLocked) {
+      toast({
+        title: 'Orçamento bloqueado',
+        description: 'Orçamento faturado ou substituído não permite inclusão de serviços.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!id) {
+      toast({
+        title: 'Orçamento inválido',
+        description: 'Identificador do orçamento não informado ou inválido.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const unitPrice = Number(servico.valorUnitario) || 0
+
     if (isNew) {
       const newItem: OrcamentoItem = {
         id: `draft-item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         id_orcamento: 'novo',
         tipo: 'servico',
-        id_produto: servico.id,
+        id_produto: null,
         descricao: servico.descricao,
         quantidade: 1,
         valor_unitario: unitPrice,
@@ -709,7 +728,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
       await createOrcamentoItem({
         id_orcamento: id,
         tipo: 'servico',
-        id_produto: servico.id,
+        id_produto: null,
         descricao: servico.descricao,
         quantidade: 1,
         valor_unitario: unitPrice,
@@ -723,8 +742,13 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
         description: `${servico.descricao} (R$ ${unitPrice.toFixed(2)})`,
       })
       await loadAll()
-    } catch {
-      toast({ title: 'Erro ao incluir serviço selecionado', variant: 'destructive' })
+    } catch (err) {
+      const detailMsg = getErrorMessage(err)
+      toast({
+        title: 'Erro ao incluir serviço selecionado',
+        description: detailMsg || 'Não foi possível registrar o serviço no orçamento.',
+        variant: 'destructive',
+      })
     }
   }
 
