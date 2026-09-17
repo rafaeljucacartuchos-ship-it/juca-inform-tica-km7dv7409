@@ -422,6 +422,7 @@ export interface Orcamento {
   subtotal?: number
   total_geral?: number
   token_acesso?: string
+  enviado_em?: string
   created?: string
   updated?: string
   expand?: {

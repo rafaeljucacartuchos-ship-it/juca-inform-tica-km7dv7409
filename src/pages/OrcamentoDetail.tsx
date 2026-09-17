@@ -947,21 +947,29 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
       /* intentionally ignored */
     }
 
-    // Transição de status do orçamento: rascunho/aguardando_aprovacao -> enviado
-    if (orcamento.status === 'rascunho' || orcamento.status === 'aguardando_aprovacao') {
-      try {
-        await updateOrcamento(orcamento.id, { status: 'enviado' })
-        if (orcamento.id_os) {
-          await updateOsStatus(
-            orcamento.id_os,
-            'orcamento_enviado',
-            `Orçamento ${orcamento.numero_orcamento} enviado ao cliente via WhatsApp`,
-            user?.id,
-          )
-        }
-      } catch {
-        /* intentionally ignored */
+    // Atualização de status e registro/renovação de enviado_em ao encaminhar ao cliente
+    try {
+      const nowIso = new Date().toISOString()
+      const updateData: Partial<Orcamento> = {
+        enviado_em: nowIso,
       }
+      if (orcamento.status === 'rascunho' || orcamento.status === 'aguardando_aprovacao') {
+        updateData.status = 'enviado'
+      }
+      await updateOrcamento(orcamento.id, updateData)
+      if (
+        orcamento.id_os &&
+        (orcamento.status === 'rascunho' || orcamento.status === 'aguardando_aprovacao')
+      ) {
+        await updateOsStatus(
+          orcamento.id_os,
+          'orcamento_enviado',
+          `Orçamento ${orcamento.numero_orcamento} enviado ao cliente via WhatsApp`,
+          user?.id,
+        )
+      }
+    } catch {
+      /* intentionally ignored */
     }
 
     openWhatsApp(phone, defaultMsg)
@@ -1038,21 +1046,29 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
       /* intentionally ignored */
     }
 
-    // Transição de status do orçamento: rascunho/aguardando_aprovacao -> enviado
-    if (orcamento.status === 'rascunho' || orcamento.status === 'aguardando_aprovacao') {
-      try {
-        await updateOrcamento(orcamento.id, { status: 'enviado' })
-        if (orcamento.id_os) {
-          await updateOsStatus(
-            orcamento.id_os,
-            'orcamento_enviado',
-            `Link da proposta online ${orcamento.numero_orcamento} enviado ao cliente via WhatsApp`,
-            user?.id,
-          )
-        }
-      } catch {
-        /* intentionally ignored */
+    // Atualização de status e registro/renovação de enviado_em ao encaminhar link ao cliente
+    try {
+      const nowIso = new Date().toISOString()
+      const updateData: Partial<Orcamento> = {
+        enviado_em: nowIso,
       }
+      if (orcamento.status === 'rascunho' || orcamento.status === 'aguardando_aprovacao') {
+        updateData.status = 'enviado'
+      }
+      await updateOrcamento(orcamento.id, updateData)
+      if (
+        orcamento.id_os &&
+        (orcamento.status === 'rascunho' || orcamento.status === 'aguardando_aprovacao')
+      ) {
+        await updateOsStatus(
+          orcamento.id_os,
+          'orcamento_enviado',
+          `Link da proposta online ${orcamento.numero_orcamento} enviado ao cliente via WhatsApp`,
+          user?.id,
+        )
+      }
+    } catch {
+      /* intentionally ignored */
     }
 
     openWhatsApp(phone, msg)
@@ -1079,10 +1095,36 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
       text: msg,
     }
 
+    // Ao compartilhar, também atualiza data de envio
+    try {
+      const nowIso = new Date().toISOString()
+      const updateData: Partial<Orcamento> = {
+        enviado_em: nowIso,
+      }
+      if (orcamento.status === 'rascunho' || orcamento.status === 'aguardando_aprovacao') {
+        updateData.status = 'enviado'
+      }
+      await updateOrcamento(orcamento.id, updateData)
+      if (
+        orcamento.id_os &&
+        (orcamento.status === 'rascunho' || orcamento.status === 'aguardando_aprovacao')
+      ) {
+        await updateOsStatus(
+          orcamento.id_os,
+          'orcamento_enviado',
+          `Link da proposta online ${orcamento.numero_orcamento} compartilhado`,
+          user?.id,
+        )
+      }
+    } catch {
+      /* ignore */
+    }
+
     if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
       try {
         await navigator.share(shareData)
         toast({ title: 'Orçamento compartilhado com sucesso!' })
+        loadAll()
       } catch (err: any) {
         if (err?.name !== 'AbortError') {
           navigator.clipboard.writeText(msg)
@@ -1092,6 +1134,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
     } else {
       navigator.clipboard.writeText(msg)
       toast({ title: 'Mensagem copiada para a área de transferência!' })
+      loadAll()
     }
   }
 
