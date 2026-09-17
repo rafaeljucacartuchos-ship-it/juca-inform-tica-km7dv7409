@@ -681,7 +681,7 @@ export default function Dashboard() {
                   </th>
                   <th
                     className="py-2.5 px-3 text-center bg-emerald-50/50 font-bold text-emerald-900 border-l border-emerald-100"
-                    colSpan={5}
+                    colSpan={6}
                   >
                     Orçamentos sem Vínculo O.S.
                   </th>
@@ -696,21 +696,24 @@ export default function Dashboard() {
                   <th className="py-2 px-3 text-right bg-blue-50/30 font-bold text-blue-950">
                     Valor Total O.S.
                   </th>
-                  {/* Orçamentos sem Vínculo O.S. */}
-                  <th className="py-2 px-3 text-right bg-emerald-50/30 border-l border-emerald-100">
-                    Orç. sem Vínculo Criados
+                  {/* Orçamentos sem Vínculo O.S. - Limpos sem prefixo repetido (v0.0.232) */}
+                  <th className="py-2 px-3 text-right bg-emerald-50/30 border-l border-emerald-100 font-bold text-slate-800">
+                    Criados
                   </th>
                   <th className="py-2 px-3 text-right bg-emerald-50/30 text-emerald-700 font-bold">
-                    Orç. sem Vínculo Aprovados
+                    Aprovados
                   </th>
-                  <th className="py-2 px-3 text-right bg-emerald-50/30 text-amber-700">
-                    Orç. sem Vínculo Pendentes
+                  <th className="py-2 px-3 text-right bg-emerald-50/30 text-amber-700 font-bold">
+                    Pendentes
                   </th>
-                  <th className="py-2 px-3 text-right bg-emerald-50/30 text-rose-700">
-                    Orç. sem Vínculo Rejeitados
+                  <th className="py-2 px-3 text-right bg-emerald-50/30 text-rose-700 font-bold">
+                    Rejeitados
+                  </th>
+                  <th className="py-2 px-3 text-right bg-emerald-100/60 text-emerald-950 font-extrabold border-l border-emerald-200">
+                    TOTAL
                   </th>
                   <th className="py-2 px-3 text-right bg-emerald-50/30 font-bold text-emerald-950">
-                    Valor Aprovados sem Vínculo
+                    Valor Aprovado (R$)
                   </th>
                 </tr>
               </thead>
@@ -753,6 +756,9 @@ export default function Dashboard() {
                     <td className="py-3 px-3 text-right tabular-nums font-medium text-rose-700">
                       {row.orcRejeitados}
                     </td>
+                    <td className="py-3 px-3 text-right tabular-nums font-extrabold text-emerald-950 bg-emerald-100/50 border-l border-emerald-200">
+                      {row.orcTotal}
+                    </td>
                     <td className="py-3 px-3 text-right tabular-nums font-bold text-emerald-800 bg-emerald-50/40">
                       {formatCurrencyBRL(row.orcValorAprovados)}
                     </td>
@@ -761,7 +767,7 @@ export default function Dashboard() {
 
                 {technicianProduction.rows.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="py-8 text-center text-muted-foreground font-medium">
+                    <td colSpan={10} className="py-8 text-center text-muted-foreground font-medium">
                       Nenhum técnico com perfil "technician" localizado.
                     </td>
                   </tr>
@@ -793,6 +799,9 @@ export default function Dashboard() {
                   </td>
                   <td className="py-3 px-3 text-right tabular-nums text-rose-800">
                     {technicianProduction.totals.orcRejeitados}
+                  </td>
+                  <td className="py-3 px-3 text-right tabular-nums font-black text-emerald-950 bg-emerald-200/50 border-l border-slate-300">
+                    {technicianProduction.totals.orcTotal}
                   </td>
                   <td className="py-3 px-3 text-right tabular-nums text-emerald-900">
                     {formatCurrencyBRL(technicianProduction.totals.orcValorAprovados)}

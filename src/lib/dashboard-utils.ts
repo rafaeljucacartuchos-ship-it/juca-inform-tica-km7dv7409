@@ -464,11 +464,12 @@ export interface TechnicianProductionRow {
   osCriadas: number
   osConcluidas: number
   osValorTotal: number
-  // (b) Orçamentos
+  // (b) Orçamentos sem Vínculo O.S.
   orcCriados: number
   orcAprovados: number
   orcPendentes: number
   orcRejeitados: number
+  orcTotal: number
   orcValorAprovados: number
 }
 
@@ -482,6 +483,7 @@ export interface TechnicianProductionSummary {
     orcAprovados: number
     orcPendentes: number
     orcRejeitados: number
+    orcTotal: number
     orcValorAprovados: number
   }
 }
@@ -560,6 +562,9 @@ export function computeTechnicianProduction(
       .filter((orc) => orc.status === 'aprovado' || orc.status === 'faturado')
       .reduce((sum, orc) => sum + (orc.total_geral || 0), 0)
 
+    // v0.0.232: Soma Total de orçamentos sem vínculo do técnico (Criados)
+    const orcTotal = orcCriados
+
     return {
       technicianId: tech.id,
       technicianName: tech.name || 'Técnico',
@@ -570,6 +575,7 @@ export function computeTechnicianProduction(
       orcAprovados,
       orcPendentes,
       orcRejeitados,
+      orcTotal,
       orcValorAprovados,
     }
   })
@@ -586,6 +592,7 @@ export function computeTechnicianProduction(
       orcAprovados: acc.orcAprovados + r.orcAprovados,
       orcPendentes: acc.orcPendentes + r.orcPendentes,
       orcRejeitados: acc.orcRejeitados + r.orcRejeitados,
+      orcTotal: acc.orcTotal + r.orcTotal,
       orcValorAprovados: acc.orcValorAprovados + r.orcValorAprovados,
     }),
     {
@@ -596,6 +603,7 @@ export function computeTechnicianProduction(
       orcAprovados: 0,
       orcPendentes: 0,
       orcRejeitados: 0,
+      orcTotal: 0,
       orcValorAprovados: 0,
     },
   )
