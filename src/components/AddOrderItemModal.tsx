@@ -14,6 +14,7 @@ type SearchResult = {
   id: string
   kind: 'product' | 'service'
   name: string
+  description?: string
   price: number
   raw: Product | CatalogService
 }
@@ -109,6 +110,7 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
             id: p.id,
             kind: isService ? ('service' as const) : ('product' as const),
             name: p.name || (isService ? 'Serviço' : 'Produto'),
+            description: p.description?.trim() || undefined,
             price: p.price || 0,
             raw: p,
           }
@@ -127,6 +129,7 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
             id: s.id,
             kind: 'service' as const,
             name: s.title || s.name || 'Serviço',
+            description: s.description?.trim() || undefined,
             price: s.price || 0,
             raw: s,
           }))
@@ -163,11 +166,18 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
     try {
       // Se for um item de catálogo legado (kind == service e não é do tipo Product)
       const isLegacyService = selectedItem.kind === 'service' && !('type' in selectedItem.raw)
+      const fullDesc =
+        selectedItem.description &&
+        selectedItem.description.trim() &&
+        selectedItem.description.trim() !== selectedItem.name.trim()
+          ? `${selectedItem.name} — ${selectedItem.description.trim()}`
+          : selectedItem.name
+
       await createOrderItem({
         service_order: orderId,
         service: isLegacyService ? selectedItem.id : undefined,
         product: !isLegacyService ? selectedItem.id : undefined,
-        description: selectedItem.name,
+        description: fullDesc,
         quantity: validQty,
         unit_price: validUnitPrice,
         total: itemSubtotal,
@@ -211,7 +221,7 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-full sm:max-w-lg h-[100dvh] sm:h-auto max-h-[var(--app-visible-height,100dvh)] sm:max-h-[90vh] rounded-none sm:rounded-lg p-0 gap-0 flex flex-col overflow-hidden">
+      <DialogContent className="w-full max-w-full sm:max-w-2xl lg:max-w-3xl h-[100dvh] sm:h-auto max-h-[var(--app-visible-height,100dvh)] sm:max-h-[90vh] rounded-none sm:rounded-lg p-0 gap-0 flex flex-col overflow-hidden">
         {/* Cabeçalho fixo (shrink-0) */}
         <DialogHeader className="px-4 py-3 sm:px-5 sm:pt-4 sm:pb-2 border-b border-slate-100 shrink-0">
           <DialogTitle className="text-base font-bold text-slate-900">
@@ -308,35 +318,47 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
                   type="button"
                   onClick={() => handleSelectItem(item)}
                   disabled={addingId !== null}
-                  className={`w-full flex items-center justify-between p-3 text-left transition-colors ${
+                  className={`w-full flex items-start justify-between gap-3 p-3 text-left transition-colors ${
                     isSelected
                       ? 'bg-indigo-50/80 ring-1 ring-inset ring-indigo-500'
                       : 'hover:bg-indigo-50/50'
                   } disabled:opacity-50 min-h-[48px]`}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                  <div className="flex items-start gap-2.5 min-w-0 flex-1">
                     {item.kind === 'product' ? (
-                      <Package className="h-4 w-4 text-indigo-600 shrink-0" />
+                      <Package className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
                     ) : (
-                      <Wrench className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <Wrench className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                     )}
-                    <div className="truncate">
-                      <span className="font-medium text-xs text-slate-900 truncate block">
+                    <div className="min-w-0 flex-1">
+                      <span className="font-semibold text-xs sm:text-sm text-slate-900 leading-snug block break-words">
                         {item.name}
                       </span>
-                      <Badge
-                        variant="outline"
-                        className={`text-[9px] px-1 py-0 h-4 mt-0.5 border-slate-200 ${
-                          item.kind === 'product' ? 'text-indigo-600' : 'text-emerald-600'
-                        }`}
-                      >
-                        {item.kind === 'product' ? 'Produto' : 'Serviço'}
-                      </Badge>
+                      {item.description && item.description.trim() !== item.name.trim() && (
+                        <p className="text-[11px] text-slate-600 mt-1 leading-relaxed break-words bg-slate-50 rounded px-2 py-1 border border-slate-100">
+                          {item.description}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <Badge
+                          variant="outline"
+                          className={`text-[9px] px-1.5 py-0 h-4 border-slate-200 font-medium ${
+                            item.kind === 'product' ? 'text-indigo-600' : 'text-emerald-600'
+                          }`}
+                        >
+                          {item.kind === 'product' ? 'Produto' : 'Serviço'}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
-                  <span className="font-mono font-bold text-xs text-slate-900 shrink-0 ml-2">
-                    R$ {(item.price || 0).toFixed(2)}
-                  </span>
+                  <div className="text-right shrink-0">
+                    <span className="font-mono font-bold text-xs sm:text-sm text-slate-900 block">
+                      R$ {(item.price || 0).toFixed(2)}
+                    </span>
+                    <span className="text-[10px] text-indigo-600 font-medium block mt-1">
+                      {isSelected ? '✓ Selecionado' : 'Selecionar'}
+                    </span>
+                  </div>
                 </button>
               )
             })}

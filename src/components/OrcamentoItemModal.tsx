@@ -11,6 +11,7 @@ import {
 import { getServices } from '@/services/services_catalog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
@@ -19,8 +20,11 @@ type SearchResult = {
   id: string
   kind: 'product' | 'service'
   name: string
+  description?: string
   price: number
   stockQuantity?: number
+  sku?: string
+  category?: string
   raw: Product | CatalogService
 }
 
@@ -137,8 +141,11 @@ export function OrcamentoItemModal({
             id: p.id,
             kind: isServ ? 'service' : 'product',
             name: p.name || (isServ ? 'Serviço' : 'Produto'),
+            description: p.description?.trim() || undefined,
             price: p.price || 0,
             stockQuantity: p.stock_quantity,
+            sku: p.sku || undefined,
+            category: p.category || undefined,
             raw: p,
           }
         })
@@ -150,6 +157,7 @@ export function OrcamentoItemModal({
             id: s.id,
             kind: 'service',
             name: s.title || s.name || 'Serviço',
+            description: s.description?.trim() || undefined,
             price: s.price || 0,
             raw: s,
           }))
@@ -206,7 +214,12 @@ export function OrcamentoItemModal({
 
   const handleSelectSearchResult = (res: SearchResult) => {
     setKind(res.kind === 'product' ? 'produto' : 'servico')
-    setDescricao(res.name)
+    // Preenche a descrição completa (nome + descrição detalhada quando houver)
+    const fullText =
+      res.description && res.description.trim() && res.description.trim() !== res.name.trim()
+        ? `${res.name} — ${res.description.trim()}`
+        : res.name
+    setDescricao(fullText)
     setSelectedProductId(res.id)
     const p = res.price || 0
     setValorUnitario(p)
@@ -414,7 +427,7 @@ export function OrcamentoItemModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-full sm:max-w-xl h-[100dvh] sm:h-auto max-h-[var(--app-visible-height,100dvh)] sm:max-h-[92vh] rounded-none sm:rounded-lg p-0 gap-0 flex flex-col overflow-hidden">
+      <DialogContent className="w-full max-w-full sm:max-w-2xl lg:max-w-3xl h-[100dvh] sm:h-auto max-h-[var(--app-visible-height,100dvh)] sm:max-h-[92vh] rounded-none sm:rounded-lg p-0 gap-0 flex flex-col overflow-hidden">
         <DialogHeader className="px-4 py-3 sm:px-5 sm:pt-4 sm:pb-2 border-b border-slate-100 shrink-0">
           <DialogTitle className="text-base font-bold text-slate-900">
             {isEditing
@@ -519,9 +532,9 @@ export function OrcamentoItemModal({
                   </div>
                 )}
 
-                {/* Lista flutuante de resultados com indicador de falta de estoque */}
+                {/* Lista flutuante de resultados com indicador de falta de estoque e DESCRIÇÃO COMPLETA */}
                 {results.length > 0 && (
-                  <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 bg-white border border-slate-200 rounded-md shadow-sm">
+                  <div className="max-h-64 sm:max-h-80 overflow-y-auto divide-y divide-slate-100 bg-white border border-slate-200 rounded-md shadow-sm">
                     {results
                       .filter((r) => activeTab === 'all' || r.kind === activeTab)
                       .map((item) => {
@@ -535,25 +548,49 @@ export function OrcamentoItemModal({
                             key={`${item.kind}-${item.id}`}
                             type="button"
                             onClick={() => handleSelectSearchResult(item)}
-                            className="w-full flex items-center justify-between p-2 text-left hover:bg-indigo-50/60 transition-colors"
+                            className="w-full flex items-start justify-between gap-3 p-3 text-left hover:bg-indigo-50/70 transition-colors"
                           >
-                            <div className="flex items-center gap-2 min-w-0">
+                            <div className="flex items-start gap-2.5 min-w-0 flex-1">
                               {item.kind === 'product' ? (
-                                <Package className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                                <Package className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
                               ) : (
-                                <Wrench className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                <Wrench className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                               )}
-                              <div className="truncate">
-                                <span className="font-medium text-slate-900 truncate block">
+                              <div className="min-w-0 flex-1">
+                                <span className="font-semibold text-slate-900 text-xs sm:text-sm block leading-snug break-words">
                                   {item.name}
                                 </span>
-                                <div className="flex items-center gap-1.5 mt-0.5">
+                                {item.description &&
+                                  item.description.trim() !== item.name.trim() && (
+                                    <p className="text-[11px] text-slate-600 mt-1 leading-relaxed break-words bg-slate-50/90 rounded px-2 py-1 border border-slate-100">
+                                      {item.description}
+                                    </p>
+                                  )}
+                                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                                   <Badge
                                     variant="outline"
-                                    className="text-[9px] px-1 py-0 h-4 border-slate-200"
+                                    className="text-[9px] px-1.5 py-0 h-4 border-slate-200 font-medium"
                                   >
                                     {item.kind === 'product' ? 'Produto' : 'Serviço'}
                                   </Badge>
+                                  {item.sku && (
+                                    <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1 py-0.2 rounded">
+                                      SKU: {item.sku}
+                                    </span>
+                                  )}
+                                  {typeof item.stockQuantity === 'number' && (
+                                    <span
+                                      className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-semibold ${
+                                        isOutOfStock
+                                          ? 'bg-rose-100 text-rose-700'
+                                          : item.stockQuantity < 5
+                                            ? 'bg-amber-100 text-amber-800'
+                                            : 'bg-emerald-100 text-emerald-800'
+                                      }`}
+                                    >
+                                      Estoque: {item.stockQuantity} un
+                                    </span>
+                                  )}
                                   {isOutOfStock && (
                                     <span className="text-[10px] text-rose-600 font-semibold flex items-center gap-0.5">
                                       <AlertTriangle className="h-3 w-3" /> Falta de estoque
@@ -562,9 +599,14 @@ export function OrcamentoItemModal({
                                 </div>
                               </div>
                             </div>
-                            <span className="font-mono font-bold text-slate-900 shrink-0 ml-2">
-                              R$ {(item.price || 0).toFixed(2)}
-                            </span>
+                            <div className="text-right shrink-0">
+                              <span className="font-mono font-bold text-slate-900 text-sm block">
+                                R$ {(item.price || 0).toFixed(2)}
+                              </span>
+                              <span className="text-[10px] text-indigo-600 font-medium hover:underline block mt-1">
+                                Selecionar
+                              </span>
+                            </div>
                           </button>
                         )
                       })}
@@ -622,7 +664,7 @@ export function OrcamentoItemModal({
               </div>
             )}
 
-            {/* Descrição livre */}
+            {/* Descrição livre (textarea auto-ajustável para textos longos) */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <label className="font-semibold text-slate-700 block">
@@ -637,14 +679,15 @@ export function OrcamentoItemModal({
                   </Badge>
                 )}
               </div>
-              <Input
+              <Textarea
                 value={descricao}
                 onChange={(e) => {
                   setDescricao(e.target.value)
                   // Se o usuário alterar a descrição livremente, mantém o texto livre
                 }}
                 placeholder="Digite a descrição livre que desejar (Ex: Formatação, Cabo HDMI 2m, Peça importada...)"
-                className="h-9 text-xs"
+                rows={2}
+                className="min-h-[64px] sm:min-h-[72px] text-xs leading-relaxed resize-y"
                 required
               />
             </div>

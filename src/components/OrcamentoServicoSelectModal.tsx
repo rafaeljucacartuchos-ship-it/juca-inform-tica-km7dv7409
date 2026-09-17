@@ -29,6 +29,7 @@ interface OrcamentoServicoSelectModalProps {
 type ServiceResult = {
   id: string
   name: string
+  description?: string
   price: number
   source: 'products' | 'services'
 }
@@ -75,6 +76,7 @@ export function OrcamentoServicoSelectModal({
         list.push({
           id: p.id,
           name: p.name,
+          description: p.description?.trim() || undefined,
           price: Number(p.price) || 0,
           source: 'products',
         })
@@ -88,6 +90,7 @@ export function OrcamentoServicoSelectModal({
         list.push({
           id: s.id,
           name: title,
+          description: s.description?.trim() || undefined,
           price: Number(s.price) || 0,
           source: 'services',
         })
@@ -142,6 +145,7 @@ export function OrcamentoServicoSelectModal({
           list.push({
             id: p.id,
             name: p.name,
+            description: p.description?.trim() || undefined,
             price: Number(p.price) || 0,
             source: 'products',
           })
@@ -155,6 +159,7 @@ export function OrcamentoServicoSelectModal({
           list.push({
             id: s.id,
             name: title,
+            description: s.description?.trim() || undefined,
             price: Number(s.price) || 0,
             source: 'services',
           })
@@ -174,9 +179,14 @@ export function OrcamentoServicoSelectModal({
   }, [query, open, recentServices])
 
   const handlePick = (item: ServiceResult) => {
+    const fullText =
+      item.description && item.description.trim() && item.description.trim() !== item.name.trim()
+        ? `${item.name} — ${item.description.trim()}`
+        : item.name
+
     onSelect({
       id: item.id,
-      descricao: item.name,
+      descricao: fullText,
       valorUnitario: item.price || 0,
     })
     onOpenChange(false)
@@ -184,7 +194,7 @@ export function OrcamentoServicoSelectModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-full sm:max-w-lg p-0 gap-0 overflow-hidden max-h-[85vh] flex flex-col">
+      <DialogContent className="w-full max-w-full sm:max-w-2xl lg:max-w-3xl p-0 gap-0 overflow-hidden max-h-[88vh] flex flex-col">
         <DialogHeader className="px-4 py-3 border-b border-slate-100 shrink-0">
           <DialogTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
             <Wrench className="h-4 w-4 text-emerald-600" />
@@ -231,30 +241,37 @@ export function OrcamentoServicoSelectModal({
                 key={`${serv.source}-${serv.id}`}
                 type="button"
                 onClick={() => handlePick(serv)}
-                className="w-full text-left p-2.5 hover:bg-emerald-50/70 flex items-center justify-between rounded-md transition-colors group"
+                className="w-full text-left p-3 hover:bg-emerald-50/70 flex items-start justify-between gap-3 rounded-md transition-colors group"
               >
-                <div className="flex items-center gap-2 min-w-0 pr-2">
-                  <div className="h-7 w-7 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                  <div className="h-7 w-7 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
                     <Wrench className="h-3.5 w-3.5" />
                   </div>
-                  <div className="min-w-0">
-                    <div className="font-medium text-xs text-slate-900 truncate group-hover:text-emerald-900">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-xs sm:text-sm text-slate-900 leading-snug break-words group-hover:text-emerald-900">
                       {serv.name}
                     </div>
-                    <Badge
-                      variant="outline"
-                      className="text-[9px] px-1 py-0 h-4 border-slate-200 text-slate-500"
-                    >
-                      Catálogo de Serviços
-                    </Badge>
+                    {serv.description && serv.description.trim() !== serv.name.trim() && (
+                      <p className="text-[11px] text-slate-600 mt-1 leading-relaxed break-words bg-slate-50 rounded px-2 py-1 border border-slate-100">
+                        {serv.description}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <Badge
+                        variant="outline"
+                        className="text-[9px] px-1.5 py-0 h-4 border-slate-200 text-slate-500 font-medium"
+                      >
+                        Catálogo de Serviços
+                      </Badge>
+                    </div>
                   </div>
                 </div>
 
                 <div className="text-right shrink-0">
-                  <span className="font-mono font-bold text-xs text-slate-900">
+                  <span className="font-mono font-bold text-xs sm:text-sm text-slate-900 block">
                     R$ {serv.price.toFixed(2)}
                   </span>
-                  <div className="text-[10px] text-emerald-600 font-semibold flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="text-[10px] text-emerald-600 font-semibold flex items-center justify-end gap-0.5 opacity-80 sm:opacity-0 group-hover:opacity-100 transition-opacity mt-1">
                     <Check className="h-3 w-3" /> Escolher
                   </div>
                 </div>

@@ -68,7 +68,7 @@ export function DashboardProductSearchModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full sm:max-w-2xl max-h-[90vh] flex flex-col p-4 sm:p-6 overflow-hidden">
+      <DialogContent className="w-full sm:max-w-2xl lg:max-w-4xl max-h-[90vh] flex flex-col p-4 sm:p-6 overflow-hidden">
         <DialogHeader className="pb-2">
           <div className="flex items-center gap-2 text-indigo-600">
             <Package className="h-5 w-5" />
@@ -149,9 +149,16 @@ export function DashboardProductSearchModal({
                           {p.sku || '—'}
                         </td>
                         <td className="py-2.5 px-3">
-                          <span className="font-bold text-slate-900 block">{p.name}</span>
+                          <span className="font-bold text-slate-900 block leading-snug">
+                            {p.name}
+                          </span>
+                          {p.description && p.description.trim() !== p.name.trim() && (
+                            <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed break-words line-clamp-2">
+                              {p.description}
+                            </p>
+                          )}
                           {p.category && (
-                            <span className="text-[10px] text-slate-500 font-medium">
+                            <span className="text-[10px] text-slate-500 font-medium block mt-0.5">
                               {p.category}
                             </span>
                           )}
