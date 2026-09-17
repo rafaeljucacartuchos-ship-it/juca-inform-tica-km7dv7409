@@ -28,6 +28,7 @@ import {
   Package,
   Wrench,
   Save,
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -182,8 +183,14 @@ interface PricingLocationState {
   } | null
 }
 
-export default function OrcamentoDetail() {
-  const { id } = useParams<{ id: string }>()
+export interface OrcamentoDetailProps {
+  orcamentoId?: string
+  onClose?: () => void
+}
+
+export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetailProps = {}) {
+  const routeParams = useParams<{ id: string }>()
+  const id = orcamentoId ?? routeParams.id
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuth()
@@ -1590,11 +1597,11 @@ export default function OrcamentoDetail() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate('/orcamentos')}
+              onClick={() => (onClose ? onClose() : navigate('/orcamentos'))}
               className="text-xs font-semibold gap-1.5"
             >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Voltar para Orçamentos</span>
+              {onClose ? <X className="h-3.5 w-3.5" /> : <ArrowLeft className="h-3.5 w-3.5" />}
+              <span>{onClose ? 'Fechar Painel' : 'Voltar para Orçamentos'}</span>
             </Button>
             <Button
               size="sm"
@@ -1626,12 +1633,21 @@ export default function OrcamentoDetail() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() =>
-                orcamento.id_os ? navigate(`/ordens/${orcamento.id_os}`) : navigate('/orcamentos')
-              }
+              onClick={() => {
+                if (onClose) {
+                  onClose()
+                  return
+                }
+                if (orcamento.id_os) {
+                  navigate(`/ordens/${orcamento.id_os}`)
+                } else {
+                  navigate('/orcamentos')
+                }
+              }}
               className="h-9 w-9 shrink-0"
+              title={onClose ? 'Fechar detalhes' : 'Voltar'}
             >
-              <ArrowLeft className="h-4 w-4" />
+              {onClose ? <X className="h-5 w-5" /> : <ArrowLeft className="h-4 w-4" />}
             </Button>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">

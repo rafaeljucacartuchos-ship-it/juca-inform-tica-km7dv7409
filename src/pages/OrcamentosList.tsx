@@ -44,6 +44,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
@@ -58,6 +59,8 @@ import { getUsers } from '@/services/users'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
+import { useIsMobile } from '@/hooks/use-mobile'
+import OrcamentoDetail from '@/pages/OrcamentoDetail'
 
 const STATUS_CONFIG: Record<
   OrcamentoStatus,
@@ -112,8 +115,10 @@ export default function OrcamentosList() {
   const { user } = useAuth()
   const { toast } = useToast()
   const { hasPermission } = usePermissions()
+  const isMobile = useIsMobile()
 
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([])
+  const [selectedOrcamentoId, setSelectedOrcamentoId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Orcamento | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -425,6 +430,14 @@ export default function OrcamentosList() {
     }
   }
 
+  const handleOpenOrcamento = (orcId: string) => {
+    if (!isMobile) {
+      setSelectedOrcamentoId(orcId)
+    } else {
+      navigate(`/orcamentos/${orcId}`)
+    }
+  }
+
   const buildOrcamentoActions = (orc: Orcamento): RecordActionItem[] => {
     const osRec = orc.expand?.id_os
     const custRec = osRec?.expand?.customer || orc.expand?.cliente_id
@@ -436,7 +449,7 @@ export default function OrcamentosList() {
         key: 'open',
         label: 'Abrir detalhes',
         icon: ExternalLink,
-        onClick: () => navigate(`/orcamentos/${orc.id}`),
+        onClick: () => handleOpenOrcamento(orc.id),
       },
       {
         key: 'print',
@@ -452,7 +465,7 @@ export default function OrcamentosList() {
           if (orc.token_acesso) {
             window.open(`/proposta/${orc.token_acesso}`, '_blank')
           } else {
-            navigate(`/orcamentos/${orc.id}`)
+            handleOpenOrcamento(orc.id)
           }
         },
       },
@@ -535,8 +548,13 @@ export default function OrcamentosList() {
       })
 
       setCreateModalOpen(false)
-      // Redireciona para os detalhes do novo orçamento
-      navigate(`/orcamentos/${created.id}`)
+      // Abre os detalhes do novo orçamento (no modal se desktop, ou navega se mobile)
+      if (!isMobile) {
+        setSelectedOrcamentoId(created.id)
+        loadData()
+      } else {
+        navigate(`/orcamentos/${created.id}`)
+      }
     } catch (err: any) {
       toast({
         title: 'Erro ao criar orçamento',
@@ -794,7 +812,7 @@ export default function OrcamentosList() {
             return (
               <Card
                 key={orc.id}
-                onClick={() => navigate(`/orcamentos/${orc.id}`)}
+                onClick={() => handleOpenOrcamento(orc.id)}
                 className="border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer bg-white flex flex-col justify-between overflow-hidden"
               >
                 <CardHeader className="p-4 pb-2 bg-slate-50/70 border-b border-slate-100">
@@ -909,7 +927,7 @@ export default function OrcamentosList() {
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation()
-                      navigate(`/orcamentos/${orc.id}`)
+                      handleOpenOrcamento(orc.id)
                     }}
                     className="h-7 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 p-1"
                   >
@@ -1206,6 +1224,38 @@ export default function OrcamentosList() {
               {creating ? 'Criando...' : 'Criar Orçamento'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Painel / Modal Grande Sobreposto para Detalhes do Orçamento no Desktop (v0.0.220) */}
+      <Dialog
+        open={!isMobile && Boolean(selectedOrcamentoId)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedOrcamentoId(null)
+            loadData()
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-6xl w-[94vw] h-[92vh] max-h-[92vh] p-4 sm:p-6 flex flex-col overflow-hidden bg-white shadow-2xl border-slate-200">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Detalhes do Orçamento</DialogTitle>
+            <DialogDescription>
+              Visualização e edição do orçamento com painel sobreposto à lista.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto pr-1">
+            {selectedOrcamentoId && (
+              <OrcamentoDetail
+                orcamentoId={selectedOrcamentoId}
+                onClose={() => {
+                  setSelectedOrcamentoId(null)
+                  loadData()
+                }}
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
