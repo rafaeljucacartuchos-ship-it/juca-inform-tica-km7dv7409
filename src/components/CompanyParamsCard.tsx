@@ -25,6 +25,9 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
   const [impostoSaida, setImpostoSaida] = useState(String(parameters.imposto_saida_pct ?? 4.0))
   const [comissao, setComissao] = useState(String(parameters.comissao_pct))
   const [ipi, setIpi] = useState(String(parameters.ipi_pct))
+  const [substTributaria, setSubstTributaria] = useState(
+    String(parameters.subst_tributaria_pct ?? 0),
+  )
   const [despesaFixa, setDespesaFixa] = useState(String(parameters.despesa_fixa_mensal))
   const [faturamento, setFaturamento] = useState(String(parameters.faturamento_medio_mensal))
   const [lucratividade, setLucratividade] = useState(String(parameters.lucratividade_desejada_pct))
@@ -45,6 +48,7 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
     setImpostoSaida(String(parameters.imposto_saida_pct ?? 4.0))
     setComissao(String(parameters.comissao_pct))
     setIpi(String(parameters.ipi_pct))
+    setSubstTributaria(String(parameters.subst_tributaria_pct ?? 0))
     setDespesaFixa(String(parameters.despesa_fixa_mensal))
     setFaturamento(String(parameters.faturamento_medio_mensal))
     setLucratividade(String(parameters.lucratividade_desejada_pct))
@@ -71,6 +75,7 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
   const tImpSaida = parseFloat(impostoSaida.replace(',', '.')) || 0
   const tComissao = parseFloat(comissao.replace(',', '.')) || 0
   const tIpi = parseFloat(ipi.replace(',', '.')) || 0
+  const tSubstTributaria = parseFloat(substTributaria.replace(',', '.')) || 0
   const custosVariaveisCalculadosPct = tCartao + tIcms + tImpSaida + tComissao + tIpi
 
   const handleSave = async () => {
@@ -80,6 +85,7 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
       taxa_cartao_pct: tCartao,
       icms_pct: tIcms,
       imposto_saida_pct: tImpSaida,
+      subst_tributaria_pct: tSubstTributaria,
       comissao_pct: tComissao,
       ipi_pct: tIpi,
       despesa_fixa_mensal: despFixaNum,
@@ -363,6 +369,30 @@ export function CompanyParamsCard({ parameters, onSave, saving }: CompanyParamsC
                     value={ipi}
                     onChange={(e) => setIpi(e.target.value)}
                     className="h-8 font-mono text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-bold text-violet-900 flex items-center justify-between">
+                    <span>Subst. Trib. %</span>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-3 w-3 text-violet-500 cursor-pointer" />
+                        </TooltipTrigger>
+                        <TooltipContent className="text-xs max-w-xs">
+                          Alíquota padrão de Substituição Tributária (ST) aplicada como componente
+                          de custo de entrada do produto.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={substTributaria}
+                    onChange={(e) => setSubstTributaria(e.target.value)}
+                    className="h-8 font-mono text-xs font-bold text-violet-900 bg-violet-50/50 border-violet-200"
+                    placeholder="0.0"
                   />
                 </div>
               </div>

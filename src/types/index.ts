@@ -484,6 +484,7 @@ export interface CompanyPricingParameters {
   comissao_pct: number
   ipi_pct: number
   imposto_saida_pct?: number
+  subst_tributaria_pct?: number // Substituição Tributária (%) v0.0.226
   despesa_fixa_mensal: number
   faturamento_medio_mensal: number
   lucratividade_desejada_pct: number
@@ -518,6 +519,7 @@ export interface PricingHistory {
   comissao_pct?: number
   ipi_pct?: number
   imposto_saida_pct?: number
+  subst_tributaria_pct?: number // Substituição Tributária (%) v0.0.226
   payment_method_nome?: string
   custo_fixo_pct?: number // Custo Fixo (%) v0.0.212
   custo_fixo_rateado_unitario?: number

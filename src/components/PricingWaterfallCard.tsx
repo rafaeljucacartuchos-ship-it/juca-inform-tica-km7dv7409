@@ -5,6 +5,11 @@ interface PricingWaterfallProps {
   salePrice: number
   custoDiretoTotal: number
   custoDiretoPct: number
+  custoAquisicao?: number
+  custoAquisicaoPct?: number
+  substTributariaValor?: number
+  substTributariaPct?: number
+  substTributariaPctInput?: number
   custoFixoRateado?: number
   custoFixoRateadoPct?: number
   custoFixoPct?: number
@@ -30,6 +35,11 @@ export function PricingWaterfallCard({
   salePrice,
   custoDiretoTotal,
   custoDiretoPct,
+  custoAquisicao = 0,
+  custoAquisicaoPct = 0,
+  substTributariaValor = 0,
+  substTributariaPct = 0,
+  substTributariaPctInput = 0,
   custoFixoRateado = 0,
   custoFixoRateadoPct = 0,
   custoFixoPct = 0,
@@ -44,8 +54,12 @@ export function PricingWaterfallCard({
   totalPct,
   detalheVariaveis,
 }: PricingWaterfallProps) {
-  // Garantir limites visuais para barras
-  const cPct = Math.max(0, Math.min(100, custoDiretoPct))
+  const temSubstTributaria = substTributariaValor > 0
+  // Quando há Substituição Tributária > 0, o custo de aquisição é exibido separado da ST
+  const cPct = temSubstTributaria
+    ? Math.max(0, Math.min(100, custoAquisicaoPct))
+    : Math.max(0, Math.min(100, custoDiretoPct))
+  const stBarPct = temSubstTributaria ? Math.max(0, Math.min(100, substTributariaPct)) : 0
   const cfPct = Math.max(0, Math.min(100, custoFixoRateadoPct))
   const custoFixoBarPct = Math.max(0, Math.min(100, custoFixoPctDoPreco))
   const fPct = Math.max(0, Math.min(100, despesaFixaPct))
@@ -76,8 +90,19 @@ export function PricingWaterfallCard({
         <div
           style={{ width: `${cPct}%` }}
           className="bg-amber-500 hover:bg-amber-600 transition-all relative group cursor-pointer"
-          title={`Custo Direto: ${formatCurrencyBRL(custoDiretoTotal)} (${custoDiretoPct}%)`}
+          title={
+            temSubstTributaria
+              ? `Custo Aquisição: ${formatCurrencyBRL(custoAquisicao)} (${custoAquisicaoPct.toFixed(1)}%)`
+              : `Custo Direto: ${formatCurrencyBRL(custoDiretoTotal)} (${custoDiretoPct.toFixed(1)}%)`
+          }
         />
+        {temSubstTributaria && (
+          <div
+            style={{ width: `${stBarPct}%` }}
+            className="bg-violet-500 hover:bg-violet-600 transition-all relative group cursor-pointer"
+            title={`Subst. Tributária: ${formatCurrencyBRL(substTributariaValor)} (${substTributariaPct.toFixed(1)}%)`}
+          />
+        )}
         {temRateioFixo && (
           <div
             style={{ width: `${cfPct}%` }}
@@ -112,31 +137,63 @@ export function PricingWaterfallCard({
       {/* Fatias Detalhadas tipo Cascata */}
       <div
         className={`grid gap-2 pt-1 text-xs ${
-          temRateioFixo && temCustoFixoPct
-            ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
-            : temRateioFixo || temCustoFixoPct
-              ? 'grid-cols-2 sm:grid-cols-5'
-              : 'grid-cols-2 sm:grid-cols-4'
+          temSubstTributaria
+            ? temRateioFixo && temCustoFixoPct
+              ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-7'
+              : temRateioFixo || temCustoFixoPct
+                ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
+                : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+            : temRateioFixo && temCustoFixoPct
+              ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
+              : temRateioFixo || temCustoFixoPct
+                ? 'grid-cols-2 sm:grid-cols-5'
+                : 'grid-cols-2 sm:grid-cols-4'
         }`}
       >
-        {/* Fatia 1: Custo Direto */}
+        {/* Fatia 1: Custo Direto (ou Custo de Aquisição quando ST > 0) */}
         <div className="p-2.5 rounded-lg bg-amber-50/70 border border-amber-200 flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-1.5 mb-1">
               <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-              <span className="text-[11px] font-bold text-amber-900">Custo Direto</span>
+              <span className="text-[11px] font-bold text-amber-900">
+                {temSubstTributaria ? 'Custo Aquisição' : 'Custo Direto'}
+              </span>
             </div>
             <p className="text-[10px] text-amber-700">Mercadoria + frete + extras</p>
           </div>
           <div className="mt-2 pt-1.5 border-t border-amber-200/60">
             <div className="font-mono font-bold text-amber-950 text-xs">
-              {formatCurrencyBRL(custoDiretoTotal)}
+              {formatCurrencyBRL(temSubstTributaria ? custoAquisicao : custoDiretoTotal)}
             </div>
             <div className="text-[10px] font-mono text-amber-800 font-semibold">
-              {custoDiretoPct.toFixed(1)}% do preço
+              {(temSubstTributaria ? custoAquisicaoPct : custoDiretoPct).toFixed(1)}% do preço
             </div>
           </div>
         </div>
+
+        {/* Fatia 1.2: Substituição Tributária (card próprio com cor diferenciada roxa/violeta quando > 0) */}
+        {temSubstTributaria && (
+          <div className="p-2.5 rounded-lg bg-violet-50/80 border border-violet-200 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="h-2 w-2 rounded-full bg-violet-500 shrink-0" />
+                <span className="text-[11px] font-bold text-violet-900">
+                  Subst. Tributária
+                  {substTributariaPctInput > 0 ? ` (${substTributariaPctInput}%)` : ''}
+                </span>
+              </div>
+              <p className="text-[10px] text-violet-700">Imposto ST retido/custo</p>
+            </div>
+            <div className="mt-2 pt-1.5 border-t border-violet-200/60">
+              <div className="font-mono font-bold text-violet-950 text-xs">
+                {formatCurrencyBRL(substTributariaValor)}
+              </div>
+              <div className="text-[10px] font-mono text-violet-800 font-semibold">
+                {substTributariaPct.toFixed(1)}% do preço
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Fatia 1.5: Custo Fixo Rateado (v0.0.209) */}
         {temRateioFixo && (

@@ -20,6 +20,7 @@ import {
   Layers,
   ArrowUpDown,
   FileText,
+  HelpCircle,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -133,6 +134,7 @@ export default function Precificacao() {
   const [impostoSaidaPct1, setImpostoSaidaPct1] = useState('4.0')
   const [commissionPct1, setCommissionPct1] = useState('2.5')
   const [ipiPct1, setIpiPct1] = useState('0')
+  const [substTributariaPct1, setSubstTributariaPct1] = useState('0')
   const [variableExpensesTotal1, setVariableExpensesTotal1] = useState('14.0')
   const [marginInput1, setMarginInput1] = useState('25')
   const [calcResult1, setCalcResult1] = useState<PricingCalculationResult | null>(null)
@@ -154,6 +156,7 @@ export default function Precificacao() {
   const [impostoSaidaPct2, setImpostoSaidaPct2] = useState('4.0')
   const [commissionPct2, setCommissionPct2] = useState('2.5')
   const [ipiPct2, setIpiPct2] = useState('0')
+  const [substTributariaPct2, setSubstTributariaPct2] = useState('0')
   const [variableExpensesTotal2, setVariableExpensesTotal2] = useState('14.0')
   const [marginInput2, setMarginInput2] = useState('25')
   const [calcResult2, setCalcResult2] = useState<PricingCalculationResult | null>(null)
@@ -173,6 +176,7 @@ export default function Precificacao() {
   const [impostoSaidaPct3, setImpostoSaidaPct3] = useState('4.0')
   const [commissionPct3, setCommissionPct3] = useState('2.5')
   const [ipiPct3, setIpiPct3] = useState('0')
+  const [substTributariaPct3, setSubstTributariaPct3] = useState('0')
   const [variableExpensesTotal3, setVariableExpensesTotal3] = useState('14.0')
   const [marginInput3, setMarginInput3] = useState('25')
   const [calcResult3, setCalcResult3] = useState<PricingCalculationResult | null>(null)
@@ -201,6 +205,7 @@ export default function Precificacao() {
       if (d.costInput1 !== undefined) setCostInput1(d.costInput1)
       if (d.marginInput1 !== undefined) setMarginInput1(d.marginInput1)
       if (d.freightInput1 !== undefined) setFreightInput1(d.freightInput1)
+      if (d.substTributariaPct1 !== undefined) setSubstTributariaPct1(d.substTributariaPct1)
 
       // Modo 2
       if (d.costInput2 !== undefined) setCostInput2(d.costInput2)
@@ -208,11 +213,13 @@ export default function Precificacao() {
       if (d.freightInput2 !== undefined) setFreightInput2(d.freightInput2)
       if (d.extraCost2A !== undefined) setExtraCost2A(d.extraCost2A)
       if (d.extraCost2B !== undefined) setExtraCost2B(d.extraCost2B)
+      if (d.substTributariaPct2 !== undefined) setSubstTributariaPct2(d.substTributariaPct2)
 
       // Modo 3
       if (d.costInput3 !== undefined) setCostInput3(d.costInput3)
       if (d.marginInput3 !== undefined) setMarginInput3(d.marginInput3)
       if (d.freightInput3 !== undefined) setFreightInput3(d.freightInput3)
+      if (d.substTributariaPct3 !== undefined) setSubstTributariaPct3(d.substTributariaPct3)
       if (d.newProductName !== undefined) setNewProductName(d.newProductName)
     }
   }, [])
@@ -228,16 +235,19 @@ export default function Precificacao() {
       costInput1,
       marginInput1,
       freightInput1,
+      substTributariaPct1,
       // Modo 2
       costInput2,
       marginInput2,
       freightInput2,
       extraCost2A,
       extraCost2B,
+      substTributariaPct2,
       // Modo 3
       costInput3,
       marginInput3,
       freightInput3,
+      substTributariaPct3,
       newProductName,
     })
   }, [
@@ -248,14 +258,17 @@ export default function Precificacao() {
     costInput1,
     marginInput1,
     freightInput1,
+    substTributariaPct1,
     costInput2,
     marginInput2,
     freightInput2,
     extraCost2A,
     extraCost2B,
+    substTributariaPct2,
     costInput3,
     marginInput3,
     freightInput3,
+    substTributariaPct3,
     newProductName,
     saveDraftPrecificacao,
   ])
@@ -482,6 +495,7 @@ export default function Precificacao() {
     const impSaida = String(params.imposto_saida_pct ?? 4.0)
     const com = String(params.comissao_pct)
     const ipi = String(params.ipi_pct)
+    const st = String(params.subst_tributaria_pct ?? 0)
     const marg = String(params.lucratividade_desejada_pct)
     const frete = String(params.frete_padrao)
     const varTotal = String(params.custos_variaveis_pct)
@@ -494,6 +508,7 @@ export default function Precificacao() {
     setImpostoSaidaPct1(impSaida)
     setCommissionPct1(com)
     setIpiPct1(ipi)
+    setSubstTributariaPct1(st)
     setVariableExpensesTotal1(varTotal)
     setMarginInput1(marg)
     setFreightInput1(frete)
@@ -506,6 +521,7 @@ export default function Precificacao() {
     setImpostoSaidaPct2(impSaida)
     setCommissionPct2(com)
     setIpiPct2(ipi)
+    setSubstTributariaPct2(st)
     setVariableExpensesTotal2(varTotal)
     setMarginInput2(marg)
     setFreightInput2(frete)
@@ -518,6 +534,7 @@ export default function Precificacao() {
     setImpostoSaidaPct3(impSaida)
     setCommissionPct3(com)
     setIpiPct3(ipi)
+    setSubstTributariaPct3(st)
     setVariableExpensesTotal3(varTotal)
     setMarginInput3(marg)
     setFreightInput3(frete)
@@ -588,6 +605,7 @@ export default function Precificacao() {
     const impSaida = parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
     const com = parseFloat(commissionPct1.replace(',', '.')) || 0
     const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
+    const stPct = parseFloat(substTributariaPct1.replace(',', '.')) || 0
     const marg = parseFloat(marginInput1.replace(',', '.')) || 0
     const overrideVar = parseFloat(variableExpensesTotal1.replace(',', '.'))
 
@@ -598,6 +616,7 @@ export default function Precificacao() {
       frete,
       custoAdicional1: add1,
       custoAdicional2: add2,
+      substTributariaPct: stPct,
       custoFixoRateado: companyParams.custo_fixo_rateado_unitario || 0,
       custoFixoPct: cfPct,
       despesaFixaPct: fExp,
@@ -623,6 +642,7 @@ export default function Precificacao() {
     impostoSaidaPct1,
     commissionPct1,
     ipiPct1,
+    substTributariaPct1,
     variableExpensesTotal1,
     marginInput1,
     cotacaoDolarAtiva,
@@ -644,6 +664,7 @@ export default function Precificacao() {
     const impSaida = parseFloat(impostoSaidaPct2.replace(',', '.')) || 0
     const com = parseFloat(commissionPct2.replace(',', '.')) || 0
     const ipi = parseFloat(ipiPct2.replace(',', '.')) || 0
+    const stPct = parseFloat(substTributariaPct2.replace(',', '.')) || 0
     const marg = parseFloat(marginInput2.replace(',', '.')) || 0
     const overrideVar = parseFloat(variableExpensesTotal2.replace(',', '.'))
 
@@ -654,6 +675,7 @@ export default function Precificacao() {
       frete,
       custoAdicional1: add1,
       custoAdicional2: add2,
+      substTributariaPct: stPct,
       custoFixoRateado: companyParams.custo_fixo_rateado_unitario || 0,
       custoFixoPct: cfPct,
       despesaFixaPct: fExp,
@@ -679,6 +701,7 @@ export default function Precificacao() {
     impostoSaidaPct2,
     commissionPct2,
     ipiPct2,
+    substTributariaPct2,
     variableExpensesTotal2,
     marginInput2,
     cotacaoDolarAtiva,
@@ -700,6 +723,7 @@ export default function Precificacao() {
     const impSaida = parseFloat(impostoSaidaPct3.replace(',', '.')) || 0
     const com = parseFloat(commissionPct3.replace(',', '.')) || 0
     const ipi = parseFloat(ipiPct3.replace(',', '.')) || 0
+    const stPct = parseFloat(substTributariaPct3.replace(',', '.')) || 0
     const marg = parseFloat(marginInput3.replace(',', '.')) || 0
     const overrideVar = parseFloat(variableExpensesTotal3.replace(',', '.'))
 
@@ -710,6 +734,7 @@ export default function Precificacao() {
       frete,
       custoAdicional1: add1,
       custoAdicional2: add2,
+      substTributariaPct: stPct,
       custoFixoRateado: companyParams.custo_fixo_rateado_unitario || 0,
       custoFixoPct: cfPct,
       despesaFixaPct: fExp,
@@ -735,6 +760,7 @@ export default function Precificacao() {
     impostoSaidaPct3,
     commissionPct3,
     ipiPct3,
+    substTributariaPct3,
     variableExpensesTotal3,
     marginInput3,
     cotacaoDolarAtiva,
@@ -838,6 +864,7 @@ export default function Precificacao() {
         payment_method_nome: paymentMethodNome,
         comissao_pct: res.comissaoPct,
         ipi_pct: res.ipiPct,
+        subst_tributaria_pct: res.substTributariaPct,
         custo_fixo_pct: res.custoFixoPct,
         custo_fixo_rateado_unitario: res.custoFixoRateado,
         custo_fixo_mensal: companyParams.custo_fixo_mensal,
@@ -882,6 +909,10 @@ export default function Precificacao() {
       `Custo Direto: ${formatCurrencyBRL(res.custoDiretoTotal)} (${res.fatias.custoDireto.pct}%)\n` +
       (res.custoFixoRateado > 0
         ? `Custo Fixo Rateado: ${formatCurrencyBRL(res.custoFixoRateado)} (${res.fatias.custoFixoRateado.pct}%)\n`
+        : '') +
+      (res.substTributariaValor > 0
+        ? `Subst. Tributária (${res.substTributariaPct}%): ${formatCurrencyBRL(res.substTributariaValor)} (${res.fatias.substTributaria?.pct ?? 0}%)\n` +
+          `Custo Total do Produto: ${formatCurrencyBRL(res.custoTotalProduto)}\n`
         : '') +
       (res.custoFixoPct > 0
         ? `Custo Fixo (${res.custoFixoPct}%): ${formatCurrencyBRL(res.fatias.custoFixo.valor)} (${res.fatias.custoFixo.pct}%)\n`
@@ -949,6 +980,7 @@ export default function Precificacao() {
           payment_method_nome: selectedMethod3?.nome,
           comissao_pct: calcResult3.comissaoPct,
           ipi_pct: calcResult3.ipiPct,
+          subst_tributaria_pct: calcResult3.substTributariaPct,
           custo_fixo_pct: calcResult3.custoFixoPct,
           custo_fixo_rateado_unitario: calcResult3.custoFixoRateado,
           custo_fixo_mensal: companyParams.custo_fixo_mensal,
@@ -982,6 +1014,7 @@ export default function Precificacao() {
           calcResult1.comissaoPct,
           calcResult1.ipiPct,
           calcResult1.impostoSaidaPct || 0,
+          calcResult1.substTributariaValor || 0,
         )
       : null
 
@@ -1003,7 +1036,7 @@ export default function Precificacao() {
                   variant="outline"
                   className="border-indigo-200 bg-indigo-50 text-indigo-700 text-[10px] font-bold"
                 >
-                  v0.0.212
+                  v0.0.226
                 </Badge>
               </div>
               <p className="text-xs text-slate-500">
@@ -1296,6 +1329,44 @@ export default function Precificacao() {
                       </div>
                     </div>
 
+                    {/* CARD / LINHA DESTAQUE: CUSTO TOTAL DO PRODUTO (Custo + Frete + Extras + ST) */}
+                    <div className="p-3 bg-gradient-to-r from-amber-50/90 via-violet-50/80 to-indigo-50/80 rounded-xl border border-amber-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                          R$
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-950">
+                              Custo Total do Produto:
+                            </span>
+                            <span className="text-base font-extrabold font-mono text-amber-950">
+                              {formatCurrencyBRL(calcResult1?.custoTotalProduto || 0)}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-600">
+                            Base do cálculo = Custo (
+                            {formatCurrencyBRL(calcResult1?.custoProdutoBRL || 0)}) + Frete (
+                            {formatCurrencyBRL(calcResult1?.frete || 0)}) + Extras (
+                            {formatCurrencyBRL(
+                              (calcResult1?.custoAdicional1 || 0) +
+                                (calcResult1?.custoAdicional2 || 0),
+                            )}
+                            )
+                            {(calcResult1?.substTributariaValor || 0) > 0 && (
+                              <strong className="text-violet-800">
+                                {' '}
+                                + ST ({formatCurrencyBRL(calcResult1?.substTributariaValor || 0)})
+                              </strong>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge className="self-start sm:self-auto bg-amber-600/90 text-white text-[10px] font-mono">
+                        Base Markup
+                      </Badge>
+                    </div>
+
                     {/* DEDUÇÕES: CUSTO FIXO % + CUSTO VARIÁVEL % + LUCRATIVIDADE % */}
                     <div className="pt-2 space-y-2">
                       <div className="flex items-center justify-between">
@@ -1381,7 +1452,8 @@ export default function Precificacao() {
                             </button>
                           </div>
 
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-2">
+                            {' '}
                             <div className="space-y-1">
                               <Label className="text-[10px] font-semibold text-slate-600">
                                 Despesa Fixa %
@@ -1394,7 +1466,6 @@ export default function Precificacao() {
                                 className="h-8 font-mono text-xs"
                               />
                             </div>
-
                             <div className="space-y-1">
                               <Label className="text-[10px] font-semibold text-slate-600 flex items-center justify-between">
                                 <span>Taxa Cartão %</span>
@@ -1424,7 +1495,6 @@ export default function Precificacao() {
                                 className="h-8 font-mono text-xs"
                               />
                             </div>
-
                             <div className="space-y-1">
                               <Label className="text-[10px] font-semibold text-slate-600">
                                 ICMS/Simples %
@@ -1451,7 +1521,6 @@ export default function Precificacao() {
                                 className="h-8 font-mono text-xs"
                               />
                             </div>
-
                             {/* REQUISITO 2: CAMPO IMPOSTO DE SAÍDA % SEPARADO */}
                             <div className="space-y-1">
                               <Label className="text-[10px] font-bold text-indigo-900">
@@ -1478,7 +1547,6 @@ export default function Precificacao() {
                                 className="h-8 font-mono text-xs font-bold text-indigo-700 bg-indigo-50/50 border-indigo-200"
                               />
                             </div>
-
                             <div className="space-y-1">
                               <Label className="text-[10px] font-semibold text-slate-600">
                                 Comissão %
@@ -1505,7 +1573,6 @@ export default function Precificacao() {
                                 className="h-8 font-mono text-xs"
                               />
                             </div>
-
                             <div className="space-y-1">
                               <Label className="text-[10px] font-semibold text-slate-600">
                                 IPI / Outros %
@@ -1532,9 +1599,33 @@ export default function Precificacao() {
                                 className="h-8 font-mono text-xs"
                               />
                             </div>
+                            {/* REQUISITO 1: CAMPO SUBST. TRIBUTÁRIA % AO LADO DOS OUTROS IMPOSTOS */}
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-bold text-violet-900 flex items-center justify-between">
+                                <span>Subst. Trib. %</span>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <HelpCircle className="h-3 w-3 text-violet-500 cursor-pointer" />
+                                    </TooltipTrigger>
+                                    <TooltipContent className="text-xs max-w-xs">
+                                      Substituição Tributária incidente no custo de aquisição do
+                                      produto. Entra no Custo Total do Produto e no Markup.
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </Label>
+                              <Input
+                                type="number"
+                                step="0.1"
+                                value={substTributariaPct1}
+                                onChange={(e) => setSubstTributariaPct1(e.target.value)}
+                                className="h-8 font-mono text-xs font-bold text-violet-900 bg-violet-50/60 border-violet-300"
+                                placeholder="0.0"
+                              />
+                            </div>
                           </div>
                         </div>
-
                         {/* Resumo do Markup Divisor */}
                         <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
                           <span className="text-slate-600 font-medium">
@@ -1590,11 +1681,16 @@ export default function Precificacao() {
                         </p>
                       </div>
 
-                      {/* REQUISITO 2: GRÁFICO CASCATA 100% */}
+                      {/* REQUISITO 2: GRÁFICO CASCATA 100% COM SUBST. TRIBUTÁRIA SE > 0 */}
                       <PricingWaterfallCard
                         salePrice={calcResult1.salePrice}
                         custoDiretoTotal={calcResult1.custoDiretoTotal}
                         custoDiretoPct={calcResult1.fatias.custoDireto.pct}
+                        custoAquisicao={calcResult1.fatias.custoAquisicao?.valor}
+                        custoAquisicaoPct={calcResult1.fatias.custoAquisicao?.pct}
+                        substTributariaValor={calcResult1.fatias.substTributaria?.valor}
+                        substTributariaPct={calcResult1.fatias.substTributaria?.pct}
+                        substTributariaPctInput={calcResult1.substTributariaPct}
                         custoFixoRateado={calcResult1.custoFixoRateado}
                         custoFixoRateadoPct={calcResult1.fatias.custoFixoRateado?.pct}
                         custoFixoPct={calcResult1.custoFixoPct}
@@ -1937,6 +2033,43 @@ export default function Precificacao() {
                     </div>
                   </div>
 
+                  {/* CARD / LINHA DESTAQUE: CUSTO TOTAL DO PRODUTO (Custo + Frete + Extras + ST) */}
+                  <div className="p-3 bg-gradient-to-r from-amber-50/90 via-violet-50/80 to-indigo-50/80 rounded-xl border border-amber-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                        R$
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-amber-950">
+                            Custo Total do Produto:
+                          </span>
+                          <span className="text-base font-extrabold font-mono text-amber-950">
+                            {formatCurrencyBRL(calcResult2?.custoTotalProduto || 0)}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-600">
+                          Base do cálculo = Custo (
+                          {formatCurrencyBRL(calcResult2?.custoProdutoBRL || 0)}) + Frete (
+                          {formatCurrencyBRL(calcResult2?.frete || 0)}) + Extras (
+                          {formatCurrencyBRL(
+                            (calcResult2?.custoAdicional1 || 0) +
+                              (calcResult2?.custoAdicional2 || 0),
+                          )}
+                          )
+                          {(calcResult2?.substTributariaValor || 0) > 0 && (
+                            <strong className="text-violet-800">
+                              {' '}
+                              + ST ({formatCurrencyBRL(calcResult2?.substTributariaValor || 0)})
+                            </strong>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge className="self-start sm:self-auto bg-amber-600/90 text-white text-[10px] font-mono">
+                      Base Markup
+                    </Badge>
+                  </div>
                   {/* Alíquotas e Margem com Custo Fixo % e Custo Variável % editáveis */}
                   <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
                     {/* Componentes Principais da Fórmula */}
@@ -2010,12 +2143,11 @@ export default function Precificacao() {
                           Sincronizar soma com Custo Variável %
                         </button>
                       </div>
-
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-2">
                         <div className="space-y-1">
                           <Label className="text-[10px] font-semibold text-slate-600">
                             Despesa Fixa %
-                          </Label>
+                          </Label>{' '}
                           <Input
                             type="number"
                             step="0.1"
@@ -2148,7 +2280,33 @@ export default function Precificacao() {
                             className="h-8 font-mono text-xs"
                           />
                         </div>
-                      </div>
+
+                        {/* REQUISITO 1: CAMPO SUBST. TRIBUTÁRIA % NA ABA AVULSA */}
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-bold text-violet-900 flex items-center justify-between">
+                            <span>Subst. Trib. %</span>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <HelpCircle className="h-3 w-3 text-violet-500 cursor-pointer" />
+                                </TooltipTrigger>
+                                <TooltipContent className="text-xs max-w-xs">
+                                  Substituição Tributária incidente no custo do item. Entra no Custo
+                                  Total do Produto e no Markup.
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </Label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={substTributariaPct2}
+                            onChange={(e) => setSubstTributariaPct2(e.target.value)}
+                            className="h-8 font-mono text-xs font-bold text-violet-900 bg-violet-50/60 border-violet-300"
+                            placeholder="0.0"
+                          />
+                        </div>
+                      </div>{' '}
                     </div>
                   </div>
                 </CardContent>
@@ -2194,6 +2352,11 @@ export default function Precificacao() {
                         salePrice={calcResult2.salePrice}
                         custoDiretoTotal={calcResult2.custoDiretoTotal}
                         custoDiretoPct={calcResult2.fatias.custoDireto.pct}
+                        custoAquisicao={calcResult2.fatias.custoAquisicao?.valor}
+                        custoAquisicaoPct={calcResult2.fatias.custoAquisicao?.pct}
+                        substTributariaValor={calcResult2.fatias.substTributaria?.valor}
+                        substTributariaPct={calcResult2.fatias.substTributaria?.pct}
+                        substTributariaPctInput={calcResult2.substTributariaPct}
                         custoFixoRateado={calcResult2.custoFixoRateado}
                         custoFixoRateadoPct={calcResult2.fatias.custoFixoRateado?.pct}
                         custoFixoPct={calcResult2.custoFixoPct}
@@ -2294,6 +2457,7 @@ export default function Precificacao() {
                                 payment_method_nome: selectedMethod2?.nome,
                                 comissao_pct: calcResult2.comissaoPct,
                                 ipi_pct: calcResult2.ipiPct,
+                                subst_tributaria_pct: calcResult2.substTributariaPct,
                                 custo_fixo_pct: calcResult2.custoFixoPct,
                                 custo_fixo_rateado_unitario: calcResult2.custoFixoRateado,
                                 custo_fixo_mensal: companyParams.custo_fixo_mensal,
@@ -2466,6 +2630,40 @@ export default function Precificacao() {
                     </div>
                   </div>
 
+                  {/* CARD / LINHA DESTAQUE: CUSTO TOTAL DO PRODUTO NA ABA RÁPIDA */}
+                  <div className="p-3 bg-gradient-to-r from-amber-50/90 via-violet-50/80 to-indigo-50/80 rounded-xl border border-amber-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                        R$
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-amber-950">
+                            Custo Total do Produto:
+                          </span>
+                          <span className="text-base font-extrabold font-mono text-amber-950">
+                            {formatCurrencyBRL(calcResult3?.custoTotalProduto || 0)}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-600">
+                          Base do cálculo = Custo (
+                          {formatCurrencyBRL(calcResult3?.custoProdutoBRL || 0)}) + Frete (
+                          {formatCurrencyBRL(calcResult3?.frete || 0)}) + Extras (
+                          {formatCurrencyBRL(calcResult3?.custoAdicional1 || 0)})
+                          {(calcResult3?.substTributariaValor || 0) > 0 && (
+                            <strong className="text-violet-800">
+                              {' '}
+                              + ST ({formatCurrencyBRL(calcResult3?.substTributariaValor || 0)})
+                            </strong>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge className="self-start sm:self-auto bg-amber-600/90 text-white text-[10px] font-mono">
+                      Base Markup
+                    </Badge>
+                  </div>
+
                   {/* Parâmetros de Markup Modo 3: Custo Fixo %, Custo Variável %, Lucratividade % */}
                   <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-2.5 bg-white rounded-lg border border-indigo-100 shadow-2xs">
@@ -2512,7 +2710,7 @@ export default function Precificacao() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 pt-1">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-2 pt-1">
                       <div className="space-y-1">
                         <Label className="text-[10px] font-semibold text-slate-600">
                           Despesa Fixa %
@@ -2638,6 +2836,32 @@ export default function Precificacao() {
                           className="h-8 font-mono text-xs"
                         />
                       </div>
+
+                      {/* REQUISITO 1: CAMPO SUBST. TRIBUTÁRIA % NA ABA RÁPIDA */}
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-bold text-violet-900 flex items-center justify-between">
+                          <span>Subst. Trib. %</span>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-3 w-3 text-violet-500 cursor-pointer" />
+                              </TooltipTrigger>
+                              <TooltipContent className="text-xs max-w-xs">
+                                Substituição Tributária incidente no custo de aquisição. Entra no
+                                Custo Total do Produto e no Markup.
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={substTributariaPct3}
+                          onChange={(e) => setSubstTributariaPct3(e.target.value)}
+                          className="h-8 font-mono text-xs font-bold text-violet-900 bg-violet-50/60 border-violet-300"
+                          placeholder="0.0"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -2719,6 +2943,11 @@ export default function Precificacao() {
                         salePrice={calcResult3.salePrice}
                         custoDiretoTotal={calcResult3.custoDiretoTotal}
                         custoDiretoPct={calcResult3.fatias.custoDireto.pct}
+                        custoAquisicao={calcResult3.fatias.custoAquisicao?.valor}
+                        custoAquisicaoPct={calcResult3.fatias.custoAquisicao?.pct}
+                        substTributariaValor={calcResult3.fatias.substTributaria?.valor}
+                        substTributariaPct={calcResult3.fatias.substTributaria?.pct}
+                        substTributariaPctInput={calcResult3.substTributariaPct}
                         custoFixoRateado={calcResult3.custoFixoRateado}
                         custoFixoRateadoPct={calcResult3.fatias.custoFixoRateado?.pct}
                         custoFixoPct={calcResult3.custoFixoPct}
@@ -2896,6 +3125,7 @@ export default function Precificacao() {
                       <th className="py-2.5 px-3 text-center">Moeda / US$</th>
                       <th className="py-2.5 px-3 text-right">Custo Direto</th>
                       <th className="py-2.5 px-3 text-right">Frete</th>
+                      <th className="py-2.5 px-3 text-center">Subst. Trib. %</th>
                       <th className="py-2.5 px-3 text-center">C. Fixo %</th>
                       <th className="py-2.5 px-3 text-center">Fixa %</th>
                       <th className="py-2.5 px-3 text-center">Var. %</th>
@@ -2973,6 +3203,12 @@ export default function Precificacao() {
                           <td className="py-2.5 px-3 text-right font-mono text-slate-600 tabular-nums whitespace-nowrap">
                             {item.frete ? formatCurrencyBRL(item.frete) : '—'}
                           </td>
+                          <td className="py-2.5 px-3 text-center font-mono text-violet-700 font-semibold tabular-nums whitespace-nowrap">
+                            {item.subst_tributaria_pct !== undefined &&
+                            item.subst_tributaria_pct > 0
+                              ? `${item.subst_tributaria_pct}%`
+                              : '—'}
+                          </td>
                           <td className="py-2.5 px-3 text-center font-mono text-sky-700 font-semibold tabular-nums whitespace-nowrap">
                             {item.custo_fixo_pct !== undefined ? `${item.custo_fixo_pct}%` : '—'}
                           </td>
@@ -3004,7 +3240,7 @@ export default function Precificacao() {
 
                     {historyList.length === 0 && (
                       <tr>
-                        <td colSpan={14} className="py-12 text-center text-slate-400">
+                        <td colSpan={15} className="py-12 text-center text-slate-400">
                           {loadingHistory
                             ? 'Carregando histórico...'
                             : 'Nenhum histórico de precificação registrado ainda.'}

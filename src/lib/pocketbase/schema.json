@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-17T13:00:15.689Z",
+  "generatedAt": "2026-09-17T14:22:46.428Z",
   "collections": [
     {
       "name": "users",
@@ -2222,6 +2222,12 @@
         },
         {
           "name": "custo_fixo_pct",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "subst_tributaria_pct",
           "type": "number",
           "required": false,
           "system": false

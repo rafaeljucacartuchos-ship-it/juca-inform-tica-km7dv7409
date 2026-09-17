@@ -21,6 +21,7 @@ export const SETTING_KEYS = {
   COMISSAO_PCT: 'comissao_pct',
   IPI_PCT: 'ipi_pct',
   IMPOSTO_SAIDA_PCT: 'imposto_saida_pct',
+  SUBST_TRIBUTARIA_PCT: 'subst_tributaria_pct',
   DESPESA_FIXA_MENSAL: 'despesa_fixa_mensal',
   FATURAMENTO_MEDIO_MENSAL: 'faturamento_medio_mensal',
   LUCRATIVIDADE_DESEJADA_PCT: 'lucratividade_desejada_pct',
@@ -54,6 +55,7 @@ export const DEFAULT_COMPANY_PARAMS: CompanyPricingParameters = {
   comissao_pct: 2.5,
   ipi_pct: 0,
   imposto_saida_pct: 4.0,
+  subst_tributaria_pct: 0,
   despesa_fixa_mensal: 15000,
   faturamento_medio_mensal: 100000,
   lucratividade_desejada_pct: 25.0,
@@ -143,6 +145,10 @@ export async function getCompanyPricingParameters(): Promise<CompanyPricingParam
       map.get(SETTING_KEYS.IMPOSTO_SAIDA_PCT),
       DEFAULT_COMPANY_PARAMS.imposto_saida_pct ?? 4.0,
     )
+    const subst_tributaria_pct = parseNum(
+      map.get(SETTING_KEYS.SUBST_TRIBUTARIA_PCT),
+      DEFAULT_COMPANY_PARAMS.subst_tributaria_pct ?? 0,
+    )
     const despesa_fixa_mensal = parseNum(
       map.get(SETTING_KEYS.DESPESA_FIXA_MENSAL),
       DEFAULT_COMPANY_PARAMS.despesa_fixa_mensal,
@@ -203,6 +209,7 @@ export async function getCompanyPricingParameters(): Promise<CompanyPricingParam
       comissao_pct,
       ipi_pct,
       imposto_saida_pct,
+      subst_tributaria_pct,
       despesa_fixa_mensal,
       faturamento_medio_mensal,
       lucratividade_desejada_pct,
@@ -287,6 +294,15 @@ export async function updateCompanyPricingParameters(
         SETTING_KEYS.IMPOSTO_SAIDA_PCT,
         String(params.imposto_saida_pct),
         'Alíquota de imposto de saída (%) incidente nas vendas',
+      ),
+    )
+  }
+  if (params.subst_tributaria_pct !== undefined) {
+    updates.push(
+      setSettingValue(
+        SETTING_KEYS.SUBST_TRIBUTARIA_PCT,
+        String(params.subst_tributaria_pct),
+        'Alíquota de substituição tributária (%) incidente no custo do produto',
       ),
     )
   }
@@ -425,6 +441,7 @@ export async function createPricingHistory(data: {
   comissao_pct?: number
   ipi_pct?: number
   imposto_saida_pct?: number
+  subst_tributaria_pct?: number
   payment_method_nome?: string
   custo_fixo_pct?: number
   custo_fixo_rateado_unitario?: number
@@ -453,6 +470,7 @@ export async function createPricingHistory(data: {
     comissao_pct: data.comissao_pct ?? 0,
     ipi_pct: data.ipi_pct ?? 0,
     imposto_saida_pct: data.imposto_saida_pct ?? 0,
+    subst_tributaria_pct: data.subst_tributaria_pct ?? 0,
     payment_method_nome: data.payment_method_nome || null,
     created_by: currentUserId || null,
   }
@@ -507,8 +525,12 @@ export interface PricingCalculationResult {
   custoAdicional1: number
   custoAdicional2: number
   custoFixoRateado: number // custo_fixo_rateado_unitario (R$/serviço)
-  custoDiretoTotal: number // custo BRL + frete + adicional1 + adicional2 (sem o rateio)
-  custoBaseComRateio: number // custoDiretoTotal + custoFixoRateado
+  custoAquisicao: number // custo BRL + frete + adicional1 + adicional2 (sem ST)
+  substTributariaPct: number // Alíquota de ST (%)
+  substTributariaValor: number // Valor R$ da Substituição Tributária calculada
+  custoTotalProduto: number // Custo Estimado + Frete + Custos Extras + Subst. Tributária (Custo Direto Total com ST)
+  custoDiretoTotal: number // Igual a custoTotalProduto (base direta usada no markup)
+  custoBaseComRateio: number // custoTotalProduto + custoFixoRateado
 
   // Percentuais aplicados
   custoFixoPct: number // Custo Fixo (%) v0.0.211/v0.0.212
@@ -533,6 +555,8 @@ export interface PricingCalculationResult {
   // Fatias decompostas em R$ e em % (para gráfico cascata 100%)
   fatias: {
     custoDireto: { valor: number; pct: number }
+    custoAquisicao?: { valor: number; pct: number } // Mercadoria + frete + extras (sem ST)
+    substTributaria?: { valor: number; pct: number } // Card próprio quando ST > 0
     custoFixoRateado: { valor: number; pct: number }
     custoFixo: { valor: number; pct: number } // Custo Fixo (%) em R$ e %
     despesaFixa: { valor: number; pct: number }
@@ -568,6 +592,7 @@ export interface PricingInputData {
   frete?: number
   custoAdicional1?: number
   custoAdicional2?: number
+  substTributariaPct?: number // Substituição Tributária (%) v0.0.226
   custoFixoRateado?: number
   custoFixoPct?: number
   despesaFixaPct: number
@@ -583,12 +608,13 @@ export interface PricingInputData {
 /**
  * Nova metodologia de cálculo completa (JUCA INFORMÁTICA):
  *
- * 1. Custo direto = Custo do produto em R$ + frete + custos adicionais unitários
- * 2. Custos variáveis % = taxa_cartao% + icms% + comissao% + ipi%
- * 3. Markup divisor = 1 / (1 - despesa_fixa% - custos_variaveis% - lucratividade%)
- * 4. Preço de venda = Custo direto * Markup divisor
- * 5. Lucro R$ = Preço - Custo direto - Despesa fixa$ - Custos variáveis$
- * 6. Todas as fatias fecham 100% do preço de venda
+ * 1. Custo de Aquisição = Custo do produto em R$ + frete + custos adicionais unitários
+ * 2. Substituição Tributária (ST) = Custo de Aquisição × (subst_tributaria_pct / 100)
+ * 3. Custo Total do Produto = Custo de Aquisição + Substituição Tributária
+ * 4. Custo Direto Total = Custo Total do Produto (inclui ST como componente de custo tributário na entrada)
+ * 5. Markup divisor = 1 / (1 - custo_fixo% - despesa_fixa% - custos_variaveis% - lucratividade%)
+ * 6. Preço de venda = (Custo Total do Produto + Custo Fixo Rateado) * Markup divisor
+ * 7. Todas as fatias fecham 100% do preço de venda: Custo de Aquisição (ou Direto), Subst. Tributária (se > 0), Custo Fixo, Despesa Fixa, Variáveis, Lucro Líquido
  */
 export function calculateJucaPricing(input: PricingInputData): PricingCalculationResult {
   const cotacao = input.cotacaoDolar && input.cotacaoDolar > 0 ? input.cotacaoDolar : 5.65
@@ -606,8 +632,16 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
   const adicional2 = Math.max(0, input.custoAdicional2 || 0)
   const custoFixoRateado = Math.max(0, input.custoFixoRateado || 0)
 
-  const custoDiretoTotal =
-    Math.round((custoProdutoBRL + frete + adicional1 + adicional2) * 100) / 100
+  // Custo de aquisição sem a Substituição Tributária
+  const custoAquisicao = Math.round((custoProdutoBRL + frete + adicional1 + adicional2) * 100) / 100
+  const substTributariaPct = Math.max(0, input.substTributariaPct || 0)
+  const substTributariaValor =
+    substTributariaPct > 0 ? Math.round(custoAquisicao * (substTributariaPct / 100) * 100) / 100 : 0
+
+  // CUSTO TOTAL DO PRODUTO = Custo Estimado + Frete + Custos Extras + Substituição Tributária calculada
+  const custoTotalProduto = Math.round((custoAquisicao + substTributariaValor) * 100) / 100
+  // Custo Direto Total usado nos cálculos de markup e preço sugerido
+  const custoDiretoTotal = custoTotalProduto
   const custoBaseComRateio = Math.round((custoDiretoTotal + custoFixoRateado) * 100) / 100
 
   const custoFixoPct = Math.max(0, input.custoFixoPct || 0)
@@ -638,6 +672,10 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
       custoAdicional1: adicional1,
       custoAdicional2: adicional2,
       custoFixoRateado,
+      custoAquisicao,
+      substTributariaPct,
+      substTributariaValor,
+      custoTotalProduto,
       custoDiretoTotal,
       custoBaseComRateio,
       custoFixoPct,
@@ -656,6 +694,8 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
       lucroUnitario: 0,
       fatias: {
         custoDireto: { valor: 0, pct: 0 },
+        custoAquisicao: { valor: 0, pct: 0 },
+        substTributaria: { valor: 0, pct: 0 },
         custoFixoRateado: { valor: 0, pct: 0 },
         custoFixo: { valor: 0, pct: 0 },
         despesaFixa: { valor: 0, pct: 0 },
@@ -716,14 +756,19 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
 
   // Fatias percentuais sobre o preço final gerado (deve somar 100%)
   const custoDiretoPct = salePrice > 0 ? (custoDiretoTotal / salePrice) * 100 : 0
+  const custoAquisicaoPct = salePrice > 0 ? (custoAquisicao / salePrice) * 100 : 0
+  const substTributariaPctDoPreco = salePrice > 0 ? (substTributariaValor / salePrice) * 100 : 0
   const custoFixoRateadoPct = salePrice > 0 ? (custoFixoRateado / salePrice) * 100 : 0
   const custoFixoRealPct = salePrice > 0 ? (custoFixoValor / salePrice) * 100 : 0
   const lucroRealPct = salePrice > 0 ? (lucroUnitario / salePrice) * 100 : 0
   const despesaFixaRealPct = salePrice > 0 ? (despesaFixaValor / salePrice) * 100 : 0
   const custosVariaveisRealPct = salePrice > 0 ? (custosVariaveisValor / salePrice) * 100 : 0
+
+  // Se ST > 0, dividimos a fatia do Custo Total em: Custo Aquisição + Subst. Tributária
+  // A soma de (custoAquisicaoPct + substTributariaPctDoPreco) == custoDiretoPct.
   const totalFatiasPct =
     Math.round(
-      (custoDiretoPct +
+      ((substTributariaValor > 0 ? custoAquisicaoPct + substTributariaPctDoPreco : custoDiretoPct) +
         custoFixoRateadoPct +
         custoFixoRealPct +
         despesaFixaRealPct +
@@ -745,6 +790,10 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
     custoAdicional1: adicional1,
     custoAdicional2: adicional2,
     custoFixoRateado,
+    custoAquisicao,
+    substTributariaPct,
+    substTributariaValor,
+    custoTotalProduto,
     custoDiretoTotal,
     custoBaseComRateio,
     despesaFixaPct,
@@ -765,6 +814,14 @@ export function calculateJucaPricing(input: PricingInputData): PricingCalculatio
       custoDireto: {
         valor: custoDiretoTotal,
         pct: Math.round(custoDiretoPct * 10) / 10,
+      },
+      custoAquisicao: {
+        valor: custoAquisicao,
+        pct: Math.round(custoAquisicaoPct * 10) / 10,
+      },
+      substTributaria: {
+        valor: substTributariaValor,
+        pct: Math.round(substTributariaPctDoPreco * 10) / 10,
       },
       custoFixoRateado: {
         valor: custoFixoRateado,
@@ -832,6 +889,7 @@ export function decomposeExistingPrice(
   comissaoPct: number,
   ipiPct: number,
   impostoSaidaPct = 0,
+  substTributariaValor = 0,
 ) {
   const price = Math.max(0, currentPrice)
   const custo = Math.max(0, custoDiretoTotal)
@@ -854,10 +912,14 @@ export function decomposeExistingPrice(
   const custosVariaveisRealPct = price > 0 ? (custosVariaveisValor / price) * 100 : 0
   const margemLiquidaPct = price > 0 ? (lucroUnitario / price) * 100 : 0
 
+  const substTributariaPctDoPreco = price > 0 ? (substTributariaValor / price) * 100 : 0
+
   return {
     price,
     custoDiretoTotal: custo,
     custoPct: Math.round(custoPct * 10) / 10,
+    substTributariaValor,
+    substTributariaPctDoPreco: Math.round(substTributariaPctDoPreco * 10) / 10,
     despesaFixaValor,
     despesaFixaPct: Math.round(despesaFixaRealPct * 10) / 10,
     custosVariaveisValor,
