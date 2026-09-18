@@ -188,6 +188,112 @@ export const uploadSignature = async (
  * (c) Senão soma dos itens de service_order_items (quantity * unit_price, menos desconto + acréscimo da OS quando houver).
  * Grava em service_orders.total via update e retorna o total atualizado.
  */
+/**
+ * Copia de forma idempotente todos os itens de um orçamento (orcamento_itens)
+ * para a tabela de itens da O.S. (service_order_items).
+ *
+ * Mapeamento:
+ * - descricao -> description
+ * - quantidade -> quantity
+ * - valor_unitario -> unit_price
+ * - valor_total_item -> total
+ * - id_produto -> product (quando houver id_produto e/ou tipo for produto)
+ * - service_order -> targetOsId
+ *
+ * Idempotência:
+ * Compara se já existe um item com mesmo targetOsId, mesma descrição, quantidade
+ * e unit_price (e mesmo product se houver). Não cria itens repetidos.
+ *
+ * Retorna contadores de itens inseridos e já existentes.
+ */
+export async function copyOrcamentoItensToServiceOrder(
+  orcamentoId: string,
+  targetOsId: string,
+): Promise<{ inserted: number; existing: number; total: number }> {
+  if (!orcamentoId || !targetOsId) {
+    return { inserted: 0, existing: 0, total: 0 }
+  }
+
+  // 1. Busca itens do orçamento de origem
+  const orcItens = await pb.collection('orcamento_itens').getFullList<{
+    id: string
+    id_orcamento: string
+    tipo: 'produto' | 'servico'
+    id_produto?: string
+    descricao: string
+    quantidade: number
+    valor_unitario: number
+    desconto_item?: number
+    desconto_item_tipo?: 'percentual' | 'valor'
+    valor_total_item: number
+  }>({
+    filter: `id_orcamento = "${orcamentoId}"`,
+    sort: 'created',
+  })
+
+  if (!orcItens.length) {
+    return { inserted: 0, existing: 0, total: 0 }
+  }
+
+  // 2. Busca itens já existentes na OS de destino
+  const existingOsItems = await pb.collection('service_order_items').getFullList<ServiceOrderItem>({
+    filter: `service_order = "${targetOsId}"`,
+  })
+
+  // Set / tracker de itens existentes para verificação idempotente
+  const buildKey = (desc: string, qty: number, unit: number, prod?: string) =>
+    `${(desc || '').trim().toLowerCase()}|${Number(qty) || 1}|${Number(unit).toFixed(2)}|${prod || ''}`
+
+  const registeredKeys = new Set(
+    existingOsItems.map((it) => buildKey(it.description, it.quantity, it.unit_price, it.product)),
+  )
+
+  let insertedCount = 0
+  let existingCount = 0
+
+  for (const item of orcItens) {
+    const prodId = item.id_produto ? String(item.id_produto).trim() : undefined
+    const key = buildKey(item.descricao, item.quantidade, item.valor_unitario, prodId)
+
+    if (registeredKeys.has(key)) {
+      existingCount++
+      continue
+    }
+
+    const payload: Partial<ServiceOrderItem> = {
+      service_order: targetOsId,
+      description: item.descricao,
+      quantity: Number(item.quantidade) || 1,
+      unit_price: Number(item.valor_unitario) || 0,
+      total:
+        Number(item.valor_total_item) ||
+        (Number(item.quantidade) || 1) * (Number(item.valor_unitario) || 0),
+      ...(prodId ? { product: prodId } : {}),
+    }
+
+    try {
+      await pb.collection('service_order_items').create(payload)
+      registeredKeys.add(key)
+      insertedCount++
+    } catch (err) {
+      console.error('[copyOrcamentoItensToServiceOrder] Falha ao criar item da O.S.:', err, payload)
+    }
+  }
+
+  // Sincroniza o total da O.S. após inserção
+  try {
+    await syncServiceOrderTotal(targetOsId)
+  } catch {
+    /* best effort */
+  }
+
+  return {
+    inserted: insertedCount,
+    existing: existingCount,
+    total: orcItens.length,
+  }
+}
+
 export async function syncServiceOrderTotal(orderId: string): Promise<number> {
   if (!orderId) return 0
 
