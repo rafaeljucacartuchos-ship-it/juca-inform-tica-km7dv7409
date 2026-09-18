@@ -92,6 +92,7 @@ import {
   getServiceOrders,
   addStatusHistory,
   syncServiceOrderTotal,
+  copyOrcamentoItensToServiceOrder,
 } from '@/services/service_orders'
 import { ServiceOrderLinkSection } from '@/components/ServiceOrderLinkSection'
 import { getCustomerDisplayName, getCustomerPhone, getCustomers } from '@/services/customers'
@@ -646,6 +647,18 @@ export default function OrcamentosList() {
           await syncServiceOrderTotal(selectedOsId)
         } catch {
           /* best effort */
+        }
+
+        // Migração de itens se orçamento foi vinculado a uma O.S.
+        try {
+          await copyOrcamentoItensToServiceOrder(created.id, selectedOsId)
+        } catch (copyErr: any) {
+          console.error('[OrcamentosList] Falha ao copiar itens para a O.S.:', copyErr)
+          toast({
+            title: 'Orçamento criado, mas houve aviso na migração de itens',
+            description: copyErr?.message || 'Os itens podem ser importados posteriormente na O.S.',
+            variant: 'destructive',
+          })
         }
       }
 

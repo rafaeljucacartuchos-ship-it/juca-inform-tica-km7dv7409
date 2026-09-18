@@ -81,7 +81,12 @@ import {
   updateOsStatus,
   autoApproveOrcamentosOnOsClosed,
 } from '@/services/orcamentos'
-import { getServiceOrder, syncServiceOrderTotal, addStatusHistory } from '@/services/service_orders'
+import {
+  getServiceOrder,
+  syncServiceOrderTotal,
+  addStatusHistory,
+  copyOrcamentoItensToServiceOrder,
+} from '@/services/service_orders'
 import { getProduct } from '@/services/products'
 import {
   getCustomerPhone,
@@ -2161,6 +2166,27 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                       } catch {
                         /* ignore */
                       }
+
+                      // Migração automática de itens para a O.S. vinculada (v0.0.241)
+                      try {
+                        const copyRes = await copyOrcamentoItensToServiceOrder(id, selectedOs.id)
+                        if (copyRes.inserted > 0) {
+                          toast({
+                            title: 'Itens sincronizados com a O.S.',
+                            description: `${copyRes.inserted} ${copyRes.inserted === 1 ? 'item migrado' : 'itens migrados'} para a O.S. #${selectedOs.number}.`,
+                          })
+                        }
+                      } catch (copyErr: any) {
+                        console.error('Falha ao migrar itens do orçamento para a O.S.:', copyErr)
+                        toast({
+                          title: 'Vínculo salvo, mas houve erro ao migrar itens',
+                          description:
+                            copyErr?.message ||
+                            'Você pode importar os itens diretamente pela tela da O.S.',
+                          variant: 'destructive',
+                        })
+                      }
+
                       toast({
                         title: 'Ordem de Serviço vinculada!',
                         description: `Orçamento vinculado com sucesso à O.S. #${selectedOs.number}.`,

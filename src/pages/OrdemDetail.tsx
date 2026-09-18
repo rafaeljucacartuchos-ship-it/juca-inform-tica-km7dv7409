@@ -9,6 +9,7 @@ import {
   MessageCircle,
   FileText,
   ExternalLink,
+  Download,
   Plus,
   Edit2,
   Trash2,
@@ -42,6 +43,7 @@ import {
   getOrcamentoItens,
   createOrcamento,
   getOrcamentosByOs,
+  formatOsWithOrcamentoDisplay,
 } from '@/services/orcamentos'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
@@ -65,6 +67,7 @@ import {
   getStatusHistory,
   deleteServiceOrder,
   syncServiceOrderTotal,
+  copyOrcamentoItensToServiceOrder,
 } from '@/services/service_orders'
 import { getCustomerPhone, getCustomerDisplayName } from '@/services/customers'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
@@ -196,6 +199,7 @@ export default function OrdemDetail() {
   const [orcObs, setOrcObs] = useState('')
   const [orcDesconto, setOrcDesconto] = useState<number>(0)
   const [savingOrcConditions, setSavingOrcConditions] = useState(false)
+  const [importingItens, setImportingItens] = useState(false)
 
   const isTechnician = user?.role === 'technician'
   const isOrderOwner = Boolean(
@@ -1043,6 +1047,37 @@ export default function OrdemDetail() {
     }
   }
 
+  const handleImportarItensOrcamento = async () => {
+    if (!activeOrcamento?.id || !order?.id) return
+    setImportingItens(true)
+    try {
+      const res = await copyOrcamentoItensToServiceOrder(activeOrcamento.id, order.id)
+      if (res.inserted > 0) {
+        toast({
+          title: 'Itens importados com sucesso!',
+          description: `${res.inserted} ${
+            res.inserted === 1 ? 'item foi importado' : 'itens foram importados'
+          } para a O.S. (${res.alreadyExisting} já constavam).`,
+        })
+      } else {
+        toast({
+          title: 'Todos os itens já estavam importados',
+          description: `Nenhum novo item precisou ser adicionado à O.S. (${res.alreadyExisting} verificados).`,
+        })
+      }
+      await loadAll()
+    } catch (err: any) {
+      console.error('Erro ao importar itens do orçamento para a O.S.:', err)
+      toast({
+        title: 'Erro ao importar itens',
+        description: err?.message || 'Não foi possível migrar os itens para a Ordem de Serviço.',
+        variant: 'destructive',
+      })
+    } finally {
+      setImportingItens(false)
+    }
+  }
+
   const handleSaveOrcConditions = async () => {
     if (!activeOrcamento?.id) return
     setSavingOrcConditions(true)
@@ -1738,18 +1773,37 @@ export default function OrdemDetail() {
                           setEditingOrcItem(null)
                           setOrcItemModalOpen(true)
                         }}
-                        className="h-8 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
+                        className="min-h-[44px] sm:min-h-[32px] sm:h-8 px-3 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 touch-manipulation"
                       >
-                        <Plus className="h-3.5 w-3.5" /> Adicionar Item
+                        <Plus className="h-4 w-4 sm:h-3.5 sm:w-3.5" /> Adicionar Item
+                      </Button>
+                    )}
+                    {canEdit && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={importingItens}
+                        onClick={handleImportarItensOrcamento}
+                        title={`Importar itens de ${activeOrcamento.numero_orcamento} para a O.S.`}
+                        className="min-h-[44px] sm:min-h-[32px] sm:h-8 px-3 text-xs font-bold border-indigo-300 text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 hover:text-indigo-800 gap-1.5 touch-manipulation shadow-xs"
+                      >
+                        {importingItens ? (
+                          <Loader2 className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin text-indigo-600" />
+                        ) : (
+                          <Download className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-indigo-600" />
+                        )}
+                        <span>
+                          {importingItens ? 'Importando...' : 'Importar Itens do Orçamento'}
+                        </span>
                       </Button>
                     )}
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => navigate(`/orcamentos/${activeOrcamento.id}`)}
-                      className="h-8 text-xs font-medium gap-1 text-slate-700 bg-white"
+                      className="min-h-[44px] sm:min-h-[32px] sm:h-8 px-3 text-xs font-medium gap-1.5 text-slate-700 bg-white touch-manipulation"
                     >
-                      <ExternalLink className="h-3.5 w-3.5" />
+                      <ExternalLink className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                       Abrir Módulo
                     </Button>
                   </div>

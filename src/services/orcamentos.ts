@@ -135,6 +135,41 @@ export function formatOsOrcamentoLabel(
 }
 
 /**
+ * Utilitário para formatar a identificação composta O.S. 0085/0093
+ * Exemplo:
+ * - formatOsWithOrcamentoDisplay("OS-0085", "ORC-0093-REV1") => "O.S. 0085/0093"
+ * - formatOsWithOrcamentoDisplay("OS-0085", null) => "O.S. 0085"
+ * - formatOsWithOrcamentoDisplay("0085", "0093") => "O.S. 0085/0093"
+ */
+export function formatOsWithOrcamentoDisplay(
+  osNumber?: string | null,
+  orcamentoNumber?: string | null,
+): string {
+  if (!osNumber) return 'O.S. ---'
+  const osDigits = String(osNumber).replace(/\D/g, '') || osNumber.replace(/^OS-?/i, '').trim()
+
+  if (!orcamentoNumber) {
+    return `O.S. ${osDigits}`
+  }
+
+  // Extrai os dígitos principais do orçamento (ex: ORC-0093-REV1 -> 0093)
+  const orcClean = String(orcamentoNumber).trim()
+  const match = orcClean.match(/(\d+)/)
+  const orcDigits = match
+    ? match[1]
+    : orcClean
+        .replace(/^ORC-?/i, '')
+        .replace(/-REV\d+/i, '')
+        .trim()
+
+  if (!orcDigits) {
+    return `O.S. ${osDigits}`
+  }
+
+  return `O.S. ${osDigits}/${orcDigits}`
+}
+
+/**
  * Converte um número de OS (ex: "OS-0037") para o número de orçamento correspondente (ex: "ORC-0037").
  * Se já estiver no formato ORC-, retorna como está.
  */
