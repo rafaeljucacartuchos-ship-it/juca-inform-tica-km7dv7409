@@ -2129,10 +2129,32 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                       await updateOrcamento(id, { id_os: selectedOs.id })
                       if (previousOsId && previousOsId !== selectedOs.id) {
                         try {
+                          await addStatusHistory({
+                            service_order: previousOsId,
+                            status: 'open',
+                            note: `Orçamento ${orcamento.numero_orcamento} desvinculado da O.S.`,
+                            changed_by: user?.id,
+                          })
+                        } catch {
+                          /* ignore */
+                        }
+                        try {
                           await syncServiceOrderTotal(previousOsId)
                         } catch {
                           /* ignore */
                         }
+                      }
+                      try {
+                        const currentOsStatus =
+                          (selectedOs.status as OrderStatus) || 'aguardando_orcamento'
+                        await addStatusHistory({
+                          service_order: selectedOs.id,
+                          status: currentOsStatus,
+                          note: `Orçamento ${orcamento.numero_orcamento} vinculado manualmente a esta O.S.`,
+                          changed_by: user?.id,
+                        })
+                      } catch {
+                        /* ignore */
                       }
                       try {
                         await syncServiceOrderTotal(selectedOs.id)
@@ -2187,6 +2209,16 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                     try {
                       await updateOrcamento(id, { id_os: null as any })
                       if (previousOsId) {
+                        try {
+                          await addStatusHistory({
+                            service_order: previousOsId,
+                            status: (os?.status as OrderStatus) || 'open',
+                            note: `Orçamento ${orcamento.numero_orcamento} desvinculado da O.S.`,
+                            changed_by: user?.id,
+                          })
+                        } catch {
+                          /* ignore */
+                        }
                         try {
                           await syncServiceOrderTotal(previousOsId)
                         } catch {

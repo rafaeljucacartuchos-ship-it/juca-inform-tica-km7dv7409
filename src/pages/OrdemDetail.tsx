@@ -43,6 +43,7 @@ import {
   createOrcamento,
   getOrcamentosByOs,
 } from '@/services/orcamentos'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -114,6 +115,8 @@ export default function OrdemDetail() {
   const { hasPermission } = usePermissions()
   const [order, setOrder] = useState<ServiceOrder | null>(null)
   const [notFound, setNotFound] = useState(false)
+  const [orcamentosList, setOrcamentosList] = useState<Orcamento[]>([])
+  const [selectedOrcamentoId, setSelectedOrcamentoId] = useState<string | null>(null)
   const [activeOrcamento, setActiveOrcamento] = useState<Orcamento | null>(null)
   const [orcamentoItens, setOrcamentoItens] = useState<OrcamentoItem[]>([])
   const [creatingOrcamento, setCreatingOrcamento] = useState(false)
@@ -212,19 +215,46 @@ export default function OrdemDetail() {
     if (!id) return
     try {
       setNotFound(false)
-      const [o, h, orc] = await Promise.all([
+      const [o, h, vinculadosList] = await Promise.all([
         getServiceOrder(id),
         getStatusHistory(id).catch(() => []),
-        getActiveOrcamento(id).catch(() => null),
+        getOrcamentosByOs(id).catch(() => []),
       ])
-      setActiveOrcamento(orc)
-      if (orc?.id) {
-        const oItens = await getOrcamentoItens(orc.id).catch(() => [])
-        setOrcamentoItens(oItens)
-        setOrcValidade(orc.validade || 15)
-        setOrcObs(orc.observacoes || '')
-        setOrcDesconto(orc.desconto_total_valor || 0)
+
+      setOrcamentosList(vinculadosList)
+
+      // Escolhe o orçamento a exibir:
+      // 1) Se já houver um selecionado pelo usuário e ainda estiver na lista
+      // 2) Caso contrário, o ativo mais recente (status !== substituido)
+      // 3) Se não houver ativo, o primeiro da lista vinculada (mesmo que substituído)
+      const orcAtivoPadrao =
+        vinculadosList.find(
+          (o) =>
+            o.status !== 'substituido' &&
+            o.status !== 'rejeitado' &&
+            (o.status === 'aprovado' || o.status === 'faturado'),
+        ) ||
+        vinculadosList.find((o) => o.status !== 'substituido') ||
+        vinculadosList[0] ||
+        null
+
+      let chosenOrc: Orcamento | null = null
+      if (selectedOrcamentoId) {
+        chosenOrc = vinculadosList.find((x) => x.id === selectedOrcamentoId) || orcAtivoPadrao
       } else {
+        chosenOrc = orcAtivoPadrao
+      }
+
+      setActiveOrcamento(chosenOrc)
+      if (chosenOrc?.id) {
+        setSelectedOrcamentoId(chosenOrc.id)
+        const oItens = await getOrcamentoItens(chosenOrc.id).catch(() => [])
+        setOrcamentoItens(oItens)
+        setOrcValidade(chosenOrc.validade || 15)
+        setOrcObs(chosenOrc.observacoes || '')
+        setOrcDesconto(chosenOrc.desconto_total_valor || 0)
+      } else {
+        setSelectedOrcamentoId(null)
         setOrcamentoItens([])
       }
 
@@ -982,6 +1012,21 @@ export default function OrdemDetail() {
     }
   }
 
+  const handleSelectOrcamento = async (orcId: string) => {
+    setSelectedOrcamentoId(orcId)
+    const target = orcamentosList.find((o) => o.id === orcId) || null
+    setActiveOrcamento(target)
+    if (target?.id) {
+      const oItens = await getOrcamentoItens(target.id).catch(() => [])
+      setOrcamentoItens(oItens)
+      setOrcValidade(target.validade || 15)
+      setOrcObs(target.observacoes || '')
+      setOrcDesconto(target.desconto_total_valor || 0)
+    } else {
+      setOrcamentoItens([])
+    }
+  }
+
   const handleDeleteOrcItem = async (itemId: string) => {
     if (!activeOrcamento?.id) return
     if (!confirm('Deseja remover este item do orçamento?')) return
@@ -1187,14 +1232,18 @@ export default function OrdemDetail() {
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Ação Principal 1: Orçamento Integrado à OS */}
-          {activeOrcamento ? (
+          {orcamentosList.length > 0 ? (
             <Button
               size="sm"
-              onClick={() => navigate(`/orcamentos/${activeOrcamento.id}`)}
+              onClick={() => navigate(`/orcamentos/${activeOrcamento?.id || orcamentosList[0].id}`)}
               className="text-xs gap-1.5 h-9 justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
             >
               <FileText className="h-4 w-4" />
-              <span>Ver Orçamento ({activeOrcamento.numero_orcamento})</span>
+              <span>
+                Ver Orçamento (
+                {activeOrcamento?.numero_orcamento || orcamentosList[0].numero_orcamento}
+                {orcamentosList.length > 1 ? ` • ${orcamentosList.length} vinculados` : ''})
+              </span>
             </Button>
           ) : (
             <Button
@@ -1655,46 +1704,112 @@ export default function OrdemDetail() {
             </CardContent>
           </Card>
 
-          {/* PAINEL UNIFICADO: Orçamento Vinculado com Edição Permitida de Itens e Condições */}
+          {/* PAINEL UNIFICADO: Orçamentos Vinculados com Edição de Itens e Condições */}
           {activeOrcamento ? (
             <Card className="border-indigo-200 shadow-sm bg-white overflow-hidden">
-              <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 bg-indigo-50/60 border-b border-indigo-100">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <FileText className="h-4 w-4 text-indigo-600" />
-                  <CardTitle className="text-sm font-bold text-slate-900">
-                    Orçamento Vinculado
-                  </CardTitle>
-                  <span className="font-mono text-xs font-bold text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">
-                    {activeOrcamento.numero_orcamento}
-                  </span>
-                  <Badge variant="outline" className="text-xs uppercase font-semibold bg-white">
-                    {activeOrcamento.status}
-                  </Badge>
-                </div>
+              <CardHeader className="flex flex-col gap-3 pb-3 bg-indigo-50/60 border-b border-indigo-100">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <FileText className="h-4 w-4 text-indigo-600" />
+                    <CardTitle className="text-sm font-bold text-slate-900">
+                      {orcamentosList.length > 1
+                        ? `Orçamentos Vinculados (${orcamentosList.length})`
+                        : 'Orçamento Vinculado'}
+                    </CardTitle>
+                    <span className="font-mono text-xs font-bold text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">
+                      {activeOrcamento.numero_orcamento}
+                    </span>
+                    {activeOrcamento.status === 'substituido' ? (
+                      <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-xs font-semibold">
+                        Substituído (REV)
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs uppercase font-semibold bg-white">
+                        {activeOrcamento.status}
+                      </Badge>
+                    )}
+                  </div>
 
-                <div className="flex items-center gap-2">
-                  {canEdit && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {canEdit && activeOrcamento.status !== 'substituido' && (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setEditingOrcItem(null)
+                          setOrcItemModalOpen(true)
+                        }}
+                        className="h-8 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Adicionar Item
+                      </Button>
+                    )}
                     <Button
                       size="sm"
-                      onClick={() => {
-                        setEditingOrcItem(null)
-                        setOrcItemModalOpen(true)
-                      }}
-                      className="h-8 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
+                      variant="outline"
+                      onClick={() => navigate(`/orcamentos/${activeOrcamento.id}`)}
+                      className="h-8 text-xs font-medium gap-1 text-slate-700 bg-white"
                     >
-                      <Plus className="h-3.5 w-3.5" /> Adicionar Item
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Abrir Módulo
                     </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => navigate(`/orcamentos/${activeOrcamento.id}`)}
-                    className="h-8 text-xs font-medium gap-1 text-slate-700 bg-white"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    Abrir Módulo
-                  </Button>
+                  </div>
                 </div>
+
+                {/* Seletor / Abas quando houver mais de um orçamento vinculado à O.S. */}
+                {orcamentosList.length > 1 && (
+                  <div className="pt-2 border-t border-indigo-100">
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="text-[11px] font-semibold text-slate-600">
+                        Selecione o orçamento para visualizar produtos e serviços:
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {orcamentosList.length} versões/orçamentos vinculados
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                      {orcamentosList.map((orc) => {
+                        const isSelected = orc.id === activeOrcamento.id
+                        const isSub = orc.status === 'substituido'
+                        return (
+                          <button
+                            key={orc.id}
+                            type="button"
+                            onClick={() => handleSelectOrcamento(orc.id)}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 border ${
+                              isSelected
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-indigo-50/70 hover:border-indigo-200'
+                            }`}
+                          >
+                            <span className="font-mono font-bold">{orc.numero_orcamento}</span>
+                            {isSub && (
+                              <span
+                                className={`text-[9px] px-1 py-0.2 rounded font-semibold ${
+                                  isSelected
+                                    ? 'bg-amber-400 text-amber-950'
+                                    : 'bg-amber-100 text-amber-800'
+                                }`}
+                              >
+                                Substituído
+                              </span>
+                            )}
+                            <span
+                              className={`text-[10px] font-mono ${
+                                isSelected ? 'text-indigo-100' : 'text-slate-400'
+                              }`}
+                            >
+                              R${' '}
+                              {(Number(orc.total_geral) || 0).toLocaleString('pt-BR', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </CardHeader>
               <CardContent className="p-4 space-y-4 text-xs">
                 {/* Badges de assinaturas */}

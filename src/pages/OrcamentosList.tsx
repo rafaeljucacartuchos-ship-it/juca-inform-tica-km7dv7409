@@ -88,7 +88,11 @@ function formatEnviadoEmDate(isoDate: string): string {
   }
 }
 import { getOrcamentos, createOrcamento } from '@/services/orcamentos'
-import { getServiceOrders } from '@/services/service_orders'
+import {
+  getServiceOrders,
+  addStatusHistory,
+  syncServiceOrderTotal,
+} from '@/services/service_orders'
 import { ServiceOrderLinkSection } from '@/components/ServiceOrderLinkSection'
 import { getCustomerDisplayName, getCustomerPhone, getCustomers } from '@/services/customers'
 import { getUsers } from '@/services/users'
@@ -624,6 +628,26 @@ export default function OrcamentosList() {
           : equipamentoIndependente.trim() || undefined,
         defeito_independente: vincularOs ? undefined : defeitoIndependente.trim() || undefined,
       })
+
+      if (vincularOs && selectedOsId) {
+        try {
+          const targetOs = availableOrders.find((o) => o.id === selectedOsId) || selectedOsObject
+          const currentOsStatus = (targetOs?.status as OrderStatus) || 'aguardando_orcamento'
+          await addStatusHistory({
+            service_order: selectedOsId,
+            status: currentOsStatus,
+            note: `Orçamento ${created.numero_orcamento} vinculado manualmente a esta O.S.`,
+            changed_by: user?.id,
+          })
+        } catch {
+          /* best effort */
+        }
+        try {
+          await syncServiceOrderTotal(selectedOsId)
+        } catch {
+          /* best effort */
+        }
+      }
 
       toast({
         title: 'Orçamento criado com sucesso!',
