@@ -85,6 +85,12 @@ export interface PropostaData {
   } | null
   items: PropostaItem[]
   anexos: PropostaAnexo[]
+  versao_mais_recente?: {
+    id: string
+    token_acesso: string
+    numero_orcamento: string
+    status: string
+  } | null
 }
 
 export interface AprovarPropostaResult {

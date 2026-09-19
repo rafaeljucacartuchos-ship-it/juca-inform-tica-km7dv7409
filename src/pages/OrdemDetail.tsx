@@ -1054,23 +1054,23 @@ export default function OrdemDetail() {
       const res = await copyOrcamentoItensToServiceOrder(activeOrcamento.id, order.id)
       if (res.inserted > 0) {
         toast({
-          title: 'Itens importados com sucesso!',
+          title: 'Orçamento migrado com sucesso!',
           description: `${res.inserted} ${
             res.inserted === 1 ? 'item foi importado' : 'itens foram importados'
-          } para a O.S. (${res.alreadyExisting} já constavam).`,
+          } para a O.S. (${res.alreadyExisting} já constavam), além de desconto e condições sincronizados.`,
         })
       } else {
         toast({
-          title: 'Todos os itens já estavam importados',
-          description: `Nenhum novo item precisou ser adicionado à O.S. (${res.alreadyExisting} verificados).`,
+          title: 'Dados e itens do orçamento sincronizados',
+          description: `Desconto e condições sincronizados. Todos os ${res.alreadyExisting} itens já constavam na O.S.`,
         })
       }
       await loadAll()
     } catch (err: any) {
-      console.error('Erro ao importar itens do orçamento para a O.S.:', err)
+      console.error('Erro ao migrar dados e itens do orçamento para a O.S.:', err)
       toast({
-        title: 'Erro ao importar itens',
-        description: err?.message || 'Não foi possível migrar os itens para a Ordem de Serviço.',
+        title: 'Erro ao migrar dados do orçamento',
+        description: err?.message || 'Não foi possível migrar os dados para a Ordem de Serviço.',
         variant: 'destructive',
       })
     } finally {
@@ -1784,7 +1784,7 @@ export default function OrdemDetail() {
                         variant="outline"
                         disabled={importingItens}
                         onClick={handleImportarItensOrcamento}
-                        title={`Importar itens de ${activeOrcamento.numero_orcamento} para a O.S.`}
+                        title={`Migrar todos os dados e itens de ${activeOrcamento.numero_orcamento} para a O.S.`}
                         className="min-h-[44px] sm:min-h-[32px] sm:h-8 px-3 text-xs font-bold border-indigo-300 text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 hover:text-indigo-800 gap-1.5 touch-manipulation shadow-xs"
                       >
                         {importingItens ? (
@@ -1793,7 +1793,7 @@ export default function OrdemDetail() {
                           <Download className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-indigo-600" />
                         )}
                         <span>
-                          {importingItens ? 'Importando...' : 'Importar Itens do Orçamento'}
+                          {importingItens ? 'Migrando...' : 'Importar Dados do Orçamento'}
                         </span>
                       </Button>
                     )}

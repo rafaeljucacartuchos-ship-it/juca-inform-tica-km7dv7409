@@ -52,7 +52,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { Orcamento, OrcamentoStatus, ServiceOrder, User, Customer } from '@/types'
+import { Orcamento, OrcamentoStatus, OrderStatus, ServiceOrder, User, Customer } from '@/types'
 
 /** Formata tempo decorrido relativo em português (ex: "3 dias", "5 horas", "15 minutos") */
 function formatElapsedHuman(isoDate: string): string {
@@ -649,14 +649,15 @@ export default function OrcamentosList() {
           /* best effort */
         }
 
-        // Migração de itens se orçamento foi vinculado a uma O.S.
+        // Migração completa dos dados para a O.S. vinculada (v0.0.244)
         try {
           await copyOrcamentoItensToServiceOrder(created.id, selectedOsId)
         } catch (copyErr: any) {
-          console.error('[OrcamentosList] Falha ao copiar itens para a O.S.:', copyErr)
+          console.error('[OrcamentosList] Falha ao migrar dados para a O.S.:', copyErr)
           toast({
-            title: 'Orçamento criado, mas houve aviso na migração de itens',
-            description: copyErr?.message || 'Os itens podem ser importados posteriormente na O.S.',
+            title: 'Orçamento criado, mas houve aviso na migração dos dados',
+            description:
+              copyErr?.message || 'Os dados podem ser sincronizados posteriormente na O.S.',
             variant: 'destructive',
           })
         }

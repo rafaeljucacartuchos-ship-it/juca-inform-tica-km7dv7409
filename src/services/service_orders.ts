@@ -1,5 +1,13 @@
 import pb from '@/lib/pocketbase/client'
-import { ServiceOrder, ServiceOrderItem, StatusHistory } from '@/types'
+import {
+  Customer,
+  Orcamento,
+  Payment,
+  PaymentMethod,
+  ServiceOrder,
+  ServiceOrderItem,
+  StatusHistory,
+} from '@/types'
 
 export const getServiceOrders = (filterStr = '', sortStr = '-created') =>
   pb.collection('service_orders').getFullList<ServiceOrder>({
@@ -209,12 +217,71 @@ export const uploadSignature = async (
 export async function copyOrcamentoItensToServiceOrder(
   orcamentoId: string,
   targetOsId: string,
-): Promise<{ inserted: number; existing: number; total: number }> {
-  if (!orcamentoId || !targetOsId) {
-    return { inserted: 0, existing: 0, total: 0 }
+): Promise<{ inserted: number; existing: number; total: number; alreadyExisting: number }> {
+  const result = await migrateOrcamentoToServiceOrder(orcamentoId, targetOsId)
+  return {
+    inserted: result.itemsInserted,
+    existing: result.itemsExisting,
+    alreadyExisting: result.itemsExisting,
+    total: result.itemsTotal,
+  }
+}
+
+/**
+ * Migra COMPLETO todos os dados do orçamento para a Ordem de Serviço (v0.0.244):
+ * - Itens (produtos/serviços) -> service_order_items (idempotente)
+ * - Desconto (desconto_total_valor ou calculado a partir do percentual)
+ * - Observações / Condições comerciais -> concatenado em notes sem sobrescrever
+ * - Forma de pagamento -> payments (registro pendente/previsto) se a OS ainda não tiver
+ * - Dados do cliente -> complementa customer se a OS não tiver cliente ou campos vazios
+ * - Equipamento e defeito independentes -> complementa se vazios na OS
+ * - Sincronização do total da OS
+ */
+export async function migrateOrcamentoToServiceOrder(
+  orcamentoId: string,
+  targetOsId: string,
+): Promise<{
+  itemsInserted: number
+  itemsExisting: number
+  itemsTotal: number
+  alreadyExisting: number
+  discountCopied: boolean
+  notesAppended: boolean
+  customerUpdated: boolean
+  paymentCreated: boolean
+}> {
+  const summary = {
+    itemsInserted: 0,
+    itemsExisting: 0,
+    itemsTotal: 0,
+    alreadyExisting: 0,
+    discountCopied: false,
+    notesAppended: false,
+    customerUpdated: false,
+    paymentCreated: false,
   }
 
-  // 1. Busca itens do orçamento de origem
+  if (!orcamentoId || !targetOsId) {
+    return summary
+  }
+
+  // 1. Carrega orçamento e O.S.
+  const [orcamento, order] = await Promise.all([
+    pb
+      .collection('orcamentos')
+      .getOne<Orcamento>(orcamentoId)
+      .catch(() => null),
+    pb
+      .collection('service_orders')
+      .getOne<ServiceOrder>(targetOsId)
+      .catch(() => null),
+  ])
+
+  if (!orcamento || !order) {
+    return summary
+  }
+
+  // 2. MIGRAÇÃO DE ITENS (idempotente)
   const orcItens = await pb.collection('orcamento_itens').getFullList<{
     id: string
     id_orcamento: string
@@ -231,16 +298,12 @@ export async function copyOrcamentoItensToServiceOrder(
     sort: 'created',
   })
 
-  if (!orcItens.length) {
-    return { inserted: 0, existing: 0, total: 0 }
-  }
+  summary.itemsTotal = orcItens.length
 
-  // 2. Busca itens já existentes na OS de destino
   const existingOsItems = await pb.collection('service_order_items').getFullList<ServiceOrderItem>({
     filter: `service_order = "${targetOsId}"`,
   })
 
-  // Set / tracker de itens existentes para verificação idempotente
   const buildKey = (desc: string, qty: number, unit: number, prod?: string) =>
     `${(desc || '').trim().toLowerCase()}|${Number(qty) || 1}|${Number(unit).toFixed(2)}|${prod || ''}`
 
@@ -248,15 +311,12 @@ export async function copyOrcamentoItensToServiceOrder(
     existingOsItems.map((it) => buildKey(it.description, it.quantity, it.unit_price, it.product)),
   )
 
-  let insertedCount = 0
-  let existingCount = 0
-
   for (const item of orcItens) {
     const prodId = item.id_produto ? String(item.id_produto).trim() : undefined
     const key = buildKey(item.descricao, item.quantidade, item.valor_unitario, prodId)
 
     if (registeredKeys.has(key)) {
-      existingCount++
+      summary.itemsExisting++
       continue
     }
 
@@ -274,24 +334,155 @@ export async function copyOrcamentoItensToServiceOrder(
     try {
       await pb.collection('service_order_items').create(payload)
       registeredKeys.add(key)
-      insertedCount++
+      summary.itemsInserted++
     } catch (err) {
-      console.error('[copyOrcamentoItensToServiceOrder] Falha ao criar item da O.S.:', err, payload)
+      console.error('[migrateOrcamentoToServiceOrder] Falha ao criar item da O.S.:', err, payload)
     }
   }
 
-  // Sincroniza o total da O.S. após inserção
+  summary.alreadyExisting = summary.itemsExisting
+
+  // 3. ATUALIZAÇÕES DIRETAS NA SERVICE_ORDER (Desconto, Notas/Observações, Cliente, Equipamento)
+  const osUpdates: Partial<ServiceOrder> = {}
+
+  // (a) Desconto do orçamento
+  let descValor = Number(orcamento.desconto_total_valor) || 0
+  if (
+    !descValor &&
+    orcamento.desconto_total_tipo === 'percentual' &&
+    Number(orcamento.desconto_total_percentual) > 0
+  ) {
+    const sub = Number(orcamento.subtotal) || 0
+    descValor = (sub * Number(orcamento.desconto_total_percentual)) / 100
+  }
+  if (descValor > 0 && (Number(order.desconto) || 0) === 0) {
+    osUpdates.desconto = descValor
+    summary.discountCopied = true
+  }
+
+  // (b) Observações / Condições do orçamento -> concatenar em order.notes com idempotência
+  const orcObs = (orcamento.observacoes || '').trim()
+  const orcTag = `Do orçamento ${orcamento.numero_orcamento}:`
+  if (orcObs) {
+    const currentNotes = (order.notes || '').trim()
+    if (!currentNotes.includes(orcTag)) {
+      const block = `${orcTag}\n${orcObs}`
+      osUpdates.notes = currentNotes ? `${currentNotes}\n\n${block}` : block
+      summary.notesAppended = true
+    }
+  }
+
+  // (c) Cliente da O.S. (NÃO sobrescrever se já existir!)
+  if (!order.customer && orcamento.cliente_id) {
+    osUpdates.customer = orcamento.cliente_id
+    summary.customerUpdated = true
+  }
+
+  // (d) Equipamento e defeito se a O.S. estiver vazia
+  if (!order.equipment && orcamento.equipamento_independente) {
+    osUpdates.equipment = orcamento.equipamento_independente
+  }
+  if (!order.description && orcamento.defeito_independente) {
+    osUpdates.description = orcamento.defeito_independente
+  }
+
+  // Aplica updates na O.S. se houver alterações
+  if (Object.keys(osUpdates).length > 0) {
+    try {
+      await pb.collection('service_orders').update(targetOsId, osUpdates)
+    } catch (err) {
+      console.error(
+        '[migrateOrcamentoToServiceOrder] Falha ao atualizar dados da O.S.:',
+        err,
+        osUpdates,
+      )
+    }
+  }
+
+  // (e) Se a O.S. já tem cliente ou herdou cliente_id do orçamento, complementa campos em branco do cliente
+  const effectiveCustomerId = order.customer || orcamento.cliente_id
+  if (effectiveCustomerId) {
+    try {
+      const cust = await pb
+        .collection('customers')
+        .getOne<Customer>(effectiveCustomerId)
+        .catch(() => null)
+      if (cust) {
+        const custUpdates: Partial<Customer> = {}
+        if (!cust.phone && !cust.celular && orcamento.telefone_cliente_livre) {
+          custUpdates.phone = orcamento.telefone_cliente_livre
+          custUpdates.celular = orcamento.telefone_cliente_livre
+        }
+        if (
+          !cust.name &&
+          !cust.razao_social &&
+          !cust.nome_fantasia &&
+          orcamento.nome_cliente_livre
+        ) {
+          custUpdates.name = orcamento.nome_cliente_livre
+        }
+        if (Object.keys(custUpdates).length > 0) {
+          await pb
+            .collection('customers')
+            .update(cust.id, custUpdates)
+            .catch(() => null)
+          summary.customerUpdated = true
+        }
+      }
+    } catch {
+      /* best effort */
+    }
+  }
+
+  // (f) Forma de pagamento do orçamento: se existir e a OS não tiver pagamentos registrados
+  if (orcamento.forma_pagamento) {
+    try {
+      const existingPayments = await pb.collection('payments').getFullList<Payment>({
+        filter: `service_order = "${targetOsId}"`,
+      })
+      const paymentTag = `Referente ao Orçamento ${orcamento.numero_orcamento}`
+      const alreadyHasPayment = existingPayments.some((p) => (p.notes || '').includes(paymentTag))
+
+      if (existingPayments.length === 0 && !alreadyHasPayment) {
+        const methodMap: Record<string, PaymentMethod> = {
+          dinheiro: 'cash',
+          pix: 'pix',
+          cartao_credito: 'credit_card',
+          cartao_debito: 'debit_card',
+          boleto: 'transfer',
+          crediario: 'transfer',
+          outros: 'transfer',
+        }
+        const method = methodMap[orcamento.forma_pagamento] || 'pix'
+        const totalAmount = Number(orcamento.total_geral) || 0
+
+        const isPaid = orcamento.status_pagamento === 'pago' || orcamento.status === 'faturado'
+        await pb.collection('payments').create({
+          service_order: targetOsId,
+          amount: totalAmount,
+          method,
+          status: isPaid ? 'paid' : 'pending',
+          paid_at: isPaid ? new Date().toISOString() : null,
+          notes: `${paymentTag} (${orcamento.parcelas || 1}x ${orcamento.forma_pagamento})`,
+        })
+        summary.paymentCreated = true
+      }
+    } catch (err) {
+      console.warn(
+        '[migrateOrcamentoToServiceOrder] Erro ao registrar forma de pagamento na OS:',
+        err,
+      )
+    }
+  }
+
+  // 4. Sincroniza o total da O.S. após todas as alterações
   try {
     await syncServiceOrderTotal(targetOsId)
   } catch {
     /* best effort */
   }
 
-  return {
-    inserted: insertedCount,
-    existing: existingCount,
-    total: orcItens.length,
-  }
+  return summary
 }
 
 export async function syncServiceOrderTotal(orderId: string): Promise<number> {

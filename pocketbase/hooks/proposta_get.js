@@ -18,12 +18,54 @@ routerAdd('GET', '/backend/v1/proposta/{token}', (e) => {
   let equipment = null
 
   try {
-    const osId = orcamento.getString('id_os')
+    let osId = orcamento.getString('id_os')
+    let osRecord = null
+
     if (osId) {
-      const osRecord = $app.findRecordById('service_orders', osId)
+      try {
+        osRecord = $app.findRecordById('service_orders', osId)
+      } catch (_) {}
+    }
+
+    // Se id_os não estava preenchido ou não encontrou por id, tenta resolver pelo número do orçamento
+    // (ex: ORC-0074 ou ORC-0074-REV1 -> OS-0074 ou 0074)
+    if (!osRecord) {
+      try {
+        const numOrc = orcamento.getString('numero_orcamento') || ''
+        const match = numOrc.replace(/-REV\d+$/i, '').match(/\d+/)
+        if (match && match[0]) {
+          const digits = match[0]
+          const padded = digits.padStart(4, '0')
+          const foundOsList = $app.findRecordsByFilter(
+            'service_orders',
+            'number = "OS-' +
+              padded +
+              '" || number = "' +
+              padded +
+              '" || number = "' +
+              digits +
+              '"',
+            '-created',
+            1,
+            0,
+          )
+          if (foundOsList && foundOsList.length > 0) {
+            osRecord = foundOsList[0]
+            osId = osRecord.id
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (osRecord) {
+      let osNumStr = osRecord.getString('number') || ''
+      // Se number estiver em branco mas tiver id, tenta garantir formato limpo
+      if (!osNumStr && osRecord.id) {
+        osNumStr = ''
+      }
       os = {
         id: osRecord.id,
-        number: osRecord.getString('number'),
+        number: osNumStr,
         title: osRecord.getString('title'),
         description: osRecord.getString('description'),
         equipment: osRecord.getString('equipment'),
@@ -158,6 +200,73 @@ routerAdd('GET', '/backend/v1/proposta/{token}', (e) => {
     }
   } catch (_) {}
 
+  // Se o orçamento atual estiver substituído, busca a versão mais recente da mesma família
+  let versaoMaisRecente = null
+  const currentStatus = orcamento.getString('status')
+  if (currentStatus === 'substituido') {
+    try {
+      const currentNum = orcamento.getString('numero_orcamento') || ''
+      // Remove sufixo -REV... para achar a raiz base (ex: ORC-0074-REV1 -> ORC-0074)
+      const baseNum = currentNum.replace(/-REV\d+$/i, '').trim()
+      const osId = orcamento.getString('id_os')
+
+      let candidateRecords = []
+      if (osId) {
+        // 1. Busca por O.S. vinculada os orçamentos não-substituídos, ou os mais recentes
+        candidateRecords = $app.findRecordsByFilter(
+          'orcamentos',
+          'id_os = "' + osId + '" && id != "' + orcamento.id + '"',
+          '-created',
+          20,
+          0,
+        )
+      }
+
+      if (!candidateRecords || candidateRecords.length === 0) {
+        // 2. Busca pela raiz do numero_orcamento
+        if (baseNum) {
+          candidateRecords = $app.findRecordsByFilter(
+            'orcamentos',
+            'numero_orcamento ~ "' + baseNum + '" && id != "' + orcamento.id + '"',
+            '-created',
+            20,
+            0,
+          )
+        }
+      }
+
+      if (candidateRecords && candidateRecords.length > 0) {
+        // Prioriza orçamentos não substituídos (ex: aguardando_aprovacao, enviado, aprovado, faturado)
+        var activeCandidate = null
+        for (var i = 0; i < candidateRecords.length; i++) {
+          var cand = candidateRecords[i]
+          if (cand.getString('status') !== 'substituido') {
+            activeCandidate = cand
+            break
+          }
+        }
+
+        // Se todos foram marcados como substituido (ou só existe outra revisão), pega o mais recente diferente do atual
+        if (!activeCandidate) {
+          activeCandidate = candidateRecords[0]
+        }
+
+        if (activeCandidate && activeCandidate.id !== orcamento.id) {
+          var candToken = activeCandidate.getString('token_acesso')
+          if (!candToken) {
+            candToken = activeCandidate.id
+          }
+          versaoMaisRecente = {
+            id: activeCandidate.id,
+            token_acesso: candToken,
+            numero_orcamento: activeCandidate.getString('numero_orcamento'),
+            status: activeCandidate.getString('status'),
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
   // Itens do orçamento
   let items = []
   try {
@@ -255,6 +364,7 @@ routerAdd('GET', '/backend/v1/proposta/{token}', (e) => {
     equipment: equipment,
     items: items,
     anexos: anexos,
+    versao_mais_recente: versaoMaisRecente,
   }
 
   return e.json(200, result)

@@ -67,6 +67,7 @@ import {
   Product,
   User,
   Customer,
+  OrderStatus,
 } from '@/types'
 import {
   getOrcamento,
@@ -80,6 +81,7 @@ import {
   sendOrcamentoToFaturamento,
   updateOsStatus,
   autoApproveOrcamentosOnOsClosed,
+  deriveOrcamentoNumberFromOs,
 } from '@/services/orcamentos'
 import {
   getServiceOrder,
@@ -2131,7 +2133,17 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                   )
                   if (!isNew && id) {
                     try {
-                      await updateOrcamento(id, { id_os: selectedOs.id })
+                      // Se o orçamento tinha número genérico (ORC-XXXX) e a OS tem número (OS-XXXX),
+                      // atualiza o número do orçamento para espelhar a O.S. (ex: ORC-0074),
+                      // garantindo que fique 100% como se tivesse sido criado de dentro da O.S.!
+                      const updates: Partial<Orcamento> = { id_os: selectedOs.id }
+                      if (selectedOs.number) {
+                        const derivedNum = deriveOrcamentoNumberFromOs(selectedOs.number)
+                        if (derivedNum && derivedNum !== orcamento.numero_orcamento) {
+                          updates.numero_orcamento = derivedNum
+                        }
+                      }
+                      await updateOrcamento(id, updates)
                       if (previousOsId && previousOsId !== selectedOs.id) {
                         try {
                           await addStatusHistory({
@@ -2167,22 +2179,29 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                         /* ignore */
                       }
 
-                      // Migração automática de itens para a O.S. vinculada (v0.0.241)
+                      // Migração automática completa de dados do orçamento para a O.S. vinculada (v0.0.244)
                       try {
                         const copyRes = await copyOrcamentoItensToServiceOrder(id, selectedOs.id)
+                        const parts: string[] = []
                         if (copyRes.inserted > 0) {
-                          toast({
-                            title: 'Itens sincronizados com a O.S.',
-                            description: `${copyRes.inserted} ${copyRes.inserted === 1 ? 'item migrado' : 'itens migrados'} para a O.S. #${selectedOs.number}.`,
-                          })
+                          parts.push(
+                            `${copyRes.inserted} ${copyRes.inserted === 1 ? 'item migrado' : 'itens migrados'}`,
+                          )
                         }
-                      } catch (copyErr: any) {
-                        console.error('Falha ao migrar itens do orçamento para a O.S.:', copyErr)
                         toast({
-                          title: 'Vínculo salvo, mas houve erro ao migrar itens',
+                          title: 'Dados sincronizados com a O.S.',
+                          description:
+                            parts.length > 0
+                              ? `${parts.join(', ')} e condições comerciais migradas para a O.S. #${selectedOs.number}.`
+                              : `Condições comerciais e dados do orçamento sincronizados com a O.S. #${selectedOs.number}.`,
+                        })
+                      } catch (copyErr: any) {
+                        console.error('Falha ao migrar dados do orçamento para a O.S.:', copyErr)
+                        toast({
+                          title: 'Vínculo salvo, mas houve aviso na migração dos dados',
                           description:
                             copyErr?.message ||
-                            'Você pode importar os itens diretamente pela tela da O.S.',
+                            'Você pode sincronizar os dados diretamente pela tela da O.S.',
                           variant: 'destructive',
                         })
                       }

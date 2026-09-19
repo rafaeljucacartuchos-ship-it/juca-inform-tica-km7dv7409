@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import {
   CheckCircle,
   AlertTriangle,
@@ -41,9 +41,11 @@ const PB_URL = import.meta.env.VITE_POCKETBASE_URL
 
 export default function PropostaPublica() {
   const { token } = useParams<{ token: string }>()
+  const navigate = useNavigate()
   const [data, setData] = useState<PropostaData | null>(null)
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [redirectNotice, setRedirectNotice] = useState<string | null>(null)
 
   // Assinatura
   const [signatureModalOpen, setSignatureModalOpen] = useState(false)
@@ -69,6 +71,20 @@ export default function PropostaPublica() {
     setErrorMsg(null)
     try {
       const res = await getPropostaByToken(token)
+
+      // Redirecionamento automático se a proposta estiver substituída e existir uma versão mais recente
+      if (
+        res.status === 'substituido' &&
+        res.versao_mais_recente?.token_acesso &&
+        res.versao_mais_recente.token_acesso !== token
+      ) {
+        setRedirectNotice(
+          `Você está vendo a versão mais recente desta proposta (${res.versao_mais_recente.numero_orcamento || ''}).`,
+        )
+        navigate(`/proposta/${res.versao_mais_recente.token_acesso}`, { replace: true })
+        return
+      }
+
       setData(res)
       if (res.status === 'aprovado' || res.status === 'faturado') {
         setApprovalResult({
@@ -87,19 +103,42 @@ export default function PropostaPublica() {
     loadProposta()
   }, [token])
 
+  // Se a proposta foi carregada e for substituída mas não redirecionou antes, tenta redirecionar se o token mudar
+  useEffect(() => {
+    if (
+      data?.status === 'substituido' &&
+      data?.versao_mais_recente?.token_acesso &&
+      data.versao_mais_recente.token_acesso !== token
+    ) {
+      setRedirectNotice(
+        `Você está vendo a versão mais recente desta proposta (${data.versao_mais_recente.numero_orcamento || ''}).`,
+      )
+      navigate(`/proposta/${data.versao_mais_recente.token_acesso}`, { replace: true })
+    }
+  }, [data, token, navigate])
+
   // Cálculo de vencimento
   const expiryInfo = useMemo(() => {
-    if (!data?.created) return { isExpired: false, daysLeft: 15 }
-    const createdDate = new Date(data.created.replace(' ', 'T') + 'Z')
-    const validadeDias = data.validade || 15
-    const expiryDate = new Date(createdDate.getTime() + validadeDias * 24 * 60 * 60 * 1000)
+    if (!data?.created) return { isExpired: false, daysLeft: 15, hasValidExpiry: false }
+    const cleanCreated = String(data.created).replace(' ', 'T')
+    const createdDate = new Date(cleanCreated.endsWith('Z') ? cleanCreated : cleanCreated + 'Z')
+    const createdTimestamp = createdDate.getTime()
+    if (isNaN(createdTimestamp)) {
+      return { isExpired: false, daysLeft: 15, hasValidExpiry: false }
+    }
+    const validadeDias =
+      typeof data.validade === 'number' && !isNaN(data.validade) ? data.validade : 15
+    const expiryDate = new Date(createdTimestamp + validadeDias * 24 * 60 * 60 * 1000)
     const now = new Date()
     const diffMs = expiryDate.getTime() - now.getTime()
     const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
     return {
-      isExpired: daysLeft <= 0,
-      daysLeft: Math.max(0, daysLeft),
-      expiryDateFormatted: expiryDate.toLocaleDateString('pt-BR'),
+      isExpired: !isNaN(daysLeft) && daysLeft <= 0,
+      daysLeft: isNaN(daysLeft) ? null : Math.max(0, daysLeft),
+      hasValidExpiry: !isNaN(daysLeft),
+      expiryDateFormatted: isNaN(expiryDate.getTime())
+        ? null
+        : expiryDate.toLocaleDateString('pt-BR'),
     }
   }, [data])
 
@@ -244,6 +283,22 @@ export default function PropostaPublica() {
       </div>
 
       <main className="no-print max-w-3xl mx-auto px-4 py-5 space-y-4">
+        {/* Aviso de redirecionamento para a versão mais recente */}
+        {redirectNotice && (
+          <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 shadow-xs flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold">{redirectNotice}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setRedirectNotice(null)}
+              className="text-blue-600 hover:text-blue-800 p-1 rounded-md"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         {/* Banner de Status Especial (Aprovado, Vencido, Substituído, Rejeitado) */}
         {isApproved && (
           <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 shadow-sm flex items-start gap-3">
@@ -275,12 +330,31 @@ export default function PropostaPublica() {
         {isSubstituido && (
           <div className="p-4 rounded-xl bg-slate-100 border border-slate-300 text-slate-800 flex items-start gap-3">
             <Lock className="h-5 w-5 text-slate-500 shrink-0 mt-0.5" />
-            <div className="text-xs">
+            <div className="text-xs space-y-2">
               <strong className="block text-sm font-bold text-slate-900">
                 Proposta Substituída
               </strong>
-              Uma nova versão atualizada deste orçamento foi gerada pela nossa equipe. Entre em
-              contato para receber o novo link.
+              <p>
+                Uma nova versão atualizada deste orçamento foi gerada pela nossa equipe.
+                {data.versao_mais_recente?.token_acesso
+                  ? ' Clique no botão abaixo para abrir a versão mais recente.'
+                  : ' Entre em contato para receber o novo link.'}
+              </p>
+              {data.versao_mais_recente?.token_acesso && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    navigate(`/proposta/${data.versao_mais_recente!.token_acesso}`)
+                  }}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs h-8 px-3 rounded-lg gap-1.5"
+                >
+                  <span>
+                    Ver Versão Mais Recente ({data.versao_mais_recente.numero_orcamento || 'Novo'})
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -324,9 +398,11 @@ export default function PropostaPublica() {
                 <h1 className="text-xl sm:text-2xl font-black font-mono tracking-tight mt-0.5">
                   {data.numero_orcamento}
                 </h1>
-                <p className="text-xs text-indigo-200 mt-1">
-                  Ordem de Serviço #{data.os?.number || '—'}
-                </p>
+                {data.os?.number ? (
+                  <p className="text-xs text-indigo-200 mt-1">Ordem de Serviço #{data.os.number}</p>
+                ) : (
+                  <p className="text-xs text-indigo-200 mt-1">Orçamento Independente</p>
+                )}
               </div>
 
               <div className="flex flex-wrap sm:flex-col sm:items-end gap-2 text-xs">
@@ -352,11 +428,14 @@ export default function PropostaPublica() {
                 <span className="text-[11px] text-indigo-200 flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
                   Validade: {data.validade || 15} dias
-                  {!isApproved && !isExpired && (
-                    <span className="text-emerald-300 font-semibold">
-                      ({expiryInfo.daysLeft}d restantes)
-                    </span>
-                  )}
+                  {!isApproved &&
+                    !isExpired &&
+                    expiryInfo.hasValidExpiry &&
+                    expiryInfo.daysLeft !== null && (
+                      <span className="text-emerald-300 font-semibold">
+                        ({expiryInfo.daysLeft}d restantes)
+                      </span>
+                    )}
                 </span>
               </div>
             </div>
