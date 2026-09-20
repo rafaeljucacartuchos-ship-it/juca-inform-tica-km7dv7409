@@ -228,7 +228,9 @@ export async function copyOrcamentoItensToServiceOrder(
 }
 
 /**
- * Migra COMPLETO todos os dados do orçamento para a Ordem de Serviço (v0.0.244):
+ * Migra COMPLETO todos os dados do orçamento para a Ordem de Serviço (v0.0.244 / v0.0.245):
+ * - Resolução inteligente da fonte: se o orçamento estiver vazio (0 itens / total 0),
+ *   busca automaticamente a versão mais recente com itens da mesma família (v0.0.245).
  * - Itens (produtos/serviços) -> service_order_items (idempotente)
  * - Desconto (desconto_total_valor ou calculado a partir do percentual)
  * - Observações / Condições comerciais -> concatenado em notes sem sobrescrever
@@ -281,8 +283,12 @@ export async function migrateOrcamentoToServiceOrder(
     return summary
   }
 
-  // 2. MIGRAÇÃO DE ITENS (idempotente)
-  const orcItens = await pb.collection('orcamento_itens').getFullList<{
+  // 2. RESOLUÇÃO INTELIGENTE DA FONTE DO ORÇAMENTO (v0.0.245)
+  // Se o orçamento indicado estiver vazio (sem itens ou total 0), busca a versão
+  // mais recente com dados da mesma família (mesma raiz de numero_orcamento ou mesma O.S.),
+  // priorizando status não-substituído e depois o mais recente com itens.
+  let effectiveOrcamento = orcamento
+  let orcItens = await pb.collection('orcamento_itens').getFullList<{
     id: string
     id_orcamento: string
     tipo: 'produto' | 'servico'
@@ -297,6 +303,67 @@ export async function migrateOrcamentoToServiceOrder(
     filter: `id_orcamento = "${orcamentoId}"`,
     sort: 'created',
   })
+
+  if (orcItens.length === 0 || (Number(effectiveOrcamento.total_geral) || 0) === 0) {
+    try {
+      const baseNumber = (effectiveOrcamento.numero_orcamento || '').replace(/-REV\d+/i, '').trim()
+
+      const familyFilters: string[] = []
+      if (baseNumber) {
+        familyFilters.push(`numero_orcamento ~ "${baseNumber}"`)
+      }
+      if (effectiveOrcamento.id_os || targetOsId) {
+        familyFilters.push(`id_os = "${effectiveOrcamento.id_os || targetOsId}"`)
+      }
+
+      const orcCandidates = await pb.collection('orcamentos').getFullList<Orcamento>({
+        filter: familyFilters.length > 0 ? familyFilters.join(' || ') : undefined,
+        sort: '-created',
+      })
+
+      // Ordena candidatos: não-substituídos primeiro, depois mais recentes
+      const sortedCandidates = [...orcCandidates]
+        .filter((c) => c.id !== effectiveOrcamento.id)
+        .sort((a, b) => {
+          const aNonSub = a.status !== 'substituido' ? 1 : 0
+          const bNonSub = b.status !== 'substituido' ? 1 : 0
+          if (aNonSub !== bNonSub) return bNonSub - aNonSub
+          return new Date(b.created || 0).getTime() - new Date(a.created || 0).getTime()
+        })
+
+      for (const cand of sortedCandidates) {
+        const candItens = await pb.collection('orcamento_itens').getFullList<{
+          id: string
+          id_orcamento: string
+          tipo: 'produto' | 'servico'
+          id_produto?: string
+          descricao: string
+          quantidade: number
+          valor_unitario: number
+          desconto_item?: number
+          desconto_item_tipo?: 'percentual' | 'valor'
+          valor_total_item: number
+        }>({
+          filter: `id_orcamento = "${cand.id}"`,
+          sort: 'created',
+        })
+
+        if (candItens.length > 0) {
+          effectiveOrcamento = cand
+          orcItens = candItens
+          console.log(
+            `[migrateOrcamentoToServiceOrder] Fonte do orçamento substituída pelo irmão com dados: ${cand.numero_orcamento} (${cand.id}) com ${candItens.length} itens.`,
+          )
+          break
+        }
+      }
+    } catch (resolveErr) {
+      console.warn(
+        '[migrateOrcamentoToServiceOrder] Falha ao resolver versão com dados da família do orçamento:',
+        resolveErr,
+      )
+    }
+  }
 
   summary.itemsTotal = orcItens.length
 
@@ -343,17 +410,18 @@ export async function migrateOrcamentoToServiceOrder(
   summary.alreadyExisting = summary.itemsExisting
 
   // 3. ATUALIZAÇÕES DIRETAS NA SERVICE_ORDER (Desconto, Notas/Observações, Cliente, Equipamento)
+  // Usamos effectiveOrcamento (se orcamento original estava vazio) para herdar os dados corretos
   const osUpdates: Partial<ServiceOrder> = {}
 
   // (a) Desconto do orçamento
-  let descValor = Number(orcamento.desconto_total_valor) || 0
+  let descValor = Number(effectiveOrcamento.desconto_total_valor) || 0
   if (
     !descValor &&
-    orcamento.desconto_total_tipo === 'percentual' &&
-    Number(orcamento.desconto_total_percentual) > 0
+    effectiveOrcamento.desconto_total_tipo === 'percentual' &&
+    Number(effectiveOrcamento.desconto_total_percentual) > 0
   ) {
-    const sub = Number(orcamento.subtotal) || 0
-    descValor = (sub * Number(orcamento.desconto_total_percentual)) / 100
+    const sub = Number(effectiveOrcamento.subtotal) || 0
+    descValor = (sub * Number(effectiveOrcamento.desconto_total_percentual)) / 100
   }
   if (descValor > 0 && (Number(order.desconto) || 0) === 0) {
     osUpdates.desconto = descValor
@@ -361,8 +429,8 @@ export async function migrateOrcamentoToServiceOrder(
   }
 
   // (b) Observações / Condições do orçamento -> concatenar em order.notes com idempotência
-  const orcObs = (orcamento.observacoes || '').trim()
-  const orcTag = `Do orçamento ${orcamento.numero_orcamento}:`
+  const orcObs = (effectiveOrcamento.observacoes || orcamento.observacoes || '').trim()
+  const orcTag = `Do orçamento ${effectiveOrcamento.numero_orcamento || orcamento.numero_orcamento}:`
   if (orcObs) {
     const currentNotes = (order.notes || '').trim()
     if (!currentNotes.includes(orcTag)) {
@@ -373,17 +441,21 @@ export async function migrateOrcamentoToServiceOrder(
   }
 
   // (c) Cliente da O.S. (NÃO sobrescrever se já existir!)
-  if (!order.customer && orcamento.cliente_id) {
-    osUpdates.customer = orcamento.cliente_id
+  const sourceClienteId = effectiveOrcamento.cliente_id || orcamento.cliente_id
+  if (!order.customer && sourceClienteId) {
+    osUpdates.customer = sourceClienteId
     summary.customerUpdated = true
   }
 
   // (d) Equipamento e defeito se a O.S. estiver vazia
-  if (!order.equipment && orcamento.equipamento_independente) {
-    osUpdates.equipment = orcamento.equipamento_independente
+  const sourceEquip =
+    effectiveOrcamento.equipamento_independente || orcamento.equipamento_independente
+  const sourceDefeito = effectiveOrcamento.defeito_independente || orcamento.defeito_independente
+  if (!order.equipment && sourceEquip) {
+    osUpdates.equipment = sourceEquip
   }
-  if (!order.description && orcamento.defeito_independente) {
-    osUpdates.description = orcamento.defeito_independente
+  if (!order.description && sourceDefeito) {
+    osUpdates.description = sourceDefeito
   }
 
   // Aplica updates na O.S. se houver alterações
@@ -400,7 +472,7 @@ export async function migrateOrcamentoToServiceOrder(
   }
 
   // (e) Se a O.S. já tem cliente ou herdou cliente_id do orçamento, complementa campos em branco do cliente
-  const effectiveCustomerId = order.customer || orcamento.cliente_id
+  const effectiveCustomerId = order.customer || sourceClienteId
   if (effectiveCustomerId) {
     try {
       const cust = await pb
@@ -409,17 +481,15 @@ export async function migrateOrcamentoToServiceOrder(
         .catch(() => null)
       if (cust) {
         const custUpdates: Partial<Customer> = {}
-        if (!cust.phone && !cust.celular && orcamento.telefone_cliente_livre) {
-          custUpdates.phone = orcamento.telefone_cliente_livre
-          custUpdates.celular = orcamento.telefone_cliente_livre
+        const sourcePhone =
+          effectiveOrcamento.telefone_cliente_livre || orcamento.telefone_cliente_livre
+        const sourceName = effectiveOrcamento.nome_cliente_livre || orcamento.nome_cliente_livre
+        if (!cust.phone && !cust.celular && sourcePhone) {
+          custUpdates.phone = sourcePhone
+          custUpdates.celular = sourcePhone
         }
-        if (
-          !cust.name &&
-          !cust.razao_social &&
-          !cust.nome_fantasia &&
-          orcamento.nome_cliente_livre
-        ) {
-          custUpdates.name = orcamento.nome_cliente_livre
+        if (!cust.name && !cust.razao_social && !cust.nome_fantasia && sourceName) {
+          custUpdates.name = sourceName
         }
         if (Object.keys(custUpdates).length > 0) {
           await pb
@@ -435,12 +505,13 @@ export async function migrateOrcamentoToServiceOrder(
   }
 
   // (f) Forma de pagamento do orçamento: se existir e a OS não tiver pagamentos registrados
-  if (orcamento.forma_pagamento) {
+  const sourceFormaPagamento = effectiveOrcamento.forma_pagamento || orcamento.forma_pagamento
+  if (sourceFormaPagamento) {
     try {
       const existingPayments = await pb.collection('payments').getFullList<Payment>({
         filter: `service_order = "${targetOsId}"`,
       })
-      const paymentTag = `Referente ao Orçamento ${orcamento.numero_orcamento}`
+      const paymentTag = `Referente ao Orçamento ${effectiveOrcamento.numero_orcamento || orcamento.numero_orcamento}`
       const alreadyHasPayment = existingPayments.some((p) => (p.notes || '').includes(paymentTag))
 
       if (existingPayments.length === 0 && !alreadyHasPayment) {
@@ -453,17 +524,23 @@ export async function migrateOrcamentoToServiceOrder(
           crediario: 'transfer',
           outros: 'transfer',
         }
-        const method = methodMap[orcamento.forma_pagamento] || 'pix'
-        const totalAmount = Number(orcamento.total_geral) || 0
+        const method = methodMap[sourceFormaPagamento] || 'pix'
+        const totalAmount =
+          Number(effectiveOrcamento.total_geral) || Number(orcamento.total_geral) || 0
 
-        const isPaid = orcamento.status_pagamento === 'pago' || orcamento.status === 'faturado'
+        const isPaid =
+          effectiveOrcamento.status_pagamento === 'pago' ||
+          effectiveOrcamento.status === 'faturado' ||
+          orcamento.status_pagamento === 'pago' ||
+          orcamento.status === 'faturado'
+        const parcelasNum = effectiveOrcamento.parcelas || orcamento.parcelas || 1
         await pb.collection('payments').create({
           service_order: targetOsId,
           amount: totalAmount,
           method,
           status: isPaid ? 'paid' : 'pending',
           paid_at: isPaid ? new Date().toISOString() : null,
-          notes: `${paymentTag} (${orcamento.parcelas || 1}x ${orcamento.forma_pagamento})`,
+          notes: `${paymentTag} (${parcelasNum}x ${sourceFormaPagamento})`,
         })
         summary.paymentCreated = true
       }
@@ -502,9 +579,9 @@ export async function syncServiceOrderTotal(orderId: string): Promise<number> {
       sort: '-created',
     })
 
-    // (a) Orçamento aprovado ou faturado
+    // (a) Orçamento aprovado ou faturado com valor > 0
     const orcAprovadoOuFaturado = orcamentosVinculados.find(
-      (o) => (o.status === 'aprovado' || o.status === 'faturado') && Number(o.total_geral) >= 0,
+      (o) => (o.status === 'aprovado' || o.status === 'faturado') && Number(o.total_geral) > 0,
     )
 
     if (orcAprovadoOuFaturado) {
@@ -515,24 +592,55 @@ export async function syncServiceOrderTotal(orderId: string): Promise<number> {
       if (orcComValor) {
         computedTotal = Number(orcComValor.total_geral) || 0
       } else {
-        // (c) Soma de service_order_items
-        const [items, order] = await Promise.all([
-          pb.collection('service_order_items').getFullList<ServiceOrderItem>({
-            filter: `service_order = "${orderId}"`,
-          }),
-          pb.collection('service_orders').getOne<ServiceOrder>(orderId),
-        ])
+        // (b.1) Tenta buscar por família na coleção orcamentos caso haja revisão anterior com valor
+        try {
+          const so = await pb
+            .collection('service_orders')
+            .getOne<{ number: string }>(orderId, { fields: 'number' })
+            .catch(() => null)
+          if (so?.number) {
+            const digits = so.number.replace(/\D/g, '')
+            if (digits) {
+              const familyOrcs = await pb.collection('orcamentos').getFullList<{
+                id: string
+                status: string
+                total_geral: number
+              }>({
+                filter: `numero_orcamento ~ "${digits}"`,
+                sort: '-created',
+              })
+              const orcFamilyComValor = familyOrcs.find((o) => Number(o.total_geral) > 0)
+              if (orcFamilyComValor) {
+                computedTotal = Number(orcFamilyComValor.total_geral) || 0
+              }
+            }
+          }
+        } catch {
+          /* ignore */
+        }
 
-        const subtotal = items.reduce((sum, item) => {
-          const qty = Number(item.quantity) || 0
-          const unit = Number(item.unit_price) || 0
-          const itemTotal = typeof item.total === 'number' ? item.total : qty * unit
-          return sum + itemTotal
-        }, 0)
+        if (computedTotal > 0) {
+          // valor herdado da família
+        } else {
+          // (c) Soma de service_order_items
+          const [items, order] = await Promise.all([
+            pb.collection('service_order_items').getFullList<ServiceOrderItem>({
+              filter: `service_order = "${orderId}"`,
+            }),
+            pb.collection('service_orders').getOne<ServiceOrder>(orderId),
+          ])
 
-        const desc = Number(order.desconto) || 0
-        const acresc = Number(order.acrescimo) || 0
-        computedTotal = Math.max(0, subtotal - desc + acresc)
+          const subtotal = items.reduce((sum, item) => {
+            const qty = Number(item.quantity) || 0
+            const unit = Number(item.unit_price) || 0
+            const itemTotal = typeof item.total === 'number' ? item.total : qty * unit
+            return sum + itemTotal
+          }, 0)
+
+          const desc = Number(order.desconto) || 0
+          const acresc = Number(order.acrescimo) || 0
+          computedTotal = Math.max(0, subtotal - desc + acresc)
+        }
       }
     }
 

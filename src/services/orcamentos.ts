@@ -274,6 +274,7 @@ export async function createOrcamento(params: {
     params.responsavel_id || params.id_usuario_criador || pb.authStore.model?.id || null
 
   let numero_orcamento: string = ''
+  let predecessorWithData: Orcamento | null = null
 
   if (id_os) {
     // 1. Busca orçamentos existentes desta O.S.
@@ -339,6 +340,9 @@ export async function createOrcamento(params: {
             status: 'substituido',
             numero_orcamento: revNumber,
           })
+          if (!predecessorWithData) {
+            predecessorWithData = prev
+          }
           revIndex++
         } catch (e) {
           console.warn('Erro ao atualizar numero_orcamento do orçamento substituído:', e)
@@ -346,6 +350,12 @@ export async function createOrcamento(params: {
       }
     } catch (e) {
       console.warn('Erro ao verificar conflito de numero_orcamento:', e)
+    }
+
+    // Se nenhum em conflito foi marcado, busca entre existingActive o predecessor mais relevante
+    if (!predecessorWithData && existingActive.length > 0) {
+      predecessorWithData =
+        existingActive.find((o) => (Number(o.total_geral) || 0) > 0) || existingActive[0]
     }
 
     // Garante que todos os outros orçamentos ativos desta O.S. sejam marcados como 'substituido'
@@ -365,24 +375,82 @@ export async function createOrcamento(params: {
     numero_orcamento = await generateNextOrcamentoNumber()
   }
 
+  // Se predecessorWithData existir mas tiver total 0, tenta localizar qualquer irmão da família com dados
+  let predecessorItemsToClone: OrcamentoItem[] = []
+  let predecessorData: Partial<Orcamento> = {}
+  if (predecessorWithData) {
+    try {
+      let itemsFound = await pb.collection('orcamento_itens').getFullList<OrcamentoItem>({
+        filter: `id_orcamento = "${predecessorWithData.id}"`,
+        sort: 'created',
+      })
+
+      // Se o predecessor imediato não tinha itens, busca na família inteira (ex: REV1, REV2...)
+      if (itemsFound.length === 0) {
+        const baseNum = (numero_orcamento || predecessorWithData.numero_orcamento || '')
+          .replace(/-REV\d+/i, '')
+          .trim()
+        const familyList = await pb.collection('orcamentos').getFullList<Orcamento>({
+          filter: id_os
+            ? `id_os = "${id_os}" || numero_orcamento ~ "${baseNum}"`
+            : `numero_orcamento ~ "${baseNum}"`,
+          sort: '-created',
+        })
+        for (const fam of familyList) {
+          const fItens = await pb.collection('orcamento_itens').getFullList<OrcamentoItem>({
+            filter: `id_orcamento = "${fam.id}"`,
+            sort: 'created',
+          })
+          if (fItens.length > 0) {
+            predecessorWithData = fam
+            itemsFound = fItens
+            break
+          }
+        }
+      }
+
+      if (itemsFound.length > 0) {
+        predecessorItemsToClone = itemsFound
+        predecessorData = {
+          desconto_total_valor: predecessorWithData.desconto_total_valor,
+          desconto_total_tipo: predecessorWithData.desconto_total_tipo,
+          desconto_total_percentual: predecessorWithData.desconto_total_percentual,
+          justificativa_desconto: predecessorWithData.justificativa_desconto,
+          forma_pagamento: predecessorWithData.forma_pagamento,
+          parcelas: predecessorWithData.parcelas,
+          entrada: predecessorWithData.entrada,
+          restante: predecessorWithData.restante,
+          observacoes: predecessorWithData.observacoes,
+          subtotal: predecessorWithData.subtotal,
+          total_geral: predecessorWithData.total_geral,
+          validade: predecessorWithData.validade,
+        }
+      }
+    } catch (predErr) {
+      console.warn('Erro ao buscar itens do orçamento predecessor para clonagem:', predErr)
+    }
+  }
+
   // 3. Cria o novo orçamento como aguardando_aprovacao com token de acesso
+  // Herda valores do predecessor se disponível (regra: nunca nascer vazio substituindo um com conteúdo)
   const token_acesso = await generateRandomToken(32)
   const createPayload: Record<string, any> = {
     numero_orcamento,
     status: 'aguardando_aprovacao',
-    validade: Number(validade) || 15,
-    observacoes: observacoes || '',
+    validade: Number(validade) || predecessorData.validade || 15,
+    observacoes: observacoes || predecessorData.observacoes || '',
     id_usuario_criador: id_usuario_criador || undefined,
-    desconto_total_valor: 0,
-    desconto_total_tipo: 'valor',
-    desconto_total_percentual: 0,
-    forma_pagamento: 'pix',
-    parcelas: 1,
-    entrada: 0,
-    restante: 0,
+    desconto_total_valor: predecessorData.desconto_total_valor ?? 0,
+    desconto_total_tipo: predecessorData.desconto_total_tipo || 'valor',
+    desconto_total_percentual: predecessorData.desconto_total_percentual ?? 0,
+    justificativa_desconto: predecessorData.justificativa_desconto || '',
+    forma_pagamento: predecessorData.forma_pagamento || 'pix',
+    parcelas: predecessorData.parcelas ?? 1,
+    entrada: predecessorData.entrada ?? 0,
+    restante: predecessorData.restante ?? 0,
     status_pagamento: 'pendente',
-    subtotal: 0,
-    total_geral: 0,
+    subtotal: predecessorData.subtotal ?? 0,
+    total_geral: predecessorData.total_geral ?? 0,
     token_acesso,
   }
 
@@ -402,6 +470,29 @@ export async function createOrcamento(params: {
   }
 
   const novo = await pb.collection('orcamentos').create<Orcamento>(createPayload)
+
+  // 3.1. Se clonamos itens do predecessor, copia os itens para o novo orçamento
+  if (predecessorItemsToClone.length > 0) {
+    try {
+      for (const pItem of predecessorItemsToClone) {
+        await pb.collection('orcamento_itens').create({
+          id_orcamento: novo.id,
+          tipo: pItem.tipo,
+          id_produto: pItem.id_produto || null,
+          descricao: pItem.descricao,
+          quantidade: pItem.quantidade,
+          valor_unitario: pItem.valor_unitario,
+          desconto_item: pItem.desconto_item || 0,
+          desconto_item_tipo: pItem.desconto_item_tipo || 'valor',
+          valor_total_item: pItem.valor_total_item,
+        })
+      }
+      // Recalcula totais persistindo o novo orçamento com seus itens
+      await recalculateOrcamentoTotals(novo.id).catch(() => null)
+    } catch (cloneErr) {
+      console.warn('Erro ao clonar itens do orçamento predecessor:', cloneErr)
+    }
+  }
 
   // 4. Se vinculado a OS, atualiza o status da OS para "aguardando_orcamento" e sincroniza total
   if (id_os) {
