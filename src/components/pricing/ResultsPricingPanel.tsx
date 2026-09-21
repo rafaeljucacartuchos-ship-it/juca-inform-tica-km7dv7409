@@ -46,61 +46,14 @@ export function ResultsPricingPanel({
   const handleCopySummary = () => {
     if (!selectedPrinter) return
 
-    const includedSlotsList = calculation.slotsEnriquecidos.filter(
-      (s) => s.visualStatus !== 'empty' && s.included,
-    )
-    const excludedSlotsList = calculation.slotsEnriquecidos.filter(
-      (s) => s.visualStatus !== 'empty' && !s.included,
-    )
-
     const summaryText = `=========================================
 JUCA CARTUCHOS — RESUMO DE PRECIFICAÇÃO DE LOCAÇÃO
 =========================================
 Equipamento: ${selectedPrinter.modelo} (${selectedPrinter.fabricante} - ${selectedPrinter.tecnologia})
-Valor de Compra: ${
-      selectedPrinter.valor_compra
-        ? Number(selectedPrinter.valor_compra).toLocaleString('pt-BR', {
-            style: 'currency',
-            currency: 'BRL',
-          })
-        : 'Pendente de preenchimento'
-    }
-Produção Mensal Estimada: ${producaoMensal.toLocaleString('pt-BR')} páginas
-Vida Útil Amortizada: ${vidaUtil} meses
-Mark-up Aplicado: ${markup.toFixed(2)}x (sobre custo total)
-
---- SUPRIMENTOS INCLUÍDOS NA PRECIFICAÇÃO ---
-${
-  includedSlotsList.length > 0
-    ? includedSlotsList
-        .map(
-          (s) =>
-            `• Slot ${s.slotNumber} - ${s.modelo} (${s.tipo}): Compra R$ ${
-              s.valorCompra ? s.valorCompra.toFixed(2) : '—'
-            } | Rend: ${s.rendimentoPaginas ? s.rendimentoPaginas.toLocaleString('pt-BR') : '—'} pág | CPP: R$ ${s.cppCalculado.toFixed(6)}`,
-        )
-        .join('\n')
-    : '(Nenhum suprimento selecionado no cálculo)'
-}
-${
-  excludedSlotsList.length > 0
-    ? `\n--- SUPRIMENTOS DESMARCADOS (FORA DA PROPOSTA) ---\n` +
-      excludedSlotsList
-        .map(
-          (s) =>
-            `• Slot ${s.slotNumber} - ${s.modelo} (${s.tipo}) [DESMARCADO - CUSTO SOB RESPONSABILIDADE DO CLIENTE/LOCADORA]`,
-        )
-        .join('\n')
-    : ''
-}
-
---- CUSTOS E PREÇOS ---
-CPP Suprimentos: ${calculation.formatted.cppSuprimentos}
-CPP Equipamento: ${calculation.formatted.cppEquipamento}
-Software Printway (mensal): ${calculation.formatted.valorSoftwarePrintway} (CPP: ${calculation.formatted.cppSoftwarePrintway})
-CPP Fornecedor Total: ${calculation.formatted.cppFornecedorTotal}
+Franquia / Produção Estimada: ${producaoMensal.toLocaleString('pt-BR')} páginas/mês
+Vigência Contratual: ${vidaUtil} meses
 -----------------------------------------
-CPP DE VENDA SUGERIDO: ${calculation.formatted.cppVenda}
+CPP DE VENDA HOMOLOGADO: ${calculation.formatted.cppVenda} / página
 CUSTO MENSAL ESTIMADO: ${calculation.formatted.custoMensalProducao}
 FATURAMENTO TOTAL MENSAL: ${calculation.formatted.faturamentoTotalMensal}
 =========================================`
@@ -112,7 +65,7 @@ FATURAMENTO TOTAL MENSAL: ${calculation.formatted.faturamentoTotalMensal}
         setTimeout(() => setCopied(false), 2500)
         toast({
           title: 'Resumo copiado!',
-          description: 'Memorial de cálculo pronto para envio ao cliente.',
+          description: 'Resumo comercial pronto para envio ao cliente.',
         })
       })
       .catch(() => {
@@ -333,7 +286,7 @@ FATURAMENTO TOTAL MENSAL: ${calculation.formatted.faturamentoTotalMensal}
                   }
                   placeholder="Ex: 490.14"
                   className="h-8 text-xs font-mono"
-                />
+                ></Input>
               </div>
             </div>
           </div>

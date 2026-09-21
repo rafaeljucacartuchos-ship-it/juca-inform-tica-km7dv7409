@@ -392,19 +392,6 @@ export function RentalProposalPrintView({
                           {(quote.franquia_paginas || 0).toLocaleString('pt-BR')} páginas/mês
                         </span>
                       </div>
-                      {(quote.software_printway_mensal ||
-                        (quote.resultados as any)?.software_printway_mensal) && (
-                        <div className="flex justify-between items-baseline text-[11px]">
-                          <span className="text-slate-600">Software Printway (mensal):</span>
-                          <span className="font-bold text-indigo-900 font-mono">
-                            {formatBRL(
-                              quote.software_printway_mensal ||
-                                (quote.resultados as any)?.software_printway_mensal ||
-                                0,
-                            )}
-                          </span>
-                        </div>
-                      )}
                       <div className="flex justify-between items-baseline text-[11px]">
                         <span className="text-slate-600">
                           Página Excedente (CPP Venda Homologado):
@@ -420,34 +407,6 @@ export function RentalProposalPrintView({
                         </span>
                       </div>
                     </div>
-
-                    {/* DISCRIMINAÇÃO DOS SUPRIMENTOS VINCULADOS COM CPP POR ITEM (Seção 10.3 / 11) */}
-                    {m.supplies && m.supplies.length > 0 && (
-                      <div className="bg-white rounded border border-slate-200 p-2.5 space-y-1.5">
-                        <span className="text-[10px] font-bold uppercase text-slate-700 block">
-                          Suprimentos & Manutenção Homologados (Até 5 Slots):
-                        </span>
-                        <div className="divide-y divide-slate-100 text-[10px]">
-                          {m.supplies.map((sup: any, sIdx: number) => (
-                            <div key={sIdx} className="py-1 flex justify-between items-center">
-                              <div>
-                                <strong className="text-slate-800">{sup.nome}</strong>{' '}
-                                {sup.tipo && (
-                                  <span className="text-slate-500 capitalize">({sup.tipo})</span>
-                                )}
-                              </div>
-                              <div className="text-right font-mono text-indigo-900 font-semibold">
-                                CPP: R${' '}
-                                {Number(sup.cpp || 0).toLocaleString('pt-BR', {
-                                  minimumFractionDigits: 6,
-                                  maximumFractionDigits: 6,
-                                })}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
 
                     {/* ESPECIFICAÇÕES TÉCNICAS */}
                     <div className="space-y-1 text-[11px] text-slate-600">
@@ -530,14 +489,6 @@ export function RentalProposalPrintView({
               <span>
                 <strong>Equipamento Reserva:</strong> Substituição rápida em caso de manutenção
                 complexa garantindo continuidade do seu negócio.
-              </span>
-            </li>
-            <li className="flex items-start gap-1.5">
-              <span className="text-emerald-700 font-bold">✓</span>
-              <span>
-                <strong>Software de Gerenciamento Printway:</strong> Monitoramento remoto de
-                contadores, alertas preditivos de suprimentos e relatórios automatizados de
-                volumetria.
               </span>
             </li>
             <li className="flex items-start gap-1.5">
