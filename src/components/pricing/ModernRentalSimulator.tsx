@@ -47,7 +47,11 @@ import type {
   SuprimentoRecord,
   ParametrosGlobais,
 } from '@/services/pricing-module'
-import { updateImpressora, updateSuprimento } from '@/services/pricing-module'
+import {
+  updateImpressora,
+  updateSuprimento,
+  recalculateLinkedPrintersForSupply,
+} from '@/services/pricing-module'
 import { createRentalQuote } from '@/services/rental'
 import type { RentalQuote } from '@/types'
 
@@ -341,9 +345,29 @@ export function ModernRentalSimulator({
         { [field]: supplyId },
         selectedPrinter,
       )
-      setSelectedPrinter(updated)
+      // Dispara recálculo automático em cascata para garantir que os CPPs da impressora fiquem salvos
+      if (supplyId) {
+        await recalculateLinkedPrintersForSupply(supplyId)
+      } else if (selectedPrinter[field]) {
+        // Se desvinculou, recalcula pelo suprimento anterior
+        await recalculateLinkedPrintersForSupply(selectedPrinter[field] as string)
+      }
+
+      // Atualiza o estado da impressora selecionada e recarrega os dados globais
+      setSelectedPrinter({
+        ...selectedPrinter,
+        ...updated,
+        [field]: supplyId,
+      })
       onReloadData()
-      toast({ title: `Slot ${slotNumber} atualizado com sucesso!` })
+
+      const newSup = supplyId ? supplies.find((s) => s.id === supplyId) : null
+      toast({
+        title: `Slot ${slotNumber} atualizado!`,
+        description: newSup
+          ? `Insumo ${newSup.modelo_suprimento} vinculado com sucesso.`
+          : 'Slot desvinculado (Vazio / Não Aplicável).',
+      })
     } catch (err) {
       console.error(err)
       toast({ title: 'Erro ao atualizar slot', variant: 'destructive' })
@@ -667,11 +691,13 @@ export function ModernRentalSimulator({
         <SupplySlotsGrid
           slots={calculation.slotsEnriquecidos}
           allSupplies={supplies}
+          printerModel={selectedPrinter?.modelo}
+          printerManufacturer={selectedPrinter?.fabricante}
           readOnly={readOnly}
           onUpdateSlotSupply={handleUpdateSlotSupply}
           onUpdateSlotValues={handleUpdateSlotValues}
           onOpenSupplyEditModal={handleOpenSupplyEditInternal}
-        />
+        />{' '}
       </div>
 
       {/* BLOCO 3: RESULTADOS DA PRECIFICAÇÃO & BREAK-EVEN */}

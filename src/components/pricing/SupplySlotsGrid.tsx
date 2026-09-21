@@ -25,6 +25,8 @@ import type { EnrichedSupplySlot, SlotVisualStatus } from '@/lib/pricing-engine'
 interface SupplySlotsGridProps {
   slots: EnrichedSupplySlot[]
   allSupplies: SuprimentoRecord[]
+  printerModel?: string
+  printerManufacturer?: string
   readOnly?: boolean
   onUpdateSlotSupply?: (slotNumber: 1 | 2 | 3 | 4 | 5, supplyId: string | null) => void
   onUpdateSlotValues?: (
@@ -38,18 +40,68 @@ interface SupplySlotsGridProps {
 export function SupplySlotsGrid({
   slots,
   allSupplies,
+  printerModel,
+  printerManufacturer,
   readOnly = false,
   onUpdateSlotSupply,
   onUpdateSlotValues,
   onOpenSupplyEditModal,
 }: SupplySlotsGridProps) {
-  // Modal de seleção / troca de suprimento para um slot
+  // Modal de seleção / troca de suprimento para um slot (modal completo de busca)
   const [activeSlotToChange, setActiveSlotToChange] = useState<1 | 2 | 3 | 4 | 5 | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
 
   // Modal com detalhes / histórico do suprimento
   const [detailModalSupply, setDetailModalSupply] = useState<EnrichedSupplySlot | null>(null)
 
+  // Organiza os suprimentos em: Compatíveis com a impressora selecionada vs Demais
+  const { compatibleSupplies, otherSupplies } = useMemo(() => {
+    const compModel = printerModel?.toLowerCase().trim() || ''
+
+    const isCompatible = (s: SuprimentoRecord) => {
+      if (!compModel) return false
+      if (s.impressoras_compativeis) {
+        const list = s.impressoras_compativeis
+          .toLowerCase()
+          .split(/[,;\n/]+/)
+          .map((m) => m.trim())
+          .filter(Boolean)
+        if (list.some((item) => compModel.includes(item) || item.includes(compModel))) {
+          return true
+        }
+      }
+      return false
+    }
+
+    const sortFn = (a: SuprimentoRecord, b: SuprimentoRecord) => {
+      // Ordena por fabricante, tipo, modelo
+      if (a.fabricante !== b.fabricante) {
+        return a.fabricante.localeCompare(b.fabricante)
+      }
+      if (a.tipo !== b.tipo) {
+        return a.tipo.localeCompare(b.tipo)
+      }
+      return a.modelo_suprimento.localeCompare(b.modelo_suprimento)
+    }
+
+    const compat: SuprimentoRecord[] = []
+    const others: SuprimentoRecord[] = []
+
+    for (const sup of allSupplies) {
+      if (isCompatible(sup)) {
+        compat.push(sup)
+      } else {
+        others.push(sup)
+      }
+    }
+
+    compat.sort(sortFn)
+    others.sort(sortFn)
+
+    return { compatibleSupplies: compat, otherSupplies: others }
+  }, [allSupplies, printerModel])
+
+  // Suprimentos filtrados pelo termo de busca no modal
   const filteredSupplies = useMemo(() => {
     if (!searchTerm.trim()) return allSupplies
     const term = searchTerm.toLowerCase().trim()
@@ -57,7 +109,8 @@ export function SupplySlotsGrid({
       (s) =>
         s.modelo_suprimento.toLowerCase().includes(term) ||
         s.fabricante.toLowerCase().includes(term) ||
-        s.tipo.toLowerCase().includes(term),
+        s.tipo.toLowerCase().includes(term) ||
+        (s.impressoras_compativeis && s.impressoras_compativeis.toLowerCase().includes(term)),
     )
   }, [allSupplies, searchTerm])
 
@@ -137,8 +190,51 @@ export function SupplySlotsGrid({
                   {statusIcon}
                 </div>
 
+                {/* Seletor rápido nativo no card do slot para troca direta */}
+                {!readOnly && onUpdateSlotSupply && visualStatus !== 'integrated' && (
+                  <div className="relative pt-0.5">
+                    <select
+                      value={slot.supplyId || ''}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        onUpdateSlotSupply(slot.slotNumber, val === '' ? null : val)
+                      }}
+                      title="Selecionar suprimento para este slot"
+                      className="w-full text-[11px] h-6 px-1.5 py-0 bg-white/90 hover:bg-white border border-slate-300 hover:border-indigo-400 rounded text-slate-800 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer truncate shadow-2xs"
+                    >
+                      <option value="">— [ Vazio / Não Aplicável ] —</option>
+
+                      {compatibleSupplies.length > 0 && (
+                        <optgroup label={`⭐ Compatíveis com ${printerModel || 'Impressora'}`}>
+                          {compatibleSupplies.map((sup) => {
+                            const isPending = !sup.valor_compra || !sup.rendimento_paginas
+                            const marker = isPending ? ' ⚠️ (sem preço)' : ''
+                            return (
+                              <option key={sup.id} value={sup.id}>
+                                {sup.modelo_suprimento} ({sup.tipo} • {sup.fabricante}){marker}
+                              </option>
+                            )
+                          })}
+                        </optgroup>
+                      )}
+
+                      <optgroup label="Demais Suprimentos Cadastrados">
+                        {otherSupplies.map((sup) => {
+                          const isPending = !sup.valor_compra || !sup.rendimento_paginas
+                          const marker = isPending ? ' ⚠️ (sem preço)' : ''
+                          return (
+                            <option key={sup.id} value={sup.id}>
+                              {sup.modelo_suprimento} ({sup.tipo} • {sup.fabricante}){marker}
+                            </option>
+                          )
+                        })}
+                      </optgroup>
+                    </select>
+                  </div>
+                )}
+
                 {visualStatus === 'empty' ? (
-                  <div className="py-4 text-center space-y-1">
+                  <div className="py-3 text-center space-y-1">
                     <p className="font-semibold text-slate-500 text-[11px]">
                       Não Aplicável / Vazio
                     </p>
@@ -154,7 +250,7 @@ export function SupplySlotsGrid({
                         }}
                         className="h-6 text-[10px] font-semibold text-indigo-600 hover:text-indigo-800 p-0"
                       >
-                        + Vincular Insumo
+                        + Buscar na Base
                       </Button>
                     )}
                   </div>
@@ -173,23 +269,25 @@ export function SupplySlotsGrid({
                   </div>
                 ) : (
                   <>
-                    <div className="flex items-start justify-between gap-1">
-                      <div>
+                    <div className="flex items-start justify-between gap-1 pt-0.5">
+                      <div className="min-w-0 flex-1">
                         <button
                           type="button"
                           onClick={() => setDetailModalSupply(slot)}
-                          className="font-extrabold text-slate-900 text-xs hover:text-indigo-600 text-left flex items-center gap-1 group"
+                          className="font-extrabold text-slate-900 text-xs hover:text-indigo-600 text-left flex items-center gap-1 group truncate max-w-full"
                           title="Clique para ver detalhes do suprimento"
                         >
-                          <span>{slot.modelo}</span>
-                          <ExternalLink className="h-2.5 w-2.5 text-slate-400 group-hover:text-indigo-600" />
+                          <span className="truncate">{slot.modelo}</span>
+                          <ExternalLink className="h-2.5 w-2.5 shrink-0 text-slate-400 group-hover:text-indigo-600" />
                         </button>
-                        <p className="text-[10px] text-slate-500 capitalize">
+                        <p className="text-[10px] text-slate-500 capitalize truncate">
                           {slot.tipo} • {slot.fabricante || '—'}
                         </p>
                       </div>
 
-                      <Badge className={`text-[9px] px-1.5 py-0 uppercase ${badgeVariantClass}`}>
+                      <Badge
+                        className={`text-[9px] px-1.5 py-0 uppercase shrink-0 ${badgeVariantClass}`}
+                      >
                         {slot.tipo}
                       </Badge>
                     </div>
@@ -326,9 +424,10 @@ export function SupplySlotsGrid({
                           setSearchTerm('')
                           setActiveSlotToChange(slot.slotNumber)
                         }}
-                        className="text-[9px] text-slate-500 hover:text-indigo-600 underline"
+                        className="text-[9px] text-slate-500 hover:text-indigo-600 underline cursor-pointer"
+                        title="Abrir busca avançada de suprimentos na base"
                       >
-                        Trocar Insumo
+                        Trocar Insumo (Busca)
                       </button>
                     </div>
                   )}
@@ -386,6 +485,10 @@ export function SupplySlotsGrid({
                   sup.valor_compra && sup.rendimento_paginas
                     ? sup.valor_compra / sup.rendimento_paginas
                     : 0
+                const isCompat =
+                  printerModel &&
+                  sup.impressoras_compativeis &&
+                  sup.impressoras_compativeis.toLowerCase().includes(printerModel.toLowerCase())
                 return (
                   <button
                     key={sup.id}
@@ -399,8 +502,13 @@ export function SupplySlotsGrid({
                     className="w-full text-left p-2 text-xs hover:bg-indigo-50 flex items-center justify-between group"
                   >
                     <div>
-                      <div className="font-bold text-slate-900 group-hover:text-indigo-700">
-                        {sup.modelo_suprimento}
+                      <div className="flex items-center gap-1.5 font-bold text-slate-900 group-hover:text-indigo-700">
+                        <span>{sup.modelo_suprimento}</span>
+                        {isCompat && (
+                          <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1 py-0.2 rounded font-semibold">
+                            Compatível
+                          </span>
+                        )}
                       </div>
                       <div className="text-[10px] text-slate-500 capitalize">
                         {sup.tipo} • {sup.fabricante}

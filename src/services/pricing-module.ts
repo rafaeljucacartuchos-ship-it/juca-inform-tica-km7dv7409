@@ -587,6 +587,25 @@ export async function updateImpressora(
         usuario: usuarioNome,
       })
     }
+    // Auditoria de troca de suprimentos nos slots 1 a 5
+    for (const slotKey of [
+      'suprimento_1',
+      'suprimento_2',
+      'suprimento_3',
+      'suprimento_4',
+      'suprimento_5',
+    ] as const) {
+      if (data[slotKey] !== undefined && data[slotKey] !== current[slotKey]) {
+        await logPriceAudit({
+          tabela: 'impressoras',
+          idRegistro: id,
+          campo: slotKey,
+          valorAntigo: current[slotKey] || 'vazio',
+          valorNovo: data[slotKey] || 'vazio',
+          usuario: usuarioNome,
+        })
+      }
+    }
   }
 
   return await pb.collection('impressoras').update<ImpressoraRecord>(id, data)
