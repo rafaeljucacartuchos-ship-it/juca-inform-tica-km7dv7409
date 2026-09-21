@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-21T02:38:54.801Z",
+  "generatedAt": "2026-09-21T03:46:02.803Z",
   "collections": [
     {
       "name": "users",
@@ -2637,6 +2637,457 @@
         }
       ],
       "indexes": ["CREATE UNIQUE INDEX idx_funcoes_nome ON funcoes (nome)"]
+    },
+    {
+      "name": "parametros",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "mark_up_revenda",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "vida_util_padrao_meses",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "producao_mensal_referencia",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "suprimentos",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "modelo_suprimento",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "tipo",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "toner",
+            "tinta",
+            "cartucho",
+            "fotocondutor",
+            "unidade_fusora",
+            "pelicula",
+            "cabecote",
+            "bobina",
+            "fita",
+            "ribbon"
+          ]
+        },
+        {
+          "name": "fabricante",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "impressoras_compativeis",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor_compra",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "rendimento_paginas",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cpp_calculado",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "fonte_preco",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ativo",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_suprimentos_modelo ON suprimentos (modelo_suprimento)",
+        "CREATE INDEX idx_suprimentos_fabricante ON suprimentos (fabricante)",
+        "CREATE INDEX idx_suprimentos_tipo ON suprimentos (tipo)"
+      ]
+    },
+    {
+      "name": "impressoras",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "modelo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "fabricante",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "tecnologia",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["laser_mono", "laser_colorido", "tinta", "termica", "matricial"]
+        },
+        {
+          "name": "valor_compra",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "vida_util_meses",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "suprimento_1",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "suprimentos"
+        },
+        {
+          "name": "suprimento_2",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "suprimentos"
+        },
+        {
+          "name": "suprimento_3",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "suprimentos"
+        },
+        {
+          "name": "suprimento_4",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "suprimentos"
+        },
+        {
+          "name": "suprimento_5",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "suprimentos"
+        },
+        {
+          "name": "cpp_suprimentos",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cpp_equipamento",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cpp_fornecedor_total",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "fonte_preco_equipamento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "bloqueada",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "motivo_bloqueio",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ativo",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_impressoras_modelo ON impressoras (modelo)",
+        "CREATE INDEX idx_impressoras_fabricante ON impressoras (fabricante)",
+        "CREATE INDEX idx_impressoras_tecnologia ON impressoras (tecnologia)"
+      ]
+    },
+    {
+      "name": "contratos",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "cliente",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "id_impressora",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "impressoras"
+        },
+        {
+          "name": "producao_mensal_estimada",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "locacao_mensal",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "mark_up_aplicado",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "cpp_venda_fechado",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "data_inicio",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "duracao_meses",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["ativo", "encerrado", "cancelado"]
+        },
+        {
+          "name": "dados_congelados",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_contratos_cliente ON contratos (cliente)",
+        "CREATE INDEX idx_contratos_impressora ON contratos (id_impressora)",
+        "CREATE INDEX idx_contratos_status ON contratos (status)"
+      ]
+    },
+    {
+      "name": "auditoria_precos",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "tabela_afetada",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "id_registro",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "campo_alterado",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "valor_antigo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor_novo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "usuario_responsavel",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "data_modificacao",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_auditoria_tabela_reg ON auditoria_precos (tabela_afetada, id_registro)",
+        "CREATE INDEX idx_auditoria_usuario ON auditoria_precos (usuario_responsavel)"
+      ]
     }
   ]
 }

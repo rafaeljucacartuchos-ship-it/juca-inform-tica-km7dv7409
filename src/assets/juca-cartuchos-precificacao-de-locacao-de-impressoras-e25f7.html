@@ -1,0 +1,2940 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Juca Cartuchos — Precificação de Locação de Impressoras</title>
+
+    <!-- Basecoat CSS -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/basecoat-css@1.0.2/dist/basecoat.cdn.min.css"
+    />
+
+    <!-- Shell System CSS -->
+    <style>
+      /* Skip artifact shell — fixed styles served beside every artifact.
+   Complements basecoat; artifacts override --accent for their own identity. */
+      :root {
+        color-scheme: light dark;
+        --accent: #2563eb;
+        --accent-contrast: #ffffff;
+        --accent-text: color-mix(in srgb, var(--accent) 72%, #000);
+        --bg: #f8f9fb;
+        --surface: #ffffff;
+        --text: #14171f;
+        --text-muted: #5b6472;
+        --border: rgba(20, 23, 31, 0.1);
+        --radius: 10px;
+        --shadow: 0 1px 3px rgba(20, 23, 31, 0.08);
+        --space: 16px;
+      }
+      /* Theme resolution. Without data-theme the viewer's system preference decides,
+   as it always did. With it, the artifact's own choice wins in BOTH directions:
+   a page that hardcodes one palette must not be handed the opposite set of
+   tokens by the machine it happens to be opened on. The dark values appear
+   twice because a media query cannot be folded into a selector list.
+   The attribute sits inside :where() so these blocks keep the specificity of a
+   bare :root — the page's own <style> is linked after this file and must go on
+   overriding any token it wants, exactly as it could before. */
+      @media (prefers-color-scheme: dark) {
+        :root:where(:not([data-theme='light'])) {
+          --accent-text: color-mix(in srgb, var(--accent) 78%, #fff);
+          --bg: #101318;
+          --surface: #181c23;
+          --text: #eef1f6;
+          --text-muted: #9aa4b2;
+          --border: rgba(238, 241, 246, 0.12);
+          --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+        }
+      }
+      :root:where([data-theme='dark']) {
+        color-scheme: dark;
+        --accent-text: color-mix(in srgb, var(--accent) 78%, #fff);
+        --bg: #101318;
+        --surface: #181c23;
+        --text: #eef1f6;
+        --text-muted: #9aa4b2;
+        --border: rgba(238, 241, 246, 0.12);
+        --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+      }
+      :root:where([data-theme='light']) {
+        color-scheme: light;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      img {
+        max-width: 100%;
+        display: block;
+      }
+
+      .shell-container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 0 20px;
+      }
+      .shell-section {
+        padding: calc(var(--space) * 2) 0;
+      }
+      .shell-grid {
+        display: grid;
+        gap: var(--space);
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      }
+      .shell-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: var(--space);
+      }
+      .shell-footer {
+        padding: 24px 0 40px;
+        color: var(--text-muted);
+        font-size: 13px;
+      }
+
+      .shell-hero {
+        padding: calc(var(--space) * 3) 0 calc(var(--space) * 2);
+      }
+      .shell-hero h1 {
+        font-size: clamp(26px, 4vw, 40px);
+        line-height: 1.15;
+        margin: 0 0 10px;
+        text-wrap: balance;
+      }
+      .shell-hero p {
+        color: var(--text-muted);
+        max-width: 60ch;
+        margin: 0;
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: var(--space);
+      }
+
+      .kpi {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .kpi .kpi-value {
+        font-size: 28px;
+        font-weight: 650;
+        line-height: 1.1;
+      }
+      .kpi .kpi-label {
+        font-size: 13px;
+        color: var(--text-muted);
+      }
+      .kpi .kpi-delta {
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+      .kpi .kpi-delta.up {
+        color: #0a8f3c;
+      }
+      .kpi .kpi-delta.down {
+        color: #cf3131;
+      }
+
+      table.shell-table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 14px;
+      }
+      table.shell-table th {
+        text-align: left;
+        font-size: 11.5px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        font-weight: 600;
+      }
+      table.shell-table th,
+      table.shell-table td {
+        padding: 9px 12px 9px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      table.shell-table td.num,
+      table.shell-table th.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      table.shell-table tbody tr:hover {
+        background: color-mix(in srgb, var(--accent) 6%, transparent);
+      }
+
+      .chart-box {
+        width: 100%;
+        min-height: 220px;
+      }
+      .chart-box svg {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+
+      .muted {
+        color: var(--text-muted);
+      }
+      .accent {
+        color: var(--accent-text);
+      }
+      .shell-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--accent) 12%, transparent);
+        color: var(--accent-text);
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        .shell-fade {
+          animation: shell-fade 400ms ease both;
+        }
+        @keyframes shell-fade {
+          from {
+            opacity: 0;
+            transform: translateY(6px);
+          }
+          to {
+            opacity: 1;
+            transform: none;
+          }
+        }
+      }
+    </style>
+
+    <!-- Google Font -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    />
+
+    <style>
+      :root {
+        --accent: #e87722;
+        --accent-contrast: #ffffff;
+        --brand-navy: #1a2b4c;
+        --brand-navy-light: #243b66;
+        --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+
+      body {
+        font-family: var(--font-family);
+        background-color: #f4f6fa;
+        color: #1e293b;
+        margin: 0;
+        padding: 0;
+      }
+
+      /* Top Brand Bar */
+      .brand-header {
+        background: linear-gradient(135deg, var(--brand-navy) 0%, #111c33 100%);
+        color: #ffffff;
+        padding: 1.25rem 1.5rem;
+        border-bottom: 3px solid var(--accent);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      }
+      .brand-header-content {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+      }
+      .brand-title {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .brand-logo-icon {
+        background: var(--accent);
+        color: #ffffff;
+        width: 42px;
+        height: 42px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 1.25rem;
+        box-shadow: 0 2px 6px rgba(232, 119, 34, 0.4);
+      }
+      .brand-name {
+        font-size: 1.25rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+      }
+      .brand-tag {
+        font-size: 0.8rem;
+        color: #cbd5e1;
+        font-weight: 500;
+      }
+      .system-badge {
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #f1f5f9;
+        font-size: 0.75rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+      }
+
+      .main-wrap {
+        max-width: 1200px;
+        margin: 1.5rem auto 3rem;
+        padding: 0 1rem;
+      }
+
+      /* Layout structure */
+      .pricing-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+      }
+      @media (min-width: 992px) {
+        .pricing-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+        .col-span-full {
+          grid-column: 1 / -1;
+        }
+      }
+
+      /* Cards */
+      .card-box {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        padding: 1.5rem;
+        transition: box-shadow 0.2s ease;
+      }
+      .card-box:hover {
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+      }
+      .card-title-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.25rem;
+        border-bottom: 1px solid #edf2f7;
+        padding-bottom: 0.75rem;
+      }
+      .card-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--brand-navy);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0;
+      }
+
+      /* Form Inputs */
+      .form-group {
+        margin-bottom: 1rem;
+      }
+      .form-label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.825rem;
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: 0.35rem;
+      }
+      .form-label small {
+        font-weight: normal;
+        color: #64748b;
+      }
+      .custom-select,
+      .custom-input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.65rem 0.85rem;
+        font-size: 0.925rem;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 8px;
+        color: #0f172a;
+        background-color: #fff;
+        font-family: inherit;
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s;
+      }
+      .custom-select:focus,
+      .custom-input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(232, 119, 34, 0.2);
+      }
+
+      /* Warning & Info Badges */
+      .alert-banner {
+        background-color: #fffbeb;
+        border-left: 4px solid #f59e0b;
+        padding: 0.75rem 1rem;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        color: #92400e;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .alert-banner.danger {
+        background-color: #fef2f2;
+        border-left-color: #ef4444;
+        color: #991b1b;
+      }
+      .alert-banner.info {
+        background-color: #eff6ff;
+        border-left-color: #3b82f6;
+        color: #1e40af;
+      }
+
+      .badge-special {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background-color: #fef3c7;
+        color: #92400e;
+        border: 1px solid #fde68a;
+        padding: 0.2rem 0.55rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+
+      /* Supplies list */
+      .supplies-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+      .supply-item-card {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.85rem;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.75rem;
+        align-items: center;
+      }
+      .supply-type-badge {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding: 0.15rem 0.45rem;
+        border-radius: 4px;
+        background-color: #e2e8f0;
+        color: #334155;
+      }
+      .supply-meta {
+        font-size: 0.8rem;
+        color: #64748b;
+        margin-top: 0.2rem;
+      }
+      .supply-cpp-box {
+        text-align: right;
+      }
+      .supply-cpp-val {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--brand-navy);
+        font-family: monospace;
+      }
+      .supply-cpp-lbl {
+        font-size: 0.7rem;
+        color: #64748b;
+        text-transform: uppercase;
+      }
+
+      /* Result Panel Highlight */
+      .pricing-summary-card {
+        background: linear-gradient(to bottom right, #ffffff, #f9fafb);
+        border: 2px solid #e2e8f0;
+      }
+      .kpi-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
+      }
+      .mini-kpi {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.75rem;
+        text-align: center;
+      }
+      .mini-kpi-lbl {
+        font-size: 0.72rem;
+        color: #64748b;
+        text-transform: uppercase;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+      }
+      .mini-kpi-val {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #1e293b;
+        font-family: monospace;
+      }
+
+      .hero-metric-box {
+        background: linear-gradient(135deg, var(--brand-navy) 0%, #0d1b33 100%);
+        color: #ffffff;
+        padding: 1.25rem;
+        border-radius: 10px;
+        text-align: center;
+        margin-bottom: 1.25rem;
+        position: relative;
+        box-shadow: 0 4px 15px rgba(26, 43, 76, 0.2);
+      }
+      .hero-metric-title {
+        font-size: 0.825rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #94a3b8;
+        margin-bottom: 0.35rem;
+        font-weight: 600;
+      }
+      .hero-metric-val {
+        font-size: 2.1rem;
+        font-weight: 800;
+        color: #ffffff;
+        letter-spacing: -0.02em;
+        line-height: 1.1;
+        font-family: monospace;
+      }
+      .hero-metric-sub {
+        margin-top: 0.5rem;
+        font-size: 0.85rem;
+        color: #fdba74;
+        font-weight: 500;
+      }
+
+      .break-even-container {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+      }
+      .be-header {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--brand-navy);
+        margin-bottom: 0.65rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .be-verdict {
+        padding: 0.75rem;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        text-align: center;
+        margin-top: 0.75rem;
+      }
+      .be-laser {
+        background-color: #ecfdf5;
+        color: #065f46;
+        border: 1px solid #a7f3d0;
+      }
+      .be-tinta {
+        background-color: #eff6ff;
+        color: #1e40af;
+        border: 1px solid #bfdbfe;
+      }
+
+      .action-btn-row {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1rem;
+      }
+      .btn-copy {
+        flex: 1;
+        background-color: var(--accent);
+        color: #ffffff;
+        border: none;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-size: 0.9rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        transition:
+          background 0.15s,
+          transform 0.05s;
+      }
+      .btn-copy:hover {
+        background-color: #d36514;
+      }
+      .btn-copy:active {
+        transform: translateY(1px);
+      }
+      .btn-print {
+        background-color: #f1f5f9;
+        color: #334155;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      .btn-print:hover {
+        background-color: #e2e8f0;
+      }
+
+      /* Toast Notification */
+      #copy-toast {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        background-color: #10b981;
+        color: #ffffff;
+        padding: 0.75rem 1.25rem;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(10px);
+        transition:
+          opacity 0.25s ease,
+          transform 0.25s ease;
+        z-index: 9999;
+      }
+      #copy-toast.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      /* Footer */
+      .app-footer {
+        background: #0f172a;
+        color: #94a3b8;
+        text-align: center;
+        padding: 1.5rem 1rem;
+        font-size: 0.85rem;
+        border-top: 1px solid #1e293b;
+      }
+      .app-footer p {
+        margin: 0.2rem 0;
+      }
+
+      /* Tabs & Management Nav */
+      .tab-bar-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid #cbd5e1;
+        padding-bottom: 0.5rem;
+      }
+      .tab-group {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+      .tab-btn {
+        background: none;
+        border: none;
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #64748b;
+        cursor: pointer;
+        border-radius: 6px;
+        transition: all 0.15s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .tab-btn:hover {
+        background-color: #e2e8f0;
+        color: #1e293b;
+      }
+      .tab-btn.active {
+        background-color: var(--brand-navy);
+        color: #ffffff;
+        box-shadow: 0 2px 6px rgba(26, 43, 76, 0.2);
+      }
+      .tab-tools {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+      .btn-sm-action {
+        background-color: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 0.4rem 0.75rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #334155;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        transition: all 0.15s ease;
+      }
+      .btn-sm-action:hover {
+        background-color: #f1f5f9;
+        border-color: #94a3b8;
+      }
+      .btn-sm-action.danger:hover {
+        background-color: #fef2f2;
+        color: #b91c1c;
+        border-color: #fca5a5;
+      }
+
+      /* Tab content view toggle */
+      .tab-content {
+        display: none;
+      }
+      .tab-content.active {
+        display: block;
+      }
+
+      /* Data Tables in Management Panels */
+      .table-scroll-wrapper {
+        max-height: 600px;
+        overflow-y: auto;
+        overflow-x: auto;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+      }
+      .edit-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+        text-align: left;
+        background: #ffffff;
+      }
+      .edit-table th {
+        background-color: #f8fafc;
+        color: var(--brand-navy);
+        padding: 0.65rem 0.75rem;
+        font-weight: 700;
+        position: sticky;
+        top: 0;
+        border-bottom: 2px solid #e2e8f0;
+        z-index: 10;
+        white-space: nowrap;
+      }
+      .edit-table td {
+        padding: 0.45rem 0.75rem;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: middle;
+      }
+      .edit-table tr:hover td {
+        background-color: #fbfcfe;
+      }
+      .table-input {
+        width: 100%;
+        padding: 0.35rem 0.5rem;
+        font-size: 0.85rem;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 6px;
+        box-sizing: border-box;
+        font-family: inherit;
+        background-color: #ffffff;
+        transition:
+          border-color 0.15s,
+          background-color 0.15s;
+      }
+      .table-input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px rgba(232, 119, 34, 0.2);
+      }
+      .table-input.empty-warning,
+      .custom-input.empty-warning {
+        border: 1.5px solid #eab308 !important;
+        background-color: #fffbeb !important;
+        color: #78350f;
+      }
+      .btn-delete-row {
+        background: none;
+        border: 1px solid #fee2e2;
+        color: #ef4444;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.15s;
+      }
+      .btn-delete-row:hover {
+        background-color: #fee2e2;
+        color: #b91c1c;
+      }
+      .btn-add-primary {
+        background-color: var(--brand-navy);
+        color: #ffffff;
+        border: none;
+        border-radius: 6px;
+        padding: 0.45rem 0.9rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        transition: background 0.15s;
+      }
+      .btn-add-primary:hover {
+        background-color: var(--brand-navy-light);
+      }
+
+      /* Supply Card Inline Inputs */
+      .supply-inline-field {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.8rem;
+      }
+      .supply-inline-field label {
+        color: #64748b;
+        font-size: 0.75rem;
+      }
+      .supply-inline-input {
+        width: 95px;
+        padding: 0.25rem 0.4rem;
+        font-size: 0.8rem;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 4px;
+        background-color: #fff;
+      }
+      .supply-inline-input:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+
+      /* Modal Styling */
+      .modal-backdrop {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(15, 23, 42, 0.65);
+        backdrop-filter: blur(2px);
+        z-index: 10000;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        box-sizing: border-box;
+      }
+      .modal-backdrop.show {
+        display: flex;
+      }
+      .modal-card {
+        background: #ffffff;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 720px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+        animation: modalFadeIn 0.2s ease-out;
+      }
+      @keyframes modalFadeIn {
+        from {
+          opacity: 0;
+          transform: scale(0.96);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+      .modal-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #f8fafc;
+      }
+      .modal-header h3 {
+        margin: 0;
+        font-size: 1.1rem;
+        color: var(--brand-navy);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.25rem;
+        cursor: pointer;
+        color: #64748b;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+      }
+      .modal-close:hover {
+        color: #0f172a;
+        background: #e2e8f0;
+      }
+      .modal-body {
+        padding: 1.25rem;
+        overflow-y: auto;
+        flex: 1;
+      }
+      .modal-footer {
+        padding: 0.75rem 1.25rem;
+        border-top: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        background: #f8fafc;
+      }
+      .json-code-box {
+        width: 100%;
+        height: 280px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.8rem;
+        background-color: #0f172a;
+        color: #38bdf8;
+        border: 1px solid #334155;
+        border-radius: 6px;
+        padding: 0.75rem;
+        box-sizing: border-box;
+        resize: vertical;
+        white-space: pre;
+      }
+
+      @media print {
+        .brand-header {
+          background: #1a2b4c !important;
+          color: white !important;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .btn-copy,
+        .btn-print,
+        #copy-toast {
+          display: none !important;
+        }
+        body {
+          background: white;
+        }
+        .card-box {
+          box-shadow: none;
+          border: 1px solid #ccc;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Brand Header -->
+    <header class="brand-header">
+      <div class="brand-header-content">
+        <div class="brand-title">
+          <div class="brand-logo-icon">JC</div>
+          <div>
+            <div class="brand-name">Juca Cartuchos</div>
+            <div class="brand-tag">Módulo de Precificação de Locação de Impressoras</div>
+          </div>
+        </div>
+        <div>
+          <span class="system-badge">SISTEMA DE GESTÃO COMERCIAL</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-wrap">
+      <!-- Navegação de Abas e Barra de Ferramentas de Dados -->
+      <div class="tab-bar-container">
+        <div class="tab-group" role="tablist">
+          <button
+            type="button"
+            class="tab-btn active"
+            data-tab="tab-simulador"
+            role="tab"
+            aria-selected="true"
+          >
+            <svg
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+              ></path>
+            </svg>
+            Simulador de Locação
+          </button>
+          <button
+            type="button"
+            class="tab-btn"
+            data-tab="tab-suprimentos"
+            role="tab"
+            aria-selected="false"
+          >
+            <svg
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
+              ></path>
+            </svg>
+            Suprimentos (<span id="tab-count-sup">0</span>)
+          </button>
+          <button
+            type="button"
+            class="tab-btn"
+            data-tab="tab-impressoras"
+            role="tab"
+            aria-selected="false"
+          >
+            <svg
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+              ></path>
+            </svg>
+            Impressoras (<span id="tab-count-imp">0</span>)
+          </button>
+        </div>
+
+        <div class="tab-tools">
+          <button
+            type="button"
+            class="btn-sm-action"
+            id="btn-export-json"
+            title="Baixar dataset completo em JSON"
+          >
+            <svg
+              width="15"
+              height="15"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+              ></path>
+            </svg>
+            Exportar Dados (JSON)
+          </button>
+          <button
+            type="button"
+            class="btn-sm-action danger"
+            id="btn-reset-db"
+            title="Voltar ao dataset padrão do sistema"
+          >
+            <svg
+              width="15"
+              height="15"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              ></path>
+            </svg>
+            Restaurar Dados Originais
+          </button>
+        </div>
+      </div>
+
+      <!-- ABA 1: SIMULADOR -->
+      <div id="tab-simulador" class="tab-content active">
+        <div class="pricing-grid">
+          <!-- BLOCO 1: SELEÇÃO & PARÂMETROS -->
+          <section class="card-box" aria-labelledby="bloco-selecao-title">
+            <div class="card-title-bar">
+              <h2 id="bloco-selecao-title" class="card-title">
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                  ></path>
+                </svg>
+                1. Seleção do Equipamento & Parâmetros
+              </h2>
+              <span
+                class="badge"
+                id="printer-tech-badge"
+                style="
+                  background: #e2e8f0;
+                  color: #334155;
+                  font-size: 0.75rem;
+                  padding: 0.2rem 0.5rem;
+                  border-radius: 4px;
+                  font-weight: 600;
+                "
+                >Laser Mono</span
+              >
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="printer-select">
+                <span>Impressora / Multifuncional</span>
+                <small id="printer-mfg-label">Fabricante</small>
+              </label>
+              <select id="printer-select" class="custom-select">
+                <!-- Populated via JS -->
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="equip-price-input">
+                <span>Valor de Compra do Equipamento (R$)</span>
+                <small>Base do custo do ativo</small>
+              </label>
+              <input
+                type="number"
+                id="equip-price-input"
+                class="custom-input"
+                step="0.01"
+                min="0"
+                placeholder="Ex: 1449.90"
+              />
+            </div>
+
+            <div id="equip-price-alert" class="alert-banner danger" style="display: none">
+              <svg width="18" height="18" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fill-rule="evenodd"
+                  d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                  clip-rule="evenodd"
+                ></path>
+              </svg>
+              <span>Atenção: Preencha o valor de compra do equipamento para amortização.</span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem">
+              <div class="form-group">
+                <label class="form-label" for="monthly-volume-input">
+                  <span>Produção Estimada</span>
+                  <small>pág/mês</small>
+                </label>
+                <input
+                  type="number"
+                  id="monthly-volume-input"
+                  class="custom-input"
+                  value="2000"
+                  min="1"
+                  step="100"
+                />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="lifetime-input">
+                  <span>Vida Útil</span>
+                  <small>meses</small>
+                </label>
+                <input
+                  type="number"
+                  id="lifetime-input"
+                  class="custom-input"
+                  value="48"
+                  min="1"
+                  step="1"
+                />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="markup-input">
+                <span>Mark-up de Revenda / Locação</span>
+                <small>Fator multiplicador</small>
+              </label>
+              <input
+                type="number"
+                id="markup-input"
+                class="custom-input"
+                value="1.45"
+                step="0.01"
+                min="1.0"
+              />
+            </div>
+
+            <div id="printer-alert-box"></div>
+          </section>
+
+          <!-- BLOCO 2: SUPRIMENTOS VINCULADOS (COMBO) -->
+          <section class="card-box" aria-labelledby="bloco-suprimentos-title">
+            <div class="card-title-bar">
+              <h2 id="bloco-suprimentos-title" class="card-title">
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
+                  ></path>
+                </svg>
+                2. Suprimentos Vinculados (Combo)
+              </h2>
+              <span
+                class="badge"
+                id="supplies-count-badge"
+                style="background: #e0f2fe; color: #0369a1; font-weight: 700"
+                >0 itens</span
+              >
+            </div>
+
+            <div id="supplies-container" class="supplies-grid">
+              <!-- Populated dynamically -->
+            </div>
+
+            <div
+              style="
+                margin-top: 1rem;
+                padding-top: 0.75rem;
+                border-top: 1px dashed #cbd5e1;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              "
+            >
+              <span style="font-size: 0.85rem; font-weight: 600; color: #475569"
+                >Soma CPP Suprimentos:</span
+              >
+              <span
+                id="sum-supplies-cpp"
+                style="
+                  font-size: 1.05rem;
+                  font-weight: 700;
+                  color: var(--brand-navy);
+                  font-family: monospace;
+                "
+                >R$ 0,000000</span
+              >
+            </div>
+          </section>
+
+          <!-- BLOCO 3: RESULTADOS DA PRECIFICAÇÃO -->
+          <section
+            class="card-box pricing-summary-card col-span-full"
+            aria-labelledby="bloco-resultado-title"
+          >
+            <div class="card-title-bar">
+              <h2 id="bloco-resultado-title" class="card-title">
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                  ></path>
+                </svg>
+                3. Resultado da Precificação & Rentabilidade
+              </h2>
+              <span style="font-size: 0.8rem; color: #64748b; font-weight: 500"
+                >Recálculo em tempo real</span
+              >
+            </div>
+
+            <!-- Hero Primary Card -->
+            <div class="hero-metric-box">
+              <div class="hero-metric-title">CPP de Venda Sugerido (com Mark-up)</div>
+              <div class="hero-metric-val" id="kpi-cpp-venda">R$ 0,000000</div>
+              <div class="hero-metric-sub">
+                Custo Mensal Estimado:
+                <strong
+                  id="kpi-custo-mensal"
+                  style="color: #ffffff; font-size: 1.1rem; text-decoration: underline"
+                  >R$ 0,00</strong
+                >
+              </div>
+            </div>
+
+            <!-- Breakdown Grid -->
+            <div class="kpi-row">
+              <div class="mini-kpi">
+                <div class="mini-kpi-lbl">CPP Suprimentos</div>
+                <div class="mini-kpi-val" id="kpi-cpp-sup">R$ 0,000000</div>
+              </div>
+              <div class="mini-kpi">
+                <div class="mini-kpi-lbl">CPP Equipamento</div>
+                <div class="mini-kpi-val" id="kpi-cpp-eq">R$ 0,000000</div>
+              </div>
+              <div class="mini-kpi">
+                <div class="mini-kpi-lbl">CPP Fornecedor Total</div>
+                <div class="mini-kpi-val" id="kpi-cpp-forn">R$ 0,000000</div>
+              </div>
+              <div class="mini-kpi">
+                <div class="mini-kpi-lbl">Mark-up Aplicado</div>
+                <div class="mini-kpi-val" id="kpi-markup-applied">1.45x</div>
+              </div>
+            </div>
+
+            <!-- Módulo de Break-even (Tinta vs Laser) -->
+            <div class="break-even-container">
+              <div class="be-header">
+                <span>Análise de Ponto de Equilíbrio (Break-Even: Tinta vs Laser)</span>
+                <span class="badge" style="background: #e2e8f0; color: #334155; font-size: 0.7rem"
+                  >Simulação Comparativa</span
+                >
+              </div>
+              <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.75rem 0">
+                Compara um modelo Tinta (locação menor, CPP maior) com Laser (locação maior, CPP
+                menor). Ponto de inflexão em páginas/mês:
+              </p>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem">
+                <div>
+                  <label class="form-label" style="font-size: 0.75rem">
+                    <span>Diferença de Locação Fixa (R$)</span>
+                  </label>
+                  <input
+                    type="number"
+                    id="be-dif-loc"
+                    class="custom-input"
+                    style="padding: 0.45rem"
+                    value="87.21"
+                    step="0.01"
+                  />
+                </div>
+                <div>
+                  <label class="form-label" style="font-size: 0.75rem">
+                    <span>Diferença de CPP (R$)</span>
+                  </label>
+                  <input
+                    type="number"
+                    id="be-dif-cpp"
+                    class="custom-input"
+                    style="padding: 0.45rem"
+                    value="0.1779"
+                    step="0.0001"
+                  />
+                </div>
+              </div>
+
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  margin-top: 0.6rem;
+                  font-size: 0.85rem;
+                "
+              >
+                <span>Volume de Break-Even Calculado:</span>
+                <strong
+                  id="be-pages-val"
+                  style="font-size: 1.05rem; color: var(--brand-navy); font-family: monospace"
+                  >490 páginas/mês</strong
+                >
+              </div>
+
+              <div id="be-verdict-box" class="be-verdict be-laser">
+                Produção atual (2000 pág) &ge; Break-even (490 pág): Cenário B (Laser) compensa
+                mais!
+              </div>
+            </div>
+
+            <!-- Botões de Ação -->
+            <div class="action-btn-row">
+              <button type="button" class="btn-copy" id="btn-copy-summary">
+                <svg
+                  width="18"
+                  height="18"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  ></path>
+                </svg>
+                Copiar Resumo da Proposta
+              </button>
+              <button
+                type="button"
+                class="btn-copy"
+                id="btn-open-proposal-modal"
+                style="background-color: var(--brand-navy)"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
+                  ></path>
+                </svg>
+                Gerar Proposta (JSON)
+              </button>
+              <button type="button" class="btn-print" onclick="window.print()">
+                <svg
+                  width="18"
+                  height="18"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  style="display: inline-block; vertical-align: text-bottom; margin-right: 4px"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                  ></path>
+                </svg>
+                Imprimir / Salvar em PDF
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- ABA 2: PAINEL DE EDIÇÃO DE SUPRIMENTOS -->
+      <div id="tab-suprimentos" class="tab-content">
+        <div class="card-box">
+          <div class="card-title-bar">
+            <div>
+              <h2 class="card-title">
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
+                  ></path>
+                </svg>
+                Painel de Cadastro & Edição de Suprimentos
+              </h2>
+              <p style="font-size: 0.8rem; color: #64748b; margin: 0.25rem 0 0 0">
+                Edite diretamente o valor e rendimento de cada insumo. O CPP e o simulador
+                recalculam instantaneamente e salvam no navegador.
+              </p>
+            </div>
+            <button type="button" class="btn-add-primary" id="btn-add-supply">
+              <svg
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                viewBox="0 0 24 24"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path>
+              </svg>
+              Adicionar Suprimento
+            </button>
+          </div>
+
+          <div class="table-scroll-wrapper">
+            <table class="edit-table" id="table-supplies">
+              <thead>
+                <tr>
+                  <th style="min-width: 140px">Modelo</th>
+                  <th style="min-width: 110px">Tipo</th>
+                  <th style="min-width: 110px">Fabricante</th>
+                  <th style="min-width: 120px">Valor Compra (R$)</th>
+                  <th style="min-width: 120px">Rendimento (pág)</th>
+                  <th style="min-width: 110px">CPP Calculado</th>
+                  <th style="width: 70px; text-align: center">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-supplies">
+                <!-- Rendered via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA 3: PAINEL DE EDIÇÃO DE IMPRESSORAS -->
+      <div id="tab-impressoras" class="tab-content">
+        <div class="card-box">
+          <div class="card-title-bar">
+            <div>
+              <h2 class="card-title">
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                  ></path>
+                </svg>
+                Painel de Cadastro & Edição de Impressoras
+              </h2>
+              <p style="font-size: 0.8rem; color: #64748b; margin: 0.25rem 0 0 0">
+                Gerencie a frota de equipamentos. Vincule suprimentos separando os códigos por
+                vírgula para montar combos automáticos.
+              </p>
+            </div>
+            <button type="button" class="btn-add-primary" id="btn-add-printer">
+              <svg
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                viewBox="0 0 24 24"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path>
+              </svg>
+              Adicionar Impressora
+            </button>
+          </div>
+
+          <div class="table-scroll-wrapper">
+            <table class="edit-table" id="table-printers">
+              <thead>
+                <tr>
+                  <th style="min-width: 140px">Modelo</th>
+                  <th style="min-width: 100px">Fabricante</th>
+                  <th style="min-width: 120px">Tecnologia</th>
+                  <th style="min-width: 120px">Valor Compra (R$)</th>
+                  <th style="min-width: 90px">Vida Útil (meses)</th>
+                  <th style="min-width: 220px">
+                    Suprimentos Vinculados (códigos separados por vírgula)
+                  </th>
+                  <th style="width: 70px; text-align: center">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-printers">
+                <!-- Rendered via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="app-footer">
+      <p><strong>Juca Cartuchos — Sistema de Locação de Impressoras</strong></p>
+      <p style="font-size: 0.75rem">
+        Módulo de Cálculo Preciso de CPP & Rentabilidade Contratual &bull; Modo Gestão & Cadastro
+        Ativo
+      </p>
+    </footer>
+
+    <!-- Modal Gerar Proposta JSON -->
+    <div
+      class="modal-backdrop"
+      id="modal-proposal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-prop-title"
+    >
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 id="modal-prop-title">
+            <svg
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              ></path>
+            </svg>
+            Payload da Proposta Comercial (Integração)
+          </h3>
+          <button type="button" class="modal-close" id="btn-close-modal" aria-label="Fechar">
+            &times;
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group" style="margin-bottom: 0.75rem">
+            <label class="form-label" for="prop-client-name">
+              <span>Razão Social / Nome do Cliente:</span>
+            </label>
+            <input
+              type="text"
+              id="prop-client-name"
+              class="custom-input"
+              value="Cliente Corporativo Exemplo Ltda"
+            />
+          </div>
+          <div class="form-group">
+            <label class="form-label">
+              <span
+                >JSON Estruturado da Proposta (Cliente, Máquinas, Suprimentos, Memória de
+                Cálculo):</span
+              >
+            </label>
+            <textarea id="proposal-json-output" class="json-code-box" readonly></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-print" id="btn-close-modal-2">Fechar</button>
+          <button
+            type="button"
+            class="btn-copy"
+            id="btn-copy-proposal-json"
+            style="flex: 0 0 auto; padding: 0.5rem 1rem"
+          >
+            <svg
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+              ></path>
+            </svg>
+            Copiar JSON
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="copy-toast">Resumo copiado com sucesso para a área de transferência!</div>
+
+    <script>
+          // DATASET PADRÃO INICIAL
+          const INITIAL_SUPPLIES = [
+            { model: 'TN-1035', type: 'Toner', mfg: 'Brother', price: 49.90, yield: 1000 },
+            { model: 'DR-1035', type: 'Fotocondutor', mfg: 'Brother', price: 27.18, yield: 10000 },
+            { model: 'TN-2370', type: 'Toner', mfg: 'Brother', price: 79.90, yield: 2600 },
+            { model: 'DR-2400', type: 'Fotocondutor', mfg: 'Brother', price: 49.90, yield: 12000 },
+            { model: 'TN-3442', type: 'Toner', mfg: 'Brother', price: 70.90, yield: 8000 },
+            { model: 'TN-3472', type: 'Toner', mfg: 'Brother', price: 70.90, yield: 12000 },
+            { model: 'TN-3662XLS', type: 'Toner', mfg: 'Brother', price: 116.89, yield: 25000 },
+            { model: 'TN-B021', type: 'Toner', mfg: 'Brother', price: 99.00, yield: 2600 },
+            { model: 'T544-BK', type: 'Tinta', mfg: 'EPSON', price: 12.50, yield: 4500 },
+            { model: 'T544-C', type: 'Tinta', mfg: 'EPSON', price: 12.76, yield: 7500 },
+            { model: 'T544-M', type: 'Tinta', mfg: 'EPSON', price: 12.76, yield: 7500 },
+            { model: 'T544-Y', type: 'Tinta', mfg: 'EPSON', price: 12.76, yield: 7500 },
+            { model: 'T504-BK', type: 'Tinta', mfg: 'EPSON', price: 12.50, yield: 4500 },
+            { model: 'T504-C', type: 'Tinta', mfg: 'EPSON', price: 12.76, yield: 7500 },
+            { model: 'T504-M', type: 'Tinta', mfg: 'EPSON', price: 12.76, yield: 7500 },
+            { model: 'T504-Y', type: 'Tinta', mfg: 'EPSON', price: 12.76, yield: 7500 },
+            { model: 'T664-BK', type: 'Tinta', mfg: 'EPSON', price: 18.74, yield: 4000 },
+            { model: 'T664-C', type: 'Tinta', mfg: 'EPSON', price: 18.74, yield: 6500 },
+            { model: 'T664-M', type: 'Tinta', mfg: 'EPSON', price: 18.74, yield: 6500 },
+            { model: 'T664-Y', type: 'Tinta', mfg: 'EPSON', price: 18.74, yield: 6500 },
+            { model: 'GI-190-BK', type: 'Tinta', mfg: 'Canon', price: 62.86, yield: 6000 },
+            { model: 'GI-190-C', type: 'Tinta', mfg: 'Canon', price: 13.49, yield: 7000 },
+            { model: 'GI-190-M', type: 'Tinta', mfg: 'Canon', price: 13.49, yield: 7000 },
+            { model: 'GI-190-Y', type: 'Tinta', mfg: 'Canon', price: 13.49, yield: 7000 },
+            { model: 'CE285A (85A)', type: 'Toner', mfg: 'HP', price: 62.63, yield: 1600 },
+            { model: 'CF283A (83A)', type: 'Toner', mfg: 'HP', price: 38.99, yield: 1500 },
+            { model: 'CB435A (35A)', type: 'Toner', mfg: 'HP', price: 37.90, yield: 1800 },
+            { model: 'CF248A (48A)', type: 'Toner', mfg: 'HP', price: 38.25, yield: 1000 },
+            { model: 'W1105A (105A)', type: 'Toner', mfg: 'HP', price: 44.08, yield: 1000 },
+            { model: 'Q2612A (12A)', type: 'Toner', mfg: 'HP', price: 28.50, yield: 2000 },
+            { model: 'GT51-BK', type: 'Tinta', mfg: 'HP', price: 12.50, yield: 5000 },
+            { model: 'GT52-C', type: 'Tinta', mfg: 'HP', price: 12.50, yield: 5000 },
+            { model: 'GT52-M', type: 'Tinta', mfg: 'HP', price: 12.50, yield: 5000 },
+            { model: 'GT52-Y', type: 'Tinta', mfg: 'HP', price: 12.50, yield: 5000 },
+            { model: 'MLT-D111S', type: 'Toner', mfg: 'Samsung', price: 55.00, yield: 1000 },
+            { model: 'MLT-D101S', type: 'Toner', mfg: 'Samsung', price: 64.00, yield: 1500 },
+            { model: 'MLT-D1042S', type: 'Toner', mfg: 'Samsung', price: 275.00, yield: 1500 },
+            { model: 'MLT-D204L', type: 'Toner', mfg: 'Samsung', price: 87.20, yield: 5000 },
+            { model: 'CAB-BH1-CH1', type: 'Cabeçote', mfg: 'Canon', price: 412.50, yield: 30000 },
+            { model: 'CAB-GT52', type: 'Cabeçote', mfg: 'HP', price: 199.94, yield: 30000 },
+            { model: 'CAB-FA04061', type: 'Cabeçote (provisão)', mfg: 'EPSON', price: 479.00, yield: 30000 },
+            { model: 'FUS-LY9388001', type: 'Unidade Fusora', mfg: 'Brother', price: 312.00, yield: 100000 },
+            { model: 'PEL-L2540', type: 'Película', mfg: 'Brother', price: 67.35, yield: 50000 },
+            { model: 'PEL-L5652', type: 'Película', mfg: 'Brother', price: 57.57, yield: 50000 },
+            { model: 'FUS-D00V9X001', type: 'Unidade Fusora', mfg: 'Brother', price: 828.60, yield: 100000 },
+            { model: 'PEL-8152', type: 'Película', mfg: 'Brother', price: 56.12, yield: 50000 },
+            { model: 'FUS-LJB693001', type: 'Unidade Fusora', mfg: 'Brother', price: 962.67, yield: 100000 },
+            { model: 'FUS-RM1-7733', type: 'Unidade Fusora', mfg: 'HP', price: 210.00, yield: 100000 },
+            { model: 'PEL-RG9-1493', type: 'Película', mfg: 'HP', price: 9.89, yield: 50000 },
+            { model: 'FUS-RC29205', type: 'Unidade Fusora', mfg: 'HP', price: 132.91, yield: 100000 },
+            { model: 'FUS-107', type: 'Unidade Fusora', mfg: 'HP', price: 359.00, yield: 100000 },
+            { model: 'FUS-JC91-01076A', type: 'Unidade Fusora', mfg: 'Samsung', price: 321.94, yield: 100000 },
+            { model: 'FUS-JC91-00991A', type: 'Unidade Fusora', mfg: 'Samsung', price: 199.80, yield: 100000 }
+          ];
+
+          const INITIAL_PRINTERS = [
+            { model: 'HL-1210W', mfg: 'Brother', tech: 'Laser Mono', price: 890.00, lifetime: 48, supplies: ['TN-1035', 'DR-1035'] },
+            { model: 'HL-1212w', mfg: 'Brother', tech: 'Laser Mono', price: 1449.90, lifetime: 48, supplies: ['TN-1035', 'DR-1035'] },
+            { model: 'HL-1200', mfg: 'Brother', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['TN-1035', 'DR-1035'] },
+            { model: 'DCP-1600', mfg: 'Brother', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['TN-1035', 'DR-1035'] },
+            { model: 'DCP-1610NW', mfg: 'Brother', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['TN-1035', 'DR-1035'] },
+            { model: 'DCP-1617NW', mfg: 'Brother', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['TN-1035', 'DR-1035'] },
+            { model: 'DCP-L2540DN', mfg: 'Brother', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['TN-2370', 'DR-2400', 'FUS-LY9388001'] },
+            { model: 'DCP-L2540DW', mfg: 'Brother', tech: 'Laser Mono', price: 2094.33, lifetime: 48, supplies: ['TN-2370', 'DR-2400', 'FUS-LY9388001', 'PEL-L2540'] },
+            { model: 'DCP-L5652DN', mfg: 'Brother', tech: 'Laser Mono', price: 1699.00, lifetime: 48, supplies: ['TN-3442', 'FUS-D00V9X001', 'PEL-L5652'] },
+            { model: 'DCP-L5662DN', mfg: 'Brother', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['TN-3472', 'FUS-D00V9X001', 'PEL-L5652'] },
+            { model: 'HL-L6412DW', mfg: 'Brother', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['TN-3662XLS', 'FUS-D00V9X001'] },
+            { model: 'DCP-8110DN', mfg: 'Brother', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['FUS-LJB693001'] },
+            { model: 'DCP-8152DN', mfg: 'Brother', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['FUS-LJB693001'] },
+            { model: 'HL-5450DN', mfg: 'Brother', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['FUS-LJB693001'] },
+            { model: 'HL-B2080', mfg: 'Brother', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['TN-B021'] },
+            { model: 'G4110', mfg: 'Canon', tech: 'Tinta Colorido', price: 949.00, lifetime: 48, supplies: ['GI-190-BK', 'GI-190-C', 'GI-190-M', 'GI-190-Y', 'CAB-BH1-CH1'] },
+            { model: 'G4111', mfg: 'Canon', tech: 'Tinta Colorido', price: null, lifetime: 48, supplies: ['GI-190-BK', 'GI-190-C', 'GI-190-M', 'GI-190-Y', 'CAB-BH1-CH1'] },
+            { model: 'L1250', mfg: 'EPSON', tech: 'Tinta Colorido', price: 999.00, lifetime: 48, supplies: ['T544-BK', 'T544-C', 'T544-M', 'T544-Y', 'CAB-FA04061'] },
+            { model: 'L3150', mfg: 'EPSON', tech: 'Tinta Colorido', price: null, lifetime: 48, supplies: ['T544-BK', 'T544-C', 'T544-M', 'T544-Y', 'CAB-FA04061'] },
+            { model: 'L3250', mfg: 'EPSON', tech: 'Tinta Colorido', price: 1019.91, lifetime: 48, supplies: ['T544-BK', 'T544-C', 'T544-M', 'T544-Y', 'CAB-FA04061'] },
+            { model: 'L365', mfg: 'EPSON', tech: 'Tinta Colorido', price: null, lifetime: 48, supplies: ['T664-BK', 'T664-C', 'T664-M', 'T664-Y', 'CAB-FA04061'] },
+            { model: 'L375', mfg: 'EPSON', tech: 'Tinta Colorido', price: null, lifetime: 48, supplies: ['T664-BK', 'T664-C', 'T664-M', 'T664-Y', 'CAB-FA04061'] },
+            { model: 'L395', mfg: 'EPSON', tech: 'Tinta Colorido', price: null, lifetime: 48, supplies: ['T664-BK', 'T664-C', 'T664-M', 'T664-Y', 'CAB-FA04061'] },
+            { model: 'L4360', mfg: 'EPSON', tech: 'Tinta Colorido', price: null, lifetime: 48, supplies: [] },
+            { model: 'L14150', mfg: 'EPSON', tech: 'Tinta Colorido', price: null, lifetime: 48, supplies: ['T504-BK', 'T504-C', 'T504-M', 'T504-Y'] },
+            { model: 'L6270', mfg: 'EPSON', tech: 'Tinta Colorido', price: null, lifetime: 48, supplies: ['T504-BK', 'T504-C', 'T504-M', 'T504-Y'] },
+            { model: 'L6290', mfg: 'EPSON', tech: 'Tinta Colorido', price: null, lifetime: 48, supplies: ['T504-BK', 'T504-C', 'T504-M', 'T504-Y'] },
+            { model: 'L805', mfg: 'EPSON', tech: 'Tinta Colorido', price: null, lifetime: 48, supplies: [] },
+            { model: 'L5590', mfg: 'EPSON', tech: 'Tinta Colorido', price: null, lifetime: 48, supplies: [] },
+            { model: 'LX 350', mfg: 'EPSON', tech: 'Matricial', price: null, lifetime: 48, supplies: [] },
+            { model: 'LaserJet MFP M127fw', mfg: 'HP', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['CF283A (83A)', 'FUS-RC29205'] },
+            { model: 'LaserJet Pro MFP M127fn', mfg: 'HP', tech: 'Laser Mono', price: 535.90, lifetime: 48, supplies: ['CF283A (83A)', 'FUS-RC29205'] },
+            { model: 'Laser 107w', mfg: 'HP', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['W1105A (105A)', 'FUS-107'] },
+            { model: 'Laser 135a', mfg: 'HP', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['W1105A (105A)', 'FUS-107'] },
+            { model: 'Laser 135w', mfg: 'HP', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['W1105A (105A)', 'FUS-107'] },
+            { model: 'LaserJet 1020', mfg: 'HP', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['Q2612A (12A)', 'PEL-RG9-1493'] },
+            { model: 'LaserJet 3055', mfg: 'HP', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['Q2612A (12A)'] },
+            { model: 'M1120', mfg: 'HP', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['Q2612A (12A)'] },
+            { model: 'M1132', mfg: 'HP', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['CE285A (85A)', 'FUS-RM1-7733', 'PEL-RG9-1493'] },
+            { model: 'M1212nf', mfg: 'HP', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['CE285A (85A)', 'FUS-RM1-7733', 'PEL-RG9-1493'] },
+            { model: 'M130fw', mfg: 'HP', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['CF248A (48A)'] },
+            { model: 'M130nw', mfg: 'HP', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['CF248A (48A)'] },
+            { model: 'P1102w', mfg: 'HP', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['CE285A (85A)', 'FUS-RM1-7733', 'PEL-RG9-1493'] },
+            { model: 'P1005', mfg: 'HP', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['CB435A (35A)'] },
+            { model: 'P1102', mfg: 'HP', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['CE285A (85A)', 'FUS-RM1-7733', 'PEL-RG9-1493'] },
+            { model: 'P2055dn', mfg: 'HP', tech: 'Laser Mono', price: null, lifetime: 48, supplies: [] },
+            { model: 'Color LaserJet M177fw', mfg: 'HP', tech: 'Laser Colorido', price: null, lifetime: 48, supplies: [] },
+            { model: 'CP 1025nw', mfg: 'HP', tech: 'Laser Colorido', price: null, lifetime: 48, supplies: [] },
+            { model: 'DeskJet 5820', mfg: 'HP', tech: 'Tinta Colorido', price: null, lifetime: 48, supplies: ['CAB-GT52'] },
+            { model: 'Ink Tank Wireless 410', mfg: 'HP', tech: 'Tinta Colorido', price: 498.75, lifetime: 48, supplies: ['GT51-BK', 'GT52-C', 'GT52-M', 'GT52-Y', 'CAB-GT52'] },
+            { model: 'M2070', mfg: 'Samsung', tech: 'Laser Mono', price: 590.00, lifetime: 48, supplies: ['MLT-D111S', 'FUS-JC91-01076A'] },
+            { model: 'ML-1860', mfg: 'Samsung', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['MLT-D1042S', 'FUS-JC91-00991A'] },
+            { model: 'ML-2160', mfg: 'Samsung', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['MLT-D101S', 'FUS-JC91-01076A'] },
+            { model: 'ML-2160 Series', mfg: 'Samsung', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['MLT-D101S', 'FUS-JC91-01076A'] },
+            { model: 'SL-M3375FD', mfg: 'Samsung', tech: 'Laser Mono', price: null, lifetime: 48, supplies: ['MLT-D204L'] },
+            { model: 'MP-4200 TH', mfg: 'Bematech', tech: 'Térmica', price: null, lifetime: 48, supplies: [] },
+            { model: 'L42', mfg: 'Elgin', tech: 'Térmica', price: null, lifetime: 48, supplies: [] },
+            { model: 'ZD220', mfg: 'Zebra', tech: 'Térmica', price: null, lifetime: 48, supplies: [] }
+          ];
+
+          // ESTADO REATIVO
+          const STORAGE_KEY_SUPPLIES = 'juca_cartuchos_supplies_v2';
+          const STORAGE_KEY_PRINTERS = 'juca_cartuchos_printers_v2';
+
+          let suppliesList = [];
+          let printersList = [];
+          let selectedPrinter = null;
+
+          // Persistência
+          function loadData() {
+            try {
+              const savedSupplies = localStorage.getItem(STORAGE_KEY_SUPPLIES);
+              if (savedSupplies) {
+                suppliesList = JSON.parse(savedSupplies);
+              } else {
+                suppliesList = JSON.parse(JSON.stringify(INITIAL_SUPPLIES));
+              }
+            } catch (e) {
+              suppliesList = JSON.parse(JSON.stringify(INITIAL_SUPPLIES));
+            }
+
+            try {
+              const savedPrinters = localStorage.getItem(STORAGE_KEY_PRINTERS);
+              if (savedPrinters) {
+                printersList = JSON.parse(savedPrinters);
+              } else {
+                printersList = JSON.parse(JSON.stringify(INITIAL_PRINTERS));
+              }
+            } catch (e) {
+              printersList = JSON.parse(JSON.stringify(INITIAL_PRINTERS));
+            }
+          }
+
+          function saveData() {
+            try {
+              localStorage.setItem(STORAGE_KEY_SUPPLIES, JSON.stringify(suppliesList));
+              localStorage.setItem(STORAGE_KEY_PRINTERS, JSON.stringify(printersList));
+            } catch (e) {
+              console.error('Falha ao salvar dados no localStorage', e);
+            }
+            updateCounts();
+          }
+
+          function resetToDefaults() {
+            if (confirm('Atenção: Deseja realmente restaurar todos os dados para o padrão de fábrica? Todas as edições manuais serão substituídas.')) {
+              suppliesList = JSON.parse(JSON.stringify(INITIAL_SUPPLIES));
+              printersList = JSON.parse(JSON.stringify(INITIAL_PRINTERS));
+              saveData();
+              renderAll();
+              showToast('Dados originais restaurados com sucesso!');
+            }
+          }
+
+          function exportJSON() {
+            const exportObj = {
+              meta: {
+                app: 'Juca Cartuchos — Precificação & Cadastro de Locação',
+                exportedAt: new Date().toISOString(),
+                version: '2.0'
+              },
+              supplies: suppliesList,
+              printers: printersList
+            };
+            const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `juca_cartuchos_dados_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }
+
+          // Formatters
+          const fmtBRL = (val) => {
+            const num = Number(val) || 0;
+            return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          };
+
+          const fmtCPP = (val) => {
+            const num = Number(val) || 0;
+            return 'R$ ' + num.toLocaleString('pt-BR', { minimumFractionDigits: 6, maximumFractionDigits: 6 });
+          };
+
+          const fmtNum = (val) => {
+            const num = Number(val) || 0;
+            return num.toLocaleString('pt-BR');
+          };
+
+      JUCA CARTUCHOS — RESUMO DE PRECIFICAÇÃO DE LOCAÇÃO
+      =========================================
+      Equipamento: ${selectedPrinter.model} (${selectedPrinter.mfg} - ${selectedPrinter.tech})
+      Valor de Compra: ${equipPriceVal}
+      Produção Mensal Estimada: ${fmtNum(monthlyVol)} páginas
+      Vida Útil Estimada: ${lifetime} meses
+      Mark-up Aplicado: ${markup}x
+
+      --- SUPRIMENTOS VINCULADOS ---
+      ${selectedPrinter.supplies.length > 0 ? selectedPrinter.supplies.map(code => {
+        const item = SUPPLIES_DB[code];
+        const cpp = item ? (item.price / item.yield) : 0;
+        return `• ${code} (${item.type}): Compra ${fmtBRL(item.price)} | Rendimento: ${fmtNum(item.yield)} pág | CPP: ${fmtCPP(cpp)}`;
+      }).join('\n') : 'Sem suprimentos cadastrados.'}
+
+      --- CUSTOS E PREÇOS ---
+      CPP Suprimentos: ${kpiCppSup.textContent}
+      CPP Equipamento: ${kpiCppEq.textContent}
+      CPP Fornecedor Total: ${kpiCppForn.textContent}
+      -----------------------------------------
+      CPP DE VENDA SUGERIDO: ${kpiCppVenda.textContent}
+      FATURAMENTO MENSAL ESTIMADO: ${kpiCustoMensal.textContent}
+      -----------------------------------------
+      Análise Break-Even: ${bePagesVal.textContent}
+      Veredito: ${beVerdictBox.innerText.replace(/\n/g, ' ')}
+      =========================================`;
+
+            navigator.clipboard.writeText(summaryText).then(() => {
+              copyToast.classList.add('show');
+              setTimeout(() => copyToast.classList.remove('show'), 3000);
+            }).catch(err => {
+              alert('Não foi possível copiar automaticamente. Selecione o texto na tela.');
+    </script>
+  </body>
+</html>
+<!--
+<![CDATA[
+=========================================
+=========================================
+=======
+    });
+  </script>
+</body>
+</html>
+<!--
+<![CDATA[
+=========================================
+    }
+
+    // Event Listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      initSelect();
+
+      printerSelect.addEventListener('change', (e) => {
+        selectedPrinter = PRINTERS_DB.find(p => p.model === e.target.value) || PRINTERS_DB[0];
+        syncPrinterInputs(true);
+      });
+
+      equipPriceInput.addEventListener('input', calculate);
+      monthlyVolInput.addEventListener('input', calculate);
+      lifetimeInput.addEventListener('input', calculate);
+      markupInput.addEventListener('input', calculate);
+      beDifLocInput.addEventListener('input', calculate);
+      beDifCppInput.addEventListener('input', calculate);
+
+      btnCopySummary.addEventListener('click', copySummary);
+    });
+=======
+    // Helpers de busca
+    function findSupply(model) {
+      if (!model) return null;
+      return suppliesList.find(s => s.model.trim().toUpperCase() === model.trim().toUpperCase());
+    }
+
+    function findPrinter(model) {
+      if (!model) return null;
+      return printersList.find(p => p.model.trim().toUpperCase() === model.trim().toUpperCase());
+    }
+
+    // DOM Elements
+    const printerSelect = document.getElementById('printer-select');
+    const equipPriceInput = document.getElementById('equip-price-input');
+    const monthlyVolInput = document.getElementById('monthly-volume-input');
+    const lifetimeInput = document.getElementById('lifetime-input');
+    const markupInput = document.getElementById('markup-input');
+
+    const printerTechBadge = document.getElementById('printer-tech-badge');
+    const printerMfgLabel = document.getElementById('printer-mfg-label');
+    const equipPriceAlert = document.getElementById('equip-price-alert');
+    const printerAlertBox = document.getElementById('printer-alert-box');
+
+    const suppliesContainer = document.getElementById('supplies-container');
+    const suppliesCountBadge = document.getElementById('supplies-count-badge');
+    const sumSuppliesCppEl = document.getElementById('sum-supplies-cpp');
+
+    const kpiCppVenda = document.getElementById('kpi-cpp-venda');
+    const kpiCustoMensal = document.getElementById('kpi-custo-mensal');
+    const kpiCppSup = document.getElementById('kpi-cpp-sup');
+    const kpiCppEq = document.getElementById('kpi-cpp-eq');
+    const kpiCppForn = document.getElementById('kpi-cpp-forn');
+    const kpiMarkupApplied = document.getElementById('kpi-markup-applied');
+
+    const beDifLocInput = document.getElementById('be-dif-loc');
+    const beDifCppInput = document.getElementById('be-dif-cpp');
+    const bePagesVal = document.getElementById('be-pages-val');
+    const beVerdictBox = document.getElementById('be-verdict-box');
+    const btnCopySummary = document.getElementById('btn-copy-summary');
+    const copyToast = document.getElementById('copy-toast');
+
+    const tbodySupplies = document.getElementById('tbody-supplies');
+    const tbodyPrinters = document.getElementById('tbody-printers');
+    const tabCountSup = document.getElementById('tab-count-sup');
+    const tabCountImp = document.getElementById('tab-count-imp');
+
+    // Modal elements
+    const modalProposal = document.getElementById('modal-proposal');
+    const proposalJsonOutput = document.getElementById('proposal-json-output');
+    const propClientNameInput = document.getElementById('prop-client-name');
+    const btnOpenProposalModal = document.getElementById('btn-open-proposal-modal');
+    const btnCloseModal = document.getElementById('btn-close-modal');
+    const btnCloseModal2 = document.getElementById('btn-close-modal-2');
+    const btnCopyProposalJson = document.getElementById('btn-copy-proposal-json');
+
+    function updateCounts() {
+      tabCountSup.textContent = suppliesList.length;
+      tabCountImp.textContent = printersList.length;
+    }
+
+    // Inicializa o Dropdown do Simulador mantendo a seleção atual
+    function populatePrinterSelect(preserveModel = null) {
+      const currentSelected = preserveModel || (selectedPrinter ? selectedPrinter.model : 'DCP-L2540DW');
+      const groups = {};
+      printersList.forEach(p => {
+        const mfg = p.mfg || 'Outros';
+        if (!groups[mfg]) groups[mfg] = [];
+        groups[mfg].push(p);
+      });
+
+      printerSelect.innerHTML = '';
+      Object.keys(groups).sort().forEach(mfg => {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = mfg;
+        groups[mfg].forEach(printer => {
+          const opt = document.createElement('option');
+          opt.value = printer.model;
+          opt.textContent = `${printer.model} (${printer.tech || 'Não informado'})`;
+          optgroup.appendChild(opt);
+        });
+        printerSelect.appendChild(optgroup);
+      });
+
+      // Localizar o selecionado
+      selectedPrinter = findPrinter(currentSelected) || printersList[0] || null;
+      if (selectedPrinter) {
+        printerSelect.value = selectedPrinter.model;
+      }
+      syncSimulatorPrinterFields();
+    }
+
+    function syncSimulatorPrinterFields() {
+      if (!selectedPrinter) return;
+
+      if (selectedPrinter.price !== null && selectedPrinter.price !== undefined && selectedPrinter.price !== '') {
+        equipPriceInput.value = selectedPrinter.price;
+        equipPriceInput.classList.remove('empty-warning');
+        equipPriceInput.removeAttribute('title');
+      } else {
+        equipPriceInput.value = '';
+        equipPriceInput.classList.add('empty-warning');
+        equipPriceInput.setAttribute('title', 'Preencher manualmente');
+      }
+
+      lifetimeInput.value = selectedPrinter.lifetime || 48;
+      printerTechBadge.textContent = selectedPrinter.tech || 'Tecnologia';
+      printerMfgLabel.textContent = `Fabricante: ${selectedPrinter.mfg || '—'}`;
+      calculate();
+    }
+
+    // RENDERIZAR TABELA DE SUPRIMENTOS (ABA 2)
+    function renderSuppliesTable() {
+      tbodySupplies.innerHTML = '';
+      suppliesList.forEach((item, index) => {
+        const tr = document.createElement('tr');
+        const hasPrice = item.price !== null && item.price !== '' && !isNaN(Number(item.price)) && Number(item.price) > 0;
+        const hasYield = item.yield !== null && item.yield !== '' && !isNaN(Number(item.yield)) && Number(item.yield) > 0;
+
+        let cppText = '—';
+        if (hasPrice && hasYield) {
+          const cpp = Number(item.price) / Number(item.yield);
+          cppText = fmtCPP(cpp);
+        }
+
+        tr.innerHTML = `
+          <td>
+            <input type="text" class="table-input" value="${item.model || ''}" data-idx="${index}" data-field="model" placeholder="Ex: TN-1035">
+          </td>
+          <td>
+            <input type="text" class="table-input" value="${item.type || ''}" data-idx="${index}" data-field="type" placeholder="Ex: Toner">
+          </td>
+          <td>
+            <input type="text" class="table-input" value="${item.mfg || ''}" data-idx="${index}" data-field="mfg" placeholder="Ex: Brother">
+          </td>
+          <td>
+            <input type="number" step="0.01" min="0" class="table-input sup-price-input ${!hasPrice ? 'empty-warning' : ''}" 
+                   value="${hasPrice ? item.price : ''}" 
+                   placeholder="preencher" 
+                   title="${!hasPrice ? 'Preencher manualmente' : ''}"
+                   data-idx="${index}" data-field="price">
+          </td>
+          <td>
+            <input type="number" step="1" min="1" class="table-input sup-yield-input ${!hasYield ? 'empty-warning' : ''}" 
+                   value="${hasYield ? item.yield : ''}" 
+                   placeholder="preencher" 
+                   title="${!hasYield ? 'Preencher manualmente' : ''}"
+                   data-idx="${index}" data-field="yield">
+          </td>
+          <td style="font-family: monospace; font-weight:700; color:var(--brand-navy);" class="sup-cpp-cell" id="sup-cpp-${index}">
+            ${cppText}
+          </td>
+          <td style="text-align:center;">
+            <button type="button" class="btn-delete-row" data-idx="${index}" title="Excluir suprimento">Excluir</button>
+          </td>
+        `;
+        tbodySupplies.appendChild(tr);
+      });
+
+      // Listeners de edição da tabela de suprimentos
+      tbodySupplies.querySelectorAll('.table-input').forEach(input => {
+        input.addEventListener('input', (e) => {
+          const idx = parseInt(e.target.dataset.idx, 10);
+          const field = e.target.dataset.field;
+          let val = e.target.value.trim();
+
+          if (field === 'price' || field === 'yield') {
+            const num = val === '' ? null : parseFloat(val);
+            suppliesList[idx][field] = (num !== null && !isNaN(num)) ? num : null;
+
+            // Recalcular CPP inline na linha
+            const curItem = suppliesList[idx];
+            const cell = document.getElementById(`sup-cpp-${idx}`);
+            const p = Number(curItem.price);
+            const y = Number(curItem.yield);
+
+            if (p > 0 && y > 0) {
+              cell.textContent = fmtCPP(p / y);
+            } else {
+              cell.textContent = '—';
+            }
+
+            // Indicador visual vazio
+            if (val === '' || isNaN(Number(val)) || Number(val) <= 0) {
+              e.target.classList.add('empty-warning');
+              e.target.setAttribute('title', 'Preencher manualmente');
+            } else {
+              e.target.classList.remove('empty-warning');
+              e.target.removeAttribute('title');
+            }
+          } else {
+            suppliesList[idx][field] = val;
+          }
+
+          saveData();
+          calculate();
+        });
+      });
+
+      tbodySupplies.querySelectorAll('.btn-delete-row').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const idx = parseInt(e.target.dataset.idx, 10);
+          const modelName = suppliesList[idx]?.model || 'este item';
+          if (confirm(`Remover suprimento "${modelName}" do cadastro?`)) {
+            suppliesList.splice(idx, 1);
+            saveData();
+            renderSuppliesTable();
+            calculate();
+          }
+        });
+      });
+    }
+
+    // RENDERIZAR TABELA DE IMPRESSORAS (ABA 3)
+    function renderPrintersTable() {
+      tbodyPrinters.innerHTML = '';
+      printersList.forEach((printer, index) => {
+        const tr = document.createElement('tr');
+        const hasPrice = printer.price !== null && printer.price !== '' && !isNaN(Number(printer.price)) && Number(printer.price) > 0;
+        const suppliesStr = Array.isArray(printer.supplies) ? printer.supplies.join(', ') : '';
+
+        tr.innerHTML = `
+          <td>
+            <input type="text" class="table-input" value="${printer.model || ''}" data-idx="${index}" data-field="model" placeholder="Ex: DCP-1610NW">
+          </td>
+          <td>
+            <input type="text" class="table-input" value="${printer.mfg || ''}" data-idx="${index}" data-field="mfg" placeholder="Ex: Brother">
+          </td>
+          <td>
+            <input type="text" class="table-input" value="${printer.tech || ''}" data-idx="${index}" data-field="tech" placeholder="Ex: Laser Mono">
+          </td>
+          <td>
+            <input type="number" step="0.01" min="0" class="table-input ${!hasPrice ? 'empty-warning' : ''}" 
+                   value="${hasPrice ? printer.price : ''}" 
+                   placeholder="preencher" 
+                   title="${!hasPrice ? 'Preencher manualmente' : ''}"
+                   data-idx="${index}" data-field="price">
+          </td>
+          <td>
+            <input type="number" step="1" min="1" class="table-input" 
+                   value="${printer.lifetime || 48}" 
+                   placeholder="48" 
+                   data-idx="${index}" data-field="lifetime">
+          </td>
+          <td>
+            <input type="text" class="table-input" value="${suppliesStr}" data-idx="${index}" data-field="supplies" placeholder="TN-1035, DR-1035...">
+          </td>
+          <td style="text-align:center;">
+            <button type="button" class="btn-delete-row" data-idx="${index}" title="Excluir impressora">Excluir</button>
+          </td>
+        `;
+        tbodyPrinters.appendChild(tr);
+      });
+
+      // Listeners de edição da tabela de impressoras
+      tbodyPrinters.querySelectorAll('.table-input').forEach(input => {
+        input.addEventListener('input', (e) => {
+          const idx = parseInt(e.target.dataset.idx, 10);
+          const field = e.target.dataset.field;
+          const val = e.target.value.trim();
+
+          if (field === 'price') {
+            const num = val === '' ? null : parseFloat(val);
+            printersList[idx].price = (num !== null && !isNaN(num)) ? num : null;
+            if (val === '' || isNaN(Number(val)) || Number(val) <= 0) {
+              e.target.classList.add('empty-warning');
+              e.target.setAttribute('title', 'Preencher manualmente');
+            } else {
+              e.target.classList.remove('empty-warning');
+              e.target.removeAttribute('title');
+            }
+          } else if (field === 'lifetime') {
+            const num = parseInt(val, 10);
+            printersList[idx].lifetime = (!isNaN(num) && num > 0) ? num : 48;
+          } else if (field === 'supplies') {
+            printersList[idx].supplies = val ? val.split(',').map(s => s.trim()).filter(Boolean) : [];
+          } else {
+            printersList[idx][field] = val;
+          }
+
+          saveData();
+
+          // Se a impressora modificada for a selecionada no simulador, sincroniza
+          if (selectedPrinter && printersList[idx].model === selectedPrinter.model) {
+            selectedPrinter = printersList[idx];
+            syncSimulatorPrinterFields();
+          } else {
+            populatePrinterSelect(selectedPrinter ? selectedPrinter.model : null);
+          }
+        });
+      });
+
+      tbodyPrinters.querySelectorAll('.btn-delete-row').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const idx = parseInt(e.target.dataset.idx, 10);
+          const modelName = printersList[idx]?.model || 'este equipamento';
+          if (confirm(`Remover impressora "${modelName}" do cadastro?`)) {
+            printersList.splice(idx, 1);
+            saveData();
+            renderPrintersTable();
+            populatePrinterSelect();
+          }
+        });
+      });
+    }
+
+    // CÁLCULO GERAL DO SIMULADOR (ABA 1)
+    function calculate() {
+      if (!selectedPrinter) return;
+
+      const equipPriceRaw = equipPriceInput.value.trim();
+      const equipPrice = (equipPriceRaw === '' || isNaN(Number(equipPriceRaw))) ? 0 : parseFloat(equipPriceRaw);
+      const monthlyVol = parseFloat(monthlyVolInput.value) || 2000;
+      const lifetime = parseFloat(lifetimeInput.value) || 48;
+      const markup = parseFloat(markupInput.value) || 1.45;
+
+      // Alerta e borda do equipamento
+      if (equipPriceRaw === '' || equipPrice <= 0) {
+        equipPriceAlert.style.display = 'flex';
+        equipPriceInput.classList.add('empty-warning');
+        equipPriceInput.setAttribute('title', 'Preencher manualmente');
+      } else {
+        equipPriceAlert.style.display = 'none';
+        equipPriceInput.classList.remove('empty-warning');
+        equipPriceInput.removeAttribute('title');
+      }
+
+      // Avisos específicos por tecnologia
+      let alertHtml = '';
+      if (selectedPrinter.tech === 'Térmica' || selectedPrinter.tech === 'Matricial') {
+        alertHtml += `<div class="alert-banner info">
+          <svg width="18" height="18" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+          <span><strong>Equipamento ${selectedPrinter.tech}:</strong> Custo por bobina/fita/etiqueta — fora do cálculo por página.</span>
+        </div>`;
+      }
+      if ((!selectedPrinter.supplies || selectedPrinter.supplies.length === 0) && selectedPrinter.tech !== 'Térmica' && selectedPrinter.tech !== 'Matricial') {
+        alertHtml += `<div class="alert-banner danger">
+          <svg width="18" height="18" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+          <span>Sem suprimentos cadastrados — precificação incompleta.</span>
+        </div>`;
+      }
+      printerAlertBox.innerHTML = alertHtml;
+
+      // Render Supplies List no Simulador com Inputs Inline Editáveis
+      suppliesContainer.innerHTML = '';
+      let sumSuppliesCpp = 0;
+      const suppliesCodes = selectedPrinter.supplies || [];
+
+      if (suppliesCodes.length === 0) {
+        suppliesCountBadge.textContent = '0 itens';
+        suppliesContainer.innerHTML = `<div style="text-align:center; padding:1.5rem 1rem; color:#94a3b8; font-size:0.875rem;">
+          Nenhum suprimento vinculado a este modelo. Adicione códigos no painel de Impressoras.
+        </div>`;
+      } else {
+        suppliesCountBadge.textContent = `${suppliesCodes.length} ite${suppliesCodes.length > 1 ? 'ns' : 'm'}`;
+
+        suppliesCodes.forEach(code => {
+          let item = findSupply(code);
+          if (!item) {
+            // Suprimento inexistente no cadastro: provê fallback
+            item = { model: code, type: 'Insumo', mfg: selectedPrinter.mfg, price: null, yield: null };
+            suppliesList.push(item);
+            saveData();
+          }
+
+          const hasPrice = item.price !== null && item.price !== '' && !isNaN(Number(item.price)) && Number(item.price) > 0;
+          const hasYield = item.yield !== null && item.yield !== '' && !isNaN(Number(item.yield)) && Number(item.yield) > 0;
+
+          let cpp = 0;
+          let cppDisplay = '—';
+          if (hasPrice && hasYield) {
+            cpp = Number(item.price) / Number(item.yield);
+            sumSuppliesCpp += cpp;
+            cppDisplay = fmtCPP(cpp);
+          }
+
+          const isEpsonHead = code === 'CAB-FA04061';
+
+          const card = document.createElement('div');
+          card.className = 'supply-item-card';
+          card.innerHTML = `
+            <div>
+              <div style="display:flex; align-items:center; gap: 0.5rem; flex-wrap:wrap; margin-bottom:0.4rem;">
+                <span style="font-weight:700; color:#1e293b; font-size:0.925rem;">${item.model}</span>
+                <span class="supply-type-badge">${item.type}</span>
+                <span style="font-size:0.75rem; color:#64748b;">${item.mfg || ''}</span>
+                ${isEpsonHead ? `<span class="badge-special">
+                  <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                  Provisão de Reparo
+                </span>` : ''}
+              </div>
+              <div style="display:flex; gap:0.85rem; flex-wrap:wrap; align-items:center;">
+                <div class="supply-inline-field">
+                  <label>Compra R$:</label>
+                  <input type="number" step="0.01" min="0" 
+                         class="supply-inline-input inline-sim-price ${!hasPrice ? 'empty-warning' : ''}" 
+                         value="${hasPrice ? item.price : ''}" 
+                         placeholder="preencher"
+                         title="${!hasPrice ? 'Preencher manualmente' : ''}"
+                         data-model="${item.model}">
+                </div>
+                <div class="supply-inline-field">
+                  <label>Rendimento:</label>
+                  <input type="number" step="1" min="1" 
+                         class="supply-inline-input inline-sim-yield ${!hasYield ? 'empty-warning' : ''}" 
+                         value="${hasYield ? item.yield : ''}" 
+                         placeholder="preencher"
+                         title="${!hasYield ? 'Preencher manualmente' : ''}"
+                         data-model="${item.model}">
+                </div>
+              </div>
+            </div>
+            <div class="supply-cpp-box">
+              <div class="supply-cpp-lbl">CPP Suprimento</div>
+              <div class="supply-cpp-val">${cppDisplay}</div>
+            </div>
+          `;
+          suppliesContainer.appendChild(card);
+        });
+
+        // Listeners nos inputs dentro dos cards de suprimentos do simulador
+        suppliesContainer.querySelectorAll('.supply-inline-input').forEach(inp => {
+          inp.addEventListener('input', (e) => {
+            const targetModel = e.target.dataset.model;
+            const itemTarget = findSupply(targetModel);
+            if (!itemTarget) return;
+
+            const isPrice = e.target.classList.contains('inline-sim-price');
+            const val = e.target.value.trim();
+            const num = val === '' ? null : parseFloat(val);
+
+            if (isPrice) {
+              itemTarget.price = (num !== null && !isNaN(num)) ? num : null;
+            } else {
+              itemTarget.yield = (num !== null && !isNaN(num)) ? num : null;
+            }
+
+            saveData();
+            // Recalcula simulador e atualiza a tabela de suprimentos sincronizada
+            calculate();
+            renderSuppliesTable();
+          });
+        });
+      }
+
+      sumSuppliesCppEl.textContent = fmtCPP(sumSuppliesCpp);
+
+      // Fórmulas
+      // CPP_equipamento = valor_impressora / (vida_util_meses × produção_mensal_estimada)
+      const totalPagesLife = lifetime * monthlyVol;
+      const cppEquipamento = (totalPagesLife > 0 && equipPrice > 0) ? (equipPrice / totalPagesLife) : 0;
+
+      // CPP_fornecedor_total = CPP_suprimentos + CPP_equipamento
+      const cppFornecedorTotal = sumSuppliesCpp + cppEquipamento;
+
+      // CPP_venda = CPP_fornecedor_total × mark_up
+      const cppVenda = cppFornecedorTotal * markup;
+
+      // Custo_mensal = produção_mensal × CPP_venda
+      const custoMensal = monthlyVol * cppVenda;
+
+      // Exibição nos KPIs
+      kpiCppVenda.textContent = fmtCPP(cppVenda);
+      kpiCustoMensal.textContent = fmtBRL(custoMensal);
+      kpiCppSup.textContent = fmtCPP(sumSuppliesCpp);
+      kpiCppEq.textContent = fmtCPP(cppEquipamento);
+      kpiCppForn.textContent = fmtCPP(cppFornecedorTotal);
+      kpiMarkupApplied.textContent = `${markup.toFixed(2)}x`;
+
+      // Break-even
+      const beDifLoc = parseFloat(beDifLocInput.value) || 87.21;
+      const beDifCpp = parseFloat(beDifCppInput.value) || 0.1779;
+
+      let breakEvenPages = 0;
+      if (beDifCpp > 0) {
+        breakEvenPages = Math.round(beDifLoc / beDifCpp);
+      }
+
+      bePagesVal.textContent = `${fmtNum(breakEvenPages)} páginas/mês`;
+
+      if (monthlyVol >= breakEvenPages) {
+        beVerdictBox.className = 'be-verdict be-laser';
+        beVerdictBox.innerHTML = `&check; Produção atual (${fmtNum(monthlyVol)} pág) &ge; Break-even (${fmtNum(breakEvenPages)} pág): <strong>Cenário B (Laser) compensa</strong>`;
+      } else {
+        beVerdictBox.className = 'be-verdict be-tinta';
+        beVerdictBox.innerHTML = `&check; Produção atual (${fmtNum(monthlyVol)} pág) &lt; Break-even (${fmtNum(breakEvenPages)} pág): <strong>Cenário A (Tinta) compensa</strong>`;
+      }
+    }
+
+    // Gerador de Payload da Proposta Comercial (JSON)
+    function generateProposalPayload() {
+      const clientName = propClientNameInput.value.trim() || 'Cliente Corporativo';
+      const equipPriceVal = equipPriceInput.value ? parseFloat(equipPriceInput.value) : null;
+      const monthlyVol = parseFloat(monthlyVolInput.value) || 2000;
+      const lifetime = parseFloat(lifetimeInput.value) || 48;
+      const markup = parseFloat(markupInput.value) || 1.45;
+
+      const suppliesData = (selectedPrinter?.supplies || []).map(code => {
+        const item = findSupply(code) || { model: code, type: 'Insumo', price: null, yield: null };
+        const price = item.price ? Number(item.price) : 0;
+        const yieldP = item.yield ? Number(item.yield) : 0;
+        const cpp = (price > 0 && yieldP > 0) ? (price / yieldP) : 0;
+        return {
+          codigo: item.model,
+          tipo: item.type,
+          fabricante: item.mfg || '—',
+          valorCompra: price,
+          rendimentoPaginas: yieldP,
+          cppUnitario: cpp
+        };
+      });
+
+      const totalSuppliesCpp = suppliesData.reduce((acc, s) => acc + s.cppUnitario, 0);
+      const totalPagesLife = lifetime * monthlyVol;
+      const cppEquip = (equipPriceVal && totalPagesLife > 0) ? (equipPriceVal / totalPagesLife) : 0;
+      const cppFornecedor = totalSuppliesCpp + cppEquip;
+      const cppVenda = cppFornecedor * markup;
+      const faturamentoMensal = monthlyVol * cppVenda;
+
+      const payload = {
+        proposta: {
+          id: 'PROP-' + Date.now().toString().slice(-6),
+          dataGeracao: new Date().toISOString(),
+          status: 'RASCUNHO_SIMULADO'
+        },
+        cliente: {
+          razaoSocial: clientName
+        },
+        parametrosSimulacao: {
+          producaoMensalEstimada: monthlyVol,
+          vidaUtilMeses: lifetime,
+          markupAplicado: markup
+        },
+        equipamento: {
+          modelo: selectedPrinter?.model,
+          fabricante: selectedPrinter?.mfg,
+          tecnologia: selectedPrinter?.tech,
+          valorCompra: equipPriceVal
+        },
+        suprimentosVinculados: suppliesData,
+        memoriaCalculo: {
+          cppSuprimentos: Number(totalSuppliesCpp.toFixed(6)),
+          cppEquipamentoAmortizacao: Number(cppEquip.toFixed(6)),
+          cppFornecedorTotal: Number(cppFornecedor.toFixed(6)),
+          cppVendaSugerido: Number(cppVenda.toFixed(6)),
+          faturamentoMensalEstimado: Number(faturamentoMensal.toFixed(2))
+        },
+        analiseBreakEven: {
+          diferencaLocacao: parseFloat(beDifLocInput.value) || 0,
+          diferencaCPP: parseFloat(beDifCppInput.value) || 0,
+          volumeEquilibrioPaginas: bePagesVal.textContent.trim(),
+          recomendacao: beVerdictBox.innerText.trim()
+        }
+      };
+
+      return payload;
+    }
+
+    function openProposalModal() {
+      const payload = generateProposalPayload();
+      proposalJsonOutput.value = JSON.stringify(payload, null, 2);
+      modalProposal.classList.add('show');
+    }
+
+    function closeModal() {
+      modalProposal.classList.remove('show');
+    }
+
+    // Notificação Toast
+    function showToast(msg) {
+      copyToast.textContent = msg;
+      copyToast.classList.add('show');
+      setTimeout(() => copyToast.classList.remove('show'), 3000);
+    }
+
+    // Copiar Resumo Textual
+    function copySummary() {
+      const equipPriceVal = equipPriceInput.value ? fmtBRL(equipPriceInput.value) : 'Não informado';
+      const monthlyVol = monthlyVolInput.value;
+      const lifetime = lifetimeInput.value;
+      const markup = markupInput.value;
+
+      const summaryText = `=========================================
+JUCA CARTUCHOS — RESUMO DE PRECIFICAÇÃO DE LOCAÇÃO
+=========================================
+Equipamento: ${selectedPrinter.model} (${selectedPrinter.mfg} - ${selectedPrinter.tech})
+Valor de Compra: ${equipPriceVal}
+Produção Mensal Estimada: ${fmtNum(monthlyVol)} páginas
+Vida Útil Estimada: ${lifetime} meses
+Mark-up Aplicado: ${markup}x
+
+--- SUPRIMENTOS VINCULADOS ---
+${(selectedPrinter.supplies || []).length > 0 ? selectedPrinter.supplies.map(code => {
+  const item = findSupply(code);
+  const p = item && item.price ? Number(item.price) : 0;
+  const y = item && item.yield ? Number(item.yield) : 0;
+  const cpp = (p > 0 && y > 0) ? (p / y) : 0;
+  return `• ${code} (${item?.type || 'Insumo'}): Compra ${fmtBRL(p)} | Rendimento: ${fmtNum(y)} pág | CPP: ${fmtCPP(cpp)}`;
+}).join('\n') : 'Sem suprimentos cadastrados.'}
+
+--- CUSTOS E PREÇOS ---
+CPP Suprimentos: ${kpiCppSup.textContent}
+CPP Equipamento: ${kpiCppEq.textContent}
+CPP Fornecedor Total: ${kpiCppForn.textContent}
+-----------------------------------------
+CPP DE VENDA SUGERIDO: ${kpiCppVenda.textContent}
+FATURAMENTO MENSAL ESTIMADO: ${kpiCustoMensal.textContent}
+-----------------------------------------
+Análise Break-Even: ${bePagesVal.textContent}
+Veredito: ${beVerdictBox.innerText.replace(/\n/g, ' ')}
+=========================================`;
+
+      navigator.clipboard.writeText(summaryText).then(() => {
+        showToast('Resumo copiado com sucesso para a área de transferência!');
+      }).catch(err => {
+        alert('Não foi possível copiar automaticamente.');
+      });
+    }
+
+    // Renderiza tudo na inicialização
+    function renderAll() {
+      populatePrinterSelect(selectedPrinter ? selectedPrinter.model : null);
+      renderSuppliesTable();
+      renderPrintersTable();
+      updateCounts();
+      calculate();
+    }
+
+    // EVENT LISTENERS GERAIS
+    document.addEventListener('DOMContentLoaded', () => {
+      loadData();
+      renderAll();
+
+      // Navegação por abas
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const targetTabId = btn.dataset.tab;
+          document.querySelectorAll('.tab-btn').forEach(b => {
+            b.classList.remove('active');
+            b.setAttribute('aria-selected', 'false');
+          });
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+          btn.classList.add('active');
+          btn.setAttribute('aria-selected', 'true');
+          const targetEl = document.getElementById(targetTabId);
+          if (targetEl) targetEl.classList.add('active');
+        });
+      });
+
+      // Mudança de impressora no select
+      printerSelect.addEventListener('change', (e) => {
+        selectedPrinter = findPrinter(e.target.value) || printersList[0];
+        syncSimulatorPrinterFields();
+      });
+
+      // Inputs de parâmetros no simulador
+      equipPriceInput.addEventListener('input', (e) => {
+        const val = e.target.value.trim();
+        const num = val === '' ? null : parseFloat(val);
+        if (selectedPrinter) {
+          selectedPrinter.price = (num !== null && !isNaN(num)) ? num : null;
+          saveData();
+          renderPrintersTable();
+        }
+        calculate();
+      });
+
+      lifetimeInput.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        if (selectedPrinter) {
+          selectedPrinter.lifetime = (!isNaN(val) && val > 0) ? val : 48;
+          saveData();
+          renderPrintersTable();
+        }
+        calculate();
+      });
+
+      monthlyVolInput.addEventListener('input', calculate);
+      markupInput.addEventListener('input', calculate);
+      beDifLocInput.addEventListener('input', calculate);
+      beDifCppInput.addEventListener('input', calculate);
+
+      // Botões de Ação
+      btnCopySummary.addEventListener('click', copySummary);
+
+      // Adicionar novo suprimento (Aba 2)
+      document.getElementById('btn-add-supply').addEventListener('click', () => {
+        const newCode = `NOVO-SUP-${suppliesList.length + 1}`;
+        suppliesList.unshift({
+          model: newCode,
+          type: 'Toner',
+          mfg: 'Geral',
+          price: null,
+          yield: null
+        });
+        saveData();
+        renderSuppliesTable();
+        showToast(`Novo suprimento "${newCode}" inserido no início da tabela.`);
+      });
+
+      // Adicionar nova impressora (Aba 3)
+      document.getElementById('btn-add-printer').addEventListener('click', () => {
+        const newModel = `NOVA-IMP-${printersList.length + 1}`;
+        printersList.unshift({
+          model: newModel,
+          mfg: 'Geral',
+          tech: 'Laser Mono',
+          price: null,
+          lifetime: 48,
+          supplies: []
+        });
+        saveData();
+        renderPrintersTable();
+        populatePrinterSelect(newModel);
+        showToast(`Nova impressora "${newModel}" inserida no início do cadastro.`);
+      });
+
+      // Exportar / Resetar
+      document.getElementById('btn-export-json').addEventListener('click', exportJSON);
+      document.getElementById('btn-reset-db').addEventListener('click', resetToDefaults);
+
+      // Modal Gerar Proposta
+      btnOpenProposalModal.addEventListener('click', openProposalModal);
+      btnCloseModal.addEventListener('click', closeModal);
+      btnCloseModal2.addEventListener('click', closeModal);
+      modalProposal.addEventListener('click', (e) => {
+        if (e.target === modalProposal) closeModal();
+      });
+
+      propClientNameInput.addEventListener('input', () => {
+        proposalJsonOutput.value = JSON.stringify(generateProposalPayload(), null, 2);
+      });
+
+      btnCopyProposalJson.addEventListener('click', () => {
+        navigator.clipboard.writeText(proposalJsonOutput.value).then(() => {
+          showToast('JSON da proposta copiado com sucesso!');
+        }).catch(() => {
+          proposalJsonOutput.select();
+          document.execCommand('copy');
+          showToast('JSON da proposta copiado!');
+        });
+      });
+    });
+=======
+  </script>
+</body>
+</html>
+<!--
+<![CDATA[
+=========================================
+=========================================
+JUCA CARTUCHOS — RESUMO DE PRECIFICAÇÃO DE LOCAÇÃO
+=========================================
+Equipamento: ${selectedPrinter.model} (${selectedPrinter.mfg} - ${selectedPrinter.tech})
+Valor de Compra: ${equipPriceVal}
+Produção Mensal Estimada: ${fmtNum(monthlyVol)} páginas
+Vida Útil Estimada: ${lifetime} meses
+Mark-up Aplicado: ${markup}x
+
+--- SUPRIMENTOS VINCULADOS ---
+${selectedPrinter.supplies.length > 0 ? selectedPrinter.supplies.map(code => {
+  const item = SUPPLIES_DB[code];
+  const cpp = item ? (item.price / item.yield) : 0;
+  return `• ${code} (${item.type}): Compra ${fmtBRL(item.price)} | Rendimento: ${fmtNum(item.yield)} pág | CPP: ${fmtCPP(cpp)}`;
+}).join('\n') : 'Sem suprimentos cadastrados.'}
+
+--- CUSTOS E PREÇOS ---
+CPP Suprimentos: ${kpiCppSup.textContent}
+CPP Equipamento: ${kpiCppEq.textContent}
+CPP Fornecedor Total: ${kpiCppForn.textContent}
+-----------------------------------------
+CPP DE VENDA SUGERIDO: ${kpiCppVenda.textContent}
+FATURAMENTO MENSAL ESTIMADO: ${kpiCustoMensal.textContent}
+-----------------------------------------
+Análise Break-Even: ${bePagesVal.textContent}
+Veredito: ${beVerdictBox.innerText.replace(/\n/g, ' ')}
+=========================================`;
+
+      navigator.clipboard.writeText(summaryText).then(() => {
+        copyToast.classList.add('show');
+        setTimeout(() => copyToast.classList.remove('show'), 3000);
+      }).catch(err => {
+        alert('Não foi possível copiar automaticamente. Selecione o texto na tela.');
+      });
+    }
+
+    // Event Listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      initSelect();
+
+      printerSelect.addEventListener('change', (e) => {
+        selectedPrinter = PRINTERS_DB.find(p => p.model === e.target.value) || PRINTERS_DB[0];
+        syncPrinterInputs(true);
+      });
+
+      equipPriceInput.addEventListener('input', calculate);
+      monthlyVolInput.addEventListener('input', calculate);
+      lifetimeInput.addEventListener('input', calculate);
+      markupInput.addEventListener('input', calculate);
+      beDifLocInput.addEventListener('input', calculate);
+      beDifCppInput.addEventListener('input', calculate);
+
+      btnCopySummary.addEventListener('click', copySummary);
+    });
+  </script>
+<!--
+<script>
+/* Skip artifact shell — fixed helpers served beside every artifact. */
+(function () {
+  "use strict";
+
+  var fmt = {
+    num: function (v, opts) { return new Intl.NumberFormat("pt-BR", opts || {}).format(v); },
+    brl: function (v) { return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v); },
+    pct: function (v) { return new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 1 }).format(v); }
+  };
+
+  // axisFmt keeps axis tick labels short (compact notation) so long values
+  // (e.g. full BRL amounts) never clip against the plot edge.
+  function axisFmt(v) {
+    return fmt.num(v, { notation: "compact", maximumFractionDigits: 1 });
+  }
+
+  // format accepts a function OR one of the fmt names ("num" | "brl" | "pct").
+  function coerceFormat(spec) {
+    if (typeof spec === "function") return spec;
+    if (typeof spec === "string" && fmt[spec]) return fmt[spec];
+    return function (v) { return fmt.num(v); };
+  }
+
+  function accent() {
+    return getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#2563eb";
+  }
+  function mutedColor() {
+    return getComputedStyle(document.documentElement).getPropertyValue("--text-muted").trim() || "#5b6472";
+  }
+  function svgEl(tag, attrs) {
+    var el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for (var k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+  function frame(el, w, h) {
+    var svg = svgEl("svg", { viewBox: "0 0 " + w + " " + h, role: "img" });
+    el.innerHTML = "";
+    el.appendChild(svg);
+    return svg;
+  }
+
+  // maxOf guards the axis scale: empty values would give -Infinity (truthy,
+  // so "|| 1" can't catch it) and a non-positive max would flip the chart.
+  function maxOf(values) {
+    var m = values.length ? Math.max.apply(null, values) : 0;
+    return m > 0 ? m : 1;
+  }
+
+  // bar(el, {labels:[], values:[], color?, format?}) — vertical bar chart.
+  function bar(el, cfg) {
+    var W = 640, H = 280, padL = 46, padB = 30, padT = 12;
+    var svg = frame(el, W, H);
+    var max = maxOf(cfg.values);
+    var n = cfg.values.length;
+    var plotW = W - padL - 12, plotH = H - padT - padB;
+    var step = plotW / n, bw = Math.min(step * 0.62, 64);
+    var color = cfg.color || accent();
+    var f = coerceFormat(cfg.format);
+    for (var g = 0; g <= 4; g++) {
+      var gy = padT + plotH - (plotH * g) / 4;
+      svg.appendChild(svgEl("line", { x1: padL, y1: gy, x2: W - 12, y2: gy, stroke: "currentColor", "stroke-opacity": 0.08 }));
+      var lbl = svgEl("text", { x: padL - 8, y: gy + 4, "text-anchor": "end", "font-size": 10, fill: mutedColor() });
+      lbl.textContent = axisFmt((max * g) / 4);
+      svg.appendChild(lbl);
+    }
+    cfg.values.forEach(function (v, i) {
+      var bh = Math.max(0, (v / max) * plotH);
+      var x = padL + i * step + (step - bw) / 2;
+      var y = padT + plotH - bh;
+      var r = svgEl("rect", { x: x, y: y, width: bw, height: bh, rx: 4, fill: color });
+      var t = svgEl("title", {});
+      t.textContent = cfg.labels[i] + ": " + f(v);
+      r.appendChild(t);
+      svg.appendChild(r);
+      var tx = svgEl("text", { x: x + bw / 2, y: H - 10, "text-anchor": "middle", "font-size": 11, fill: mutedColor() });
+      tx.textContent = cfg.labels[i];
+      svg.appendChild(tx);
+    });
+  }
+
+  // line(el, {labels:[], values:[], color?, format?}) — single-series line.
+  function line(el, cfg) {
+    var W = 640, H = 280, padL = 46, padB = 30, padT = 12;
+    var svg = frame(el, W, H);
+    var max = maxOf(cfg.values);
+    var n = cfg.values.length;
+    var plotW = W - padL - 16, plotH = H - padT - padB;
+    var color = cfg.color || accent();
+    var f = coerceFormat(cfg.format);
+    for (var g = 0; g <= 4; g++) {
+      var gy = padT + plotH - (plotH * g) / 4;
+      svg.appendChild(svgEl("line", { x1: padL, y1: gy, x2: W - 16, y2: gy, stroke: "currentColor", "stroke-opacity": 0.08 }));
+      var lbl = svgEl("text", { x: padL - 8, y: gy + 4, "text-anchor": "end", "font-size": 10, fill: mutedColor() });
+      lbl.textContent = axisFmt((max * g) / 4);
+      svg.appendChild(lbl);
+    }
+    var pts = cfg.values.map(function (v, i) {
+      var x = padL + (n === 1 ? plotW / 2 : (plotW * i) / (n - 1));
+      var y = padT + plotH - (v / max) * plotH;
+      return [x, y];
+    });
+    var d = pts.map(function (p, i) { return (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" ");
+    svg.appendChild(svgEl("path", { d: d, fill: "none", stroke: color, "stroke-width": 2, "stroke-linejoin": "round" }));
+    pts.forEach(function (p, i) {
+      var c = svgEl("circle", { cx: p[0], cy: p[1], r: 3.5, fill: color });
+      var t = svgEl("title", {});
+      t.textContent = cfg.labels[i] + ": " + f(cfg.values[i]);
+      c.appendChild(t);
+      svg.appendChild(c);
+      var tx = svgEl("text", { x: p[0], y: H - 10, "text-anchor": "middle", "font-size": 11, fill: mutedColor() });
+      tx.textContent = cfg.labels[i];
+      svg.appendChild(tx);
+    });
+  }
+
+  // donut(el, {labels:[], values:[], colors?}) — donut with center total.
+  function donut(el, cfg) {
+    var W = 320, H = 280, cx = W / 2, cy = H / 2, R = 92, r = 58;
+    var svg = frame(el, W, H);
+    var total = cfg.values.reduce(function (a, b) { return a + b; }, 0) || 1;
+    var palette = cfg.colors || [accent(), "#1baf7a", "#eda100", "#e34948", "#4a3aa7", "#e87ba4"];
+    var a0 = -Math.PI / 2;
+    cfg.values.forEach(function (v, i) {
+      var a1 = a0 + (v / total) * Math.PI * 2;
+      var large = a1 - a0 > Math.PI ? 1 : 0;
+      var p = ["M", cx + R * Math.cos(a0), cy + R * Math.sin(a0),
+        "A", R, R, 0, large, 1, cx + R * Math.cos(a1), cy + R * Math.sin(a1),
+        "L", cx + r * Math.cos(a1), cy + r * Math.sin(a1),
+        "A", r, r, 0, large, 0, cx + r * Math.cos(a0), cy + r * Math.sin(a0), "Z"].join(" ");
+      var path = svgEl("path", { d: p, fill: palette[i % palette.length] });
+      var t = svgEl("title", {});
+      t.textContent = cfg.labels[i] + ": " + fmt.num(v) + " (" + fmt.pct(v / total) + ")";
+      path.appendChild(t);
+      svg.appendChild(path);
+      a0 = a1;
+    });
+    var center = svgEl("text", { x: cx, y: cy + 5, "text-anchor": "middle", "font-size": 20, "font-weight": 650, fill: "currentColor" });
+    center.textContent = fmt.num(total);
+    svg.appendChild(center);
+  }
+
+  window.skipShell = { fmt: fmt };
+  window.skipChart = { bar: bar, line: line, donut: donut };
+})();
+
+</script>
+]]>
+-->

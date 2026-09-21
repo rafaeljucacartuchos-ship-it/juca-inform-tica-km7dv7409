@@ -8,6 +8,7 @@ import {
   Settings as SettingsIcon,
   RefreshCw,
   FolderClock,
+  Package,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -21,7 +22,10 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { RentalSimulator } from '@/components/RentalSimulator'
+import { ModernRentalSimulator } from '@/components/pricing/ModernRentalSimulator'
+import { SuppliesManagementTab } from '@/components/pricing/SuppliesManagementTab'
+import { PrintersManagementTab } from '@/components/pricing/PrintersManagementTab'
+import { ParametersAndAuditTab } from '@/components/pricing/ParametersAndAuditTab'
 import { RentalProposalPrintView } from '@/components/RentalProposalPrintView'
 import { RentalContractPrintView } from '@/components/RentalContractPrintView'
 import { RentalContractsList } from '@/components/RentalContractsList'
@@ -32,24 +36,35 @@ import {
   getRentalContracts,
   createRentalContract,
   generateNextContractNumber,
-  getRentalSettings,
-  updateRentalSettings,
 } from '@/services/rental'
+import {
+  getParametrosGlobais,
+  getSuprimentos,
+  getImpressoras,
+  getPriceAuditHistory,
+  createContratoPrecificacao,
+  type ParametrosGlobais,
+  type SuprimentoRecord,
+  type ImpressoraRecord,
+  type AuditoriaPrecoRecord,
+} from '@/services/pricing-module'
+import { usePermissions } from '@/hooks/use-permissions'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import type { RentalQuote, RentalContract, RentalMachineCalculation } from '@/types'
 
 export default function LocacaoImpressoras() {
   const { toast } = useToast()
+  const { isAdmin, hasPermission } = usePermissions()
 
-  // Aba ativa: 'simulador' | 'proposta' | 'propostas_lista' | 'contrato' | 'contratos_lista'
+  // Permissões: Admin bypass total; edição restrita a gerência/admin
+  const canEditPricing = isAdmin || hasPermission('precificacao')
+
+  // Aba ativa: 'simulador' | 'suprimentos' | 'impressoras' | 'parametros' | 'proposta' | 'propostas_lista' | 'contrato' | 'contratos_lista'
   const [activeTab, setActiveTab] = useState<string>('simulador')
 
   // Proposta ativa no visualizador
   const [currentQuote, setCurrentQuote] = useState<RentalQuote | null>(null)
-
-  // Proposta para edição/reabertura no simulador
-  const [quoteForEdit, setQuoteForEdit] = useState<RentalQuote | null>(null)
 
   // Contrato ativo no visualizador
   const [currentContract, setCurrentContract] = useState<RentalContract | null>(null)
@@ -62,6 +77,18 @@ export default function LocacaoImpressoras() {
   const [contractsList, setContractsList] = useState<RentalContract[]>([])
   const [loadingContracts, setLoadingContracts] = useState(false)
 
+  // Dados do novo módulo de precificação
+  const [parametros, setParametros] = useState<ParametrosGlobais>({
+    id: 'default',
+    mark_up_revenda: 1.45,
+    vida_util_padrao_meses: 48,
+    producao_mensal_referencia: 1000,
+  })
+  const [suppliesList, setSuppliesList] = useState<SuprimentoRecord[]>([])
+  const [printersList, setPrintersList] = useState<ImpressoraRecord[]>([])
+  const [auditList, setAuditList] = useState<AuditoriaPrecoRecord[]>([])
+  const [loadingPricingData, setLoadingPricingData] = useState(false)
+
   // Modal de geração de contrato a partir da proposta
   const [contractModalOpen, setContractModalOpen] = useState(false)
   const [machineForContract, setMachineForContract] = useState<RentalMachineCalculation | null>(
@@ -72,11 +99,26 @@ export default function LocacaoImpressoras() {
   const [contractStartDate, setContractStartDate] = useState(new Date().toISOString().split('T')[0])
   const [clausulasAdicionais, setClausulasAdicionais] = useState('')
 
-  // Modal de Configurações Padrão
-  const [settingsModalOpen, setSettingsModalOpen] = useState(false)
-  const [paybackDefaultInput, setPaybackDefaultInput] = useState('18')
-  const [marginDefaultInput, setMarginDefaultInput] = useState('50')
-  const [savingSettings, setSavingSettings] = useState(false)
+  // Carrega dados de precificação (parâmetros, suprimentos, impressoras e auditoria)
+  const loadPricingData = useCallback(async () => {
+    setLoadingPricingData(true)
+    try {
+      const [params, sups, imps, audits] = await Promise.all([
+        getParametrosGlobais(),
+        getSuprimentos(true),
+        getImpressoras(true),
+        getPriceAuditHistory(50),
+      ])
+      setParametros(params)
+      setSuppliesList(sups)
+      setPrintersList(imps)
+      setAuditList(audits)
+    } catch (err) {
+      console.error('Erro ao carregar dados de precificação:', err)
+    } finally {
+      setLoadingPricingData(false)
+    }
+  }, [])
 
   // Carrega propostas existentes
   const loadQuotes = useCallback(async () => {
@@ -102,59 +144,25 @@ export default function LocacaoImpressoras() {
 
   // Atualiza tudo
   const reloadAll = useCallback(() => {
+    loadPricingData()
     loadQuotes()
     loadContracts()
-  }, [loadQuotes, loadContracts])
+  }, [loadPricingData, loadQuotes, loadContracts])
 
   useEffect(() => {
+    loadPricingData()
     loadQuotes()
     loadContracts()
-  }, [loadQuotes, loadContracts])
+  }, [loadPricingData, loadQuotes, loadContracts])
 
-  // Inscrição Realtime para atualizar propostas e contratos automaticamente
-  useRealtime('rental_quotes', () => {
-    loadQuotes()
-  })
+  // Inscrição Realtime para atualizar propostas, contratos e dados de suprimentos/impressoras
+  useRealtime('rental_quotes', () => loadQuotes())
+  useRealtime('rental_contracts', () => loadContracts())
+  useRealtime('suprimentos', () => loadPricingData())
+  useRealtime('impressoras', () => loadPricingData())
+  useRealtime('parametros', () => loadPricingData())
 
-  useRealtime('rental_contracts', () => {
-    loadContracts()
-  })
-
-  // Carrega configurações
-  const handleOpenSettings = async () => {
-    try {
-      const s = await getRentalSettings()
-      setPaybackDefaultInput(String(s.defaultPaybackMonths))
-      setMarginDefaultInput(String(s.defaultMarginPct))
-      setSettingsModalOpen(true)
-    } catch {
-      setSettingsModalOpen(true)
-    }
-  }
-
-  const handleSaveSettings = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSavingSettings(true)
-    try {
-      const pb = parseInt(paybackDefaultInput, 10) || 18
-      const mg = parseFloat(marginDefaultInput) || 50
-      await updateRentalSettings({
-        defaultPaybackMonths: pb,
-        defaultMarginPct: mg,
-      })
-      toast({ title: 'Configurações de locação salvas com sucesso!' })
-      setSettingsModalOpen(false)
-    } catch {
-      toast({
-        title: 'Erro ao salvar configurações',
-        variant: 'destructive',
-      })
-    } finally {
-      setSavingSettings(false)
-    }
-  }
-
-  // Quando proposta é gerada pelo simulador
+  // Quando proposta é gerada pelo simulador novo
   const handleQuoteGenerated = (quote: RentalQuote) => {
     setCurrentQuote(quote)
     loadQuotes()
@@ -165,16 +173,6 @@ export default function LocacaoImpressoras() {
   const handleOpenQuote = (quote: RentalQuote) => {
     setCurrentQuote(quote)
     setActiveTab('proposta')
-  }
-
-  // Ao selecionar uma proposta para reabrir/editar no simulador
-  const handleEditQuote = (quote: RentalQuote) => {
-    setQuoteForEdit(quote)
-    setActiveTab('simulador')
-    toast({
-      title: 'Proposta carregada no simulador',
-      description: `Parâmetros de ${quote.cliente_nome_livre || 'Cliente'} prontos para novo cálculo.`,
-    })
   }
 
   // Ao clicar em "Gerar Contrato" dentro da proposta
@@ -192,7 +190,7 @@ export default function LocacaoImpressoras() {
     setContractModalOpen(true)
   }
 
-  // Confirmar geração do contrato (congela dados)
+  // Confirmar geração do contrato (congela dados e grava na tabela contratos e rental_contracts)
   const handleConfirmContract = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!currentQuote || !machineForContract) return
@@ -238,9 +236,30 @@ export default function LocacaoImpressoras() {
 
       const created = await createRentalContract(contractPayload)
 
+      // Também espelha na tabela `contratos` da seção 12 se houver impressora vinculada
+      try {
+        const pricingSnapshot = (currentQuote.resultados as any)?.pricingSnapshot
+        if (pricingSnapshot?.impressora?.id) {
+          await createContratoPrecificacao({
+            cliente: frozenLocatario.nome,
+            id_impressora: pricingSnapshot.impressora.id,
+            producao_mensal_estimada: currentQuote.franquia_paginas || 1000,
+            locacao_mensal: machineForContract.franquiaSugerida,
+            mark_up_aplicado: pricingSnapshot.memoria_calculo?.mark_up_aplicado || 1.45,
+            cpp_venda_fechado: machineForContract.excedenteSugerido,
+            data_inicio: contractStartDate,
+            duracao_meses: currentQuote.contrato_meses || 12,
+            status: 'ativo',
+            dados_congelados: pricingSnapshot,
+          })
+        }
+      } catch (errDb) {
+        console.warn('Registro espelho em contratos_precificacao:', errDb)
+      }
+
       toast({
         title: 'Contrato emitido com sucesso!',
-        description: `Contrato nº ${created.numero} gerado e ativado.`,
+        description: `Contrato nº ${created.numero} gerado com cláusulas padronizadas de garantia e manutenção.`,
       })
 
       setCurrentContract(created)
@@ -267,20 +286,14 @@ export default function LocacaoImpressoras() {
         setCurrentQuote(q)
         setActiveTab('proposta')
       } else {
-        toast({
-          title: 'Proposta não encontrada',
-          variant: 'destructive',
-        })
+        toast({ title: 'Proposta não encontrada', variant: 'destructive' })
       }
     } catch {
-      toast({
-        title: 'Erro ao carregar proposta vinculada',
-        variant: 'destructive',
-      })
+      toast({ title: 'Erro ao carregar proposta vinculada', variant: 'destructive' })
     }
   }
 
-  const isRefreshing = loadingQuotes || loadingContracts
+  const isRefreshing = loadingQuotes || loadingContracts || loadingPricingData
 
   return (
     <div className="space-y-6">
@@ -293,29 +306,20 @@ export default function LocacaoImpressoras() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
-                Locação de Impressoras
+                Módulo de Precificação de Locação de Impressoras
               </h1>
               <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                v0.0.205
+                v0.0.253
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              Funil completo: Precificação com vínculo ao catálogo → Histórico de Propostas →
-              Contrato com cláusulas fixas.
+              Juca Cartuchos — Precificação automática por CPP, combos de 5 slots, amortização do
+              ativo e contratos congelados.
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleOpenSettings}
-            className="text-xs font-semibold text-slate-700 hover:text-indigo-600 gap-1.5"
-          >
-            <SettingsIcon className="h-3.5 w-3.5" /> Configurações de Locação
-          </Button>
           <Button
             type="button"
             variant="outline"
@@ -332,14 +336,39 @@ export default function LocacaoImpressoras() {
 
       {/* TABS PRINCIPAIS DO MÓDULO */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-slate-100 p-1 rounded-xl grid grid-cols-2 sm:grid-cols-5 max-w-3xl print:hidden">
+        <TabsList className="bg-slate-100 p-1 rounded-xl flex flex-wrap gap-1 max-w-full print:hidden">
           <TabsTrigger
             value="simulador"
             className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm gap-1.5"
           >
             <Calculator className="h-3.5 w-3.5" />
-            <span>1. Simulador</span>
+            <span>1. Simulador & CPP</span>
           </TabsTrigger>
+
+          <TabsTrigger
+            value="suprimentos"
+            className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm gap-1.5"
+          >
+            <Package className="h-3.5 w-3.5" />
+            <span>Suprimentos ({suppliesList.length})</span>
+          </TabsTrigger>
+
+          <TabsTrigger
+            value="impressoras"
+            className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm gap-1.5"
+          >
+            <Printer className="h-3.5 w-3.5" />
+            <span>Impressoras ({printersList.length})</span>
+          </TabsTrigger>
+
+          <TabsTrigger
+            value="parametros"
+            className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm gap-1.5"
+          >
+            <SettingsIcon className="h-3.5 w-3.5" />
+            <span>Parâmetros & Auditoria</span>
+          </TabsTrigger>
+
           <TabsTrigger
             value="proposta"
             disabled={!currentQuote}
@@ -348,6 +377,7 @@ export default function LocacaoImpressoras() {
             <FileText className="h-3.5 w-3.5" />
             <span>2. Proposta</span>
           </TabsTrigger>
+
           <TabsTrigger
             value="propostas_lista"
             className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm gap-1.5"
@@ -355,6 +385,7 @@ export default function LocacaoImpressoras() {
             <FolderClock className="h-3.5 w-3.5" />
             <span>Propostas ({quotesList.length})</span>
           </TabsTrigger>
+
           <TabsTrigger
             value="contrato"
             disabled={!currentContract}
@@ -363,6 +394,7 @@ export default function LocacaoImpressoras() {
             <FileSignature className="h-3.5 w-3.5" />
             <span>3. Contrato</span>
           </TabsTrigger>
+
           <TabsTrigger
             value="contratos_lista"
             className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm gap-1.5"
@@ -372,12 +404,53 @@ export default function LocacaoImpressoras() {
           </TabsTrigger>
         </TabsList>
 
-        {/* 1. SIMULADOR */}
+        {/* 1. SIMULADOR COM MOTOR PRECISO */}
         <TabsContent value="simulador">
-          <RentalSimulator onQuoteGenerated={handleQuoteGenerated} initialQuote={quoteForEdit} />
+          <ModernRentalSimulator
+            printers={printersList}
+            supplies={suppliesList}
+            parametros={parametros}
+            onQuoteGenerated={handleQuoteGenerated}
+            onReloadData={loadPricingData}
+            onOpenSupplyEdit={(supModel) => {
+              setActiveTab('suprimentos')
+            }}
+            readOnly={!canEditPricing}
+          />
         </TabsContent>
 
-        {/* 2. PROPOSTA COMERCIAL VISUALIZAÇÃO */}
+        {/* 2. GESTÃO DE SUPRIMENTOS (ABA 2) */}
+        <TabsContent value="suprimentos">
+          <SuppliesManagementTab
+            supplies={suppliesList}
+            onReload={loadPricingData}
+            readOnly={!canEditPricing}
+          />
+        </TabsContent>
+
+        {/* 3. GESTÃO DE IMPRESSORAS (ABA 3) */}
+        <TabsContent value="impressoras">
+          <PrintersManagementTab
+            printers={printersList}
+            supplies={suppliesList}
+            onReload={loadPricingData}
+            readOnly={!canEditPricing}
+          />
+        </TabsContent>
+
+        {/* 4. PARÂMETROS & AUDITORIA (ABA 4) */}
+        <TabsContent value="parametros">
+          <ParametersAndAuditTab
+            parametros={parametros}
+            auditHistory={auditList}
+            supplies={suppliesList}
+            printers={printersList}
+            onReload={loadPricingData}
+            readOnly={!canEditPricing}
+          />
+        </TabsContent>
+
+        {/* 5. PROPOSTA COMERCIAL VISUALIZAÇÃO */}
         <TabsContent value="proposta">
           {currentQuote ? (
             <RentalProposalPrintView
@@ -395,17 +468,16 @@ export default function LocacaoImpressoras() {
           )}
         </TabsContent>
 
-        {/* 3. HISTÓRICO DE PROPOSTAS (COM BUSCA EM TEMPO REAL) */}
+        {/* 6. HISTÓRICO DE PROPOSTAS */}
         <TabsContent value="propostas_lista">
           <RentalQuotesList
             quotes={quotesList}
             onOpenQuote={handleOpenQuote}
-            onEditQuote={handleEditQuote}
             onReload={loadQuotes}
           />
         </TabsContent>
 
-        {/* 4. CONTRATO IMPRESSÃO / VISUALIZAÇÃO */}
+        {/* 7. CONTRATO IMPRESSÃO / VISUALIZAÇÃO */}
         <TabsContent value="contrato">
           {currentContract ? (
             <RentalContractPrintView
@@ -422,7 +494,7 @@ export default function LocacaoImpressoras() {
           )}
         </TabsContent>
 
-        {/* 5. LISTA DE CONTRATOS */}
+        {/* 8. LISTA DE CONTRATOS */}
         <TabsContent value="contratos_lista">
           <RentalContractsList
             contracts={contractsList}
@@ -436,7 +508,7 @@ export default function LocacaoImpressoras() {
         </TabsContent>
       </Tabs>
 
-      {/* MODAL DE EMISSÃO DE CONTRATO (CONGELA OS DADOS) */}
+      {/* MODAL DE EMISSÃO DE CONTRATO (CONGELA OS DADOS COM CLÁUSULAS PADRONIZADAS) */}
       <Dialog open={contractModalOpen} onOpenChange={setContractModalOpen}>
         <DialogContent className="max-w-md p-5">
           <DialogHeader>
@@ -448,7 +520,7 @@ export default function LocacaoImpressoras() {
             </div>
             <DialogDescription className="text-xs text-slate-500">
               Os dados do cliente e da máquina serão congelados permanentemente no contrato com as
-              cláusulas fixas da JUCA.
+              cláusulas da Seção 17 da JUCA Cartuchos.
             </DialogDescription>
           </DialogHeader>
 
@@ -468,8 +540,8 @@ export default function LocacaoImpressoras() {
                   <strong>Valor Mensal:</strong> R$ {machineForContract.franquiaSugerida.toFixed(2)}
                 </p>
                 <p>
-                  <strong>Excedente:</strong> R$ {machineForContract.excedenteSugerido.toFixed(4)} /
-                  pág
+                  <strong>Excedente Homologado (CPP Venda):</strong> R${' '}
+                  {machineForContract.excedenteSugerido.toFixed(6)} / pág
                 </p>
               </div>
 
@@ -478,7 +550,7 @@ export default function LocacaoImpressoras() {
                 <Input
                   value={nextContractNumber}
                   onChange={(e) => setNextContractNumber(e.target.value)}
-                  placeholder="Ex: CT-2025-001"
+                  placeholder="Ex: CT-2026-001"
                   required
                   className="h-9 text-xs font-mono font-bold text-indigo-900"
                 />
@@ -503,7 +575,7 @@ export default function LocacaoImpressoras() {
                 <Input
                   value={clausulasAdicionais}
                   onChange={(e) => setClausulasAdicionais(e.target.value)}
-                  placeholder="Ex: Entrega e treinamento no dia 15..."
+                  placeholder="Ex: Entrega e treinamento no local..."
                   className="h-9 text-xs"
                 />
               </div>
@@ -531,80 +603,6 @@ export default function LocacaoImpressoras() {
               </DialogFooter>
             </form>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* MODAL DE CONFIGURAÇÕES PADRÃO DE LOCAÇÃO */}
-      <Dialog open={settingsModalOpen} onOpenChange={setSettingsModalOpen}>
-        <DialogContent className="max-w-md p-5">
-          <DialogHeader>
-            <div className="flex items-center gap-2 text-indigo-600">
-              <SettingsIcon className="h-5 w-5" />
-              <DialogTitle className="text-base font-bold text-slate-900">
-                Configurações Padrão de Locação
-              </DialogTitle>
-            </div>
-            <DialogDescription className="text-xs text-slate-500">
-              Defina os parâmetros padrão sugeridos nos novos cálculos de locação.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleSaveSettings} className="space-y-3 py-2 text-xs">
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">
-                Prazo Padrão de Payback das Máquinas (Meses)
-              </Label>
-              <Input
-                type="number"
-                min="1"
-                max="60"
-                value={paybackDefaultInput}
-                onChange={(e) => setPaybackDefaultInput(e.target.value)}
-                required
-                className="h-9 text-xs font-mono"
-              />
-              <p className="text-[10px] text-slate-400">Padrão do mercado: 18 a 24 meses</p>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">
-                Margem Padrão de Revenda (%)
-              </Label>
-              <Input
-                type="number"
-                min="0"
-                max="500"
-                value={marginDefaultInput}
-                onChange={(e) => setMarginDefaultInput(e.target.value)}
-                required
-                className="h-9 text-xs font-mono"
-              />
-              <p className="text-[10px] text-slate-400">
-                Margem aplicada sobre o custo dos insumos (CPP)
-              </p>
-            </div>
-
-            <DialogFooter className="pt-2 gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setSettingsModalOpen(false)}
-                disabled={savingSettings}
-                className="text-xs"
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                size="sm"
-                disabled={savingSettings}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
-              >
-                {savingSettings ? 'Salvando...' : 'Salvar Configurações'}
-              </Button>
-            </DialogFooter>
-          </form>
         </DialogContent>
       </Dialog>
     </div>

@@ -91,16 +91,18 @@ export function getContractClauses(data: ContractTemplateData) {
 
   return [
     {
-      titulo: 'CLÁUSULA PRIMEIRA – DO OBJETO DA LOCAÇÃO',
-      conteudo: `O presente contrato tem por objeto a locação, pela LOCADORA à LOCATÁRIA, com prestação de serviços de assistência técnica e fornecimento de insumos e consumíveis necessários ao funcionamento do(s) seguinte(s) equipamento(s): ${equipDesc}, com franquia mensal contratada de ${data.franquiaPaginas.toLocaleString('pt-BR')} (páginas/impressões).`,
+      titulo: 'CLÁUSULA PRIMEIRA – DO OBJETO, MANUTENÇÃO E SUPRIMENTOS (PADRONIZADA — SEÇÃO 17.1)',
+      conteudo: `O presente instrumento tem por objeto a locação do equipamento especificado no preâmbulo (${equipDesc}), incluindo o fornecimento integral de suprimentos de impressão, cartuchos de toner, tintas originais/homologadas, módulos de cilindro fotocondutor, unidades fusoras e películas térmicas necessários à operacionalização contínua da franquia mensal de ${data.franquiaPaginas.toLocaleString('pt-BR')} páginas acordada. Fica expressamente vedada à LOCATÁRIA a introdução de insumos não autorizados pela LOCADORA, sob pena de rescisão contratual motivada e aplicação de penalidades cabíveis.`,
     },
     {
-      titulo: 'CLÁUSULA SEGUNDA – DOS CONSUMÍVEIS E ASSISTÊNCIA TÉCNICA',
-      conteudo: `Estão inclusos no presente contrato de locação: todos os suprimentos e peças de reposição (toners, cartuchos, fotocondutores/cilindros, fusores, roletes de tração e peças de desgaste mecânico), bem como manutenção preventiva periódica, suporte técnico remoto e presencial nas dependências da LOCATÁRIA durante horário comercial. Não está incluso o fornecimento de papel para impressão.`,
+      titulo:
+        'CLÁUSULA SEGUNDA – DA OPERAÇÃO DE EQUIPAMENTOS DE JATO DE TINTA E CABEÇOTES PIEZOELÉTRICOS (SEÇÃO 17.2)',
+      conteudo: `Nos contratos envolvendo equipamentos de tecnologia tanque de tinta (EcoTank/MegaTank), a LOCATÁRIA declara-se ciente de que a manutenção da fluidez do cabeçote de impressão demanda utilização periódica. Na hipótese de ociosidade contínua do equipamento superior a 15 (quinze) dias corridos, resultando em dessecação de micropiezos ou entupimento irreversível de bicos ejetores, os custos de substituição do cabeçote de impressão correrão integralmente por conta da LOCATÁRIA, eximindo a LOCADORA de cobertura sem ônus.`,
     },
     {
-      titulo: 'CLÁUSULA TERCEIRA – DO VALOR, FRANQUIA E PÁGINAS EXCEDENTES',
-      conteudo: `Pela locação do(s) equipamento(s) e serviços contratados, a LOCATÁRIA pagará à LOCADORA o valor mensal fixo de ${formatBRL(data.valorMensal)}, correspondente à franquia mensal contratada de ${data.franquiaPaginas.toLocaleString('pt-BR')} páginas/mês. As páginas impressas que excederem o limite da franquia mensal serão faturadas e cobradas pelo valor unitário de ${formatCPP(data.valorExcedentePagina)} por página excedente, devendo ser quitadas juntamente com a mensalidade do período apurado.`,
+      titulo:
+        'CLÁUSULA TERCEIRA – DA FRANQUIA, PÁGINAS EXCEDENTES E LEITURA DE MEDIDORES (SEÇÃO 17.3)',
+      conteudo: `O valor mensal ajustado de ${formatBRL(data.valorMensal)} confere à LOCATÁRIA o direito de produzir a quantidade de ${data.franquiaPaginas.toLocaleString('pt-BR')} páginas contratada como franquia. A apuração do volume efetivamente produzido dar-se-á mensalmente por meio de leitura remota via software SNMP ou auditoria física do contador lógico do equipamento. As impressões que ultrapassarem a franquia mensal serão faturadas na fatura subsequente, aplicando-se sobre cada página excedente o valor de ${formatCPP(data.valorExcedentePagina)} (CPP de venda homologado na celebração deste contrato).`,
     },
     {
       titulo: 'CLÁUSULA QUARTA – DA LEITURA DO MEDIDOR / CONTADOR',

@@ -393,7 +393,9 @@ export function RentalProposalPrintView({
                         </span>
                       </div>
                       <div className="flex justify-between items-baseline text-[11px]">
-                        <span className="text-slate-600">Valor da Página Excedente:</span>
+                        <span className="text-slate-600">
+                          Página Excedente (CPP Venda Homologado):
+                        </span>
                         <span className="font-bold text-rose-700 font-mono tabular-nums">
                           {formatCPP(m.excedenteSugerido)} / página
                         </span>
@@ -405,6 +407,34 @@ export function RentalProposalPrintView({
                         </span>
                       </div>
                     </div>
+
+                    {/* DISCRIMINAÇÃO DOS SUPRIMENTOS VINCULADOS COM CPP POR ITEM (Seção 10.3 / 11) */}
+                    {m.supplies && m.supplies.length > 0 && (
+                      <div className="bg-white rounded border border-slate-200 p-2.5 space-y-1.5">
+                        <span className="text-[10px] font-bold uppercase text-slate-700 block">
+                          Suprimentos & Manutenção Homologados (Até 5 Slots):
+                        </span>
+                        <div className="divide-y divide-slate-100 text-[10px]">
+                          {m.supplies.map((sup: any, sIdx: number) => (
+                            <div key={sIdx} className="py-1 flex justify-between items-center">
+                              <div>
+                                <strong className="text-slate-800">{sup.nome}</strong>{' '}
+                                {sup.tipo && (
+                                  <span className="text-slate-500 capitalize">({sup.tipo})</span>
+                                )}
+                              </div>
+                              <div className="text-right font-mono text-indigo-900 font-semibold">
+                                CPP: R${' '}
+                                {Number(sup.cpp || 0).toLocaleString('pt-BR', {
+                                  minimumFractionDigits: 6,
+                                  maximumFractionDigits: 6,
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* ESPECIFICAÇÕES TÉCNICAS */}
                     <div className="space-y-1 text-[11px] text-slate-600">
