@@ -59,6 +59,8 @@ export function getModuleInfoFromPath(pathname: string): {
   if (pathname.startsWith('/laudos')) {
     if (pathname === '/laudos') return { moduleKey: 'laudos', defaultTitle: 'Laudos Técnicos' }
     if (pathname === '/laudos/novo') return { moduleKey: 'laudos', defaultTitle: 'Novo Laudo' }
+    if (pathname.endsWith('/imprimir'))
+      return { moduleKey: 'laudos', defaultTitle: 'Imprimir Laudo' }
     return { moduleKey: 'laudos', defaultTitle: 'Laudo Técnico' }
   }
   if (pathname.startsWith('/precificacao')) {
@@ -212,6 +214,26 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // Laudo Print: /laudos/:id/imprimir
+      const laudoPrintMatch = basePath.match(/^\/laudos\/([a-zA-Z0-9_-]+)\/imprimir$/)
+      if (laudoPrintMatch && laudoPrintMatch[1]) {
+        const laudoId = laudoPrintMatch[1]
+        const rec = await pb
+          .collection('laudos_tecnicos')
+          .getOne(laudoId, {
+            fields: 'id,numero_laudo,cliente_nome',
+          })
+          .catch(() => null)
+        if (rec) {
+          const num = rec.numero_laudo || 'Laudo'
+          return {
+            title: `Imprimir ${num}`,
+            subtitle: rec.cliente_nome ? String(rec.cliente_nome).slice(0, 20) : undefined,
+          }
+        }
+        return { title: 'Imprimir Laudo' }
+      }
+
       // Laudo Detail: /laudos/:id
       const laudoMatch = basePath.match(/^\/laudos\/([a-zA-Z0-9_-]+)$/)
       if (laudoMatch && laudoMatch[1]) {
@@ -269,7 +291,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       (currentBase.startsWith('/ordens/') && currentBase.endsWith('/imprimir')) ||
       (currentBase.startsWith('/ordens/') && currentBase.endsWith('/assinatura')) ||
       (currentBase.startsWith('/orcamentos/') && currentBase.endsWith('/imprimir')) ||
-      (currentBase.startsWith('/laudos/') && currentBase.endsWith('/imprimir')) ||
       currentBase.startsWith('/relatorios/categorias/imprimir')
     ) {
       return

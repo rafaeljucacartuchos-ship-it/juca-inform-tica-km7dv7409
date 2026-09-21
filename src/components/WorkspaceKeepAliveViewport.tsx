@@ -6,6 +6,9 @@ import OrdensDeServico from '@/pages/OrdensDeServico'
 import OrdemDetail from '@/pages/OrdemDetail'
 import OrcamentosList from '@/pages/OrcamentosList'
 import OrcamentoDetail from '@/pages/OrcamentoDetail'
+import LaudosList from '@/pages/LaudosList'
+import LaudoDetail from '@/pages/LaudoDetail'
+import LaudoPrint from '@/pages/LaudoPrint'
 import Precificacao from '@/pages/Precificacao'
 import LocacaoImpressoras from '@/pages/LocacaoImpressoras'
 import PedidoMercadorias from '@/pages/PedidoMercadorias'
@@ -67,6 +70,36 @@ function renderComponentForPath(path: string) {
     return (
       <PermissionRoute module="orcamentos">
         <OrcamentoDetail />
+      </PermissionRoute>
+    )
+  }
+  if (pathname === '/laudos') {
+    return (
+      <PermissionRoute module="laudos">
+        <LaudosList />
+      </PermissionRoute>
+    )
+  }
+  if (pathname === '/laudos/novo') {
+    return (
+      <PermissionRoute module="laudos">
+        <LaudoDetail />
+      </PermissionRoute>
+    )
+  }
+  const laudoPrintMatch = matchPath('/laudos/:id/imprimir', pathname)
+  if (laudoPrintMatch) {
+    return (
+      <PermissionRoute module="laudos">
+        <LaudoPrint />
+      </PermissionRoute>
+    )
+  }
+  const laudoDetailMatch = matchPath('/laudos/:id', pathname)
+  if (laudoDetailMatch && pathname !== '/laudos') {
+    return (
+      <PermissionRoute module="laudos">
+        <LaudoDetail />
       </PermissionRoute>
     )
   }

@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Wrench,
   FileText,
+  FileCheck2,
   Tag,
   Printer,
   ShoppingCart,
@@ -33,6 +34,8 @@ function getTabIcon(tab: WorkspaceTab) {
     case 'orcamentos_novo':
     case 'orcamentos_detail':
       return FileText
+    case 'laudos':
+      return FileCheck2
     case 'precificacao':
       return Tag
     case 'locacao':
