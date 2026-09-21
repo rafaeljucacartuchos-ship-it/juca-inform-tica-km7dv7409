@@ -39,6 +39,7 @@ export interface SupplySlotInput {
   isProvision?: boolean
   riskWarning?: string
   integratedToChassis?: boolean
+  included?: boolean
 }
 
 export interface PricingEngineInput {
@@ -108,6 +109,9 @@ export interface EnrichedSupplySlot {
   isProvision: boolean
   riskWarning?: string
   integratedToChassis?: boolean
+  included: boolean
+  isStructural?: boolean
+  structuralWarning?: string
 }
 
 export interface BreakEvenScenario {
@@ -305,6 +309,34 @@ export function calculatePricing(input: PricingEngineInput): PricingEngineResult
     )
   }
 
+  // Determina se um tipo de suprimento é de desgaste estrutural
+  const checkIsStructural = (tipo: string, modelo: string) => {
+    const t = tipo.toLowerCase().trim()
+    const m = modelo.toLowerCase().trim()
+    return (
+      t === 'fotocondutor' ||
+      t === 'unidade_fusora' ||
+      t === 'pelicula' ||
+      t === 'cabecote' ||
+      t.includes('fusor') ||
+      t.includes('cilindro') ||
+      t.includes('drum') ||
+      m.includes('drum') ||
+      m.includes('fusor') ||
+      m.includes('fotocondutor') ||
+      m.includes('cabeçote') ||
+      m.includes('cabecote')
+    )
+  }
+
+  // Verifica se a impressora tem pelo menos um suprimento cadastrado/vinculado (não-vazio)
+  const hasAnyConfiguredSupply = input.supplies.some(
+    (s) => s && s.modelo && s.modelo.trim() !== '' && s.modelo !== 'N/A',
+  )
+  if (!hasAnyConfiguredSupply && !isThermalOrMatrix) {
+    errors.push('Sem suprimentos cadastrados — precificação incompleta')
+  }
+
   // PROCESSAMENTO DOS SLOTS (1 a 5)
   const enrichedSlots: EnrichedSupplySlot[] = []
   let sumSuppliesCpp = 0.0
@@ -313,21 +345,38 @@ export function calculatePricing(input: PricingEngineInput): PricingEngineResult
   for (let i = 1; i <= 5; i++) {
     const rawSlot = input.supplies[i - 1]
     const classified = classifySlotStatus(rawSlot)
+    const isSlotIncluded = rawSlot?.included !== false
+    const isStructural = rawSlot ? checkIsStructural(rawSlot.tipo, rawSlot.modelo) : false
 
     let cppSlot = 0.0
     if (rawSlot && classified.status !== 'empty' && classified.status !== 'integrated') {
       if (classified.status === 'missing_price') {
+        // Suprimento sem preço ou rendimento bloqueia
         hasMissingEssentialSupply = true
       } else {
         cppSlot = calculateSupplyCPP(rawSlot.valorCompra, rawSlot.rendimentoPaginas)
-        sumSuppliesCpp += cppSlot
+        if (isSlotIncluded) {
+          sumSuppliesCpp += cppSlot
+        }
       }
     }
 
-    if (classified.status === 'provision_risk') {
+    if (classified.status === 'provision_risk' && isSlotIncluded) {
       warnings.push(
         'Atenção: Cabeçote Piezoelétrico provisionado como risco operacional. Baixos volumes de impressão elevam taxa de sinistro.',
       )
+    }
+
+    let structuralWarning: string | undefined = undefined
+    if (
+      rawSlot &&
+      classified.status !== 'empty' &&
+      classified.status !== 'integrated' &&
+      !isSlotIncluded &&
+      isStructural
+    ) {
+      structuralWarning =
+        'Item de manutenção estrutural desmarcado — o custo desta peça ficará sob sua responsabilidade'
     }
 
     enrichedSlots.push({
@@ -346,6 +395,9 @@ export function calculatePricing(input: PricingEngineInput): PricingEngineResult
         ? 'baixos volumes elevam taxa de sinistro por ressecamento de micropiezos'
         : undefined,
       integratedToChassis: classified.integrated,
+      included: isSlotIncluded,
+      isStructural,
+      structuralWarning,
     })
   }
 

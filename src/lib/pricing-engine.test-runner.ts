@@ -296,6 +296,74 @@ export function runPricingEngineVerification(): {
     actual: parallelBe.error,
   })
 
+  // --------------------------------------------------------------------------
+  // VETOR NOVO: Seleção de Slots (Inclusão / Exclusão no Cálculo)
+  // --------------------------------------------------------------------------
+  const slotSelectionCalc = calculatePricing({
+    modelo: 'DCP-L2540DW',
+    fabricante: 'Brother',
+    tecnologia: 'laser_mono',
+    valorCompra: 2094.33,
+    vidaUtilMeses: 48,
+    producaoMensalEstimada: 1000,
+    markUpRevenda: 1.45,
+    supplies: [
+      {
+        slotNumber: 1,
+        modelo: 'TN-2370',
+        tipo: 'toner',
+        valorCompra: 79.9,
+        rendimentoPaginas: 2600,
+        included: true,
+      },
+      {
+        slotNumber: 2,
+        modelo: 'DR-2400',
+        tipo: 'fotocondutor',
+        valorCompra: 49.9,
+        rendimentoPaginas: 12000,
+        included: false, // Desmarcado fotocondutor
+      },
+      null,
+      null,
+      null,
+    ],
+  })
+
+  const tnCpp = 79.9 / 2600
+  const pass15 =
+    slotSelectionCalc.valid &&
+    Math.abs(slotSelectionCalc.cppSuprimentos - tnCpp) < 1e-9 &&
+    slotSelectionCalc.slotsEnriquecidos[1].structuralWarning !== undefined
+  results.push({
+    test: 'Seleção de Slots — Desmarcar fotocondutor remove do CPP e gera aviso estrutural',
+    passed: pass15,
+    expected: true,
+    actual: pass15,
+  })
+
+  // Impressora sem nenhum suprimento cadastrado bloqueia precificação
+  const emptyPrinterCalc = calculatePricing({
+    modelo: 'Sem Suprimentos',
+    fabricante: 'Brother',
+    tecnologia: 'laser_mono',
+    valorCompra: 1000,
+    vidaUtilMeses: 48,
+    producaoMensalEstimada: 1000,
+    supplies: [null, null, null, null, null],
+  })
+  const pass16 =
+    !emptyPrinterCalc.valid &&
+    emptyPrinterCalc.errors.some((e) =>
+      e.includes('Sem suprimentos cadastrados — precificação incompleta'),
+    )
+  results.push({
+    test: 'Validação — Impressora sem suprimentos cadastrados bloqueia cálculo',
+    passed: pass16,
+    expected: true,
+    actual: pass16,
+  })
+
   const allPassed = results.every((r) => r.passed)
   return { allPassed, results }
 }

@@ -26,6 +26,14 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from '@/components/ui/accordion'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { RentalCustomerSelect } from '@/components/RentalCustomerSelect'
 import type { RentalCustomerSelection } from '@/components/RentalCustomerSelect'
@@ -101,6 +109,27 @@ export function ModernRentalSimulator({
   // Equipamento Selecionado
   const [selectedPrinter, setSelectedPrinter] = useState<ImpressoraRecord | null>(null)
 
+  // Estado de inclusão por slot: todos os slots com suprimento vinculado iniciam marcados por padrão (true)
+  const [includedSlots, setIncludedSlots] = useState<Record<number, boolean>>({
+    1: true,
+    2: true,
+    3: true,
+    4: true,
+    5: true,
+  })
+
+  // Diálogo de confirmação para gerar proposta com suprimentos essenciais/estruturais desmarcados
+  const [essentialWarningModalOpen, setEssentialWarningModalOpen] = useState(false)
+  const [unconfirmedStructuralSlots, setUnconfirmedStructuralSlots] = useState<
+    { slotNumber: number; modelo: string; tipo: string }[]
+  >([])
+
+  // Modal para resolver ambiguidade se houver múltiplos suprimentos compatíveis
+  const [ambiguousSlotModal, setAmbigousSlotModal] = useState<{
+    slotNumber: 1 | 2 | 3 | 4 | 5
+    supplies: SuprimentoRecord[]
+  } | null>(null)
+
   // Cenário B para Comparação / Break-Even
   const [printerScenarioB, setPrinterScenarioB] = useState<ImpressoraRecord | null>(null)
   const [locacaoScenarioB, setLocacaoScenarioB] = useState<number>(490.14)
@@ -141,12 +170,27 @@ export function ModernRentalSimulator({
 
   const selectPrinter = (printer: ImpressoraRecord) => {
     setSelectedPrinter(printer)
+    // Ao selecionar nova impressora, reseta todos os slots como marcados por padrão
+    setIncludedSlots({
+      1: true,
+      2: true,
+      3: true,
+      4: true,
+      5: true,
+    })
     setEquipPriceCustom(
       printer.valor_compra !== null && printer.valor_compra !== undefined
         ? String(printer.valor_compra)
         : '',
     )
     setVidaUtilCustom(printer.vida_util_meses || parametros.vida_util_padrao_meses || 48)
+  }
+
+  const handleToggleSlotInclusion = (slotNumber: 1 | 2 | 3 | 4 | 5, included: boolean) => {
+    setIncludedSlots((prev) => ({
+      ...prev,
+      [slotNumber]: included,
+    }))
   }
 
   // Prepara os 5 slots de suprimento vinculados à impressora selecionada
@@ -210,9 +254,10 @@ export function ModernRentalSimulator({
         fabricante: sup.fabricante,
         valorCompra: sup.valor_compra ?? null,
         rendimentoPaginas: sup.rendimento_paginas ?? null,
+        included: includedSlots[slotNum] !== false,
       }
     })
-  }, [selectedPrinter, supplies])
+  }, [selectedPrinter, supplies, includedSlots])
 
   // CÁLCULO REATIVO EM TEMPO REAL (< 100ms)
   const calculation = useMemo<PricingEngineResult>(() => {
@@ -419,37 +464,20 @@ export function ModernRentalSimulator({
     }
   }
 
-  // GERAR PROPOSTA COMERCIAL CONGELANDO DADOS (Seção 5, 11 e Regra 20.3)
-  const handleGenerateProposal = async () => {
-    if (!customer.cliente_nome_livre.trim()) {
-      toast({
-        title: 'Informe o Cliente / Locatário',
-        description: 'É necessário identificar o cliente para emissão da proposta.',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    if (!selectedPrinter) {
-      toast({ title: 'Selecione uma impressora', variant: 'destructive' })
-      return
-    }
-
-    // Bloqueios de integridade (Seções 8.1 e 18)
-    if (!calculation.valid) {
-      toast({
-        title: 'Bloqueio de Integridade Cadastral',
-        description: calculation.errors[0] || 'Resolva as pendências cadastrais para prosseguir.',
-        variant: 'destructive',
-      })
-      return
-    }
+  // Executa a persistência da proposta comercial
+  const proceedGenerateProposal = async () => {
+    if (!selectedPrinter) return
 
     setGeneratingQuote(true)
     try {
-      // Monta suprimentos vinculados estruturados
+      // Identifica os códigos/modelos dos suprimentos efetivamente incluídos no cálculo
+      const slotsIncluidosCodigos = calculation.slotsEnriquecidos
+        .filter((s) => s.visualStatus !== 'empty' && s.included)
+        .map((s) => s.supplyId || s.modelo)
+
+      // Monta suprimentos vinculados estruturados apenas para os slots incluídos na proposta
       const suprimentosPayload = calculation.slotsEnriquecidos
-        .filter((s) => s.visualStatus !== 'empty')
+        .filter((s) => s.visualStatus !== 'empty' && s.included)
         .map((s) => ({
           slot: s.slotNumber,
           modelo_suprimento: s.modelo,
@@ -459,7 +487,19 @@ export function ModernRentalSimulator({
           cpp_calculado: s.cppCalculado,
           is_provisao: s.isProvision,
           integrado_chassi: s.integratedToChassis,
+          included: true,
         }))
+
+      // Mapeamento completo dos 5 slots para snapshot de auditoria
+      const allSlotsSnapshot = calculation.slotsEnriquecidos.map((s) => ({
+        slot: s.slotNumber,
+        modelo_suprimento: s.modelo,
+        tipo: s.tipo,
+        cpp_calculado: s.cppCalculado,
+        included: s.included,
+        is_structural: s.isStructural,
+        structural_warning: s.structuralWarning,
+      }))
 
       const quoteData: Partial<RentalQuote> = {
         cliente_id: customer.cliente_id || undefined,
@@ -511,6 +551,8 @@ export function ModernRentalSimulator({
           paybackMesesPadrao: vidaUtilCustom,
           breakEvenPaginas: breakEvenResult?.paginasBreakEven || undefined,
           vantagemDescricao: breakEvenResult?.recomendacao || undefined,
+          // Campo especificado: slots_incluidos com os códigos dos suprimentos efetivamente no cálculo
+          slots_incluidos: slotsIncluidosCodigos,
           // Congelamento de memória de cálculo conforme seção 11.1
           pricingSnapshot: {
             impressora: {
@@ -520,6 +562,8 @@ export function ModernRentalSimulator({
               tecnologia: selectedPrinter.tecnologia,
               valor_compra: Number(equipPriceCustom) || 0,
             },
+            slots_incluidos: slotsIncluidosCodigos,
+            todos_slots: allSlotsSnapshot,
             suprimentos_vinculados: suprimentosPayload,
             memoria_calculo: {
               cpp_suprimentos: calculation.cppSuprimentos,
@@ -553,6 +597,56 @@ export function ModernRentalSimulator({
     } finally {
       setGeneratingQuote(false)
     }
+  }
+
+  // GERAR PROPOSTA COMERCIAL CONGELANDO DADOS (Seção 5, 11 e Regra 20.3)
+  const handleGenerateProposal = async () => {
+    if (!customer.cliente_nome_livre.trim()) {
+      toast({
+        title: 'Informe o Cliente / Locatário',
+        description: 'É necessário identificar o cliente para emissão da proposta.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!selectedPrinter) {
+      toast({ title: 'Selecione uma impressora', variant: 'destructive' })
+      return
+    }
+
+    // Bloqueios de integridade (Seções 8.1 e 18)
+    if (!calculation.valid) {
+      toast({
+        title: 'Bloqueio de Integridade Cadastral',
+        description: calculation.errors[0] || 'Resolva as pendências cadastrais para prosseguir.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Verificação de slots essenciais / estruturais desmarcados antes de gerar a proposta
+    const unselectedStructural = calculation.slotsEnriquecidos.filter(
+      (s) =>
+        s.visualStatus !== 'empty' &&
+        s.visualStatus !== 'integrated' &&
+        !s.included &&
+        (s.isStructural || s.tipo === 'toner' || s.tipo === 'tinta'),
+    )
+
+    if (unselectedStructural.length > 0) {
+      setUnconfirmedStructuralSlots(
+        unselectedStructural.map((s) => ({
+          slotNumber: s.slotNumber,
+          modelo: s.modelo,
+          tipo: s.tipo,
+        })),
+      )
+      setEssentialWarningModalOpen(true)
+      return
+    }
+
+    await proceedGenerateProposal()
   }
 
   return (
@@ -694,6 +788,7 @@ export function ModernRentalSimulator({
           printerModel={selectedPrinter?.modelo}
           printerManufacturer={selectedPrinter?.fabricante}
           readOnly={readOnly}
+          onToggleSlotInclusion={handleToggleSlotInclusion}
           onUpdateSlotSupply={handleUpdateSlotSupply}
           onUpdateSlotValues={handleUpdateSlotValues}
           onOpenSupplyEditModal={handleOpenSupplyEditInternal}
@@ -923,6 +1018,73 @@ export function ModernRentalSimulator({
           </AccordionItem>
         </Accordion>
       </div>
+
+      {/* MODAL DE CONFIRMAÇÃO SE HOUVER SLOTS ESTRUTURAIS/ESSENCIAIS DESMARCADOS */}
+      <Dialog
+        open={essentialWarningModalOpen}
+        onOpenChange={(open) => !open && setEssentialWarningModalOpen(false)}
+      >
+        <DialogContent className="max-w-md p-5">
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-amber-600">
+              <ShieldAlert className="h-5 w-5" />
+              <DialogTitle className="text-sm font-bold text-slate-900">
+                Confirmação de Item Essencial / Estrutural Desmarcado
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-slate-600 pt-1">
+              Você desmarcou um ou mais itens de desgaste essencial ou estrutural da composição do
+              cálculo da locação:
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            <div className="p-3 bg-amber-50/80 rounded-lg border-2 border-amber-300 text-amber-950 space-y-2">
+              <p className="font-semibold">Itens fora da proposta:</p>
+              <ul className="list-disc list-inside space-y-1 font-mono text-[11px]">
+                {unconfirmedStructuralSlots.map((item) => (
+                  <li key={item.slotNumber}>
+                    Slot {item.slotNumber}: <strong>{item.modelo}</strong> ({item.tipo})
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[11px] leading-tight font-medium pt-1 border-t border-amber-200">
+                ⚠️ <strong>Atenção:</strong> Ao excluir esses insumos do cálculo, o custo de
+                substituição ou reposição destas peças{' '}
+                <strong>ficará sob sua responsabilidade</strong> ou deverá ser cobrado à parte do
+                locatário.
+              </p>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Deseja prosseguir e gerar a proposta comercial sem o custo destes itens no CPP de
+              venda?
+            </p>
+          </div>
+
+          <DialogFooter className="gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setEssentialWarningModalOpen(false)}
+              className="text-xs"
+            >
+              Revisar Seleção
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                setEssentialWarningModalOpen(false)
+                proceedGenerateProposal()
+              }}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs gap-1.5 shadow"
+            >
+              Confirmar e Gerar Proposta
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

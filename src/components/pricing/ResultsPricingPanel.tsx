@@ -1,36 +1,23 @@
 import { useState } from 'react'
-import {
-  TrendingUp,
-  DollarSign,
-  Layers,
-  Sparkles,
-  AlertCircle,
-  Copy,
-  Check,
-  FileText,
-  Printer,
-  ChevronRight,
-  ShieldCheck,
-} from 'lucide-react'
+import { FileText, Sparkles, AlertCircle, Copy, Check, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { useToast } from '@/hooks/use-toast'
 import type { PricingEngineResult, BreakEvenResult } from '@/lib/pricing-engine'
 import type { ImpressoraRecord } from '@/services/pricing-module'
-import { useToast } from '@/hooks/use-toast'
 
 interface ResultsPricingPanelProps {
   calculation: PricingEngineResult
-  selectedPrinter: ImpressoraRecord | null
   producaoMensal: number
-  locacaoMensal: number
-  markup: number
   vidaUtil: number
-  breakEven: BreakEvenResult | null
-  onGenerateProposal: () => void
+  markup: number
+  locacaoMensal: number
+  breakEven?: BreakEvenResult | null
   generatingProposal?: boolean
-  // Cenário B para comparação
+  selectedPrinter: ImpressoraRecord | null
+  onGenerateProposal: () => void
   printerScenarioB?: ImpressoraRecord | null
   locacaoScenarioB?: number
   onUpdateScenarioB?: (printer: ImpressoraRecord | null, locacao: number) => void
@@ -39,14 +26,14 @@ interface ResultsPricingPanelProps {
 
 export function ResultsPricingPanel({
   calculation,
-  selectedPrinter,
   producaoMensal,
-  locacaoMensal,
-  markup,
   vidaUtil,
+  markup,
+  locacaoMensal,
   breakEven,
-  onGenerateProposal,
   generatingProposal = false,
+  selectedPrinter,
+  onGenerateProposal,
   printerScenarioB,
   locacaoScenarioB = 0,
   onUpdateScenarioB,
@@ -58,6 +45,13 @@ export function ResultsPricingPanel({
 
   const handleCopySummary = () => {
     if (!selectedPrinter) return
+
+    const includedSlotsList = calculation.slotsEnriquecidos.filter(
+      (s) => s.visualStatus !== 'empty' && s.included,
+    )
+    const excludedSlotsList = calculation.slotsEnriquecidos.filter(
+      (s) => s.visualStatus !== 'empty' && !s.included,
+    )
 
     const summaryText = `=========================================
 JUCA CARTUCHOS — RESUMO DE PRECIFICAÇÃO DE LOCAÇÃO
@@ -75,16 +69,30 @@ Produção Mensal Estimada: ${producaoMensal.toLocaleString('pt-BR')} páginas
 Vida Útil Amortizada: ${vidaUtil} meses
 Mark-up Aplicado: ${markup.toFixed(2)}x (sobre custo total)
 
---- SUPRIMENTOS VINCULADOS ---
-${calculation.slotsEnriquecidos
-  .filter((s) => s.visualStatus !== 'empty')
-  .map(
-    (s) =>
-      `• Slot ${s.slotNumber} - ${s.modelo} (${s.tipo}): Compra R$ ${
-        s.valorCompra ? s.valorCompra.toFixed(2) : '—'
-      } | Rend: ${s.rendimentoPaginas ? s.rendimentoPaginas.toLocaleString('pt-BR') : '—'} pág | CPP: R$ ${s.cppCalculado.toFixed(6)}`,
-  )
-  .join('\n')}
+--- SUPRIMENTOS INCLUÍDOS NA PRECIFICAÇÃO ---
+${
+  includedSlotsList.length > 0
+    ? includedSlotsList
+        .map(
+          (s) =>
+            `• Slot ${s.slotNumber} - ${s.modelo} (${s.tipo}): Compra R$ ${
+              s.valorCompra ? s.valorCompra.toFixed(2) : '—'
+            } | Rend: ${s.rendimentoPaginas ? s.rendimentoPaginas.toLocaleString('pt-BR') : '—'} pág | CPP: R$ ${s.cppCalculado.toFixed(6)}`,
+        )
+        .join('\n')
+    : '(Nenhum suprimento selecionado no cálculo)'
+}
+${
+  excludedSlotsList.length > 0
+    ? `\n--- SUPRIMENTOS DESMARCADOS (FORA DA PROPOSTA) ---\n` +
+      excludedSlotsList
+        .map(
+          (s) =>
+            `• Slot ${s.slotNumber} - ${s.modelo} (${s.tipo}) [DESMARCADO - CUSTO SOB RESPONSABILIDADE DO CLIENTE/LOCADORA]`,
+        )
+        .join('\n')
+    : ''
+}
 
 --- CUSTOS E PREÇOS ---
 CPP Suprimentos: ${calculation.formatted.cppSuprimentos}
@@ -202,6 +210,47 @@ FATURAMENTO TOTAL MENSAL: ${calculation.formatted.faturamentoTotalMensal}
             <span className="font-mono font-bold text-emerald-300 text-xs">
               {markup.toFixed(2)}x sobre total
             </span>
+          </div>
+        </div>
+
+        {/* LISTA COMPACTA DE SLOTS INCLUÍDOS NO CÁLCULO */}
+        <div className="pt-2 border-t border-white/10 text-xs">
+          <div className="flex items-center justify-between pb-1.5">
+            <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">
+              Slots no Cálculo (
+              {
+                calculation.slotsEnriquecidos.filter(
+                  (s) => s.visualStatus !== 'empty' && s.included,
+                ).length
+              }{' '}
+              incluídos):
+            </span>
+            <span className="text-[11px] font-mono text-emerald-300 font-bold">
+              Subtotal CPP Suprimentos: {calculation.formatted.cppSuprimentos}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {calculation.slotsEnriquecidos
+              .filter((s) => s.visualStatus !== 'empty' && s.included)
+              .map((s) => (
+                <div
+                  key={s.slotNumber}
+                  className="bg-white/10 hover:bg-white/15 px-2 py-1 rounded text-[11px] flex items-center gap-1.5 border border-white/10"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#E87722]" />
+                  <span className="font-bold text-white">S{s.slotNumber}:</span>
+                  <span className="text-slate-200 font-mono">{s.modelo}</span>
+                  <span className="text-amber-300 font-mono text-[10px]">
+                    (R$ {s.cppCalculado.toFixed(4)})
+                  </span>
+                </div>
+              ))}
+            {calculation.slotsEnriquecidos.filter((s) => s.visualStatus !== 'empty' && s.included)
+              .length === 0 && (
+              <span className="text-slate-400 italic text-[11px]">
+                Nenhum suprimento selecionado. O CPP de suprimentos está zerado.
+              </span>
+            )}
           </div>
         </div>
       </div>

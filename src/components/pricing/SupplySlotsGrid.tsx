@@ -28,6 +28,7 @@ interface SupplySlotsGridProps {
   printerModel?: string
   printerManufacturer?: string
   readOnly?: boolean
+  onToggleSlotInclusion?: (slotNumber: 1 | 2 | 3 | 4 | 5, included: boolean) => void
   onUpdateSlotSupply?: (slotNumber: 1 | 2 | 3 | 4 | 5, supplyId: string | null) => void
   onUpdateSlotValues?: (
     slotNumber: 1 | 2 | 3 | 4 | 5,
@@ -43,6 +44,7 @@ export function SupplySlotsGrid({
   printerModel,
   printerManufacturer,
   readOnly = false,
+  onToggleSlotInclusion,
   onUpdateSlotSupply,
   onUpdateSlotValues,
   onOpenSupplyEditModal,
@@ -184,10 +186,47 @@ export function SupplySlotsGrid({
               {/* Topo do Card */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-[10px]">
-                  <span className="font-bold uppercase tracking-wider text-slate-700">
+                  <span
+                    className={`font-bold uppercase tracking-wider ${!slot.included && visualStatus !== 'empty' && visualStatus !== 'integrated' ? 'text-slate-400 line-through' : 'text-slate-700'}`}
+                  >
                     {getSlotHeaderLabel(slot.slotNumber)}
                   </span>
                   {statusIcon}
+                </div>
+
+                {/* CONTROLE DE SELEÇÃO: Rótulo 'Incluir na precificação:' e Checkbox estilizado */}
+                <div className="bg-slate-50/80 rounded-md p-1.5 border border-slate-200/80 flex items-center justify-between gap-1.5">
+                  <label
+                    htmlFor={`include-slot-${slot.slotNumber}`}
+                    className={`text-[10px] select-none cursor-pointer ${
+                      visualStatus === 'empty'
+                        ? 'text-slate-400'
+                        : slot.included
+                          ? 'text-slate-700 font-semibold'
+                          : 'text-slate-400 font-medium'
+                    }`}
+                  >
+                    Incluir na precificação:
+                  </label>
+                  <input
+                    id={`include-slot-${slot.slotNumber}`}
+                    type="checkbox"
+                    checked={visualStatus === 'empty' ? false : slot.included}
+                    disabled={readOnly || visualStatus === 'empty'}
+                    onChange={(e) => {
+                      if (onToggleSlotInclusion && visualStatus !== 'empty') {
+                        onToggleSlotInclusion(slot.slotNumber, e.target.checked)
+                      }
+                    }}
+                    className={`h-4 w-4 rounded cursor-pointer transition-colors accent-[#E87722] disabled:cursor-not-allowed disabled:opacity-40`}
+                    title={
+                      visualStatus === 'empty'
+                        ? 'Slot vazio (desabilitado)'
+                        : slot.included
+                          ? 'Item incluído na precificação. Desmarque para remover do cálculo.'
+                          : 'Item desmarcado. Marque para reincluir no cálculo.'
+                    }
+                  />
                 </div>
 
                 {/* Seletor de suprimento em destaque: rótulo visível, altura h-8, chevron e borda nítida */}
@@ -310,6 +349,14 @@ export function SupplySlotsGrid({
                       </div>
                     )}
 
+                    {/* AVISO AMARELO DE DESGASTE ESTRUTURAL DESMARCADO */}
+                    {slot.structuralWarning && (
+                      <div className="bg-amber-100 text-amber-950 p-1.5 rounded text-[10px] font-bold leading-tight border-2 border-amber-400 shadow-xs flex items-start gap-1">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-700 mt-0.5" />
+                        <span>{slot.structuralWarning}</span>
+                      </div>
+                    )}
+
                     {/* Inputs de Edição Inline no Card (Seção 20) */}
                     <div className="pt-1.5 space-y-1 text-[11px]">
                       <div className="flex items-center justify-between">
@@ -414,14 +461,25 @@ export function SupplySlotsGrid({
                   ) : (
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-semibold text-slate-500 uppercase">
-                        CPP Unitário:
+                        {slot.included ? 'CPP Unitário:' : 'CPP (Ignorado):'}
                       </span>
-                      <span className="font-mono font-extrabold text-indigo-950 text-xs">
+                      <span
+                        className={`font-mono font-extrabold text-xs ${
+                          slot.included ? 'text-indigo-950' : 'text-slate-400 line-through'
+                        }`}
+                      >
                         R${' '}
                         {slot.cppCalculado.toLocaleString('pt-BR', {
                           minimumFractionDigits: 6,
                           maximumFractionDigits: 6,
                         })}
+                      </span>
+                    </div>
+                  )}
+                  {!slot.included && visualStatus !== 'missing_price' && (
+                    <div className="mt-1">
+                      <span className="text-[9px] font-semibold bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">
+                        Fora da soma (CPP = 0)
                       </span>
                     </div>
                   )}
