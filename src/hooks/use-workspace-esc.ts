@@ -27,17 +27,23 @@ export function useWorkspaceEscShortcut() {
         return
       }
 
-      // Prioridade 2: Modais, alertas, dropdowns, sheets ou menus abertos
-      // Radix UI e componentes shadcn definem role="dialog", role="alertdialog", role="menu", etc.
-      // e atributos data-state="open".
+      // Prioridade 2: Modais, alertas, dropdowns, selects, comboboxes, sheets ou popovers abertos
+      // Radix UI e componentes shadcn definem role="dialog", role="alertdialog", role="menu", role="listbox",
+      // data-state="open", aria-modal="true", [data-radix-popper-content-wrapper], etc.
+      // Também verificar se o foco atual está dentro de um popup ou menu.
       const hasOpenModal = Boolean(
         document.querySelector(
-          '[role="dialog"], [role="alertdialog"], [data-state="open"][role="menu"], [data-radix-popper-content-wrapper], [data-state="open"][aria-modal="true"]',
+          '[role="dialog"], [role="alertdialog"], [data-state="open"][role="menu"], [data-state="open"][role="listbox"], [data-radix-popper-content-wrapper], [data-state="open"][aria-modal="true"], [data-state="open"][data-radix-select-content], [data-state="open"][data-radix-dropdown-menu-content]',
         ),
       )
 
       if (hasOpenModal) {
-        // Deixa o Radix UI / shadcn lidar com o fechamento do modal
+        // Deixa o Radix UI / shadcn lidar com o fechamento do modal / overlay
+        return
+      }
+
+      // Se o evento foi cancelado ou evitado por algum listener anterior, respeitar
+      if (e.defaultPrevented) {
         return
       }
 

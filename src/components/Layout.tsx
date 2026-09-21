@@ -3,12 +3,16 @@ import { Sidebar } from '@/components/Sidebar'
 import { Topbar } from '@/components/Topbar'
 import { WorkspaceTabsBar } from '@/components/WorkspaceTabsBar'
 import { WorkspaceKeepAliveViewport } from '@/components/WorkspaceKeepAliveViewport'
+import { useWorkspaceEscShortcut } from '@/hooks/use-workspace-esc'
 import { PwaUpdateBanner } from '@/components/PwaUpdateBanner'
 import { OfflineBanner } from '@/components/OfflineBanner'
 import { PushNotificationPrompt } from '@/components/PushNotificationPrompt'
 import { AgradecimentoAprovadoBanner } from '@/components/AgradecimentoAprovadoBanner'
 
 export default function Layout() {
+  // Listener de tecla ESC no workspace do desktop (fecha a aba ativa)
+  useWorkspaceEscShortcut()
+
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden bg-slate-50 font-sans text-slate-900 antialiased pb-[env(safe-area-inset-bottom)]">
       {/* Menu SEMPRE exposto no Desktop (md/lg+) com largura fixa */}

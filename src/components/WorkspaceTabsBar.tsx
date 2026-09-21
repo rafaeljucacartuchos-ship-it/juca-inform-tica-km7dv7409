@@ -67,18 +67,23 @@ function getTabIcon(tab: WorkspaceTab) {
 export function WorkspaceTabsBar() {
   const { tabs, activeTabId, activateTab, closeTab, isDesktopWorkspace } = useWorkspace()
 
-  // Ativa listener do atalho ESC
+  // Ativa listener do atalho ESC quando a barra estiver montada
   useWorkspaceEscShortcut()
 
   // Se for mobile ou se não houver abas, não exibe
-  if (!isDesktopWorkspace || tabs.length === 0) {
+  // O dashboard nunca é exibido na lista de abas ("o dashboard não precisa constar na barra")
+  const visibleTabs = tabs.filter(
+    (t) => t.moduleKey !== 'dashboard' && t.basePath !== '/dashboard' && t.basePath !== '/',
+  )
+
+  if (!isDesktopWorkspace || visibleTabs.length === 0) {
     return null
   }
 
   return (
     <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border-b border-slate-800 text-xs overflow-x-auto select-none no-scrollbar shadow-inner">
       <div className="flex items-center gap-1.5 flex-1 min-w-0">
-        {tabs.map((tab) => {
+        {visibleTabs.map((tab) => {
           const isActive = tab.id === activeTabId
           const Icon = getTabIcon(tab)
 
@@ -162,7 +167,7 @@ export function WorkspaceTabsBar() {
 
       <div className="flex items-center gap-2 pl-2 text-[11px] text-slate-400 shrink-0 border-l border-slate-800/80">
         <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-300 border border-slate-700/60">
-          {tabs.length}/8 telas
+          {visibleTabs.length}/8 telas
         </span>
         <span className="hidden xl:inline text-[10px] text-slate-400">
           Dica:{' '}

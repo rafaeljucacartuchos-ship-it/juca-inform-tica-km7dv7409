@@ -113,32 +113,25 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   // Histórico de navegação interno entre abas para voltar à aba anterior ao fechar
   const tabHistoryRef = useRef<string[]>([])
 
-  // Inicializa abas a partir do sessionStorage (se houver)
+  // Inicializa abas a partir do sessionStorage (se houver), filtrando qualquer resquício de dashboard
   const [tabs, setTabs] = useState<WorkspaceTab[]>(() => {
     try {
       const stored = sessionStorage.getItem(STORAGE_KEY)
       if (stored) {
         const parsed = JSON.parse(stored) as WorkspaceTab[]
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.slice(0, MAX_TABS)
+          // Dashboard é tela principal fixa e não deve constar como aba
+          const filtered = parsed.filter(
+            (t) => t.moduleKey !== 'dashboard' && t.basePath !== '/dashboard' && t.basePath !== '/',
+          )
+          return filtered.slice(0, MAX_TABS)
         }
       }
     } catch {
       /* ignore parse error */
     }
 
-    // Se começou no dashboard ou raiz, inicia com a aba do Dashboard
-    return [
-      {
-        id: '/dashboard',
-        path: '/dashboard',
-        basePath: '/dashboard',
-        moduleKey: 'dashboard',
-        title: 'Dashboard',
-        closable: true,
-        lastActiveAt: Date.now(),
-      },
-    ]
+    return []
   })
 
   // Sincroniza abas no sessionStorage sempre que mudarem
@@ -237,8 +230,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   // Sincroniza rota atual com as abas abertas no desktop
   useEffect(() => {
-    // Não criar abas para páginas públicas ou especiais como /login, /share, /proposta, /sem-acesso
+    // Não criar abas para páginas públicas, tela fixa do dashboard ou especiais
+    // "o dashboard não precisa constar na barra" (v0.0.248)
     if (
+      currentBase === '/' ||
+      currentBase === '/dashboard' ||
       currentBase.startsWith('/login') ||
       currentBase.startsWith('/sem-acesso') ||
       currentBase.startsWith('/share') ||
@@ -327,6 +323,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     (targetPath: string, options?: { title?: string; activate?: boolean }) => {
       const url = new URL(targetPath, 'http://dummy.local')
       const targetBase = url.pathname
+
+      // Dashboard é tela principal fixa, não cria aba na barra
+      if (targetBase === '/' || targetBase === '/dashboard') {
+        if (options?.activate !== false) {
+          navigate('/dashboard')
+        }
+        return
+      }
+
       const { moduleKey, defaultTitle } = getModuleInfoFromPath(targetBase)
       const tabId = targetBase
       const now = Date.now()
@@ -398,6 +403,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         if (nextTab) {
           navigate(nextTab.path)
         } else {
+          // Se não sobrar nenhuma aba aberta, volta para a tela principal (raiz '/')
           navigate('/')
         }
       }
@@ -406,7 +412,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   )
 
   const closeActiveTab = useCallback(() => {
-    // Procura aba ativa atual
+    // Procura aba ativa atual (se estiver no dashboard ou sem abas, não há aba para fechar)
     const currentTab = tabs.find((t) => t.id === activeTabId || t.basePath === currentBase)
     if (currentTab && currentTab.closable) {
       closeTab(currentTab.id)

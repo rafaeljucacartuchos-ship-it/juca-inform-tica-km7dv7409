@@ -10,6 +10,7 @@ import { NotificationsProvider } from '@/hooks/use-notifications'
 import { SoundPreferencesProvider } from '@/hooks/use-sound-preferences'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { PermissionRoute } from '@/components/PermissionRoute'
+import { useDefaultRoute } from '@/hooks/use-default-route'
 import Layout from '@/components/Layout'
 import Login from '@/pages/Login'
 import Dashboard from '@/pages/Dashboard'
@@ -50,6 +51,11 @@ import { useLowStockMonitor } from '@/hooks/use-low-stock-monitor'
 function LowStockWatcher() {
   useLowStockMonitor()
   return null
+}
+
+function RoleBasedHomeRedirect() {
+  const defaultRoute = useDefaultRoute()
+  return <Navigate to={defaultRoute} replace />
 }
 
 function OfflineSyncToasts() {
@@ -113,7 +119,7 @@ const App = () => {
                         />
                       </Route>
                       <Route element={<Layout />}>
-                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                        <Route path="/" element={<RoleBasedHomeRedirect />} />
                         <Route path="/sem-acesso" element={<SemAcesso />} />
                         <Route element={<PermissionRoute module="dashboard" />}>
                           <Route path="/dashboard" element={<Dashboard />} />

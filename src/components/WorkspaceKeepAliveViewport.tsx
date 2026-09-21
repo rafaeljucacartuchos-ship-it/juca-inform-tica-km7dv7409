@@ -221,13 +221,17 @@ export function WorkspaceKeepAliveViewport({ fallbackContent }: WorkspaceKeepAli
     return <>{fallbackContent}</>
   }
 
+  // Rota do Dashboard: é renderizada como tela principal fixa (via fallbackContent do Outlet)
+  // ou quando nenhuma aba estiver ativa
+  const isDashboardRoute = location.pathname === '/' || location.pathname === '/dashboard'
+
   // Verifica se a rota atual corresponde a alguma das abas gerenciadas
   const isCurrentManaged = tabs.some(
     (t) => t.id === activeTabId || t.basePath === location.pathname,
   )
 
-  // Se for uma rota não mapeada pelas abas padrão, renderiza o Outlet padrão
-  if (!isCurrentManaged) {
+  // Se for Dashboard ou rota não mapeada em abas, renderiza o Outlet padrão
+  if (isDashboardRoute || !isCurrentManaged) {
     return <>{fallbackContent}</>
   }
 

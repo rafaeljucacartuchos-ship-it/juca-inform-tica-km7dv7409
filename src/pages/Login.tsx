@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
+import pb from '@/lib/pocketbase/client'
 import { getQuickAccounts } from '@/services/quick_accounts'
 
 type QuickAccount = {
@@ -161,7 +162,11 @@ export default function Login() {
         title: 'Bem-vindo ao sistema!',
         description: 'Acesso autorizado com sucesso.',
       })
-      navigate('/')
+      // Redireciona conforme papel do usuário autenticado:
+      // Técnico → /ordens | Admin / Atendente → /dashboard
+      const loggedUser = pb.authStore.record as { role?: string } | null
+      const targetRoute = loggedUser?.role === 'technician' ? '/ordens' : '/dashboard'
+      navigate(targetRoute, { replace: true })
     }
   }
 
