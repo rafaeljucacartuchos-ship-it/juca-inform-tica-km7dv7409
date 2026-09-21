@@ -171,6 +171,13 @@ export function getUserPermissions(
   role: UserRole,
   custom?: Record<string, boolean> | null,
 ): UserPermissions {
+  // ADMIN SEMPRE TEM ACESSO TOTAL A TUDO (Bypass Estrutural — v0.0.247)
+  // O papel 'admin' nunca pode ser restringido por permissões customizadas salvas
+  // ou novos módulos introduzidos no sistema.
+  if (role === 'admin') {
+    return getDefaultPermissions('admin')
+  }
+
   const defaults = getDefaultPermissions(role)
   if (custom && typeof custom === 'object') {
     return { ...defaults, ...custom }

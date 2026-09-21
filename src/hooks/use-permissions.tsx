@@ -11,8 +11,10 @@ export function usePermissions() {
   }, [user])
 
   const hasPermission = (module: PermissionModule): boolean => {
+    // Admin tem bypass total independente de qualquer verificação
+    if (user?.role === 'admin') return true
     return permissions[module] ?? false
   }
 
-  return { permissions, hasPermission }
+  return { permissions, hasPermission, isAdmin: user?.role === 'admin' }
 }

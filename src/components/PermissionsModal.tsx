@@ -76,6 +76,12 @@ export function PermissionsModal({ open, onOpenChange, user, onSaved }: Permissi
             Permissões — {user?.name}
           </DialogTitle>
         </DialogHeader>
+        {user?.role === 'admin' && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-900 mb-2">
+            <strong>Acesso Total de Administrador:</strong> Usuários com função de Administrador
+            possuem bypass estrutural com acesso irrestrito a todos os módulos do sistema.
+          </div>
+        )}
         <div className="space-y-2 py-2">
           {ALL_PERMISSION_MODULES.map((module) => (
             <div
@@ -85,7 +91,11 @@ export function PermissionsModal({ open, onOpenChange, user, onSaved }: Permissi
               <Label className="text-xs font-medium text-slate-700 cursor-pointer flex-1">
                 {PERMISSION_LABELS[module]}
               </Label>
-              <Switch checked={perms[module]} onCheckedChange={() => handleToggle(module)} />
+              <Switch
+                checked={user?.role === 'admin' ? true : perms[module]}
+                disabled={user?.role === 'admin'}
+                onCheckedChange={() => handleToggle(module)}
+              />
             </div>
           ))}
         </div>
