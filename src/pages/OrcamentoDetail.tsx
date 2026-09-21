@@ -171,6 +171,9 @@ const STATUS_CONFIG: Record<
 interface PricingLocationState {
   fromPricing?: boolean
   id_os?: string
+  fromOs?: string
+  osNumber?: string
+  returnUrl?: string
   item?: {
     tipo?: 'produto' | 'servico'
     id_produto?: string | null
@@ -273,6 +276,26 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
   const canEdit = !isLocked
   const canEditOsLink = canEdit || user?.role === 'admin'
 
+  // O.S. de origem para navegação de retorno
+  const originOsId = navState?.fromOs || orcamento?.id_os || undefined
+  const originOsNumber = navState?.osNumber || orcamento?.expand?.id_os?.number || undefined
+
+  const handleVoltar = useCallback(() => {
+    if (onClose) {
+      onClose()
+      return
+    }
+    if (originOsId) {
+      navigate(`/ordens/${originOsId}`)
+      return
+    }
+    if (window.history.length > 1) {
+      navigate(-1)
+      return
+    }
+    navigate('/orcamentos')
+  }, [onClose, originOsId, navigate])
+
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const loadAll = useCallback(async () => {
@@ -332,7 +355,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
 
       const draftOrcamento: Orcamento = {
         id: 'novo',
-        id_os: navState?.id_os || undefined,
+        id_os: navState?.id_os || navState?.fromOs || undefined,
         numero_orcamento: 'NOVO ORÇAMENTO',
         status: 'aguardando_aprovacao',
         validade: 15,
@@ -861,8 +884,17 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
       // Limpa o rascunho salvo do localStorage
       clearDraftOrcamentoNovo()
 
-      // 5. Redireciona para a tela do orçamento persistido
-      navigate(`/orcamentos/${createdOrcamento.id}`, { replace: true })
+      // 5. Redireciona para a tela do orçamento persistido preservando o state de origem
+      navigate(`/orcamentos/${createdOrcamento.id}`, {
+        replace: true,
+        state: {
+          fromOs: navState?.fromOs || createdOrcamento.id_os || orcamento?.id_os,
+          osNumber: navState?.osNumber,
+          returnUrl:
+            navState?.returnUrl ||
+            (createdOrcamento.id_os ? `/ordens/${createdOrcamento.id_os}` : undefined),
+        },
+      })
     } catch (err: any) {
       console.error('Erro ao salvar novo orçamento:', err)
       toast({
@@ -1792,11 +1824,17 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
             <Button
               variant="outline"
               size="sm"
-              onClick={() => (onClose ? onClose() : navigate('/orcamentos'))}
+              onClick={handleVoltar}
               className="text-xs font-semibold gap-1.5"
             >
               {onClose ? <X className="h-3.5 w-3.5" /> : <ArrowLeft className="h-3.5 w-3.5" />}
-              <span>{onClose ? 'Fechar Painel' : 'Voltar para Orçamentos'}</span>
+              <span>
+                {onClose
+                  ? 'Fechar Painel'
+                  : originOsNumber
+                    ? `Voltar para O.S. #${originOsNumber}`
+                    : 'Voltar para Orçamentos'}
+              </span>
             </Button>
             <Button
               size="sm"
@@ -1829,15 +1867,15 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
               variant="ghost"
               size="icon"
               data-workspace-inner-close={onClose ? 'true' : undefined}
-              onClick={() => {
-                if (onClose) {
-                  onClose()
-                  return
-                }
-                navigate('/orcamentos')
-              }}
+              onClick={handleVoltar}
               className="h-9 w-9 shrink-0"
-              title={onClose ? 'Fechar detalhes (ESC)' : 'Voltar'}
+              title={
+                onClose
+                  ? 'Fechar detalhes (ESC)'
+                  : originOsNumber
+                    ? `Voltar para O.S. #${originOsNumber}`
+                    : 'Voltar'
+              }
             >
               {onClose ? <X className="h-5 w-5" /> : <ArrowLeft className="h-4 w-4" />}
             </Button>
@@ -1898,6 +1936,24 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
 
         {/* Resumo compacto de Alertas / Ações de Status */}
         <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs">
+          {orcamento.id_os && (
+            <Button
+              size="sm"
+              onClick={() => navigate(`/ordens/${orcamento.id_os}`)}
+              className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-1.5 shadow-xs"
+              title="Retornar à Ordem de Serviço vinculada para prosseguir ou concluir"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span>
+                {os?.number
+                  ? `Voltar para O.S. #${os.number}`
+                  : originOsNumber
+                    ? `Voltar para O.S. #${originOsNumber}`
+                    : 'Voltar para O.S.'}
+              </span>
+            </Button>
+          )}
+
           <span className="font-semibold text-slate-700">Fluxo do Orçamento:</span>
           {/* Botão Compartilhar Orçamento (WhatsApp, Copiar Link, Compartilhamento Nativo) - v0.0.224 */}
           <DropdownMenu>

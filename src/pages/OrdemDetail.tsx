@@ -1270,7 +1270,15 @@ export default function OrdemDetail() {
           {orcamentosList.length > 0 ? (
             <Button
               size="sm"
-              onClick={() => navigate(`/orcamentos/${activeOrcamento?.id || orcamentosList[0].id}`)}
+              onClick={() =>
+                navigate(`/orcamentos/${activeOrcamento?.id || orcamentosList[0].id}`, {
+                  state: {
+                    fromOs: order.id,
+                    osNumber: order.number,
+                    returnUrl: `/ordens/${order.id}`,
+                  },
+                })
+              }
               className="text-xs gap-1.5 min-h-[44px] sm:min-h-0 h-11 sm:h-9 flex-1 sm:flex-initial justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold touch-manipulation active:scale-[0.98]"
             >
               <FileText className="h-4 w-4" />
@@ -1296,7 +1304,13 @@ export default function OrdemDetail() {
                     title: 'Orçamento gerado com sucesso!',
                     description: `Número: ${novo.numero_orcamento}`,
                   })
-                  navigate(`/orcamentos/${novo.id}`)
+                  navigate(`/orcamentos/${novo.id}`, {
+                    state: {
+                      fromOs: order.id,
+                      osNumber: order.number,
+                      returnUrl: `/ordens/${order.id}`,
+                    },
+                  })
                 } catch (err) {
                   const errDetail = getErrorMessage(err)
                   toast({
@@ -1800,7 +1814,15 @@ export default function OrdemDetail() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => navigate(`/orcamentos/${activeOrcamento.id}`)}
+                      onClick={() =>
+                        navigate(`/orcamentos/${activeOrcamento.id}`, {
+                          state: {
+                            fromOs: order.id,
+                            osNumber: order.number,
+                            returnUrl: `/ordens/${order.id}`,
+                          },
+                        })
+                      }
                       className="min-h-[44px] sm:min-h-[32px] sm:h-8 px-3 text-xs font-medium gap-1.5 text-slate-700 bg-white touch-manipulation"
                     >
                       <ExternalLink className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
@@ -2148,7 +2170,13 @@ export default function OrdemDetail() {
                       title: 'Orçamento gerado com sucesso!',
                       description: `Número: ${novo.numero_orcamento}`,
                     })
-                    navigate(`/orcamentos/${novo.id}`)
+                    navigate(`/orcamentos/${novo.id}`, {
+                      state: {
+                        fromOs: order.id,
+                        osNumber: order.number,
+                        returnUrl: `/ordens/${order.id}`,
+                      },
+                    })
                   } catch (err) {
                     const errDetail = getErrorMessage(err)
                     toast({
