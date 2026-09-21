@@ -473,6 +473,59 @@ export interface OrcamentoAnexo {
   updated?: string
 }
 
+export type LaudoStatus = 'rascunho' | 'finalizado'
+
+export interface LaudoTecnico {
+  id: string
+  numero_laudo: string
+  id_ordem?: string
+  id_orcamento?: string
+  id_cliente?: string
+  id_equipamento?: string
+  tecnico_responsavel?: string
+  status: LaudoStatus
+
+  // Snapshot congelado dos dados do cliente e equipamento
+  cliente_nome?: string
+  cliente_documento?: string
+  cliente_telefone?: string
+  cliente_endereco?: string
+
+  equipamento_nome?: string
+  equipamento_tipo?: string
+  equipamento_fabricante?: string
+  equipamento_modelo?: string
+  equipamento_serial?: string
+  equipamento_dados_adicionais?: string
+
+  // Conteúdo técnico do Laudo
+  problema_relatado?: string
+  diagnostico_tecnico?: string
+  testes_realizados?: string
+  servicos_realizados?: string
+  pecas_substituidas?: string
+  conclusao_parecer?: string
+  observacoes?: string
+  recomendacoes?: string
+
+  // Identificação, data e assinaturas
+  data_laudo?: string
+  tecnico_nome?: string
+  assinatura_tecnico?: string
+  assinatura_cliente?: string
+  data_assinatura?: string
+
+  created?: string
+  updated?: string
+  expand?: {
+    id_ordem?: ServiceOrder
+    id_orcamento?: Orcamento
+    id_cliente?: Customer
+    id_equipamento?: Equipment
+    tecnico_responsavel?: User
+  }
+}
+
 export type PricingMode = 'produto' | 'avulsa' | 'rapida'
 
 export type CurrencyType = 'BRL' | 'USD'

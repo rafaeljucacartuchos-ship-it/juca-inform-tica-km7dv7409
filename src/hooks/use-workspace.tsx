@@ -56,6 +56,11 @@ export function getModuleInfoFromPath(pathname: string): {
       return { moduleKey: 'orcamentos', defaultTitle: 'Novo Orçamento' }
     return { moduleKey: 'orcamentos', defaultTitle: 'Orçamento' }
   }
+  if (pathname.startsWith('/laudos')) {
+    if (pathname === '/laudos') return { moduleKey: 'laudos', defaultTitle: 'Laudos Técnicos' }
+    if (pathname === '/laudos/novo') return { moduleKey: 'laudos', defaultTitle: 'Novo Laudo' }
+    return { moduleKey: 'laudos', defaultTitle: 'Laudo Técnico' }
+  }
   if (pathname.startsWith('/precificacao')) {
     return { moduleKey: 'precificacao', defaultTitle: 'Precificação' }
   }
@@ -207,6 +212,28 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // Laudo Detail: /laudos/:id
+      const laudoMatch = basePath.match(/^\/laudos\/([a-zA-Z0-9_-]+)$/)
+      if (laudoMatch && laudoMatch[1]) {
+        if (laudoMatch[1] === 'novo') {
+          return { title: 'Novo Laudo' }
+        }
+        const laudoId = laudoMatch[1]
+        const rec = await pb
+          .collection('laudos_tecnicos')
+          .getOne(laudoId, {
+            fields: 'id,numero_laudo,cliente_nome,equipamento_modelo',
+          })
+          .catch(() => null)
+        if (rec) {
+          const num = rec.numero_laudo || 'Laudo'
+          return {
+            title: `Laudo ${num}`,
+            subtitle: rec.cliente_nome ? String(rec.cliente_nome).slice(0, 20) : undefined,
+          }
+        }
+      }
+
       // Cliente Detail: /clientes/:id
       const cliMatch = basePath.match(/^\/clientes\/([a-zA-Z0-9_-]+)$/)
       if (cliMatch && cliMatch[1]) {
@@ -242,6 +269,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       (currentBase.startsWith('/ordens/') && currentBase.endsWith('/imprimir')) ||
       (currentBase.startsWith('/ordens/') && currentBase.endsWith('/assinatura')) ||
       (currentBase.startsWith('/orcamentos/') && currentBase.endsWith('/imprimir')) ||
+      (currentBase.startsWith('/laudos/') && currentBase.endsWith('/imprimir')) ||
       currentBase.startsWith('/relatorios/categorias/imprimir')
     ) {
       return

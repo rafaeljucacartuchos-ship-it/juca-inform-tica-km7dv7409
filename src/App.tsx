@@ -21,6 +21,9 @@ import OrdemAssinatura from '@/pages/OrdemAssinatura'
 import OrcamentoDetail from '@/pages/OrcamentoDetail'
 import OrcamentoPrint from '@/pages/OrcamentoPrint'
 import OrcamentosList from '@/pages/OrcamentosList'
+import LaudosList from '@/pages/LaudosList'
+import LaudoDetail from '@/pages/LaudoDetail'
+import LaudoPrint from '@/pages/LaudoPrint'
 import PosVendaJuquinha from '@/pages/PosVenda'
 import PedidoMercadorias from '@/pages/PedidoMercadorias'
 import Precificacao from '@/pages/Precificacao'
@@ -112,6 +115,9 @@ const App = () => {
                       <Route element={<PermissionRoute module="orcamentos" />}>
                         <Route path="/orcamentos/:id/imprimir" element={<OrcamentoPrint />} />
                       </Route>
+                      <Route element={<PermissionRoute module="laudos" />}>
+                        <Route path="/laudos/:id/imprimir" element={<LaudoPrint />} />
+                      </Route>
                       <Route element={<PermissionRoute module="relatorios" />}>
                         <Route
                           path="/relatorios/categorias/imprimir"
@@ -132,6 +138,11 @@ const App = () => {
                           <Route path="/orcamentos" element={<OrcamentosList />} />
                           <Route path="/orcamentos/novo" element={<OrcamentoDetail />} />
                           <Route path="/orcamentos/:id" element={<OrcamentoDetail />} />
+                        </Route>
+                        <Route element={<PermissionRoute module="laudos" />}>
+                          <Route path="/laudos" element={<LaudosList />} />
+                          <Route path="/laudos/novo" element={<LaudoDetail />} />
+                          <Route path="/laudos/:id" element={<LaudoDetail />} />
                         </Route>
                         <Route element={<PermissionRoute module="precificacao" />}>
                           <Route path="/precificacao" element={<Precificacao />} />

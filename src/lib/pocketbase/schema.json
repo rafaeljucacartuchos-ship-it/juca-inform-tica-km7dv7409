@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-21T17:45:52.744Z",
+  "generatedAt": "2026-09-21T18:14:25.639Z",
   "collections": [
     {
       "name": "users",
@@ -3093,6 +3093,226 @@
       "indexes": [
         "CREATE INDEX idx_auditoria_tabela_reg ON auditoria_precos (tabela_afetada, id_registro)",
         "CREATE INDEX idx_auditoria_usuario ON auditoria_precos (usuario_responsavel)"
+      ]
+    },
+    {
+      "name": "laudos_tecnicos",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "numero_laudo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "id_ordem",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "service_orders"
+        },
+        {
+          "name": "id_orcamento",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "orcamentos"
+        },
+        {
+          "name": "id_cliente",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "customers"
+        },
+        {
+          "name": "id_equipamento",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "equipment"
+        },
+        {
+          "name": "tecnico_responsavel",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["rascunho", "finalizado"]
+        },
+        {
+          "name": "cliente_nome",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cliente_documento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cliente_telefone",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cliente_endereco",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "equipamento_nome",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "equipamento_tipo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "equipamento_fabricante",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "equipamento_modelo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "equipamento_serial",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "equipamento_dados_adicionais",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "problema_relatado",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "diagnostico_tecnico",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "testes_realizados",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "servicos_realizados",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "pecas_substituidas",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "conclusao_parecer",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "observacoes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "recomendacoes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_laudo",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tecnico_nome",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "assinatura_tecnico",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "assinatura_cliente",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_assinatura",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_laudos_numero ON laudos_tecnicos (numero_laudo)",
+        "CREATE INDEX idx_laudos_ordem ON laudos_tecnicos (id_ordem)",
+        "CREATE INDEX idx_laudos_orcamento ON laudos_tecnicos (id_orcamento)",
+        "CREATE INDEX idx_laudos_cliente ON laudos_tecnicos (id_cliente)",
+        "CREATE INDEX idx_laudos_status ON laudos_tecnicos (status)"
       ]
     }
   ]

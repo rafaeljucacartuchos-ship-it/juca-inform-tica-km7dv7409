@@ -106,6 +106,12 @@ export function Sidebar({ onNavClick }: SidebarProps) {
       show: hasPermission('orcamentos'),
     },
     {
+      label: 'Laudos Técnicos',
+      path: '/laudos',
+      icon: ShieldAlert,
+      show: hasPermission('laudos'),
+    },
+    {
       label: 'Precificação',
       path: '/precificacao',
       icon: Tag,

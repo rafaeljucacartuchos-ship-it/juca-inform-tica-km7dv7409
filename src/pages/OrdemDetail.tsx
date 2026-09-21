@@ -61,7 +61,9 @@ import {
   Equipment,
   Orcamento,
   OrcamentoItem,
+  LaudoTecnico,
 } from '@/types'
+import { getLaudosByOs, createLaudo, buildSnapshotFromOrderAndEquipment } from '@/services/laudos'
 import {
   getServiceOrder,
   getStatusHistory,
@@ -121,6 +123,8 @@ export default function OrdemDetail() {
   const [orcamentosList, setOrcamentosList] = useState<Orcamento[]>([])
   const [selectedOrcamentoId, setSelectedOrcamentoId] = useState<string | null>(null)
   const [activeOrcamento, setActiveOrcamento] = useState<Orcamento | null>(null)
+  const [laudosList, setLaudosList] = useState<LaudoTecnico[]>([])
+  const [creatingLaudo, setCreatingLaudo] = useState(false)
   const [orcamentoItens, setOrcamentoItens] = useState<OrcamentoItem[]>([])
   const [creatingOrcamento, setCreatingOrcamento] = useState(false)
   const [history, setHistory] = useState<StatusHistory[]>([])
@@ -219,13 +223,15 @@ export default function OrdemDetail() {
     if (!id) return
     try {
       setNotFound(false)
-      const [o, h, vinculadosList] = await Promise.all([
+      const [o, h, vinculadosList, osLaudos] = await Promise.all([
         getServiceOrder(id),
         getStatusHistory(id).catch(() => []),
         getOrcamentosByOs(id).catch(() => []),
+        getLaudosByOs(id).catch(() => []),
       ])
 
       setOrcamentosList(vinculadosList)
+      setLaudosList(osLaudos)
 
       // Escolhe o orçamento a exibir:
       // 1) Se já houver um selecionado pelo usuário e ainda estiver na lista
@@ -295,6 +301,12 @@ export default function OrdemDetail() {
   })
   useRealtime('orcamentos', () => loadAll())
   useRealtime('orcamento_itens', () => loadAll())
+  useRealtime('laudos_tecnicos', () => {
+    if (id)
+      getLaudosByOs(id)
+        .then(setLaudosList)
+        .catch(() => {})
+  })
   useRealtime('status_history', () => {
     if (id)
       getStatusHistory(id)
@@ -1333,6 +1345,66 @@ export default function OrdemDetail() {
             </Button>
           )}
 
+          {/* Ação: Gerar Laudo Técnico */}
+          {canEdit && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                if (!order) return
+                setCreatingLaudo(true)
+                try {
+                  const snap = buildSnapshotFromOrderAndEquipment({
+                    order,
+                    equipment: order.expand?.equipment_ref,
+                    customer: order.expand?.customer,
+                  })
+                  const newLaudo = await createLaudo({
+                    id_ordem: order.id,
+                    id_orcamento: activeOrcamento?.id || undefined,
+                    id_cliente: order.customer,
+                    id_equipamento: order.equipment_ref,
+                    tecnico_responsavel: user?.id,
+                    tecnico_nome: user?.name,
+                    problema_relatado: order.description || order.title || '',
+                    diagnostico_tecnico: order.diagnostic || '',
+                    servicos_realizados: order.service_report || '',
+                    ...snap,
+                  })
+                  toast({
+                    title: 'Laudo técnico criado!',
+                    description: `Laudo ${newLaudo.numero_laudo} vinculado à O.S. #${order.number}.`,
+                  })
+                  navigate(`/laudos/${newLaudo.id}`, {
+                    state: {
+                      fromOs: order.id,
+                      osNumber: order.number,
+                      returnUrl: `/ordens/${order.id}`,
+                    },
+                  })
+                } catch (err) {
+                  console.error(err)
+                  toast({
+                    title: 'Erro ao gerar laudo técnico',
+                    variant: 'destructive',
+                  })
+                } finally {
+                  setCreatingLaudo(false)
+                }
+              }}
+              disabled={creatingLaudo}
+              className="text-xs gap-1.5 min-h-[44px] sm:min-h-0 h-11 sm:h-9 flex-1 sm:flex-initial justify-center border-indigo-200 text-indigo-700 bg-white hover:bg-indigo-50 font-bold touch-manipulation active:scale-[0.98]"
+              title="Gerar Laudo Técnico Pericial vinculado a esta O.S."
+            >
+              {creatingLaudo ? (
+                <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
+              ) : (
+                <FileBadge className="h-4 w-4 text-indigo-600" />
+              )}
+              <span>{creatingLaudo ? 'Gerando...' : 'Gerar Laudo'}</span>
+            </Button>
+          )}
+
           {/* Ação Principal 2 (se aberta e liberada): Finalizar Ordem de Serviço */}
           {!isFinalizada && canEdit && !fieldsLocked && (
             <Button
@@ -1358,6 +1430,29 @@ export default function OrdemDetail() {
                 label: 'Imprimir PDF (A4)',
                 icon: Printer,
                 onClick: handlePrintOrder,
+              },
+              {
+                key: 'laudos_menu',
+                label:
+                  laudosList.length > 0
+                    ? `Ver Laudos Técnicos (${laudosList.length})`
+                    : 'Novo Laudo Técnico',
+                icon: FileBadge,
+                onClick: () => {
+                  if (laudosList.length === 1) {
+                    navigate(`/laudos/${laudosList[0].id}`, {
+                      state: {
+                        fromOs: order.id,
+                        osNumber: order.number,
+                        returnUrl: `/ordens/${order.id}`,
+                      },
+                    })
+                  } else {
+                    navigate('/laudos', {
+                      state: { fromOs: order.id, osNumber: order.number },
+                    })
+                  }
+                },
               },
               {
                 key: 'share',
@@ -2199,6 +2294,128 @@ export default function OrdemDetail() {
               </Button>
             </Card>
           )}
+
+          {/* Card de Laudos Técnicos Vinculados à O.S. */}
+          <Card className="border-indigo-200 bg-white shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-indigo-50">
+              <CardTitle className="text-sm font-bold text-indigo-950 flex items-center gap-2">
+                <FileBadge className="h-4 w-4 text-indigo-600" />
+                Laudos Técnicos Vinculados {laudosList.length > 0 ? `(${laudosList.length})` : ''}
+              </CardTitle>
+              {canEdit && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    if (!order) return
+                    setCreatingLaudo(true)
+                    try {
+                      const snap = buildSnapshotFromOrderAndEquipment({
+                        order,
+                        equipment: order.expand?.equipment_ref,
+                        customer: order.expand?.customer,
+                      })
+                      const newLaudo = await createLaudo({
+                        id_ordem: order.id,
+                        id_orcamento: activeOrcamento?.id || undefined,
+                        id_cliente: order.customer,
+                        id_equipamento: order.equipment_ref,
+                        tecnico_responsavel: user?.id,
+                        tecnico_nome: user?.name,
+                        problema_relatado: order.description || order.title || '',
+                        diagnostico_tecnico: order.diagnostic || '',
+                        servicos_realizados: order.service_report || '',
+                        ...snap,
+                      })
+                      navigate(`/laudos/${newLaudo.id}`, {
+                        state: {
+                          fromOs: order.id,
+                          osNumber: order.number,
+                          returnUrl: `/ordens/${order.id}`,
+                        },
+                      })
+                    } catch {
+                      toast({ title: 'Erro ao gerar laudo técnico', variant: 'destructive' })
+                    } finally {
+                      setCreatingLaudo(false)
+                    }
+                  }}
+                  disabled={creatingLaudo}
+                  className="h-7 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-semibold gap-1"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Novo Laudo</span>
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="pt-3 space-y-2">
+              {laudosList.length === 0 ? (
+                <div className="text-center py-4 text-slate-500 text-xs">
+                  <p>Nenhum laudo pericial gerado para esta O.S. ainda.</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Gere um laudo com um clique importando os dados do equipamento e orçamento.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {laudosList.map((lau) => (
+                    <div
+                      key={lau.id}
+                      className="flex items-center justify-between p-2.5 rounded-lg border border-slate-200 bg-slate-50/60 hover:bg-indigo-50/50 transition-colors text-xs"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold font-mono text-indigo-950">
+                            {lau.numero_laudo}
+                          </span>
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase ${
+                              lau.status === 'finalizado'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {lau.status}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 line-clamp-1">
+                          {lau.diagnostico_tecnico || 'Diagnóstico em elaboração...'}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => navigate(`/laudos/${lau.id}/imprimir`)}
+                          className="h-7 w-7 p-0 text-slate-600 hover:text-indigo-600"
+                          title="Imprimir Laudo"
+                        >
+                          <Printer className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            navigate(`/laudos/${lau.id}`, {
+                              state: {
+                                fromOs: order.id,
+                                osNumber: order.number,
+                                returnUrl: `/ordens/${order.id}`,
+                              },
+                            })
+                          }
+                          className="h-7 text-xs font-semibold px-2 text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                        >
+                          Abrir
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           <OrderPhotos orderId={order.id} canEdit={canEdit && !fieldsLocked} />
         </div>

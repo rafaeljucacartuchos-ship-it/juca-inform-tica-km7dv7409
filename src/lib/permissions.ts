@@ -8,6 +8,7 @@ export type PermissionModule =
   | 'ordens'
   | 'os_delete'
   | 'orcamentos'
+  | 'laudos'
   | 'pos_venda'
   | 'campanhas'
   | 'pedido_mercadoria'
@@ -32,6 +33,7 @@ export const PERMISSION_LABELS: Record<PermissionModule, string> = {
   ordens: 'Ordens de Serviço (Listagem e Detalhe)',
   os_delete: 'Exclusão de Ordens de Serviço (Excluir OS)',
   orcamentos: 'Módulo de Orçamentos (Listagem e Criação)',
+  laudos: 'Módulo de Laudos Técnicos',
   pos_venda: 'Pós-venda — Juquinha',
   campanhas: 'Campanhas de Marketing',
   pedido_mercadoria: 'Pedido de Mercadorias e Reposição',
@@ -55,6 +57,7 @@ export const ALL_PERMISSION_MODULES: PermissionModule[] = [
   'ordens',
   'os_delete',
   'orcamentos',
+  'laudos',
   'pos_venda',
   'campanhas',
   'pedido_mercadoria',
@@ -81,6 +84,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         ordens: true,
         os_delete: true,
         orcamentos: true,
+        laudos: true,
         pos_venda: true,
         campanhas: true,
         pedido_mercadoria: true,
@@ -104,6 +108,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         ordens: true,
         os_delete: false,
         orcamentos: true,
+        laudos: true,
         pos_venda: true,
         campanhas: true,
         pedido_mercadoria: true,
@@ -127,6 +132,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         ordens: true,
         os_delete: false,
         orcamentos: true,
+        laudos: true,
         pos_venda: true,
         campanhas: false,
         pedido_mercadoria: false,
@@ -150,6 +156,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         ordens: false,
         os_delete: false,
         orcamentos: false,
+        laudos: false,
         pos_venda: false,
         campanhas: false,
         pedido_mercadoria: false,
