@@ -294,8 +294,21 @@ export async function updateSuprimento(
     data.rendimento_paginas !== undefined ? data.rendimento_paginas : current?.rendimento_paginas
   const cpp = calculateSupplyCPP(valorCompra, rendimento)
 
-  // Auditoria
+  // Auditoria completa: cobre valor_compra, modelo_suprimento (descrição) e rendimento_paginas
   if (current) {
+    if (
+      data.modelo_suprimento !== undefined &&
+      data.modelo_suprimento !== current.modelo_suprimento
+    ) {
+      await logPriceAudit({
+        tabela: 'suprimentos',
+        idRegistro: id,
+        campo: 'modelo_suprimento',
+        valorAntigo: current.modelo_suprimento,
+        valorNovo: data.modelo_suprimento,
+        usuario: usuarioNome,
+      })
+    }
     if (data.valor_compra !== undefined && data.valor_compra !== current.valor_compra) {
       await logPriceAudit({
         tabela: 'suprimentos',
@@ -321,10 +334,98 @@ export async function updateSuprimento(
     }
   }
 
-  return await pb.collection('suprimentos').update<SuprimentoRecord>(id, {
+  const updatedSuprimento = await pb.collection('suprimentos').update<SuprimentoRecord>(id, {
     ...data,
     cpp_calculado: cpp,
   })
+
+  // Recalculo automático em cascata nas impressoras vinculadas
+  try {
+    await recalculateLinkedPrintersForSupply(id, updatedSuprimento)
+  } catch (cascadeErr) {
+    console.warn('Erro ao propagar recálculo em cascata para impressoras:', cascadeErr)
+  }
+
+  return updatedSuprimento
+}
+
+/**
+ * Recalcula em cascata o CPP de suprimentos e CPP fornecedor de todas as impressoras
+ * vinculadas que utilizam o suprimento especificado em qualquer um dos 5 slots.
+ */
+export async function recalculateLinkedPrintersForSupply(
+  supplyId: string,
+  updatedSupply?: SuprimentoRecord,
+): Promise<{ updatedCount: number; printers: string[] }> {
+  try {
+    // Busca todas as impressoras que têm esse suprimento em suprimento_1 .. suprimento_5
+    const filter = `suprimento_1 = '${supplyId}' || suprimento_2 = '${supplyId}' || suprimento_3 = '${supplyId}' || suprimento_4 = '${supplyId}' || suprimento_5 = '${supplyId}'`
+    const linkedPrinters = await pb.collection('impressoras').getFullList<ImpressoraRecord>({
+      filter,
+      expand: 'suprimento_1,suprimento_2,suprimento_3,suprimento_4,suprimento_5',
+    })
+
+    if (linkedPrinters.length === 0) {
+      return { updatedCount: 0, printers: [] }
+    }
+
+    // Carrega suprimentos necessários para calcular caso o expand não traga algum
+    const allSupplies = await getSuprimentos(true)
+    const suppliesMap = new Map<string, SuprimentoRecord>()
+    allSupplies.forEach((s) => suppliesMap.set(s.id, s))
+    if (updatedSupply) {
+      suppliesMap.set(updatedSupply.id, updatedSupply)
+    }
+
+    const updatedPrinterModels: string[] = []
+
+    for (const printer of linkedPrinters) {
+      const slotIds = [
+        printer.suprimento_1,
+        printer.suprimento_2,
+        printer.suprimento_3,
+        printer.suprimento_4,
+        printer.suprimento_5,
+      ]
+
+      let totalCppSuprimentos = 0.0
+
+      for (let i = 0; i < 5; i++) {
+        const sId = slotIds[i]
+        if (!sId) continue
+
+        const sup = suppliesMap.get(sId)
+        if (sup) {
+          const slotCpp = calculateSupplyCPP(sup.valor_compra, sup.rendimento_paginas)
+          totalCppSuprimentos += slotCpp
+        }
+      }
+
+      // CPP do equipamento (depreciação diluída caso tenha valor e vida útil)
+      const producaoRef = 1000 // volume de referência padrão
+      const vidaUtil =
+        printer.vida_util_meses && printer.vida_util_meses > 0 ? printer.vida_util_meses : 48
+      const valorCompraPrinter =
+        printer.valor_compra && printer.valor_compra > 0 ? printer.valor_compra : 0
+      const totalPaginas = vidaUtil * producaoRef
+      const cppEquipamento =
+        totalPaginas > 0 && valorCompraPrinter > 0 ? valorCompraPrinter / totalPaginas : 0
+      const cppFornecedorTotal = totalCppSuprimentos + cppEquipamento
+
+      await pb.collection('impressoras').update(printer.id, {
+        cpp_suprimentos: totalCppSuprimentos,
+        cpp_equipamento: cppEquipamento,
+        cpp_fornecedor_total: cppFornecedorTotal,
+      })
+
+      updatedPrinterModels.push(printer.modelo)
+    }
+
+    return { updatedCount: linkedPrinters.length, printers: updatedPrinterModels }
+  } catch (err) {
+    console.error('Falha ao recalcular impressoras vinculadas ao suprimento:', err)
+    return { updatedCount: 0, printers: [] }
+  }
 }
 
 /**

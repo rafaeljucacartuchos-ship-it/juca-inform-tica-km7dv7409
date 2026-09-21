@@ -33,7 +33,7 @@ import type {
   SuprimentoRecord,
   ParametrosGlobais,
 } from '@/services/pricing-module'
-import { updateImpressora } from '@/services/pricing-module'
+import { updateImpressora, updateSuprimento } from '@/services/pricing-module'
 import { createRentalQuote } from '@/services/rental'
 import type { RentalQuote } from '@/types'
 
@@ -315,6 +315,51 @@ export function ModernRentalSimulator({
     }
   }
 
+  // Edição inline direta dos valores do suprimento pelo card de slots
+  const handleUpdateSlotValues = async (
+    slotNumber: 1 | 2 | 3 | 4 | 5,
+    valorCompra: number | null,
+    rendimentoPaginas: number | null,
+  ) => {
+    const slot = activeSupplySlots[slotNumber - 1]
+    if (!slot || !slot.supplyId) return
+
+    const existingSupply = supplies.find((s) => s.id === slot.supplyId)
+    if (!existingSupply) return
+
+    // Validações
+    if (valorCompra !== null && valorCompra < 0) {
+      toast({ title: 'Valor de compra não pode ser negativo', variant: 'destructive' })
+      return
+    }
+    if (
+      rendimentoPaginas !== null &&
+      (rendimentoPaginas <= 0 || !Number.isInteger(rendimentoPaginas))
+    ) {
+      toast({ title: 'Rendimento deve ser número inteiro positivo', variant: 'destructive' })
+      return
+    }
+
+    try {
+      await updateSuprimento(
+        slot.supplyId,
+        {
+          valor_compra: valorCompra,
+          rendimento_paginas: rendimentoPaginas,
+        },
+        existingSupply,
+      )
+      toast({
+        title: 'Suprimento atualizado!',
+        description: `Valores de ${slot.modelo} atualizados e recalculados na impressora.`,
+      })
+      onReloadData()
+    } catch (err) {
+      console.error(err)
+      toast({ title: 'Erro ao atualizar suprimento do slot', variant: 'destructive' })
+    }
+  }
+
   // GERAR PROPOSTA COMERCIAL CONGELANDO DADOS (Seção 5, 11 e Regra 20.3)
   const handleGenerateProposal = async () => {
     if (!customer.cliente_nome_livre.trim()) {
@@ -589,6 +634,7 @@ export function ModernRentalSimulator({
           allSupplies={supplies}
           readOnly={readOnly}
           onUpdateSlotSupply={handleUpdateSlotSupply}
+          onUpdateSlotValues={handleUpdateSlotValues}
           onOpenSupplyEditModal={onOpenSupplyEdit}
         />
       </div>

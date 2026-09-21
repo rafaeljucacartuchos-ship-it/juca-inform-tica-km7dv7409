@@ -216,21 +216,28 @@ export function SupplySlotsGrid({
                               : '—'}
                           </span>
                         ) : (
-                          <Input
+                          <input
                             type="number"
                             step="0.01"
                             min="0"
-                            value={slot.valorCompra ?? ''}
-                            placeholder="preencher"
-                            onChange={(e) => {
-                              const val =
-                                e.target.value.trim() === '' ? null : parseFloat(e.target.value)
-                              onUpdateSlotValues(slot.slotNumber, val, slot.rendimentoPaginas)
+                            defaultValue={slot.valorCompra ?? ''}
+                            placeholder="0.00"
+                            onBlur={(e) => {
+                              const raw = e.target.value.trim().replace(',', '.')
+                              const val = raw === '' ? null : parseFloat(raw)
+                              if (val !== slot.valorCompra) {
+                                onUpdateSlotValues(slot.slotNumber, val, slot.rendimentoPaginas)
+                              }
                             }}
-                            className={`h-6 text-[11px] font-mono text-right w-20 px-1 ${
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.currentTarget.blur()
+                              }
+                            }}
+                            className={`h-6 text-[11px] font-mono text-right w-20 px-1 rounded border transition-colors ${
                               visualStatus === 'missing_price'
                                 ? 'border-rose-400 bg-rose-50 text-rose-900'
-                                : ''
+                                : 'border-slate-300 bg-white'
                             }`}
                           />
                         )}
@@ -245,21 +252,28 @@ export function SupplySlotsGrid({
                               : '—'}
                           </span>
                         ) : (
-                          <Input
+                          <input
                             type="number"
                             step="100"
                             min="1"
-                            value={slot.rendimentoPaginas ?? ''}
-                            placeholder="preencher"
-                            onChange={(e) => {
-                              const val =
-                                e.target.value.trim() === '' ? null : parseInt(e.target.value, 10)
-                              onUpdateSlotValues(slot.slotNumber, slot.valorCompra, val)
+                            defaultValue={slot.rendimentoPaginas ?? ''}
+                            placeholder="1000"
+                            onBlur={(e) => {
+                              const raw = e.target.value.trim()
+                              const val = raw === '' ? null : parseInt(raw, 10)
+                              if (val !== slot.rendimentoPaginas) {
+                                onUpdateSlotValues(slot.slotNumber, slot.valorCompra, val)
+                              }
                             }}
-                            className={`h-6 text-[11px] font-mono text-right w-20 px-1 ${
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.currentTarget.blur()
+                              }
+                            }}
+                            className={`h-6 text-[11px] font-mono text-right w-20 px-1 rounded border transition-colors ${
                               visualStatus === 'missing_price'
                                 ? 'border-rose-400 bg-rose-50 text-rose-900'
-                                : ''
+                                : 'border-slate-300 bg-white'
                             }`}
                           />
                         )}

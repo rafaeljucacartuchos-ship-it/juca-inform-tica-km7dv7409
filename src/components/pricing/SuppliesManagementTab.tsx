@@ -180,24 +180,187 @@ export function SuppliesManagementTab({
     }
   }
 
-  // Edição inline direta na tabela (Regra 20.1)
-  const handleInlineChange = async (
+  // Estado local para edições inline por suprimento
+  // Guarda valores temporários digitados para feedback visual em tempo real e validações
+  const [inlineValues, setInlineValues] = useState<
+    Record<
+      string,
+      {
+        modelo_suprimento?: string
+        valor_compra?: string
+        rendimento_paginas?: string
+      }
+    >
+  >({})
+  const [inlineSaving, setInlineSaving] = useState<Record<string, boolean>>({})
+
+  // Obter valor efetivo (editado no input ou original do record)
+  const getInlineVal = (
     sup: SuprimentoRecord,
-    field: 'valor_compra' | 'rendimento_paginas',
-    rawVal: string,
+    field: 'modelo_suprimento' | 'valor_compra' | 'rendimento_paginas',
+  ): string => {
+    const currentEdit = inlineValues[sup.id]?.[field]
+    if (currentEdit !== undefined) return currentEdit
+
+    if (field === 'modelo_suprimento') {
+      return sup.modelo_suprimento || ''
+    }
+    if (field === 'valor_compra') {
+      return sup.valor_compra !== null && sup.valor_compra !== undefined
+        ? String(sup.valor_compra)
+        : ''
+    }
+    if (field === 'rendimento_paginas') {
+      return sup.rendimento_paginas !== null && sup.rendimento_paginas !== undefined
+        ? String(sup.rendimento_paginas)
+        : ''
+    }
+    return ''
+  }
+
+  const handleInlineInputChange = (
+    supId: string,
+    field: 'modelo_suprimento' | 'valor_compra' | 'rendimento_paginas',
+    value: string,
   ) => {
-    const val =
-      rawVal.trim() === ''
-        ? null
-        : field === 'valor_compra'
-          ? parseFloat(rawVal)
-          : parseInt(rawVal, 10)
+    setInlineValues((prev) => ({
+      ...prev,
+      [supId]: {
+        ...prev[supId],
+        [field]: value,
+      },
+    }))
+  }
+
+  // Validação e persistência inline com recálculo em cascata e registro de auditoria
+  const handleInlineBlurOrEnter = async (
+    sup: SuprimentoRecord,
+    field: 'modelo_suprimento' | 'valor_compra' | 'rendimento_paginas',
+  ) => {
+    const rawVal = getInlineVal(sup, field)
+    let payloadValue: any = null
+
+    // 1. Validação de Descrição / Modelo
+    if (field === 'modelo_suprimento') {
+      const trimmed = rawVal.trim()
+      if (!trimmed) {
+        toast({
+          title: 'Descrição / Modelo obrigatório',
+          description: 'A descrição do suprimento não pode ficar vazia.',
+          variant: 'destructive',
+        })
+        // Reverte para o original
+        setInlineValues((prev) => ({
+          ...prev,
+          [sup.id]: {
+            ...prev[sup.id],
+            modelo_suprimento: sup.modelo_suprimento,
+          },
+        }))
+        return
+      }
+
+      // Se não mudou, nada a fazer
+      if (trimmed === sup.modelo_suprimento) return
+      payloadValue = trimmed
+    }
+
+    // 2. Validação de Valor de Compra
+    if (field === 'valor_compra') {
+      const trimmed = rawVal.trim().replace(',', '.')
+      if (trimmed === '') {
+        // Permitir deixar nulo/pendente
+        payloadValue = null
+      } else {
+        const parsed = parseFloat(trimmed)
+        if (isNaN(parsed) || parsed < 0) {
+          toast({
+            title: 'Valor de compra inválido',
+            description: 'O valor de compra deve ser um número positivo ou zero.',
+            variant: 'destructive',
+          })
+          setInlineValues((prev) => ({
+            ...prev,
+            [sup.id]: {
+              ...prev[sup.id],
+              valor_compra:
+                sup.valor_compra !== null && sup.valor_compra !== undefined
+                  ? String(sup.valor_compra)
+                  : '',
+            },
+          }))
+          return
+        }
+        payloadValue = Math.round(parsed * 100) / 100
+      }
+
+      // Se não mudou
+      if (payloadValue === (sup.valor_compra ?? null)) return
+    }
+
+    // 3. Validação de Rendimento em Páginas
+    if (field === 'rendimento_paginas') {
+      const trimmed = rawVal.trim()
+      if (trimmed === '') {
+        payloadValue = null
+      } else {
+        const parsed = parseInt(trimmed, 10)
+        if (isNaN(parsed) || parsed <= 0 || !Number.isInteger(Number(trimmed))) {
+          toast({
+            title: 'Rendimento em páginas inválido',
+            description:
+              'O rendimento deve ser um número inteiro estritamente positivo (mínimo 1 pág).',
+            variant: 'destructive',
+          })
+          setInlineValues((prev) => ({
+            ...prev,
+            [sup.id]: {
+              ...prev[sup.id],
+              rendimento_paginas:
+                sup.rendimento_paginas !== null && sup.rendimento_paginas !== undefined
+                  ? String(sup.rendimento_paginas)
+                  : '',
+            },
+          }))
+          return
+        }
+        payloadValue = parsed
+      }
+
+      // Se não mudou
+      if (payloadValue === (sup.rendimento_paginas ?? null)) return
+    }
+
+    // Persistir e acionar recálculo em cascata
+    setInlineSaving((prev) => ({ ...prev, [sup.id]: true }))
     try {
-      await updateSuprimento(sup.id, { [field]: val }, sup)
+      const updated = await updateSuprimento(sup.id, { [field]: payloadValue }, sup)
+      const novoCpp = calculateSupplyCPP(updated.valor_compra, updated.rendimento_paginas)
+
+      toast({
+        title: 'Suprimento atualizado!',
+        description: `${updated.modelo_suprimento}: CPP atualizado para ${formatCPP6(novoCpp)}. Impressoras vinculadas recalculadas em cascata.`,
+      })
+
+      // Limpa override do campo salvo
+      setInlineValues((prev) => {
+        const next = { ...prev }
+        if (next[sup.id]) {
+          delete next[sup.id][field]
+        }
+        return next
+      })
+
       onReload()
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      toast({ title: 'Falha ao salvar alteração inline', variant: 'destructive' })
+      toast({
+        title: 'Falha ao salvar alteração inline',
+        description: err.message || 'Verifique se o modelo não está duplicado.',
+        variant: 'destructive',
+      })
+    } finally {
+      setInlineSaving((prev) => ({ ...prev, [sup.id]: false }))
     }
   }
 
@@ -318,12 +481,12 @@ export function SuppliesManagementTab({
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-slate-50 text-slate-700 font-bold uppercase text-[10px] sticky top-0 z-10 border-b border-slate-200 shadow-sm">
               <tr>
-                <th className="py-2.5 px-3">Modelo / Código</th>
+                <th className="py-2.5 px-3 min-w-[170px]">Descrição / Modelo *</th>
                 <th className="py-2.5 px-3">Tipo</th>
                 <th className="py-2.5 px-3">Fabricante</th>
-                <th className="py-2.5 px-3 min-w-[130px]">Valor Compra (R$)</th>
-                <th className="py-2.5 px-3 min-w-[120px]">Rendimento (pág)</th>
-                <th className="py-2.5 px-3 min-w-[120px]">CPP Calculado</th>
+                <th className="py-2.5 px-3 min-w-[140px]">Valor Compra (R$) *</th>
+                <th className="py-2.5 px-3 min-w-[130px]">Rendimento (pág) *</th>
+                <th className="py-2.5 px-3 min-w-[130px]">CPP Calculado</th>
                 <th className="py-2.5 px-3">Compatibilidade</th>
                 <th className="py-2.5 px-3 text-right">Ações</th>
               </tr>
@@ -337,21 +500,72 @@ export function SuppliesManagementTab({
                 </tr>
               ) : (
                 filteredSupplies.map((sup) => {
+                  const isItemSaving = !!inlineSaving[sup.id]
+
+                  // Valores inline atuais
+                  const curModelo = getInlineVal(sup, 'modelo_suprimento')
+                  const curPrecoStr = getInlineVal(sup, 'valor_compra')
+                  const curRendStr = getInlineVal(sup, 'rendimento_paginas')
+
+                  const curPrecoNum =
+                    curPrecoStr.trim() !== '' ? parseFloat(curPrecoStr) : (sup.valor_compra ?? null)
+                  const curRendNum =
+                    curRendStr.trim() !== ''
+                      ? parseInt(curRendStr, 10)
+                      : (sup.rendimento_paginas ?? null)
+
                   const hasPrice =
-                    sup.valor_compra !== null &&
-                    sup.valor_compra !== undefined &&
-                    sup.valor_compra > 0
+                    curPrecoNum !== null &&
+                    curPrecoNum !== undefined &&
+                    !isNaN(curPrecoNum) &&
+                    curPrecoNum > 0
                   const hasYield =
-                    sup.rendimento_paginas !== null &&
-                    sup.rendimento_paginas !== undefined &&
-                    sup.rendimento_paginas > 0
-                  const cpp = calculateSupplyCPP(sup.valor_compra, sup.rendimento_paginas)
+                    curRendNum !== null &&
+                    curRendNum !== undefined &&
+                    !isNaN(curRendNum) &&
+                    curRendNum > 0
+
+                  // CPP dinâmico para preview instantâneo na UI
+                  const liveCpp = calculateSupplyCPP(curPrecoNum, curRendNum)
 
                   return (
-                    <tr key={sup.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-2 px-3 font-bold text-slate-900">
-                        {sup.modelo_suprimento}
+                    <tr
+                      key={sup.id}
+                      className={`hover:bg-slate-50/80 transition-colors ${
+                        isItemSaving ? 'bg-indigo-50/40 opacity-70' : ''
+                      }`}
+                    >
+                      {/* 1. DESCRIÇÃO / MODELO DO PRODUTO (Editável Inline) */}
+                      <td className="py-1.5 px-3">
+                        {readOnly ? (
+                          <span className="font-bold text-slate-900">{sup.modelo_suprimento}</span>
+                        ) : (
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={curModelo}
+                              disabled={isItemSaving}
+                              onChange={(e) =>
+                                handleInlineInputChange(sup.id, 'modelo_suprimento', e.target.value)
+                              }
+                              onBlur={() => handleInlineBlurOrEnter(sup, 'modelo_suprimento')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.currentTarget.blur()
+                                }
+                              }}
+                              placeholder="Descrição obrigatória"
+                              className={`h-7 w-full min-w-[140px] px-2 font-mono font-bold text-xs rounded border transition-colors ${
+                                !curModelo.trim()
+                                  ? 'border-rose-400 bg-rose-50 text-rose-900 ring-1 ring-rose-400'
+                                  : 'border-slate-300 bg-white text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+                              }`}
+                              title="Pressione Enter ou clique fora para salvar"
+                            />
+                          </div>
+                        )}
                       </td>
+
                       <td className="py-2 px-3">
                         <Badge variant="outline" className="text-[10px] capitalize bg-slate-50">
                           {sup.tipo}
@@ -359,62 +573,99 @@ export function SuppliesManagementTab({
                       </td>
                       <td className="py-2 px-3 text-slate-600">{sup.fabricante}</td>
 
-                      {/* VALOR DE COMPRA (Editável Inline) */}
+                      {/* 2. VALOR DE COMPRA (Editável Inline) */}
                       <td className="py-1 px-3">
                         {readOnly ? (
                           <span className="font-mono text-slate-900">
                             {hasPrice ? Number(sup.valor_compra).toFixed(2) : '—'}
                           </span>
                         ) : (
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            defaultValue={hasPrice ? sup.valor_compra : ''}
-                            onBlur={(e) => handleInlineChange(sup, 'valor_compra', e.target.value)}
-                            placeholder="Preencher"
-                            className={`h-7 w-24 text-right px-1.5 font-mono text-xs rounded border transition-colors ${
-                              !hasPrice
-                                ? 'border-amber-400 bg-amber-50 text-amber-900 font-semibold'
-                                : 'border-slate-300 bg-white'
-                            }`}
-                            title={!hasPrice ? 'Preencher manualmente' : ''}
-                          />
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              disabled={isItemSaving}
+                              value={curPrecoStr}
+                              onChange={(e) =>
+                                handleInlineInputChange(sup.id, 'valor_compra', e.target.value)
+                              }
+                              onBlur={() => handleInlineBlurOrEnter(sup, 'valor_compra')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.currentTarget.blur()
+                                }
+                              }}
+                              placeholder="0.00"
+                              className={`h-7 w-28 text-right px-2 font-mono text-xs rounded border transition-colors ${
+                                !hasPrice
+                                  ? 'border-amber-400 bg-amber-50 text-amber-900 font-semibold'
+                                  : 'border-slate-300 bg-white text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+                              }`}
+                              title={
+                                !hasPrice
+                                  ? 'Preencher valor de compra (pendente)'
+                                  : 'Pressione Enter ou clique fora para salvar'
+                              }
+                            />
+                          </div>
                         )}
                       </td>
 
-                      {/* RENDIMENTO PÁGINAS (Editável Inline) */}
+                      {/* 3. RENDIMENTO PÁGINAS (Editável Inline - Inteiro Positivo) */}
                       <td className="py-1 px-3">
                         {readOnly ? (
                           <span className="font-mono text-slate-800">
                             {hasYield ? sup.rendimento_paginas : '—'}
                           </span>
                         ) : (
-                          <input
-                            type="number"
-                            step="100"
-                            min="1"
-                            defaultValue={hasYield ? sup.rendimento_paginas : ''}
-                            onBlur={(e) =>
-                              handleInlineChange(sup, 'rendimento_paginas', e.target.value)
-                            }
-                            placeholder="Preencher"
-                            className={`h-7 w-24 text-right px-1.5 font-mono text-xs rounded border transition-colors ${
-                              !hasYield
-                                ? 'border-amber-400 bg-amber-50 text-amber-900 font-semibold'
-                                : 'border-slate-300 bg-white'
-                            }`}
-                            title={!hasYield ? 'Preencher manualmente' : ''}
-                          />
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="100"
+                              min="1"
+                              disabled={isItemSaving}
+                              value={curRendStr}
+                              onChange={(e) =>
+                                handleInlineInputChange(
+                                  sup.id,
+                                  'rendimento_paginas',
+                                  e.target.value,
+                                )
+                              }
+                              onBlur={() => handleInlineBlurOrEnter(sup, 'rendimento_paginas')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.currentTarget.blur()
+                                }
+                              }}
+                              placeholder="1000"
+                              className={`h-7 w-24 text-right px-2 font-mono text-xs rounded border transition-colors ${
+                                !hasYield
+                                  ? 'border-amber-400 bg-amber-50 text-amber-900 font-semibold'
+                                  : 'border-slate-300 bg-white text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+                              }`}
+                              title={
+                                !hasYield
+                                  ? 'Preencher rendimento em páginas (pendente)'
+                                  : 'Pressione Enter ou clique fora para salvar'
+                              }
+                            />
+                          </div>
                         )}
                       </td>
 
-                      {/* CPP CALCULADO (6 CASAS DECIMAIS - SEMPRE CALCULADO) */}
+                      {/* CPP CALCULADO (6 CASAS DECIMAIS - RECÁLCULO AUTOMÁTICO EM CASCATA) */}
                       <td className="py-2 px-3 font-mono font-bold text-indigo-950">
                         {hasPrice && hasYield ? (
-                          formatCPP6(cpp)
+                          <div className="flex items-center gap-1">
+                            <span>{formatCPP6(liveCpp)}</span>
+                            {isItemSaving && (
+                              <RefreshCw className="h-3 w-3 text-indigo-500 animate-spin" />
+                            )}
+                          </div>
                         ) : (
-                          <span className="text-amber-600">Pendente</span>
+                          <span className="text-amber-600 font-semibold text-[11px]">Pendente</span>
                         )}
                       </td>
 
@@ -432,7 +683,7 @@ export function SuppliesManagementTab({
                             type="button"
                             onClick={() => handleOpenEditModal(sup)}
                             className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-slate-100"
-                            title="Editar completo"
+                            title="Editar todos os campos"
                           >
                             <Edit2 className="h-3.5 w-3.5" />
                           </button>
