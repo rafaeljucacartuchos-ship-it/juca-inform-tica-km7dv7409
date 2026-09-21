@@ -97,6 +97,7 @@ ${
 --- CUSTOS E PREÇOS ---
 CPP Suprimentos: ${calculation.formatted.cppSuprimentos}
 CPP Equipamento: ${calculation.formatted.cppEquipamento}
+Software Printway (mensal): ${calculation.formatted.valorSoftwarePrintway} (CPP: ${calculation.formatted.cppSoftwarePrintway})
 CPP Fornecedor Total: ${calculation.formatted.cppFornecedorTotal}
 -----------------------------------------
 CPP DE VENDA SUGERIDO: ${calculation.formatted.cppVenda}
@@ -174,8 +175,8 @@ FATURAMENTO TOTAL MENSAL: ${calculation.formatted.faturamentoTotalMensal}
           </div>
         </div>
 
-        {/* DECOMPOSIÇÃO DE CUSTOS (CPP SUPRIMENTOS + EQUIPAMENTO) */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
+        {/* DECOMPOSIÇÃO DE CUSTOS (CPP SUPRIMENTOS + EQUIPAMENTO + SOFTWARE PRINTWAY) */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs pt-1">
           <div className="bg-black/30 p-2.5 rounded-lg border border-white/5">
             <span className="text-[10px] text-slate-400 block uppercase font-medium">
               1. CPP Suprimentos:
@@ -196,16 +197,31 @@ FATURAMENTO TOTAL MENSAL: ${calculation.formatted.faturamentoTotalMensal}
 
           <div className="bg-black/30 p-2.5 rounded-lg border border-white/5">
             <span className="text-[10px] text-slate-400 block uppercase font-medium">
-              3. CPP Total Fornecedor:
+              3. Software Printway:
+            </span>
+            <span
+              className="font-mono font-bold text-indigo-200 text-xs"
+              title={`${calculation.formatted.valorSoftwarePrintway}/mês`}
+            >
+              {calculation.formatted.cppSoftwarePrintway}
+            </span>
+            <span className="text-[9px] text-slate-400 block font-mono">
+              {calculation.formatted.valorSoftwarePrintway}/mês
+            </span>
+          </div>
+
+          <div className="bg-black/30 p-2.5 rounded-lg border border-white/5">
+            <span className="text-[10px] text-slate-400 block uppercase font-medium">
+              4. CPP Total Fornecedor:
             </span>
             <span className="font-mono font-bold text-amber-300 text-xs">
               {calculation.formatted.cppFornecedorTotal}
             </span>
           </div>
 
-          <div className="bg-black/30 p-2.5 rounded-lg border border-white/5">
+          <div className="bg-black/30 p-2.5 rounded-lg border border-white/5 col-span-2 sm:col-span-1">
             <span className="text-[10px] text-slate-400 block uppercase font-medium">
-              4. Margem Mark-up:
+              5. Margem Mark-up:
             </span>
             <span className="font-mono font-bold text-emerald-300 text-xs">
               {markup.toFixed(2)}x sobre total

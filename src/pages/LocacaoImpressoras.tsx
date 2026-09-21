@@ -244,6 +244,10 @@ export default function LocacaoImpressoras() {
             locacao_mensal: machineForContract.franquiaSugerida,
             mark_up_aplicado: pricingSnapshot.memoria_calculo?.mark_up_aplicado || 1.45,
             cpp_venda_fechado: machineForContract.excedenteSugerido,
+            software_printway_mensal:
+              currentQuote.software_printway_mensal ||
+              pricingSnapshot.software_printway_mensal ||
+              0,
             data_inicio: contractStartDate,
             duracao_meses: currentQuote.contrato_meses || 12,
             status: 'ativo',
@@ -306,7 +310,7 @@ export default function LocacaoImpressoras() {
                 Módulo de Precificação de Locação de Impressoras
               </h1>
               <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                v0.0.254
+                v0.0.258
               </span>
             </div>
             <p className="text-xs text-slate-500">

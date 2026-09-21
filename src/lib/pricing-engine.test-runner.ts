@@ -364,6 +364,59 @@ export function runPricingEngineVerification(): {
     actual: pass16,
   })
 
+  // --------------------------------------------------------------------------
+  // VETOR: Software Printway na Composição de Custo
+  // Com valorSoftwarePrintway = R$ 100,00, producao = 1000 págs -> cppPrintway = R$ 0,100000
+  // Soma antes do mark-up: (cppSup + cppEq + cppPrintway) * markUp
+  // --------------------------------------------------------------------------
+  const printwayCalc = calculatePricing({
+    modelo: 'DCP-L2540DW',
+    fabricante: 'Brother',
+    tecnologia: 'laser_mono',
+    valorCompra: 2094.33,
+    vidaUtilMeses: 48,
+    producaoMensalEstimada: 1000,
+    markUpRevenda: 1.45,
+    valorSoftwarePrintway: 100,
+    supplies: [
+      {
+        slotNumber: 1,
+        modelo: 'TN-2370',
+        tipo: 'toner',
+        valorCompra: 79.9,
+        rendimentoPaginas: 2600,
+      },
+    ],
+  })
+
+  const cppSupExpected = 79.9 / 2600
+  const cppEqExpected = 2094.33 / (48 * 1000)
+  const cppPrintwayExpected = 100 / 1000
+  const totalFornecedorExpected = cppSupExpected + cppEqExpected + cppPrintwayExpected
+  const cppVendaExpected = totalFornecedorExpected * 1.45
+
+  const pass17 =
+    printwayCalc.valid &&
+    Math.abs(printwayCalc.cppSoftwarePrintway - cppPrintwayExpected) < 1e-9 &&
+    Math.abs(printwayCalc.cppFornecedorTotal - totalFornecedorExpected) < 1e-9 &&
+    Math.abs(printwayCalc.cppVenda - cppVendaExpected) < 1e-9 &&
+    printwayCalc.valorSoftwarePrintway === 100
+
+  results.push({
+    test: 'Printway — Diluição mensal por página e soma antes do mark-up',
+    passed: pass17,
+    expected: {
+      cppPrintway: cppPrintwayExpected,
+      totalFornecedor: totalFornecedorExpected,
+      cppVenda: cppVendaExpected,
+    },
+    actual: {
+      cppPrintway: printwayCalc.cppSoftwarePrintway,
+      totalFornecedor: printwayCalc.cppFornecedorTotal,
+      cppVenda: printwayCalc.cppVenda,
+    },
+  })
+
   const allPassed = results.every((r) => r.passed)
   return { allPassed, results }
 }

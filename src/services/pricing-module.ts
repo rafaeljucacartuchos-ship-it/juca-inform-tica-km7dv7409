@@ -55,6 +55,7 @@ export interface ImpressoraRecord {
   tecnologia: TecnologiaImpressora
   valor_compra?: number | null
   vida_util_meses?: number
+  custo_mensal_software?: number | null
   suprimento_1?: string | null
   suprimento_2?: string | null
   suprimento_3?: string | null
@@ -94,22 +95,22 @@ export interface AuditoriaPrecoRecord {
 export interface ContratoPrecificacaoRecord {
   id: string
   cliente: string
-  id_impressora: string
+  id_impressora?: string
   producao_mensal_estimada: number
   locacao_mensal: number
   mark_up_aplicado: number
   cpp_venda_fechado: number
-  data_inicio: string
-  duracao_meses: number
-  status: 'ativo' | 'encerrado' | 'cancelado'
+  software_printway_mensal?: number
+  data_inicio?: string
+  duracao_meses?: number
   dados_congelados?: any
+  status: 'ativo' | 'encerrado' | 'cancelado'
   created?: string
   updated?: string
   expand?: {
     id_impressora?: ImpressoraRecord
   }
 }
-
 // ============================================================================
 // AUDITORIA (Seções 10.2 e 20.4)
 // ============================================================================
@@ -410,7 +411,12 @@ export async function recalculateLinkedPrintersForSupply(
       const totalPaginas = vidaUtil * producaoRef
       const cppEquipamento =
         totalPaginas > 0 && valorCompraPrinter > 0 ? valorCompraPrinter / totalPaginas : 0
-      const cppFornecedorTotal = totalCppSuprimentos + cppEquipamento
+      const custoSoftware =
+        printer.custo_mensal_software && printer.custo_mensal_software > 0
+          ? printer.custo_mensal_software
+          : 0
+      const cppSoftwarePrintway = producaoRef > 0 ? custoSoftware / producaoRef : 0
+      const cppFornecedorTotal = totalCppSuprimentos + cppEquipamento + cppSoftwarePrintway
 
       await pb.collection('impressoras').update(printer.id, {
         cpp_suprimentos: totalCppSuprimentos,
@@ -550,7 +556,7 @@ export async function createImpressora(
     idRegistro: created.id,
     campo: 'criacao',
     valorAntigo: null,
-    valorNovo: `Modelo: ${created.modelo}, Compra: ${created.valor_compra || 0}, Vida: ${created.vida_util_meses || 48}m`,
+    valorNovo: `Modelo: ${created.modelo}, Compra: ${created.valor_compra || 0}, Vida: ${created.vida_util_meses || 48}m, Printway: R$ ${created.custo_mensal_software || 0}`,
     usuario: usuarioNome,
   })
 
@@ -584,6 +590,19 @@ export async function updateImpressora(
         campo: 'vida_util_meses',
         valorAntigo: current.vida_util_meses,
         valorNovo: data.vida_util_meses,
+        usuario: usuarioNome,
+      })
+    }
+    if (
+      data.custo_mensal_software !== undefined &&
+      data.custo_mensal_software !== current.custo_mensal_software
+    ) {
+      await logPriceAudit({
+        tabela: 'impressoras',
+        idRegistro: id,
+        campo: 'custo_mensal_software',
+        valorAntigo: current.custo_mensal_software ?? 0,
+        valorNovo: data.custo_mensal_software ?? 0,
         usuario: usuarioNome,
       })
     }

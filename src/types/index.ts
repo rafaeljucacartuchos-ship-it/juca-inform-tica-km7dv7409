@@ -621,6 +621,7 @@ export interface RentalQuote {
   franquia_paginas?: number
   contrato_meses?: number
   excesso_pagina_valor?: number
+  software_printway_mensal?: number
   scanner?: boolean
   scanner_dados?: string
   margem_pct?: number

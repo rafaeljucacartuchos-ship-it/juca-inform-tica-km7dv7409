@@ -59,6 +59,7 @@ export function PrintersManagementTab({
   const [formTecnologia, setFormTecnologia] = useState<TecnologiaImpressora>('laser_mono')
   const [formValorCompra, setFormValorCompra] = useState('')
   const [formVidaUtil, setFormVidaUtil] = useState('48')
+  const [formPrintway, setFormPrintway] = useState('0')
   const [formSlot1, setFormSlot1] = useState('')
   const [formSlot2, setFormSlot2] = useState('')
   const [formSlot3, setFormSlot3] = useState('')
@@ -98,6 +99,7 @@ export function PrintersManagementTab({
     setFormTecnologia('laser_mono')
     setFormValorCompra('')
     setFormVidaUtil('48')
+    setFormPrintway('0')
     setFormSlot1('')
     setFormSlot2('')
     setFormSlot3('')
@@ -118,6 +120,11 @@ export function PrintersManagementTab({
       p.valor_compra !== null && p.valor_compra !== undefined ? String(p.valor_compra) : '',
     )
     setFormVidaUtil(p.vida_util_meses ? String(p.vida_util_meses) : '48')
+    setFormPrintway(
+      p.custo_mensal_software !== null && p.custo_mensal_software !== undefined
+        ? String(p.custo_mensal_software)
+        : '0',
+    )
     setFormSlot1(p.suprimento_1 || '')
     setFormSlot2(p.suprimento_2 || '')
     setFormSlot3(p.suprimento_3 || '')
@@ -138,8 +145,11 @@ export function PrintersManagementTab({
 
     setSaving(true)
     try {
-      const valorCompraNum = formValorCompra.trim() === '' ? null : parseFloat(formValorCompra)
+      const valorCompraNum =
+        formValorCompra.trim() === '' ? null : parseFloat(formValorCompra.replace(',', '.'))
       const vidaUtilNum = formVidaUtil.trim() === '' ? 48 : parseInt(formVidaUtil, 10)
+      const printwayNum =
+        formPrintway.trim() === '' ? 0 : parseFloat(formPrintway.replace(',', '.'))
 
       const payload: Partial<ImpressoraRecord> = {
         modelo: formModelo.trim(),
@@ -147,6 +157,7 @@ export function PrintersManagementTab({
         tecnologia: formTecnologia,
         valor_compra: valorCompraNum,
         vida_util_meses: vidaUtilNum,
+        custo_mensal_software: isNaN(printwayNum) || printwayNum < 0 ? 0 : printwayNum,
         suprimento_1: formSlot1 || null,
         suprimento_2: formSlot2 || null,
         suprimento_3: formSlot3 || null,
@@ -182,18 +193,22 @@ export function PrintersManagementTab({
     }
   }
 
-  // Edição inline de preço e vida útil (Regra 20.1)
+  // Edição inline de preço, vida útil e software Printway (Regra 20.1)
   const handleInlineChange = async (
     p: ImpressoraRecord,
-    field: 'valor_compra' | 'vida_util_meses',
+    field: 'valor_compra' | 'vida_util_meses' | 'custo_mensal_software',
     rawVal: string,
   ) => {
-    const val =
-      rawVal.trim() === ''
-        ? null
-        : field === 'valor_compra'
-          ? parseFloat(rawVal)
-          : parseInt(rawVal, 10)
+    const sanitized = rawVal.trim().replace(',', '.')
+    let val: number | null = null
+    if (sanitized !== '') {
+      if (field === 'vida_util_meses') {
+        val = parseInt(sanitized, 10)
+      } else {
+        const parsed = parseFloat(sanitized)
+        val = isNaN(parsed) || parsed < 0 ? 0 : parsed
+      }
+    }
     try {
       await updateImpressora(p.id, { [field]: val }, p)
       onReload()
@@ -295,6 +310,7 @@ export function PrintersManagementTab({
                 <th className="py-2.5 px-3">Tecnologia</th>
                 <th className="py-2.5 px-3 min-w-[130px]">Valor Aquisição (R$)</th>
                 <th className="py-2.5 px-3 min-w-[100px]">Vida Útil (meses)</th>
+                <th className="py-2.5 px-3 min-w-[120px]">Software Printway (R$/mês)</th>
                 <th className="py-2.5 px-3">Suprimentos Mapeados</th>
                 <th className="py-2.5 px-3 text-center">Status</th>
                 <th className="py-2.5 px-3 text-right">Ações</th>
@@ -368,6 +384,31 @@ export function PrintersManagementTab({
                             defaultValue={p.vida_util_meses || 48}
                             onBlur={(e) => handleInlineChange(p, 'vida_util_meses', e.target.value)}
                             className="h-7 w-16 text-right px-1.5 font-mono text-xs rounded border border-slate-300 bg-white"
+                          />
+                        )}
+                      </td>
+
+                      {/* SOFTWARE PRINTWAY (Editável Inline) */}
+                      <td className="py-1 px-3">
+                        {readOnly ? (
+                          <span className="font-mono text-slate-800">
+                            R$ {(p.custo_mensal_software || 0).toFixed(2)}
+                          </span>
+                        ) : (
+                          <input
+                            type="text"
+                            defaultValue={
+                              p.custo_mensal_software !== null &&
+                              p.custo_mensal_software !== undefined
+                                ? String(p.custo_mensal_software)
+                                : '0'
+                            }
+                            onBlur={(e) =>
+                              handleInlineChange(p, 'custo_mensal_software', e.target.value)
+                            }
+                            placeholder="0,00"
+                            className="h-7 w-20 text-right px-1.5 font-mono text-xs rounded border border-slate-300 bg-white"
+                            title="Valor mensal do software Printway para esta máquina"
                           />
                         )}
                       </td>
@@ -521,6 +562,19 @@ export function PrintersManagementTab({
                   value={formVidaUtil}
                   onChange={(e) => setFormVidaUtil(e.target.value)}
                   placeholder="48"
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+
+              <div className="space-y-1 col-span-3 sm:col-span-1">
+                <Label className="text-xs font-semibold text-slate-700">
+                  Software Printway (R$/mês)
+                </Label>
+                <Input
+                  type="text"
+                  value={formPrintway}
+                  onChange={(e) => setFormPrintway(e.target.value)}
+                  placeholder="Ex: 0,00 ou 129,90"
                   className="h-8 text-xs font-mono"
                 />
               </div>

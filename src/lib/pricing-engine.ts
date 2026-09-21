@@ -52,6 +52,7 @@ export interface PricingEngineInput {
   producaoMensalEstimada: number
   locacaoMensalProposta?: number
   markUpRevenda?: number
+  valorSoftwarePrintway?: number | null
   supplies: (SupplySlotInput | null | undefined)[]
   bloqueada?: boolean
   motivoBloqueio?: string
@@ -66,6 +67,8 @@ export interface PricingEngineResult {
   // CPPs com alta precisão
   cppSuprimentos: number
   cppEquipamento: number
+  cppSoftwarePrintway: number
+  valorSoftwarePrintway: number
   cppFornecedorTotal: number
   markUpAplicado: number
   cppVenda: number
@@ -81,6 +84,8 @@ export interface PricingEngineResult {
   formatted: {
     cppSuprimentos: string
     cppEquipamento: string
+    cppSoftwarePrintway: string
+    valorSoftwarePrintway: string
     cppFornecedorTotal: string
     cppVenda: string
     custoMensalProducao: string
@@ -420,11 +425,24 @@ export function calculatePricing(input: PricingEngineInput): PricingEngineResult
     ? 0.0
     : calculateEquipmentDepreciationCPP(valorCompra, vidaUtil, producao)
 
-  // CPP_fornecedor_total = CPP_suprimentos + CPP_equipamento
-  const cppFornecedorTotal = sumSuppliesCpp + cppEquipamento
+  // Custo do software Printway (mensal em R$ diluído pela produção mensal)
+  // Regra do usuário: entra na composição do custo mensal antes da aplicação do mark-up,
+  // exatamente como a depreciação hoje: CPP_suprimentos + depreciação + Printway → CPP_fornecedor_total → CPP_venda (com mark-up)
+  const valorPrintway =
+    input.valorSoftwarePrintway !== undefined &&
+    input.valorSoftwarePrintway !== null &&
+    !isNaN(Number(input.valorSoftwarePrintway)) &&
+    Number(input.valorSoftwarePrintway) > 0
+      ? Number(input.valorSoftwarePrintway)
+      : 0.0
+
+  const cppSoftwarePrintway = producao > 0 ? valorPrintway / producao : 0.0
+
+  // CPP_fornecedor_total = CPP_suprimentos + CPP_equipamento + CPP_software_printway
+  const cppFornecedorTotal = sumSuppliesCpp + cppEquipamento + cppSoftwarePrintway
 
   // CPP_venda = CPP_fornecedor_total * mark_up_revenda
-  // Regra crítica: mark-up incide ao FINAL sobre a soma integral de suprimentos + equipamento
+  // Regra crítica: mark-up incide ao FINAL sobre a soma integral de suprimentos + equipamento + printway
   const cppVenda = cppFornecedorTotal * markUp
 
   // custo_mensal = producao_mensal * CPP_venda
@@ -444,6 +462,8 @@ export function calculatePricing(input: PricingEngineInput): PricingEngineResult
     isThermalOrMatrix,
     cppSuprimentos: sumSuppliesCpp,
     cppEquipamento,
+    cppSoftwarePrintway,
+    valorSoftwarePrintway: valorPrintway,
     cppFornecedorTotal,
     markUpAplicado: markUp,
     cppVenda,
@@ -453,6 +473,8 @@ export function calculatePricing(input: PricingEngineInput): PricingEngineResult
     formatted: {
       cppSuprimentos: formatCPP6(sumSuppliesCpp),
       cppEquipamento: formatCPP6(cppEquipamento),
+      cppSoftwarePrintway: formatCPP6(cppSoftwarePrintway),
+      valorSoftwarePrintway: formatBRL2(valorPrintway),
       cppFornecedorTotal: formatCPP6(cppFornecedorTotal),
       cppVenda: formatCPP6(cppVenda),
       custoMensalProducao: formatBRL2(custoMensalProducao),

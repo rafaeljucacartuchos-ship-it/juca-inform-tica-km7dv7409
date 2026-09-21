@@ -392,6 +392,19 @@ export function RentalProposalPrintView({
                           {(quote.franquia_paginas || 0).toLocaleString('pt-BR')} páginas/mês
                         </span>
                       </div>
+                      {(quote.software_printway_mensal ||
+                        (quote.resultados as any)?.software_printway_mensal) && (
+                        <div className="flex justify-between items-baseline text-[11px]">
+                          <span className="text-slate-600">Software Printway (mensal):</span>
+                          <span className="font-bold text-indigo-900 font-mono">
+                            {formatBRL(
+                              quote.software_printway_mensal ||
+                                (quote.resultados as any)?.software_printway_mensal ||
+                                0,
+                            )}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex justify-between items-baseline text-[11px]">
                         <span className="text-slate-600">
                           Página Excedente (CPP Venda Homologado):
@@ -522,8 +535,16 @@ export function RentalProposalPrintView({
             <li className="flex items-start gap-1.5">
               <span className="text-emerald-700 font-bold">✓</span>
               <span>
+                <strong>Software de Gerenciamento Printway:</strong> Monitoramento remoto de
+                contadores, alertas preditivos de suprimentos e relatórios automatizados de
+                volumetria.
+              </span>
+            </li>
+            <li className="flex items-start gap-1.5">
+              <span className="text-emerald-700 font-bold">✓</span>
+              <span>
                 <strong>Leitura Mensal Transparente:</strong> Conferência periódica do medidor no 1º
-                dia útil de cada mês com relatório claro.
+                dia útil de cada mês com relatório claro auditável.
               </span>
             </li>
           </ul>

@@ -149,6 +149,7 @@ export function ModernRentalSimulator({
   const [vidaUtilCustom, setVidaUtilCustom] = useState<number>(48)
   const [markupCustom, setMarkupCustom] = useState<number>(parametros.mark_up_revenda || 1.45)
   const [equipPriceCustom, setEquipPriceCustom] = useState<string>('')
+  const [printwayCostCustom, setPrintwayCostCustom] = useState<string>('0')
   const [tituloProposta, setTituloProposta] = useState<string>(
     'Locação de Impressoras — Proposta Comercial',
   )
@@ -183,7 +184,44 @@ export function ModernRentalSimulator({
         ? String(printer.valor_compra)
         : '',
     )
+    setPrintwayCostCustom(
+      printer.custo_mensal_software !== null && printer.custo_mensal_software !== undefined
+        ? String(printer.custo_mensal_software)
+        : '0',
+    )
     setVidaUtilCustom(printer.vida_util_meses || parametros.vida_util_padrao_meses || 48)
+  }
+
+  // Persiste inline a alteração do custo Printway na impressora
+  const handleSavePrintwayCost = async (rawValue: string) => {
+    if (!selectedPrinter) return
+    const sanitized = rawValue.trim().replace(',', '.')
+    const parsed = sanitized === '' ? 0 : parseFloat(sanitized)
+    const validValue = isNaN(parsed) || parsed < 0 ? 0 : parsed
+
+    setPrintwayCostCustom(String(validValue))
+    if (selectedPrinter.custo_mensal_software !== validValue) {
+      try {
+        const updated = await updateImpressora(
+          selectedPrinter.id,
+          { custo_mensal_software: validValue },
+          selectedPrinter,
+        )
+        setSelectedPrinter({
+          ...selectedPrinter,
+          ...updated,
+          custo_mensal_software: validValue,
+        })
+        onReloadData()
+        toast({
+          title: 'Software Printway atualizado!',
+          description: `Valor mensal ajustado para R$ ${validValue.toFixed(2)}.`,
+        })
+      } catch (err) {
+        console.error(err)
+        toast({ title: 'Erro ao salvar valor do software', variant: 'destructive' })
+      }
+    }
   }
 
   const handleToggleSlotInclusion = (slotNumber: 1 | 2 | 3 | 4 | 5, included: boolean) => {
@@ -269,6 +307,8 @@ export function ModernRentalSimulator({
         isThermalOrMatrix: false,
         cppSuprimentos: 0,
         cppEquipamento: 0,
+        cppSoftwarePrintway: 0,
+        valorSoftwarePrintway: 0,
         cppFornecedorTotal: 0,
         markUpAplicado: markupCustom,
         cppVenda: 0,
@@ -278,6 +318,8 @@ export function ModernRentalSimulator({
         formatted: {
           cppSuprimentos: 'R$ 0,000000',
           cppEquipamento: 'R$ 0,000000',
+          cppSoftwarePrintway: 'R$ 0,000000',
+          valorSoftwarePrintway: 'R$ 0,00',
           cppFornecedorTotal: 'R$ 0,000000',
           cppVenda: 'R$ 0,000000',
           custoMensalProducao: 'R$ 0,00',
@@ -286,7 +328,11 @@ export function ModernRentalSimulator({
       }
     }
 
-    const valorCompraNum = equipPriceCustom.trim() === '' ? null : parseFloat(equipPriceCustom)
+    const valorCompraNum =
+      equipPriceCustom.trim() === '' ? null : parseFloat(equipPriceCustom.replace(',', '.'))
+    const printwayNum =
+      printwayCostCustom.trim() === '' ? 0 : parseFloat(printwayCostCustom.replace(',', '.'))
+    const valorSoftwarePrintway = isNaN(printwayNum) || printwayNum < 0 ? 0 : printwayNum
 
     return calculatePricing({
       printerId: selectedPrinter.id,
@@ -298,6 +344,7 @@ export function ModernRentalSimulator({
       producaoMensalEstimada: producaoMensal,
       locacaoMensalProposta: locacaoMensal,
       markUpRevenda: markupCustom,
+      valorSoftwarePrintway,
       supplies: activeSupplySlots,
       bloqueada: selectedPrinter.bloqueada,
       motivoBloqueio: selectedPrinter.motivo_bloqueio,
@@ -306,6 +353,7 @@ export function ModernRentalSimulator({
     selectedPrinter,
     activeSupplySlots,
     equipPriceCustom,
+    printwayCostCustom,
     vidaUtilCustom,
     producaoMensal,
     locacaoMensal,
@@ -511,6 +559,7 @@ export function ModernRentalSimulator({
         franquia_paginas: producaoMensal,
         contrato_meses: contratoMeses,
         excesso_pagina_valor: calculation.cppVenda,
+        software_printway_mensal: calculation.valorSoftwarePrintway,
         scanner: true,
         scanner_dados: 'Alimentador ADF Duplex',
         margem_pct: Math.round((markupCustom - 1) * 100),
@@ -551,6 +600,7 @@ export function ModernRentalSimulator({
           paybackMesesPadrao: vidaUtilCustom,
           breakEvenPaginas: breakEvenResult?.paginasBreakEven || undefined,
           vantagemDescricao: breakEvenResult?.recomendacao || undefined,
+          software_printway_mensal: calculation.valorSoftwarePrintway,
           // Campo especificado: slots_incluidos com os códigos dos suprimentos efetivamente no cálculo
           slots_incluidos: slotsIncluidosCodigos,
           // Congelamento de memória de cálculo conforme seção 11.1
@@ -561,13 +611,18 @@ export function ModernRentalSimulator({
               fabricante: selectedPrinter.fabricante,
               tecnologia: selectedPrinter.tecnologia,
               valor_compra: Number(equipPriceCustom) || 0,
+              custo_mensal_software: calculation.valorSoftwarePrintway,
             },
+            software_printway_mensal: calculation.valorSoftwarePrintway,
+            cpp_software_printway: calculation.cppSoftwarePrintway,
             slots_incluidos: slotsIncluidosCodigos,
             todos_slots: allSlotsSnapshot,
             suprimentos_vinculados: suprimentosPayload,
             memoria_calculo: {
               cpp_suprimentos: calculation.cppSuprimentos,
               cpp_equipamento: calculation.cppEquipamento,
+              cpp_software_printway: calculation.cppSoftwarePrintway,
+              valor_software_printway: calculation.valorSoftwarePrintway,
               cpp_fornecedor_total: calculation.cppFornecedorTotal,
               mark_up_aplicado: calculation.markUpAplicado,
               cpp_venda_fechado: calculation.cppVenda,
@@ -690,7 +745,7 @@ export function ModernRentalSimulator({
         </div>
 
         {/* INPUTS DE PARÂMETROS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-1 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 pt-1 text-xs">
           <div className="space-y-1">
             <Label className="text-xs font-semibold text-slate-700">Valor de Compra (R$) *</Label>
             <Input
@@ -749,6 +804,27 @@ export function ModernRentalSimulator({
               className="h-9 text-xs font-mono"
             />
             <p className="text-[10px] text-slate-400">Padrão: 48m (usados: 24m)</p>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold text-slate-700">
+              Software Printway (R$/mês)
+            </Label>
+            <Input
+              type="text"
+              value={printwayCostCustom}
+              onChange={(e) => setPrintwayCostCustom(e.target.value)}
+              onBlur={(e) => handleSavePrintwayCost(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.blur()
+                }
+              }}
+              placeholder="0,00"
+              className="h-9 text-xs font-mono font-bold text-indigo-950 bg-indigo-50/40 border-indigo-200 focus:border-indigo-500 focus:bg-white"
+              title="Custo mensal do software de gerenciamento Printway para esta máquina (Enter ou desfoque salva)"
+            />
+            <p className="text-[10px] text-slate-400">Diluído no volume</p>
           </div>
 
           <div className="space-y-1">
