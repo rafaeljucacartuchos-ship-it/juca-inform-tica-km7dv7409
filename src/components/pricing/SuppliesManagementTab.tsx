@@ -59,10 +59,12 @@ export function SuppliesManagementTab({
   const [formModelo, setFormModelo] = useState('')
   const [formTipo, setFormTipo] = useState<TipoSuprimento>('toner')
   const [formFabricante, setFormFabricante] = useState('Brother')
+  const [formFabricanteCustom, setFormFabricanteCustom] = useState('')
   const [formImpressoras, setFormImpressoras] = useState('')
   const [formValorCompra, setFormValorCompra] = useState('')
   const [formRendimento, setFormRendimento] = useState('')
   const [formFontePreco, setFormFontePreco] = useState('')
+  const [formAtivo, setFormAtivo] = useState(true)
 
   // Modal de Reajuste em Lote (Seção 19.1)
   const [batchModalOpen, setBatchModalOpen] = useState(false)
@@ -100,10 +102,12 @@ export function SuppliesManagementTab({
     setFormModelo('')
     setFormTipo('toner')
     setFormFabricante('Brother')
+    setFormFabricanteCustom('')
     setFormImpressoras('')
     setFormValorCompra('')
     setFormRendimento('')
     setFormFontePreco('')
+    setFormAtivo(true)
     setIsModalOpen(true)
   }
 
@@ -111,7 +115,25 @@ export function SuppliesManagementTab({
     setEditingSupply(sup)
     setFormModelo(sup.modelo_suprimento)
     setFormTipo(sup.tipo)
-    setFormFabricante(sup.fabricante)
+    const knownFabs = [
+      'Brother',
+      'Epson',
+      'HP',
+      'Samsung',
+      'Canon',
+      'Kyocera',
+      'Zebra',
+      'Bematech',
+      'Elgin',
+      'Genérico',
+    ]
+    if (knownFabs.includes(sup.fabricante)) {
+      setFormFabricante(sup.fabricante)
+      setFormFabricanteCustom('')
+    } else {
+      setFormFabricante('Outro')
+      setFormFabricanteCustom(sup.fabricante || '')
+    }
     setFormImpressoras(sup.impressoras_compativeis || '')
     setFormValorCompra(
       sup.valor_compra !== null && sup.valor_compra !== undefined ? String(sup.valor_compra) : '',
@@ -122,48 +144,84 @@ export function SuppliesManagementTab({
         : '',
     )
     setFormFontePreco(sup.fonte_preco || '')
+    setFormAtivo(sup.ativo !== false)
     setIsModalOpen(true)
   }
 
   const handleSaveSupply = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formModelo.trim()) {
-      toast({ title: 'Código/Modelo do suprimento é obrigatório', variant: 'destructive' })
+    const modeloTrim = formModelo.trim()
+    if (!modeloTrim) {
+      toast({ title: 'Descrição / Modelo do suprimento é obrigatório', variant: 'destructive' })
       return
+    }
+
+    const finalFabricante =
+      formFabricante === 'Outro' ? formFabricanteCustom.trim() : formFabricante.trim()
+
+    if (!finalFabricante) {
+      toast({ title: 'Fabricante é obrigatório', variant: 'destructive' })
+      return
+    }
+
+    // Validação de valor de compra (aceita vírgula ou ponto)
+    let valorCompraNum: number | null = null
+    const rawPreco = formValorCompra.trim().replace(',', '.')
+    if (rawPreco !== '') {
+      const parsed = parseFloat(rawPreco)
+      if (isNaN(parsed) || parsed < 0) {
+        toast({
+          title: 'Valor de compra inválido',
+          description: 'O valor de compra deve ser um número positivo ou zero.',
+          variant: 'destructive',
+        })
+        return
+      }
+      valorCompraNum = Math.round(parsed * 100) / 100
+    }
+
+    // Validação de rendimento em páginas (inteiro positivo >= 1)
+    let rendimentoNum: number | null = null
+    const rawRend = formRendimento.trim()
+    if (rawRend !== '') {
+      const parsed = parseInt(rawRend, 10)
+      if (isNaN(parsed) || parsed < 1 || !Number.isInteger(Number(rawRend))) {
+        toast({
+          title: 'Rendimento em páginas inválido',
+          description:
+            'O rendimento deve ser um número inteiro estritamente positivo (mínimo 1 pág).',
+          variant: 'destructive',
+        })
+        return
+      }
+      rendimentoNum = parsed
     }
 
     setSaving(true)
     try {
-      const valorCompraNum = formValorCompra.trim() === '' ? null : parseFloat(formValorCompra)
-      const rendimentoNum = formRendimento.trim() === '' ? null : parseInt(formRendimento, 10)
+      const payload: Partial<SuprimentoRecord> = {
+        modelo_suprimento: modeloTrim,
+        tipo: formTipo,
+        fabricante: finalFabricante,
+        impressoras_compativeis: formImpressoras.trim() || undefined,
+        valor_compra: valorCompraNum,
+        rendimento_paginas: rendimentoNum,
+        fonte_preco: formFontePreco.trim() || undefined,
+        ativo: formAtivo,
+      }
 
       if (editingSupply) {
-        await updateSuprimento(
-          editingSupply.id,
-          {
-            modelo_suprimento: formModelo.trim(),
-            tipo: formTipo,
-            fabricante: formFabricante.trim(),
-            impressoras_compativeis: formImpressoras.trim(),
-            valor_compra: valorCompraNum,
-            rendimento_paginas: rendimentoNum,
-            fonte_preco: formFontePreco.trim() || undefined,
-          },
-          editingSupply,
-        )
-        toast({ title: 'Suprimento atualizado com sucesso!' })
-      } else {
-        await createSuprimento({
-          modelo_suprimento: formModelo.trim(),
-          tipo: formTipo,
-          fabricante: formFabricante.trim(),
-          impressoras_compativeis: formImpressoras.trim(),
-          valor_compra: valorCompraNum,
-          rendimento_paginas: rendimentoNum,
-          fonte_preco: formFontePreco.trim() || undefined,
-          ativo: true,
+        await updateSuprimento(editingSupply.id, payload, editingSupply)
+        toast({
+          title: 'Suprimento atualizado com sucesso!',
+          description: `Item ${modeloTrim} salvo e impressoras vinculadas recalculadas.`,
         })
-        toast({ title: 'Novo suprimento cadastrado com sucesso!' })
+      } else {
+        await createSuprimento(payload)
+        toast({
+          title: 'Novo suprimento cadastrado com sucesso!',
+          description: `Item ${modeloTrim} adicionado à base e disponível nos dropdowns dos 5 slots.`,
+        })
       }
 
       setIsModalOpen(false)
@@ -172,7 +230,7 @@ export function SuppliesManagementTab({
       console.error(err)
       toast({
         title: 'Erro ao salvar suprimento',
-        description: err.message || 'Verifique se o modelo já está cadastrado.',
+        description: err.message || 'Verifique se a descrição/modelo já está cadastrada.',
         variant: 'destructive',
       })
     } finally {
@@ -718,115 +776,250 @@ export function SuppliesManagementTab({
         </div>
       </div>
 
-      {/* MODAL NOVO / EDITAR SUPRIMENTO */}
+      {/* MODAL NOVO / EDITAR SUPRIMENTO COM TODOS OS CAMPOS DO SCHEMA */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-lg p-5">
+        <DialogContent className="max-w-xl p-5 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900">
-              {editingSupply
-                ? `Editar Suprimento: ${editingSupply.modelo_suprimento}`
-                : 'Cadastrar Novo Suprimento'}
+            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Layers className="h-4 w-4 text-indigo-600" />
+              <span>
+                {editingSupply
+                  ? `Editar Suprimento: ${editingSupply.modelo_suprimento}`
+                  : 'Cadastrar Novo Suprimento'}
+              </span>
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Campos não preenchidos ficarão pendentes (NULL) com indicador visual de preenchimento.
+              Preencha todas as informações da tabela <code>suprimentos</code>. Descrição, Tipo e
+              Fabricante são obrigatórios. Valor de compra e rendimento são necessários para
+              calcular o CPP e desbloquear precificação.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSaveSupply} className="space-y-3 py-2 text-xs">
-            <div className="grid grid-cols-2 gap-3">
+          <form onSubmit={handleSaveSupply} className="space-y-4 py-2 text-xs">
+            {/* Bloco 1: Identificação Básica */}
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
+              <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wide block">
+                1. Identificação do Suprimento / Peça
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                    <span>Descrição do Produto / Modelo *</span>
+                    <span className="text-[10px] text-rose-600 font-bold">Obrigatório</span>
+                  </Label>
+                  <Input
+                    value={formModelo}
+                    onChange={(e) => setFormModelo(e.target.value)}
+                    placeholder="Ex: TN-1035, T544-BK, DR-1035, CAB-FA04061"
+                    required
+                    className="h-8 text-xs font-mono font-bold"
+                  />
+                  <p className="text-[10px] text-slate-400">
+                    Part number, código ou descrição comercial única na base
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                    <span>Tipo de Suprimento *</span>
+                    <span className="text-[10px] text-rose-600 font-bold">Obrigatório</span>
+                  </Label>
+                  <select
+                    value={formTipo}
+                    onChange={(e) => setFormTipo(e.target.value as TipoSuprimento)}
+                    className="w-full h-8 text-xs rounded-md border border-slate-300 bg-white px-2 font-medium"
+                  >
+                    <option value="toner">Toner (Laser)</option>
+                    <option value="tinta">Tinta (Tanque / Garrafa)</option>
+                    <option value="cartucho">Cartucho (Jato / Monocromático / Color)</option>
+                    <option value="fotocondutor">Fotocondutor / Cilindro (Drum)</option>
+                    <option value="unidade_fusora">Unidade Fusora</option>
+                    <option value="pelicula">Película de Fusão</option>
+                    <option value="cabecote">Cabeçote de Impressão</option>
+                    <option value="bobina">Bobina Térmica</option>
+                    <option value="fita">Fita Matricial</option>
+                    <option value="ribbon">Ribbon Transferência Térmica</option>
+                  </select>
+                  <p className="text-[10px] text-slate-400">
+                    Define a categoria no mapeamento dos 5 slots
+                  </p>
+                </div>
+              </div>
+
+              {/* Fabricante com select de marcas conhecidas + opção Outro com texto */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                    <span>Fabricante / Marca *</span>
+                    <span className="text-[10px] text-rose-600 font-bold">Obrigatório</span>
+                  </Label>
+                  <select
+                    value={formFabricante}
+                    onChange={(e) => setFormFabricante(e.target.value)}
+                    className="w-full h-8 text-xs rounded-md border border-slate-300 bg-white px-2 font-medium"
+                  >
+                    <option value="Brother">Brother</option>
+                    <option value="Epson">Epson</option>
+                    <option value="HP">HP</option>
+                    <option value="Samsung">Samsung</option>
+                    <option value="Canon">Canon</option>
+                    <option value="Kyocera">Kyocera</option>
+                    <option value="Zebra">Zebra</option>
+                    <option value="Bematech">Bematech</option>
+                    <option value="Elgin">Elgin</option>
+                    <option value="Genérico">Genérico / Compatível</option>
+                    <option value="Outro">Outro fabricante (digitar)...</option>
+                  </select>
+                </div>
+
+                {formFabricante === 'Outro' && (
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-slate-700">
+                      Nome do Fabricante *
+                    </Label>
+                    <Input
+                      value={formFabricanteCustom}
+                      onChange={(e) => setFormFabricanteCustom(e.target.value)}
+                      placeholder="Ex: Lexmark, Ricoh, Xerox"
+                      required
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Bloco 2: Valores & Rendimento (CPP) */}
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
+              <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wide block">
+                2. Custos & Rendimento em Páginas (Cálculo do CPP)
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                    <span>Valor de Compra (R$) *</span>
+                    <span className="text-[10px] text-amber-600 font-medium">
+                      Aceita vírgula ou ponto
+                    </span>
+                  </Label>
+                  <Input
+                    type="text"
+                    value={formValorCompra}
+                    onChange={(e) => setFormValorCompra(e.target.value)}
+                    placeholder="Ex: 49,90 ou 49.90"
+                    className="h-8 text-xs font-mono font-bold"
+                  />
+                  <p className="text-[10px] text-slate-400">
+                    Custo de aquisição NF. Obrigatório para desbloquear cálculo da proposta.
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                    <span>Rendimento (páginas) *</span>
+                    <span className="text-[10px] text-amber-600 font-medium">Inteiro ≥ 1</span>
+                  </Label>
+                  <Input
+                    type="number"
+                    step="1"
+                    min="1"
+                    value={formRendimento}
+                    onChange={(e) => setFormRendimento(e.target.value)}
+                    placeholder="Ex: 1000, 2600, 10000"
+                    className="h-8 text-xs font-mono font-bold"
+                  />
+                  <p className="text-[10px] text-slate-400">
+                    Páginas estimadas no padrão 5% ISO/IEC.
+                  </p>
+                </div>
+              </div>
+
+              {/* Preview Dinâmico do CPP calculado */}
+              <div className="p-2.5 bg-indigo-50/70 border border-indigo-200 rounded-md flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] font-bold text-indigo-900 block">
+                    CPP Unitário Estimado:
+                  </span>
+                  <span className="text-[10px] text-indigo-700">
+                    cpp_calculado = valor_compra / rendimento_paginas
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="font-mono font-extrabold text-xs text-indigo-950">
+                    {(() => {
+                      const v = parseFloat(formValorCompra.trim().replace(',', '.'))
+                      const r = parseInt(formRendimento.trim(), 10)
+                      if (!isNaN(v) && v > 0 && !isNaN(r) && r > 0) {
+                        return formatCPP6(calculateSupplyCPP(v, r))
+                      }
+                      return 'Pendente (R$ 0,000000)'
+                    })()}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Bloco 3: Compatibilidade & Homologação */}
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
+              <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wide block">
+                3. Compatibilidade, Homologação & Observações
+              </span>
+
               <div className="space-y-1">
                 <Label className="text-xs font-semibold text-slate-700">
-                  Modelo / Part Number *
+                  Modelos de Impressoras Compatíveis
                 </Label>
                 <Input
-                  value={formModelo}
-                  onChange={(e) => setFormModelo(e.target.value)}
-                  placeholder="Ex: TN-1035, T544-BK"
-                  required
-                  className="h-8 text-xs font-mono font-bold"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">Tipo de Insumo *</Label>
-                <select
-                  value={formTipo}
-                  onChange={(e) => setFormTipo(e.target.value as TipoSuprimento)}
-                  className="w-full h-8 text-xs rounded-md border border-slate-300 bg-white px-2"
-                >
-                  <option value="toner">Toner</option>
-                  <option value="tinta">Tinta</option>
-                  <option value="cartucho">Cartucho</option>
-                  <option value="fotocondutor">Fotocondutor (Cilindro)</option>
-                  <option value="unidade_fusora">Unidade Fusora</option>
-                  <option value="pelicula">Película</option>
-                  <option value="cabecote">Cabeçote</option>
-                  <option value="bobina">Bobina</option>
-                  <option value="fita">Fita</option>
-                  <option value="ribbon">Ribbon</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">Fabricante *</Label>
-                <Input
-                  value={formFabricante}
-                  onChange={(e) => setFormFabricante(e.target.value)}
-                  placeholder="Ex: Brother, Epson, HP"
-                  required
+                  value={formImpressoras}
+                  onChange={(e) => setFormImpressoras(e.target.value)}
+                  placeholder="Ex: HL-1210W, HL-1212w, DCP-1617NW, DCP-L2540DW (separados por vírgula)"
                   className="h-8 text-xs"
                 />
+                <p className="text-[10px] text-slate-400">
+                  Modelos onde este suprimento aparece destacado como &quot;⭐ Compatíveis com
+                  [modelo]&quot; nos 5 slots do simulador
+                </p>
               </div>
 
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">Valor de Compra (R$)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formValorCompra}
-                  onChange={(e) => setFormValorCompra(e.target.value)}
-                  placeholder="Ex: 49.90"
-                  className="h-8 text-xs font-mono"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700">
+                    Fonte do Preço / Homologação
+                  </Label>
+                  <Input
+                    value={formFontePreco}
+                    onChange={(e) => setFormFontePreco(e.target.value)}
+                    placeholder="Ex: Tabela Homologada / NF 1234 / Cotação Distribuidor"
+                    className="h-8 text-xs"
+                  />
+                  <p className="text-[10px] text-slate-400">
+                    Origem do custo para histórico de auditoria
+                  </p>
+                </div>
+
+                <div className="space-y-1 flex flex-col justify-end">
+                  <div className="flex items-center gap-2 p-2 bg-white rounded border border-slate-200 h-8">
+                    <input
+                      type="checkbox"
+                      id="check-form-ativo"
+                      checked={formAtivo}
+                      onChange={(e) => setFormAtivo(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                    />
+                    <Label
+                      htmlFor="check-form-ativo"
+                      className="text-xs font-semibold text-slate-800 cursor-pointer"
+                    >
+                      Suprimento Ativo na Base
+                    </Label>
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    Inativos são ocultados nos dropdowns mas preservam contratos
+                  </p>
+                </div>
               </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">Rendimento (págs)</Label>
-                <Input
-                  type="number"
-                  step="100"
-                  min="1"
-                  value={formRendimento}
-                  onChange={(e) => setFormRendimento(e.target.value)}
-                  placeholder="Ex: 1000"
-                  className="h-8 text-xs font-mono"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">Modelos Compatíveis</Label>
-              <Input
-                value={formImpressoras}
-                onChange={(e) => setFormImpressoras(e.target.value)}
-                placeholder="Ex: HL-1210W, HL-1212w, DCP-1617NW..."
-                className="h-8 text-xs"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">
-                Fonte do Preço / Origem
-              </Label>
-              <Input
-                value={formFontePreco}
-                onChange={(e) => setFormFontePreco(e.target.value)}
-                placeholder="Ex: Cotação Distribuidor ABC / Nota Fiscal 1234"
-                className="h-8 text-xs"
-              />
             </div>
 
             <DialogFooter className="pt-2 gap-2">
@@ -843,9 +1036,18 @@ export function SuppliesManagementTab({
                 type="submit"
                 size="sm"
                 disabled={saving}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs gap-1.5"
               >
-                {saving ? 'Salvando...' : 'Salvar Suprimento'}
+                {saving ? (
+                  'Salvando...'
+                ) : editingSupply ? (
+                  'Salvar Alterações do Suprimento'
+                ) : (
+                  <>
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Cadastrar Suprimento</span>
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </form>

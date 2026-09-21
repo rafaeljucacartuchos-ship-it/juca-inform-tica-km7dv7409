@@ -546,8 +546,48 @@ export async function createImpressora(
   data: Partial<ImpressoraRecord>,
   usuarioNome?: string,
 ): Promise<ImpressoraRecord> {
+  // Calcula CPPs iniciais se houver suprimentos e/ou valor de compra
+  const vidaUtil = data.vida_util_meses && data.vida_util_meses > 0 ? data.vida_util_meses : 48
+  const producaoRef = 1000
+  const valorCompra = data.valor_compra && data.valor_compra > 0 ? data.valor_compra : 0
+  const totalPaginas = vidaUtil * producaoRef
+  const cppEquipamento = totalPaginas > 0 && valorCompra > 0 ? valorCompra / totalPaginas : 0
+  const custoSoftware =
+    data.custo_mensal_software && data.custo_mensal_software > 0 ? data.custo_mensal_software : 0
+  const cppSoftwarePrintway = producaoRef > 0 ? custoSoftware / producaoRef : 0
+
+  let totalCppSuprimentos = 0
+  const slotIds = [
+    data.suprimento_1,
+    data.suprimento_2,
+    data.suprimento_3,
+    data.suprimento_4,
+    data.suprimento_5,
+  ].filter(Boolean) as string[]
+
+  if (slotIds.length > 0) {
+    try {
+      const suppliesList = await getSuprimentos(true)
+      const map = new Map<string, SuprimentoRecord>()
+      suppliesList.forEach((s) => map.set(s.id, s))
+      for (const sId of slotIds) {
+        const s = map.get(sId)
+        if (s) {
+          totalCppSuprimentos += calculateSupplyCPP(s.valor_compra, s.rendimento_paginas)
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao calcular CPP inicial de suprimentos da impressora:', e)
+    }
+  }
+
+  const cppFornecedorTotal = totalCppSuprimentos + cppEquipamento + cppSoftwarePrintway
+
   const created = await pb.collection('impressoras').create<ImpressoraRecord>({
     ...data,
+    cpp_suprimentos: totalCppSuprimentos,
+    cpp_equipamento: cppEquipamento,
+    cpp_fornecedor_total: cppFornecedorTotal,
     ativo: data.ativo !== false,
   })
 
@@ -556,7 +596,7 @@ export async function createImpressora(
     idRegistro: created.id,
     campo: 'criacao',
     valorAntigo: null,
-    valorNovo: `Modelo: ${created.modelo}, Compra: ${created.valor_compra || 0}, Vida: ${created.vida_util_meses || 48}m, Printway: R$ ${created.custo_mensal_software || 0}`,
+    valorNovo: `Modelo: ${created.modelo}, Fab: ${created.fabricante}, Compra: ${created.valor_compra || 0}, Vida: ${created.vida_util_meses || 48}m, Printway: R$ ${created.custo_mensal_software || 0}`,
     usuario: usuarioNome,
   })
 
@@ -573,6 +613,16 @@ export async function updateImpressora(
 
   // Auditoria
   if (current) {
+    if (data.modelo !== undefined && data.modelo !== current.modelo) {
+      await logPriceAudit({
+        tabela: 'impressoras',
+        idRegistro: id,
+        campo: 'modelo',
+        valorAntigo: current.modelo,
+        valorNovo: data.modelo,
+        usuario: usuarioNome,
+      })
+    }
     if (data.valor_compra !== undefined && data.valor_compra !== current.valor_compra) {
       await logPriceAudit({
         tabela: 'impressoras',
@@ -627,7 +677,53 @@ export async function updateImpressora(
     }
   }
 
-  return await pb.collection('impressoras').update<ImpressoraRecord>(id, data)
+  // Recalcula CPPs consolidados da impressora ao atualizar
+  const merged = { ...current, ...data }
+  const vidaUtil =
+    merged.vida_util_meses && merged.vida_util_meses > 0 ? merged.vida_util_meses : 48
+  const producaoRef = 1000
+  const valorCompra = merged.valor_compra && merged.valor_compra > 0 ? merged.valor_compra : 0
+  const totalPaginas = vidaUtil * producaoRef
+  const cppEquipamento = totalPaginas > 0 && valorCompra > 0 ? valorCompra / totalPaginas : 0
+  const custoSoftware =
+    merged.custo_mensal_software && merged.custo_mensal_software > 0
+      ? merged.custo_mensal_software
+      : 0
+  const cppSoftwarePrintway = producaoRef > 0 ? custoSoftware / producaoRef : 0
+
+  let totalCppSuprimentos = 0
+  const slotIds = [
+    merged.suprimento_1,
+    merged.suprimento_2,
+    merged.suprimento_3,
+    merged.suprimento_4,
+    merged.suprimento_5,
+  ].filter(Boolean) as string[]
+
+  if (slotIds.length > 0) {
+    try {
+      const suppliesList = await getSuprimentos(true)
+      const map = new Map<string, SuprimentoRecord>()
+      suppliesList.forEach((s) => map.set(s.id, s))
+      for (const sId of slotIds) {
+        const s = map.get(sId)
+        if (s) {
+          totalCppSuprimentos += calculateSupplyCPP(s.valor_compra, s.rendimento_paginas)
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao calcular CPP de suprimentos na atualização da impressora:', e)
+    }
+  }
+
+  const cppFornecedorTotal = totalCppSuprimentos + cppEquipamento + cppSoftwarePrintway
+
+  return await pb.collection('impressoras').update<ImpressoraRecord>(id, {
+    ...data,
+    cpp_suprimentos: totalCppSuprimentos,
+    cpp_equipamento: cppEquipamento,
+    cpp_fornecedor_total: cppFornecedorTotal,
+  })
 }
 
 /**
