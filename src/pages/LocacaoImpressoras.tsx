@@ -5,10 +5,8 @@ import {
   FileText,
   FileSignature,
   Layers,
-  Settings as SettingsIcon,
   RefreshCw,
   FolderClock,
-  Package,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -23,9 +21,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ModernRentalSimulator } from '@/components/pricing/ModernRentalSimulator'
-import { SuppliesManagementTab } from '@/components/pricing/SuppliesManagementTab'
-import { PrintersManagementTab } from '@/components/pricing/PrintersManagementTab'
-import { ParametersAndAuditTab } from '@/components/pricing/ParametersAndAuditTab'
 import { RentalProposalPrintView } from '@/components/RentalProposalPrintView'
 import { RentalContractPrintView } from '@/components/RentalContractPrintView'
 import { RentalContractsList } from '@/components/RentalContractsList'
@@ -60,8 +55,10 @@ export default function LocacaoImpressoras() {
   // Permissões: Admin bypass total; edição restrita a gerência/admin
   const canEditPricing = isAdmin || hasPermission('precificacao')
 
-  // Aba ativa: 'simulador' | 'suprimentos' | 'impressoras' | 'parametros' | 'proposta' | 'propostas_lista' | 'contrato' | 'contratos_lista'
+  // Aba ativa simplificada: 'simulador' | 'proposta' | 'propostas_lista' | 'contrato' | 'contratos_lista'
+  // Suprimentos, Impressoras e Parâmetros & Auditoria agora ficam em cascata dentro do Simulador
   const [activeTab, setActiveTab] = useState<string>('simulador')
+  const [simulatorCascadeSection, setSimulatorCascadeSection] = useState<string>('')
 
   // Proposta ativa no visualizador
   const [currentQuote, setCurrentQuote] = useState<RentalQuote | null>(null)
@@ -309,12 +306,12 @@ export default function LocacaoImpressoras() {
                 Módulo de Precificação de Locação de Impressoras
               </h1>
               <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                v0.0.253
+                v0.0.254
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              Juca Cartuchos — Precificação automática por CPP, combos de 5 slots, amortização do
-              ativo e contratos congelados.
+              Juca Cartuchos — Simulador com consultas em cascata, precificação por CPP e contratos
+              congelados.
             </p>
           </div>
         </div>
@@ -334,39 +331,21 @@ export default function LocacaoImpressoras() {
         </div>
       </div>
 
-      {/* TABS PRINCIPAIS DO MÓDULO */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      {/* TABS PRINCIPAIS DO MÓDULO (SIMPLIFICADAS PARA LIBERAR ESPAÇO) */}
+      <Tabs
+        value={activeTab}
+        onValueChange={(val) => {
+          setActiveTab(val)
+        }}
+        className="space-y-4"
+      >
         <TabsList className="bg-slate-100 p-1 rounded-xl flex flex-wrap gap-1 max-w-full print:hidden">
           <TabsTrigger
             value="simulador"
             className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm gap-1.5"
           >
             <Calculator className="h-3.5 w-3.5" />
-            <span>1. Simulador & CPP</span>
-          </TabsTrigger>
-
-          <TabsTrigger
-            value="suprimentos"
-            className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm gap-1.5"
-          >
-            <Package className="h-3.5 w-3.5" />
-            <span>Suprimentos ({suppliesList.length})</span>
-          </TabsTrigger>
-
-          <TabsTrigger
-            value="impressoras"
-            className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm gap-1.5"
-          >
-            <Printer className="h-3.5 w-3.5" />
-            <span>Impressoras ({printersList.length})</span>
-          </TabsTrigger>
-
-          <TabsTrigger
-            value="parametros"
-            className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm gap-1.5"
-          >
-            <SettingsIcon className="h-3.5 w-3.5" />
-            <span>Parâmetros & Auditoria</span>
+            <span>1. Simulador & Consultas</span>
           </TabsTrigger>
 
           <TabsTrigger
@@ -404,48 +383,19 @@ export default function LocacaoImpressoras() {
           </TabsTrigger>
         </TabsList>
 
-        {/* 1. SIMULADOR COM MOTOR PRECISO */}
+        {/* 1. SIMULADOR COM MOTOR PRECISO E OPÇÕES DE CONSULTA EM CASCATA */}
         <TabsContent value="simulador">
           <ModernRentalSimulator
             printers={printersList}
             supplies={suppliesList}
             parametros={parametros}
+            auditHistory={auditList}
             onQuoteGenerated={handleQuoteGenerated}
             onReloadData={loadPricingData}
+            initialCascadeSection={simulatorCascadeSection}
             onOpenSupplyEdit={(supModel) => {
-              setActiveTab('suprimentos')
+              setSimulatorCascadeSection('suprimentos')
             }}
-            readOnly={!canEditPricing}
-          />
-        </TabsContent>
-
-        {/* 2. GESTÃO DE SUPRIMENTOS (ABA 2) */}
-        <TabsContent value="suprimentos">
-          <SuppliesManagementTab
-            supplies={suppliesList}
-            onReload={loadPricingData}
-            readOnly={!canEditPricing}
-          />
-        </TabsContent>
-
-        {/* 3. GESTÃO DE IMPRESSORAS (ABA 3) */}
-        <TabsContent value="impressoras">
-          <PrintersManagementTab
-            printers={printersList}
-            supplies={suppliesList}
-            onReload={loadPricingData}
-            readOnly={!canEditPricing}
-          />
-        </TabsContent>
-
-        {/* 4. PARÂMETROS & AUDITORIA (ABA 4) */}
-        <TabsContent value="parametros">
-          <ParametersAndAuditTab
-            parametros={parametros}
-            auditHistory={auditList}
-            supplies={suppliesList}
-            printers={printersList}
-            onReload={loadPricingData}
             readOnly={!canEditPricing}
           />
         </TabsContent>

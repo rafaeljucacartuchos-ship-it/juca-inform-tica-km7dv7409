@@ -10,17 +10,31 @@ import {
   DollarSign,
   ArrowRight,
   ShieldAlert,
+  ChevronDown,
+  Package,
+  Printer,
+  Settings as SettingsIcon,
+  Search,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from '@/components/ui/accordion'
 import { useToast } from '@/hooks/use-toast'
 import { RentalCustomerSelect } from '@/components/RentalCustomerSelect'
 import type { RentalCustomerSelection } from '@/components/RentalCustomerSelect'
 import { PrinterSelectCombo } from './PrinterSelectCombo'
 import { SupplySlotsGrid } from './SupplySlotsGrid'
 import { ResultsPricingPanel } from './ResultsPricingPanel'
+import { SuppliesManagementTab } from './SuppliesManagementTab'
+import { PrintersManagementTab } from './PrintersManagementTab'
+import { ParametersAndAuditTab } from './ParametersAndAuditTab'
 import {
   calculatePricing,
   calculateBreakEven,
@@ -41,22 +55,36 @@ interface ModernRentalSimulatorProps {
   printers: ImpressoraRecord[]
   supplies: SuprimentoRecord[]
   parametros: ParametrosGlobais
+  auditHistory?: import('@/services/pricing-module').AuditoriaPrecoRecord[]
   onQuoteGenerated: (quote: RentalQuote) => void
   onReloadData: () => void
   onOpenSupplyEdit?: (supplyModel: string) => void
   readOnly?: boolean
+  initialCascadeSection?: string
 }
 
 export function ModernRentalSimulator({
   printers,
   supplies,
   parametros,
+  auditHistory = [],
   onQuoteGenerated,
   onReloadData,
   onOpenSupplyEdit,
   readOnly = false,
+  initialCascadeSection,
 }: ModernRentalSimulatorProps) {
   const { toast } = useToast()
+  // Controle de cascata aberta (accordion expansível sob demanda)
+  const [cascadeOpen, setCascadeOpen] = useState<string>(initialCascadeSection || '')
+
+  // Tratador para quando clicar em cadastrar preço de insumo pendente
+  const handleOpenSupplyEditInternal = (supplyModel: string) => {
+    setCascadeOpen('suprimentos')
+    if (onOpenSupplyEdit) {
+      onOpenSupplyEdit(supplyModel)
+    }
+  }
 
   // Cliente / Locatário
   const [customer, setCustomer] = useState<RentalCustomerSelection>({
@@ -72,6 +100,13 @@ export function ModernRentalSimulator({
   // Cenário B para Comparação / Break-Even
   const [printerScenarioB, setPrinterScenarioB] = useState<ImpressoraRecord | null>(null)
   const [locacaoScenarioB, setLocacaoScenarioB] = useState<number>(490.14)
+
+  // Atualiza seção de cascata se informada externamente
+  useEffect(() => {
+    if (initialCascadeSection !== undefined) {
+      setCascadeOpen(initialCascadeSection)
+    }
+  }, [initialCascadeSection])
 
   // Parâmetros da Simulação
   const [producaoMensal, setProducaoMensal] = useState<number>(
@@ -635,7 +670,7 @@ export function ModernRentalSimulator({
           readOnly={readOnly}
           onUpdateSlotSupply={handleUpdateSlotSupply}
           onUpdateSlotValues={handleUpdateSlotValues}
-          onOpenSupplyEditModal={onOpenSupplyEdit}
+          onOpenSupplyEditModal={handleOpenSupplyEditInternal}
         />
       </div>
 
@@ -658,6 +693,210 @@ export function ModernRentalSimulator({
         }}
         availablePrinters={printers}
       />
+
+      {/* BLOCO EM CASCATA: CONSULTAS & GESTÃO (SUPRIMENTOS, IMPRESSORAS E PARÂMETROS/AUDITORIA) */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all">
+        <div className="bg-gradient-to-r from-slate-50 via-indigo-50/30 to-slate-50 p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-indigo-600/10 text-indigo-700 flex items-center justify-center font-bold">
+              <Layers className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-slate-900 text-sm">
+                  Consultas e Parâmetros em Cascata
+                </h3>
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                  Expansível sob demanda
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">
+                Consulte ou ajuste insumos, máquinas do parque e parâmetros globais sem sair do
+                simulador.
+              </p>
+            </div>
+          </div>
+
+          {/* Atalhos rápidos para abrir/fechar direto */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Button
+              type="button"
+              variant={cascadeOpen === 'suprimentos' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() =>
+                setCascadeOpen((prev) => (prev === 'suprimentos' ? '' : 'suprimentos'))
+              }
+              className={`h-8 text-xs font-semibold gap-1.5 ${
+                cascadeOpen === 'suprimentos'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-700 border-slate-300 hover:border-indigo-400'
+              }`}
+            >
+              <Package className="h-3.5 w-3.5" />
+              <span>Suprimentos ({supplies.length})</span>
+            </Button>
+
+            <Button
+              type="button"
+              variant={cascadeOpen === 'impressoras' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() =>
+                setCascadeOpen((prev) => (prev === 'impressoras' ? '' : 'impressoras'))
+              }
+              className={`h-8 text-xs font-semibold gap-1.5 ${
+                cascadeOpen === 'impressoras'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-700 border-slate-300 hover:border-indigo-400'
+              }`}
+            >
+              <Printer className="h-3.5 w-3.5" />
+              <span>Impressoras ({printers.length})</span>
+            </Button>
+
+            <Button
+              type="button"
+              variant={cascadeOpen === 'parametros' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setCascadeOpen((prev) => (prev === 'parametros' ? '' : 'parametros'))}
+              className={`h-8 text-xs font-semibold gap-1.5 ${
+                cascadeOpen === 'parametros'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-700 border-slate-300 hover:border-indigo-400'
+              }`}
+            >
+              <SettingsIcon className="h-3.5 w-3.5" />
+              <span>Parâmetros & Auditoria</span>
+            </Button>
+
+            {cascadeOpen && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setCascadeOpen('')}
+                className="h-8 text-xs text-slate-500 hover:text-slate-900"
+              >
+                Recolher
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Accordion das 3 seções */}
+        <Accordion
+          type="single"
+          collapsible
+          value={cascadeOpen}
+          onValueChange={setCascadeOpen}
+          className="w-full divide-y divide-slate-100"
+        >
+          {/* 1. SEÇÃO EM CASCATA: SUPRIMENTOS */}
+          <AccordionItem value="suprimentos" className="border-b-0 px-4">
+            <AccordionTrigger className="py-3.5 hover:no-underline group">
+              <div className="flex items-center gap-2.5 text-left">
+                <div className="h-7 w-7 rounded-md bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                  <Package className="h-3.5 w-3.5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                      Consulta & Edição de Suprimentos
+                    </span>
+                    <Badge variant="outline" className="text-[10px] bg-slate-50 font-mono">
+                      {supplies.length} cadastrados
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-normal">
+                    Edição inline de valor de compra, rendimento em páginas, recálculo de CPP e
+                    reajuste em lote.
+                  </p>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-2 pb-5">
+              <div className="bg-slate-50/60 p-3 sm:p-4 rounded-xl border border-slate-200">
+                <SuppliesManagementTab
+                  supplies={supplies}
+                  onReload={onReloadData}
+                  readOnly={readOnly}
+                />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* 2. SEÇÃO EM CASCATA: IMPRESSORAS */}
+          <AccordionItem value="impressoras" className="border-b-0 px-4">
+            <AccordionTrigger className="py-3.5 hover:no-underline group">
+              <div className="flex items-center gap-2.5 text-left">
+                <div className="h-7 w-7 rounded-md bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+                  <Printer className="h-3.5 w-3.5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                      Consulta & Cadastro de Impressoras do Parque
+                    </span>
+                    <Badge variant="outline" className="text-[10px] bg-slate-50 font-mono">
+                      {printers.length} modelos
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-normal">
+                    Parque de máquinas, mapeamento dos 5 slots de suprimentos, custos de aquisição e
+                    vida útil.
+                  </p>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-2 pb-5">
+              <div className="bg-slate-50/60 p-3 sm:p-4 rounded-xl border border-slate-200">
+                <PrintersManagementTab
+                  printers={printers}
+                  supplies={supplies}
+                  onReload={onReloadData}
+                  readOnly={readOnly}
+                />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* 3. SEÇÃO EM CASCATA: PARÂMETROS & AUDITORIA */}
+          <AccordionItem value="parametros" className="border-b-0 px-4">
+            <AccordionTrigger className="py-3.5 hover:no-underline group">
+              <div className="flex items-center gap-2.5 text-left">
+                <div className="h-7 w-7 rounded-md bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+                  <SettingsIcon className="h-3.5 w-3.5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                      Parâmetros Globais, Trilha de Auditoria & Exportação
+                    </span>
+                    <Badge variant="outline" className="text-[10px] bg-slate-50 font-mono">
+                      {auditHistory.length} logs de auditoria
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-normal">
+                    Mark-up padrão, vida útil padrão de 48m, histórico imutável de alterações e
+                    backup JSON.
+                  </p>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-2 pb-5">
+              <div className="bg-slate-50/60 p-3 sm:p-4 rounded-xl border border-slate-200">
+                <ParametersAndAuditTab
+                  parametros={parametros}
+                  auditHistory={auditHistory}
+                  supplies={supplies}
+                  printers={printers}
+                  onReload={onReloadData}
+                  readOnly={readOnly}
+                />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </div>
     </div>
   )
 }
