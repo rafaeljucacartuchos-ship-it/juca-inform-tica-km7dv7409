@@ -121,7 +121,13 @@ export function NewCustomerModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-full sm:max-w-[520px] h-full sm:h-auto max-h-screen sm:max-h-[90vh] rounded-none sm:rounded-lg overflow-y-auto p-4 sm:p-6">
+      <DialogContent
+        style={{
+          maxHeight: 'var(--teclado-altura, var(--app-visible-height, 100dvh))',
+          height: 'var(--teclado-altura, var(--app-visible-height, 100dvh))',
+        }}
+        className="w-full max-w-full sm:max-w-[520px] h-[var(--teclado-altura,var(--app-visible-height,100dvh))] sm:h-auto max-h-[var(--teclado-altura,var(--app-visible-height,100dvh))] sm:max-h-[90vh] rounded-none sm:rounded-lg overflow-y-auto p-4 sm:p-6"
+      >
         <DialogHeader>
           <DialogTitle className="text-lg font-bold text-slate-900">
             {isEdit ? 'Editar Cliente' : 'Novo Cliente'}

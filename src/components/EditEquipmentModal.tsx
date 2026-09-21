@@ -304,7 +304,13 @@ export function EditEquipmentModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-full max-w-full sm:max-w-[620px] h-[100dvh] sm:h-auto max-h-[var(--app-visible-height,100dvh)] sm:max-h-[92vh] rounded-none sm:rounded-lg p-0 flex flex-col overflow-hidden">
+        <DialogContent
+          style={{
+            maxHeight: 'var(--teclado-altura, var(--app-visible-height, 100dvh))',
+            height: 'var(--teclado-altura, var(--app-visible-height, 100dvh))',
+          }}
+          className="w-full max-w-full sm:max-w-[620px] h-[var(--teclado-altura,var(--app-visible-height,100dvh))] sm:h-auto max-h-[var(--teclado-altura,var(--app-visible-height,100dvh))] sm:max-h-[92vh] rounded-none sm:rounded-lg p-0 flex flex-col overflow-hidden"
+        >
           <DialogHeader className="px-4 pt-4 pb-2 sm:px-6 sm:pt-6 shrink-0 border-b border-slate-100 flex flex-row items-center justify-between">
             <div className="space-y-0.5">
               <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">

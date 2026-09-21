@@ -221,7 +221,13 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-full sm:max-w-2xl lg:max-w-3xl h-[100dvh] sm:h-auto max-h-[var(--app-visible-height,100dvh)] sm:max-h-[90vh] rounded-none sm:rounded-lg p-0 gap-0 flex flex-col overflow-hidden">
+      <DialogContent
+        style={{
+          maxHeight: 'var(--teclado-altura, var(--app-visible-height, 100dvh))',
+          height: 'var(--teclado-altura, var(--app-visible-height, 100dvh))',
+        }}
+        className="w-full max-w-full sm:max-w-2xl lg:max-w-3xl h-[var(--teclado-altura,var(--app-visible-height,100dvh))] sm:h-auto max-h-[var(--teclado-altura,var(--app-visible-height,100dvh))] sm:max-h-[90vh] rounded-none sm:rounded-lg p-0 gap-0 flex flex-col overflow-hidden"
+      >
         {/* Cabeçalho fixo (shrink-0) */}
         <DialogHeader className="px-4 py-3 sm:px-5 sm:pt-4 sm:pb-2 border-b border-slate-100 shrink-0">
           <DialogTitle className="text-base font-bold text-slate-900">
@@ -237,6 +243,11 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => {
+                setTimeout(() => {
+                  inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }, 180)
+              }}
               placeholder="Digite o nome, código ou peça..."
               className="pl-8 pr-8 h-9 text-xs bg-white"
               autoComplete="off"

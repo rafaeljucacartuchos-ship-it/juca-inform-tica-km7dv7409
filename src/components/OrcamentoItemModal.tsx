@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Search, Package, Wrench, X, AlertTriangle, Loader2 } from 'lucide-react'
+import { useVisualViewport } from '@/hooks/use-visual-viewport'
 import pb from '@/lib/pocketbase/client'
 import { Product, CatalogService, OrcamentoItem, OrcamentoDescontoTipo } from '@/types'
 import { getProducts } from '@/services/products'
@@ -72,6 +73,27 @@ export function OrcamentoItemModal({
   const [activeTab, setActiveTab] = useState<'all' | 'product' | 'service'>('all')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputSearchRef = useRef<HTMLInputElement>(null)
+  const searchContainerRef = useRef<HTMLDivElement>(null)
+  const scrollBodyRef = useRef<HTMLDivElement>(null)
+  const { visibleHeight, isKeyboardOpen } = useVisualViewport()
+
+  // Quando o input de busca ganha foco no mobile, rola suavemente para o topo visível
+  // após o teclado do iOS subir (~150ms a 200ms)
+  const handleSearchFocus = () => {
+    setTimeout(() => {
+      if (searchContainerRef.current) {
+        searchContainerRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        })
+      } else if (inputSearchRef.current) {
+        inputSearchRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        })
+      }
+    }, 180)
+  }
 
   useEffect(() => {
     if (!open) return
@@ -427,7 +449,13 @@ export function OrcamentoItemModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-full sm:max-w-2xl lg:max-w-3xl h-[100dvh] sm:h-auto max-h-[var(--app-visible-height,100dvh)] sm:max-h-[92vh] rounded-none sm:rounded-lg p-0 gap-0 flex flex-col overflow-hidden">
+      <DialogContent
+        style={{
+          maxHeight: 'var(--teclado-altura, var(--app-visible-height, 100dvh))',
+          height: 'var(--teclado-altura, var(--app-visible-height, 100dvh))',
+        }}
+        className="w-full max-w-full sm:max-w-2xl lg:max-w-3xl h-[var(--teclado-altura,var(--app-visible-height,100dvh))] sm:h-auto max-h-[var(--teclado-altura,var(--app-visible-height,100dvh))] sm:max-h-[92vh] rounded-none sm:rounded-lg p-0 gap-0 flex flex-col overflow-hidden"
+      >
         <DialogHeader className="px-4 py-3 sm:px-5 sm:pt-4 sm:pb-2 border-b border-slate-100 shrink-0">
           <DialogTitle className="text-base font-bold text-slate-900">
             {isEditing
@@ -445,7 +473,10 @@ export function OrcamentoItemModal({
           noValidate
           className="flex flex-col flex-1 min-h-0 overflow-hidden"
         >
-          <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+          <div
+            ref={scrollBodyRef}
+            className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs overscroll-contain"
+          >
             {/* Aviso informativo de digitação livre */}
             <div className="p-2.5 bg-blue-50/70 border border-blue-200 rounded-lg text-blue-900 text-[11px] leading-relaxed">
               💡 <strong>Item livre:</strong> você pode digitar livremente a{' '}
@@ -456,7 +487,10 @@ export function OrcamentoItemModal({
 
             {/* Autocomplete opcional apenas ao adicionar novo item */}
             {!isEditing && (
-              <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <div
+                ref={searchContainerRef}
+                className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-lg scroll-mt-2"
+              >
                 <div className="flex items-center justify-between">
                   <label className="font-semibold text-slate-700 block">
                     Buscar no Catálogo (Opcional - preenchimento rápido)
@@ -478,6 +512,7 @@ export function OrcamentoItemModal({
                     ref={inputSearchRef}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
+                    onFocus={handleSearchFocus}
                     placeholder="Digite para filtrar produtos/serviços cadastrados..."
                     className="pl-8 pr-8 h-9 text-xs bg-white"
                     autoComplete="off"
@@ -486,7 +521,7 @@ export function OrcamentoItemModal({
                     <button
                       type="button"
                       onClick={() => setQuery('')}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -533,8 +568,16 @@ export function OrcamentoItemModal({
                 )}
 
                 {/* Lista flutuante de resultados com indicador de falta de estoque e DESCRIÇÃO COMPLETA */}
+                {/* Max-height dinâmico calculado pelo viewport visual para renderizar acima do teclado no iOS */}
                 {results.length > 0 && (
-                  <div className="max-h-64 sm:max-h-80 overflow-y-auto divide-y divide-slate-100 bg-white border border-slate-200 rounded-md shadow-sm">
+                  <div
+                    style={{
+                      maxHeight: isKeyboardOpen
+                        ? `${Math.max(160, Math.min(260, visibleHeight - 220))}px`
+                        : undefined,
+                    }}
+                    className="max-h-56 sm:max-h-80 overflow-y-auto divide-y divide-slate-100 bg-white border border-slate-200 rounded-md shadow-sm overscroll-contain"
+                  >
                     {results
                       .filter((r) => activeTab === 'all' || r.kind === activeTab)
                       .map((item) => {
@@ -548,7 +591,7 @@ export function OrcamentoItemModal({
                             key={`${item.kind}-${item.id}`}
                             type="button"
                             onClick={() => handleSelectSearchResult(item)}
-                            className="w-full flex items-start justify-between gap-3 p-3 text-left hover:bg-indigo-50/70 transition-colors"
+                            className="w-full flex items-start justify-between gap-3 p-3 text-left hover:bg-indigo-50/70 transition-colors min-h-[48px] touch-manipulation active:bg-indigo-100"
                           >
                             <div className="flex items-start gap-2.5 min-w-0 flex-1">
                               {item.kind === 'product' ? (

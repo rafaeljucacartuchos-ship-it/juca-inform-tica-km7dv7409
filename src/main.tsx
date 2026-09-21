@@ -13,9 +13,25 @@ function Root() {
     const updateVisibleHeight = () => {
       const vv = window.visualViewport
       if (vv) {
-        document.documentElement.style.setProperty('--app-visible-height', `${vv.height}px`)
+        const height = Math.round(vv.height)
+        const offsetTop = Math.round(vv.offsetTop || 0)
+        // Altura visível real da tela considerando teclado aberto
+        document.documentElement.style.setProperty('--app-visible-height', `${height}px`)
+        document.documentElement.style.setProperty('--teclado-altura', `${height}px`)
+        document.documentElement.style.setProperty('--visual-viewport-height', `${height}px`)
+        document.documentElement.style.setProperty('--visual-viewport-offset-top', `${offsetTop}px`)
+        // Detecta se teclado está aberto no mobile (diferença expressiva entre window.innerHeight e vv.height)
+        const isKeyboardOpen = window.innerHeight - height > 120
+        document.documentElement.setAttribute(
+          'data-keyboard-open',
+          isKeyboardOpen ? 'true' : 'false',
+        )
       } else {
         document.documentElement.style.setProperty('--app-visible-height', '100dvh')
+        document.documentElement.style.setProperty('--teclado-altura', '100dvh')
+        document.documentElement.style.setProperty('--visual-viewport-height', '100dvh')
+        document.documentElement.style.setProperty('--visual-viewport-offset-top', '0px')
+        document.documentElement.setAttribute('data-keyboard-open', 'false')
       }
     }
 
@@ -27,6 +43,7 @@ function Root() {
       vv.addEventListener('scroll', updateVisibleHeight)
     }
     window.addEventListener('resize', updateVisibleHeight)
+    window.addEventListener('orientationchange', updateVisibleHeight)
 
     return () => {
       if (vv) {
@@ -34,6 +51,7 @@ function Root() {
         vv.removeEventListener('scroll', updateVisibleHeight)
       }
       window.removeEventListener('resize', updateVisibleHeight)
+      window.removeEventListener('orientationchange', updateVisibleHeight)
     }
   }, [])
 
