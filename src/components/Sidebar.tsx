@@ -216,7 +216,7 @@ export function Sidebar({ onNavClick }: SidebarProps) {
     )
 
   return (
-    <aside className="flex h-full w-64 flex-col bg-slate-900 text-slate-100 shadow-xl border-r border-slate-800 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+    <aside className="flex h-full w-full lg:w-64 flex-col bg-slate-900 text-slate-100 shadow-xl border-r border-slate-800 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       <div className="flex h-16 items-center gap-3 px-3.5 border-b border-slate-800/80 bg-slate-950/50">
         <div className="h-10 w-20 shrink-0 overflow-hidden rounded-md bg-slate-950 p-1 flex items-center justify-center border border-slate-800">
           <img

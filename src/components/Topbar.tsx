@@ -45,12 +45,12 @@ export function Topbar() {
                 variant="ghost"
                 size="icon"
                 aria-label="Abrir menu de navegação"
-                className="md:hidden text-slate-600 hover:bg-slate-100 min-h-[44px] min-w-[44px] h-11 w-11 touch-manipulation active:scale-95"
+                className="lg:hidden text-slate-600 hover:bg-slate-100 min-h-[44px] min-w-[44px] h-11 w-11 touch-manipulation active:scale-95"
               >
                 <Menu className="h-6 w-6" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-64 border-r-0 bg-slate-900">
+            <SheetContent side="left" className="p-0 w-72 max-w-[85vw] border-r-0 bg-slate-900">
               <Sidebar onNavClick={() => setMobileOpen(false)} />
             </SheetContent>
           </Sheet>
@@ -71,7 +71,7 @@ export function Topbar() {
 
           <form
             onSubmit={handleSearch}
-            className="relative hidden md:flex items-center w-72 lg:w-96"
+            className="relative hidden lg:flex items-center w-72 lg:w-80 xl:w-96"
           >
             <Search className="absolute left-3 h-4 w-4 text-slate-400" />
             <Input

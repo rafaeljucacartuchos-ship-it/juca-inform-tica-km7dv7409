@@ -18,6 +18,7 @@ import {
   Trash2,
   Share2,
   ArrowUpDown,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,6 +32,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { ServiceOrder, OrderStatus, Customer, User } from '@/types'
 import {
   getServiceOrders,
@@ -149,6 +158,7 @@ export default function OrdensDeServico() {
   const [technicianFilter, setTechnicianFilter] = useState<string>(
     searchParams.get('technician') || searchParams.get('tecnico') || 'all',
   )
+  const [filterModalOpen, setFilterModalOpen] = useState(false)
   const [customers, setCustomers] = useState<Customer[]>([])
   const [technicians, setTechnicians] = useState<User[]>([])
   const { user } = useAuth()
@@ -492,18 +502,28 @@ export default function OrdensDeServico() {
     setSearchParams({}, { replace: true })
   }
 
-  const hasActiveFilters =
-    dateStart ||
-    dateEnd ||
+  const hasAdvancedFilters =
+    Boolean(dateStart) ||
+    Boolean(dateEnd) ||
     statusFilter !== 'all' ||
     customerFilter !== 'all' ||
     (technicianFilter !== 'all' && user?.role !== 'technician') ||
-    sortBy !== 'attendance_desc' ||
-    Boolean(filterText.trim())
+    sortBy !== 'attendance_desc'
+
+  const activeAdvancedFilterCount = [
+    Boolean(dateStart),
+    Boolean(dateEnd),
+    statusFilter !== 'all',
+    customerFilter !== 'all',
+    technicianFilter !== 'all' && user?.role !== 'technician',
+    sortBy !== 'attendance_desc',
+  ].filter(Boolean).length
+
+  const hasActiveFilters = hasAdvancedFilters || Boolean(filterText.trim())
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
             Ordens de Serviço
@@ -519,24 +539,24 @@ export default function OrdensDeServico() {
               variant={viewMode === 'kanban' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('kanban')}
-              className="flex-1 sm:flex-initial min-h-[38px] sm:min-h-0 h-9 sm:h-7 px-3 text-xs touch-manipulation font-semibold"
+              className="flex-1 sm:flex-initial min-h-[44px] sm:min-h-0 h-11 sm:h-8 px-3 text-xs touch-manipulation font-semibold"
             >
-              <LayoutGrid className="h-3.5 w-3.5 mr-1" /> Kanban
+              <LayoutGrid className="h-4 w-4 sm:h-3.5 sm:w-3.5 mr-1" /> Kanban
             </Button>
             <Button
               variant={viewMode === 'list' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('list')}
-              className="flex-1 sm:flex-initial min-h-[38px] sm:min-h-0 h-9 sm:h-7 px-3 text-xs touch-manipulation font-semibold"
+              className="flex-1 sm:flex-initial min-h-[44px] sm:min-h-0 h-11 sm:h-8 px-3 text-xs touch-manipulation font-semibold"
             >
-              <List className="h-3.5 w-3.5 mr-1" /> Lista
+              <List className="h-4 w-4 sm:h-3.5 sm:w-3.5 mr-1" /> Lista
             </Button>
           </div>
 
           {user?.role !== 'technician' && (
             <Button
               onClick={() => setNewModalOpen(true)}
-              className="w-full sm:w-auto min-h-[44px] h-11 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 text-xs sm:text-sm touch-manipulation active:scale-[0.98]"
+              className="w-full sm:w-auto min-h-[44px] h-11 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 text-xs sm:text-sm touch-manipulation active:scale-[0.98] font-semibold"
             >
               <Plus className="h-4 w-4" />
               <span>Nova Ordem</span>
@@ -546,7 +566,7 @@ export default function OrdensDeServico() {
       </div>
 
       {/* Abas Rápidas por Período de Criação da O.S (Hoje, Esta Semana, Este Mês, Todas) */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-indigo-600 shrink-0" />
           <span className="text-xs font-bold text-slate-800">Filtrar por Período:</span>
@@ -557,37 +577,169 @@ export default function OrdensDeServico() {
           onValueChange={(v) => setPeriodTab(v as 'all' | 'today' | 'week' | 'month')}
           className="w-full sm:w-auto"
         >
-          <TabsList className="grid grid-cols-4 w-full sm:w-auto h-9 bg-slate-100 p-1">
-            <TabsTrigger value="today" className="text-xs font-bold px-3">
+          <TabsList className="grid grid-cols-4 w-full sm:w-auto min-h-[40px] sm:min-h-0 h-10 sm:h-9 bg-slate-100 p-1">
+            <TabsTrigger
+              value="today"
+              className="text-xs font-bold px-2 sm:px-3 min-h-[34px] sm:min-h-0"
+            >
               Hoje
             </TabsTrigger>
-            <TabsTrigger value="week" className="text-xs font-bold px-3">
+            <TabsTrigger
+              value="week"
+              className="text-xs font-bold px-2 sm:px-3 min-h-[34px] sm:min-h-0"
+            >
               Esta Semana
             </TabsTrigger>
-            <TabsTrigger value="month" className="text-xs font-bold px-3">
+            <TabsTrigger
+              value="month"
+              className="text-xs font-bold px-2 sm:px-3 min-h-[34px] sm:min-h-0"
+            >
               Este Mês
             </TabsTrigger>
-            <TabsTrigger value="all" className="text-xs font-bold px-3">
+            <TabsTrigger
+              value="all"
+              className="text-xs font-bold px-2 sm:px-3 min-h-[34px] sm:min-h-0"
+            >
               Todas
             </TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
 
-      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+      {/* Busca Principal + Botão de Filtro Mobile */}
+      <div className="flex items-center gap-2 bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 shadow-xs">
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
             placeholder="Buscar por número, título ou cliente..."
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
-            className="pl-9 h-9 text-xs bg-slate-50 border-slate-200"
+            className="pl-9 h-11 sm:h-9 text-xs bg-slate-50 border-slate-200 w-full"
           />
+          {filterText && (
+            <button
+              type="button"
+              onClick={() => setFilterText('')}
+              aria-label="Limpar texto de busca"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
+
+        {/* Botão Filtrar no Mobile (abaixo de 1024px) abre o modal com todos os filtros */}
+        <div className="lg:hidden shrink-0">
+          <Button
+            type="button"
+            variant={hasAdvancedFilters ? 'default' : 'outline'}
+            onClick={() => setFilterModalOpen(true)}
+            className={`min-h-[44px] min-w-[44px] h-11 px-3.5 text-xs font-semibold gap-1.5 touch-manipulation ${
+              hasAdvancedFilters
+                ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                : 'border-slate-200 text-slate-700'
+            }`}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            <span>Filtrar</span>
+            {activeAdvancedFilterCount > 0 && (
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-indigo-700 text-[11px] font-bold">
+                {activeAdvancedFilterCount}
+              </span>
+            )}
+          </Button>
+        </div>
+
+        {hasActiveFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearFilters}
+            className="hidden sm:inline-flex h-9 text-xs text-slate-500 gap-1 shrink-0"
+          >
+            <X className="h-3.5 w-3.5" /> Limpar
+          </Button>
+        )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
-        <Filter className="h-4 w-4 text-slate-400" />
+      {/* Resumo de filtros ativos no mobile quando aplicados */}
+      {hasAdvancedFilters && (
+        <div className="lg:hidden flex flex-wrap items-center gap-1.5 px-1">
+          <span className="text-[11px] font-semibold text-slate-500">Filtros ativos:</span>
+          {statusFilter !== 'all' && (
+            <Badge variant="secondary" className="text-[10px] gap-1 py-1">
+              Status: {statusFilter}
+              <button
+                type="button"
+                onClick={() => setStatusFilter('all')}
+                aria-label="Remover filtro de status"
+                className="hover:text-red-500"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {(dateStart || dateEnd) && (
+            <Badge variant="secondary" className="text-[10px] gap-1 py-1">
+              Data: {dateStart || '...'} a {dateEnd || '...'}
+              <button
+                type="button"
+                onClick={() => {
+                  setDateStart('')
+                  setDateEnd('')
+                }}
+                aria-label="Remover filtro de data"
+                className="hover:text-red-500"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {customerFilter !== 'all' && (
+            <Badge variant="secondary" className="text-[10px] gap-1 py-1">
+              Cliente selecionado
+              <button
+                type="button"
+                onClick={() => setCustomerFilter('all')}
+                aria-label="Remover filtro de cliente"
+                className="hover:text-red-500"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {technicianFilter !== 'all' && (
+            <Badge variant="secondary" className="text-[10px] gap-1 py-1">
+              Técnico selecionado
+              <button
+                type="button"
+                onClick={() => {
+                  setTechnicianFilter('all')
+                  const newParams = new URLSearchParams(searchParams)
+                  newParams.delete('technician')
+                  setSearchParams(newParams, { replace: true })
+                }}
+                aria-label="Remover filtro de técnico"
+                className="hover:text-red-500"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearFilters}
+            className="h-6 text-[11px] text-slate-500 hover:text-red-600 px-1.5"
+          >
+            Limpar todos
+          </Button>
+        </div>
+      )}
+
+      {/* BARRA DE FILTROS AVANÇADOS DESKTOP (visível apenas acima de 1024px) */}
+      <div className="hidden lg:flex flex-wrap items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+        <Filter className="h-4 w-4 text-slate-400 shrink-0" />
         <div className="flex items-center gap-2">
           <label className="text-[11px] font-semibold text-slate-600 whitespace-nowrap flex items-center gap-1">
             <ArrowUpDown className="h-3 w-3 text-indigo-600" />
@@ -615,6 +767,7 @@ export default function OrdensDeServico() {
             </SelectContent>
           </Select>
         </div>
+
         <div className="flex items-center gap-2">
           <label className="text-[11px] font-semibold text-slate-600 whitespace-nowrap">
             Período:
@@ -633,12 +786,13 @@ export default function OrdensDeServico() {
             className="h-8 px-2 text-xs border border-slate-200 rounded-md bg-slate-50 font-mono"
           />
         </div>
+
         <div className="flex items-center gap-2">
           <label className="text-[11px] font-semibold text-slate-600 whitespace-nowrap">
             Status:
           </label>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-8 text-xs w-36">
+            <SelectTrigger className="h-8 text-xs w-44">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -646,7 +800,7 @@ export default function OrdensDeServico() {
                 Todos
               </SelectItem>
               <SelectItem value="open" className="text-xs">
-                Aberto
+                Aberta
               </SelectItem>
               <SelectItem value="aguardando_orcamento" className="text-xs">
                 Aguardando Orçamento
@@ -664,20 +818,21 @@ export default function OrdensDeServico() {
                 Aguardando Peças
               </SelectItem>
               <SelectItem value="completed" className="text-xs">
-                Concluído
+                Concluída
               </SelectItem>
               <SelectItem value="closed" className="text-xs">
-                Fechado
+                Fechada
               </SelectItem>
               <SelectItem value="orcamento_rejeitado" className="text-xs">
                 Orçamento Rejeitado
               </SelectItem>
               <SelectItem value="cancelled" className="text-xs">
-                Cancelado
+                Cancelada
               </SelectItem>
             </SelectContent>
           </Select>
         </div>
+
         <div className="flex items-center gap-2">
           <label className="text-[11px] font-semibold text-slate-600 whitespace-nowrap">
             Cliente:
@@ -701,6 +856,7 @@ export default function OrdensDeServico() {
             </SelectContent>
           </Select>
         </div>
+
         {user?.role !== 'technician' && (
           <div className="flex items-center gap-2">
             <label className="text-[11px] font-semibold text-slate-600 whitespace-nowrap">
@@ -737,6 +893,7 @@ export default function OrdensDeServico() {
             </Select>
           </div>
         )}
+
         {hasActiveFilters && (
           <Button
             variant="ghost"
@@ -749,139 +906,485 @@ export default function OrdensDeServico() {
         )}
       </div>
 
-      {viewMode === 'kanban' ? (
-        <div className="flex gap-4 overflow-x-auto pb-6 pt-1 w-full snap-x snap-mandatory scroll-smooth">
-          {columns.map((col) => {
-            const colOrders = filteredOrders.filter((o) => o.status === col.status)
-            return (
-              <div
-                key={col.status}
-                className="flex flex-col w-[280px] min-w-[280px] max-w-[280px] shrink-0 snap-start rounded-xl bg-slate-100/80 p-3 border border-slate-200 shadow-2xs"
+      {/* MODAL DE FILTROS AVANÇADOS PARA CELULAR E TABLET (< 1024px) */}
+      <Dialog open={filterModalOpen} onOpenChange={setFilterModalOpen}>
+        <DialogContent className="w-full max-w-full sm:max-w-lg max-h-[90dvh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-4 sm:p-5 border-b border-slate-200">
+            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <SlidersHorizontal className="h-4 w-4 text-indigo-600" />
+              Filtrar Ordens de Serviço
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Ajuste filtros avançados por status, técnico, cliente, período e ordenação.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+            {/* Ordenação */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <ArrowUpDown className="h-3.5 w-3.5 text-indigo-600" />
+                Ordenar por:
+              </label>
+              <Select
+                value={sortBy}
+                onValueChange={(val: 'attendance_desc' | 'created_desc' | 'status_priority') =>
+                  setSortBy(val)
+                }
               >
-                <div className={`flex items-center justify-between mb-3 border-t-2 ${col.bg} pt-2`}>
-                  <h3
-                    className="text-xs font-bold text-slate-800 uppercase tracking-wider truncate mr-2"
-                    title={col.label}
-                  >
-                    {col.label}
-                  </h3>
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[11px] font-bold text-slate-700">
-                    {colOrders.length}
-                  </span>
+                <SelectTrigger className="min-h-[44px] h-11 text-xs w-full bg-slate-50 border-slate-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="attendance_desc" className="text-xs font-medium">
+                    Data/Hora Atendimento Mais Recente
+                  </SelectItem>
+                  <SelectItem value="created_desc" className="text-xs">
+                    Data de Criação (Mais recente)
+                  </SelectItem>
+                  <SelectItem value="status_priority" className="text-xs">
+                    Status + Atendimento
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Status */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">Status da O.S.:</label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="min-h-[44px] h-11 text-xs w-full bg-slate-50 border-slate-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="text-xs">
+                    Todos os Status
+                  </SelectItem>
+                  <SelectItem value="open" className="text-xs">
+                    Aberta
+                  </SelectItem>
+                  <SelectItem value="aguardando_orcamento" className="text-xs">
+                    Aguardando Orçamento
+                  </SelectItem>
+                  <SelectItem value="orcamento_enviado" className="text-xs">
+                    Orçamento Enviado
+                  </SelectItem>
+                  <SelectItem value="in_progress" className="text-xs">
+                    Em Andamento
+                  </SelectItem>
+                  <SelectItem value="paused" className="text-xs">
+                    Pausada
+                  </SelectItem>
+                  <SelectItem value="waiting_parts" className="text-xs">
+                    Aguardando Peças
+                  </SelectItem>
+                  <SelectItem value="completed" className="text-xs">
+                    Concluída
+                  </SelectItem>
+                  <SelectItem value="closed" className="text-xs">
+                    Fechada
+                  </SelectItem>
+                  <SelectItem value="orcamento_rejeitado" className="text-xs">
+                    Orçamento Rejeitado
+                  </SelectItem>
+                  <SelectItem value="cancelled" className="text-xs">
+                    Cancelada
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Período de datas */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">Período de Criação:</label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-[11px] text-slate-500 block mb-1">Data Início:</span>
+                  <input
+                    type="date"
+                    value={dateStart}
+                    onChange={(e) => setDateStart(e.target.value)}
+                    className="min-h-[44px] h-11 w-full px-2.5 text-xs border border-slate-200 rounded-lg bg-slate-50 font-mono"
+                  />
                 </div>
-
-                <div className="space-y-3 flex-1 overflow-y-auto max-h-[calc(100vh-340px)] pr-1">
-                  {colOrders.length === 0 ? (
-                    <div className="py-8 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-lg bg-white/40">
-                      Nenhuma OS
-                    </div>
-                  ) : (
-                    colOrders.map((o) => (
-                      <Card
-                        key={o.id}
-                        className="border-slate-200 shadow-2xs hover:shadow-md transition-shadow bg-white"
-                      >
-                        <CardContent className="p-3 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Link
-                              to={`/ordens/${o.id}`}
-                              className="font-mono text-xs font-bold text-indigo-600 hover:underline"
-                            >
-                              {o.number}
-                            </Link>
-                            <Badge variant="outline" className="text-[9px] uppercase">
-                              {o.priority}
-                            </Badge>
-                          </div>
-
-                          <h4 className="text-xs font-bold text-slate-900 line-clamp-2">
-                            {o.title}
-                          </h4>
-                          <p className="text-[11px] text-slate-500 truncate">
-                            {o.expand?.customer?.name || 'Cliente não identificado'}
-                          </p>
-                          <p className="text-[11px] text-indigo-700 font-medium truncate flex items-center gap-1 bg-indigo-50/60 px-1.5 py-0.5 rounded border border-indigo-100/60">
-                            <Wrench className="h-3 w-3 text-indigo-600 shrink-0" />
-                            <span className="truncate">
-                              {o.expand?.technician?.name || 'Sem técnico'}
-                            </span>
-                          </p>
-
-                          {/* Data e horário de atendimento (critério prioritário de ordenação) */}
-                          <div className="flex items-center justify-between text-[11px] pt-1 text-slate-600">
-                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700">
-                              <Calendar className="h-3 w-3 text-indigo-500 shrink-0" />
-                              {o.attendance_date ? (
-                                <span className="font-semibold text-slate-800">
-                                  {formatAttendanceDateDisplay(o.attendance_date)}
-                                  {o.attendance_time && (
-                                    <span className="text-indigo-600 font-mono font-bold ml-1">
-                                      às {o.attendance_time}
-                                    </span>
-                                  )}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400 italic text-[10px]">
-                                  Sem agendamento
-                                </span>
-                              )}
-                            </span>
-                          </div>
-
-                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] gap-2">
-                            <span className="font-mono font-semibold text-slate-900 shrink-0">
-                              R$ {(o.total || 0).toFixed(2)}
-                            </span>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <Select
-                                value={o.status}
-                                onValueChange={(val: OrderStatus) => handleMoveStatus(o.id, val)}
-                              >
-                                <SelectTrigger className="h-6 text-[10px] w-22 px-1">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="open" className="text-[10px]">
-                                    Aberto
-                                  </SelectItem>
-                                  <SelectItem value="in_progress" className="text-[10px]">
-                                    Em Andam.
-                                  </SelectItem>
-                                  <SelectItem value="paused" className="text-[10px]">
-                                    Pausada
-                                  </SelectItem>
-                                  <SelectItem value="waiting_parts" className="text-[10px]">
-                                    Peças
-                                  </SelectItem>
-                                  <SelectItem value="completed" className="text-[10px]">
-                                    Concluído
-                                  </SelectItem>
-                                  <SelectItem value="closed" className="text-[10px]">
-                                    Fechado
-                                  </SelectItem>
-                                  <SelectItem value="cancelled" className="text-[10px]">
-                                    Cancelado
-                                  </SelectItem>
-                                </SelectContent>
-                              </Select>
-
-                              {/* Menu em cascata no card do Kanban */}
-                              <RecordActionsMenu
-                                label={`Ações: ${o.number}`}
-                                items={buildOrderActions(o)}
-                                title={`Mais ações da O.S. ${o.number}`}
-                              />
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))
-                  )}
+                <div>
+                  <span className="text-[11px] text-slate-500 block mb-1">Data Fim:</span>
+                  <input
+                    type="date"
+                    value={dateEnd}
+                    onChange={(e) => setDateEnd(e.target.value)}
+                    className="min-h-[44px] h-11 w-full px-2.5 text-xs border border-slate-200 rounded-lg bg-slate-50 font-mono"
+                  />
                 </div>
               </div>
-            )
-          })}
-        </div>
+            </div>
+
+            {/* Cliente */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">Cliente:</label>
+              <Select value={customerFilter} onValueChange={setCustomerFilter}>
+                <SelectTrigger className="min-h-[44px] h-11 text-xs w-full bg-slate-50 border-slate-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="text-xs">
+                    Todos os Clientes
+                  </SelectItem>
+                  {customers.map((c) => {
+                    const displayName = c.razao_social || c.nome_fantasia || c.name || 'Cliente'
+                    return (
+                      <SelectItem key={c.id} value={c.id} className="text-xs">
+                        {displayName}
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Técnico */}
+            {user?.role !== 'technician' && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">Técnico:</label>
+                <Select
+                  value={technicianFilter}
+                  onValueChange={(val) => {
+                    setTechnicianFilter(val)
+                    if (val === 'all') {
+                      const newParams = new URLSearchParams(searchParams)
+                      newParams.delete('technician')
+                      setSearchParams(newParams, { replace: true })
+                    } else {
+                      const newParams = new URLSearchParams(searchParams)
+                      newParams.set('technician', val)
+                      setSearchParams(newParams, { replace: true })
+                    }
+                  }}
+                >
+                  <SelectTrigger className="min-h-[44px] h-11 text-xs w-full bg-slate-50 border-slate-200">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all" className="text-xs">
+                      Todos os Técnicos
+                    </SelectItem>
+                    {technicians.map((t) => (
+                      <SelectItem key={t.id} value={t.id} className="text-xs">
+                        {t.name || t.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="p-3.5 sm:p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={clearFilters}
+              className="min-h-[44px] h-11 text-xs font-medium"
+            >
+              Limpar Filtros
+            </Button>
+            <Button
+              type="button"
+              onClick={() => setFilterModalOpen(false)}
+              className="min-h-[44px] h-11 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-5"
+            >
+              Aplicar e Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {viewMode === 'kanban' ? (
+        <>
+          {/* VISUALIZAÇÃO KANBAN 1 (CELULAR E TABLET < 1024px): LISTA VERTICAL DE CARTÕES EMPILHADOS 100% LARGURA */}
+          <div className="block lg:hidden space-y-3 w-full">
+            {filteredOrders.length === 0 ? (
+              <div className="p-8 text-center text-sm text-slate-500 font-medium bg-white rounded-xl border border-slate-200">
+                Nenhuma ordem de serviço encontrada com os filtros atuais.
+              </div>
+            ) : (
+              filteredOrders.map((o) => (
+                <Card
+                  key={o.id}
+                  className="w-full border-slate-200 shadow-xs hover:shadow-md transition-shadow bg-white overflow-hidden"
+                >
+                  <CardContent className="p-3.5 sm:p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Link
+                            to={`/ordens/${o.id}`}
+                            className="font-mono text-sm font-bold text-indigo-600 hover:underline"
+                          >
+                            #{o.number}
+                          </Link>
+                          <StatusBadge status={o.status} />
+                          <Badge variant="outline" className="text-[10px] uppercase font-mono">
+                            {o.priority}
+                          </Badge>
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-900 leading-snug">{o.title}</h4>
+                        <p className="text-xs text-slate-600 truncate">
+                          {o.expand?.customer?.name || 'Cliente não identificado'}
+                        </p>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span className="font-mono font-bold text-base text-slate-900 block">
+                          R$ {(o.total || 0).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-100">
+                      <div className="flex items-center gap-1.5 text-slate-600 truncate">
+                        <Wrench className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                        <span className="font-medium text-slate-800 truncate">
+                          {o.expand?.technician?.name || 'Sem técnico atribuído'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-slate-600 truncate">
+                        <Calendar className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                        {o.attendance_date ? (
+                          <span className="font-medium text-slate-800 truncate">
+                            {formatAttendanceDateDisplay(o.attendance_date)}
+                            {o.attendance_time && (
+                              <span className="text-indigo-600 font-mono font-bold ml-1">
+                                às {o.attendance_time}
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 italic">Sem agendamento</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Mudar Status + Ações Mobile (min 44px) */}
+                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+                      <div className="flex-1 min-w-[140px]">
+                        <Select
+                          value={o.status}
+                          onValueChange={(val: OrderStatus) => handleMoveStatus(o.id, val)}
+                        >
+                          <SelectTrigger className="min-h-[44px] h-11 text-xs w-full bg-slate-50 border-slate-200">
+                            <span className="text-slate-500 mr-1">Status:</span>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="open" className="text-xs font-medium">
+                              Aberta
+                            </SelectItem>
+                            <SelectItem
+                              value="aguardando_orcamento"
+                              className="text-xs font-medium"
+                            >
+                              Aguardando Orçamento
+                            </SelectItem>
+                            <SelectItem value="orcamento_enviado" className="text-xs font-medium">
+                              Orçamento Enviado
+                            </SelectItem>
+                            <SelectItem value="in_progress" className="text-xs font-medium">
+                              Em Andamento
+                            </SelectItem>
+                            <SelectItem value="paused" className="text-xs font-medium">
+                              Pausada
+                            </SelectItem>
+                            <SelectItem value="waiting_parts" className="text-xs font-medium">
+                              Aguardando Peças
+                            </SelectItem>
+                            <SelectItem value="completed" className="text-xs font-medium">
+                              Concluída
+                            </SelectItem>
+                            <SelectItem value="closed" className="text-xs font-medium">
+                              Fechada
+                            </SelectItem>
+                            <SelectItem value="orcamento_rejeitado" className="text-xs font-medium">
+                              Orçamento Rejeitado
+                            </SelectItem>
+                            <SelectItem value="cancelled" className="text-xs font-medium">
+                              Cancelada
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="default"
+                        onClick={() => navigate(`/ordens/${o.id}`)}
+                        className="min-h-[44px] h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-4 rounded-lg touch-manipulation active:scale-[0.98]"
+                      >
+                        Abrir
+                      </Button>
+
+                      <div className="min-h-[44px] min-w-[44px] flex items-center justify-center">
+                        <RecordActionsMenu
+                          label={`Ações: ${o.number}`}
+                          items={buildOrderActions(o)}
+                          title={`Mais ações da O.S. ${o.number}`}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+
+          {/* VISUALIZAÇÃO KANBAN 2 (DESKTOP/NOTEBOOK >= 1024px): COLUNAS LADO A LADO COM LARGURA FLEXÍVEL */}
+          <div className="hidden lg:flex gap-3 overflow-x-auto pb-6 pt-1 w-full scroll-smooth">
+            {columns.map((col) => {
+              const colOrders = filteredOrders.filter((o) => o.status === col.status)
+              return (
+                <div
+                  key={col.status}
+                  className="flex flex-col flex-1 min-w-[240px] rounded-xl bg-slate-100/80 p-3 border border-slate-200 shadow-2xs"
+                >
+                  <div
+                    className={`flex items-center justify-between mb-3 border-t-2 ${col.bg} pt-2 gap-1.5`}
+                  >
+                    <h3
+                      className="text-xs font-bold text-slate-800 uppercase tracking-wider leading-tight whitespace-normal break-words"
+                      title={col.label}
+                    >
+                      {col.label}
+                    </h3>
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[11px] font-bold text-slate-700">
+                      {colOrders.length}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 flex-1 overflow-y-auto max-h-[calc(100vh-340px)] pr-1">
+                    {colOrders.length === 0 ? (
+                      <div className="py-8 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-lg bg-white/40">
+                        Nenhuma OS
+                      </div>
+                    ) : (
+                      colOrders.map((o) => (
+                        <Card
+                          key={o.id}
+                          className="border-slate-200 shadow-2xs hover:shadow-md transition-shadow bg-white"
+                        >
+                          <CardContent className="p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Link
+                                to={`/ordens/${o.id}`}
+                                className="font-mono text-xs font-bold text-indigo-600 hover:underline"
+                              >
+                                {o.number}
+                              </Link>
+                              <Badge variant="outline" className="text-[9px] uppercase">
+                                {o.priority}
+                              </Badge>
+                            </div>
+
+                            <h4 className="text-xs font-bold text-slate-900 line-clamp-2">
+                              {o.title}
+                            </h4>
+                            <p className="text-[11px] text-slate-500 truncate">
+                              {o.expand?.customer?.name || 'Cliente não identificado'}
+                            </p>
+                            <p className="text-[11px] text-indigo-700 font-medium truncate flex items-center gap-1 bg-indigo-50/60 px-1.5 py-0.5 rounded border border-indigo-100/60">
+                              <Wrench className="h-3 w-3 text-indigo-600 shrink-0" />
+                              <span className="truncate">
+                                {o.expand?.technician?.name || 'Sem técnico'}
+                              </span>
+                            </p>
+
+                            {/* Data e horário de atendimento (critério prioritário de ordenação) */}
+                            <div className="flex items-center justify-between text-[11px] pt-1 text-slate-600">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700">
+                                <Calendar className="h-3 w-3 text-indigo-500 shrink-0" />
+                                {o.attendance_date ? (
+                                  <span className="font-semibold text-slate-800">
+                                    {formatAttendanceDateDisplay(o.attendance_date)}
+                                    {o.attendance_time && (
+                                      <span className="text-indigo-600 font-mono font-bold ml-1">
+                                        às {o.attendance_time}
+                                      </span>
+                                    )}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400 italic text-[10px]">
+                                    Sem agendamento
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] gap-2">
+                              <span className="font-mono font-semibold text-slate-900 shrink-0">
+                                R$ {(o.total || 0).toFixed(2)}
+                              </span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <Select
+                                  value={o.status}
+                                  onValueChange={(val: OrderStatus) => handleMoveStatus(o.id, val)}
+                                >
+                                  <SelectTrigger className="h-6 text-[10px] w-24 px-1">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="open" className="text-[10px]">
+                                      Aberta
+                                    </SelectItem>
+                                    <SelectItem
+                                      value="aguardando_orcamento"
+                                      className="text-[10px]"
+                                    >
+                                      Aguard. Orç.
+                                    </SelectItem>
+                                    <SelectItem value="orcamento_enviado" className="text-[10px]">
+                                      Orç. Enviado
+                                    </SelectItem>
+                                    <SelectItem value="in_progress" className="text-[10px]">
+                                      Em Andamento
+                                    </SelectItem>
+                                    <SelectItem value="paused" className="text-[10px]">
+                                      Pausada
+                                    </SelectItem>
+                                    <SelectItem value="waiting_parts" className="text-[10px]">
+                                      Aguard. Peças
+                                    </SelectItem>
+                                    <SelectItem value="completed" className="text-[10px]">
+                                      Concluída
+                                    </SelectItem>
+                                    <SelectItem value="closed" className="text-[10px]">
+                                      Fechada
+                                    </SelectItem>
+                                    <SelectItem value="orcamento_rejeitado" className="text-[10px]">
+                                      Orç. Rejeitado
+                                    </SelectItem>
+                                    <SelectItem value="cancelled" className="text-[10px]">
+                                      Cancelada
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+
+                                {/* Menu em cascata no card do Kanban */}
+                                <RecordActionsMenu
+                                  label={`Ações: ${o.number}`}
+                                  items={buildOrderActions(o)}
+                                  title={`Mais ações da O.S. ${o.number}`}
+                                />
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </>
       ) : (
         <Card className="border-slate-200 shadow-sm">
           <CardContent className="p-0">

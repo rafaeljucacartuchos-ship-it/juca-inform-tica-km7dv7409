@@ -81,7 +81,7 @@ export function WorkspaceTabsBar() {
   }
 
   return (
-    <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border-b border-slate-800 text-xs overflow-x-auto select-none no-scrollbar shadow-inner">
+    <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border-b border-slate-800 text-xs overflow-x-auto select-none no-scrollbar shadow-inner">
       <div className="flex items-center gap-1.5 flex-1 min-w-0">
         {visibleTabs.map((tab) => {
           const isActive = tab.id === activeTabId
