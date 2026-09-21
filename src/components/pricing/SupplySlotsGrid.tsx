@@ -179,34 +179,55 @@ export function SupplySlotsGrid({
           return (
             <div
               key={slot.slotNumber}
-              className={`rounded-xl border p-3 flex flex-col justify-between transition-all min-h-[175px] text-xs shadow-sm ${borderBgClass}`}
+              className={`rounded-xl border p-3 flex flex-col justify-between transition-all min-h-[195px] text-xs shadow-sm ${borderBgClass}`}
             >
               {/* Topo do Card */}
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <div className="flex items-center justify-between text-[10px]">
-                  <span className="font-bold uppercase tracking-wider text-slate-600">
+                  <span className="font-bold uppercase tracking-wider text-slate-700">
                     {getSlotHeaderLabel(slot.slotNumber)}
                   </span>
                   {statusIcon}
                 </div>
 
-                {/* Seletor rápido nativo no card do slot para troca direta */}
+                {/* Seletor de suprimento em destaque: rótulo visível, altura h-8, chevron e borda nítida */}
                 {!readOnly && onUpdateSlotSupply && visualStatus !== 'integrated' && (
-                  <div className="relative pt-0.5">
-                    <select
-                      value={slot.supplyId || ''}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        onUpdateSlotSupply(slot.slotNumber, val === '' ? null : val)
-                      }}
-                      title="Selecionar suprimento para este slot"
-                      className="w-full text-[11px] h-6 px-1.5 py-0 bg-white/90 hover:bg-white border border-slate-300 hover:border-indigo-400 rounded text-slate-800 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer truncate shadow-2xs"
+                  <div className="space-y-1">
+                    <label
+                      htmlFor={`slot-select-${slot.slotNumber}`}
+                      className="block text-[9px] font-black uppercase tracking-wider text-indigo-900/80"
                     >
-                      <option value="">— [ Vazio / Não Aplicável ] —</option>
+                      Insumo / Suprimento:
+                    </label>
+                    <div className="relative">
+                      <select
+                        id={`slot-select-${slot.slotNumber}`}
+                        value={slot.supplyId || ''}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          onUpdateSlotSupply(slot.slotNumber, val === '' ? null : val)
+                        }}
+                        title="Escolha o suprimento a ser usado na precificação deste slot"
+                        className="w-full appearance-none text-xs h-8 pl-2 pr-7 bg-white hover:bg-slate-50/80 border border-slate-400 hover:border-indigo-500 focus:border-indigo-600 rounded-md text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400/40 cursor-pointer truncate shadow-xs transition-colors"
+                      >
+                        <option value="">— Vazio / Não Aplicável —</option>
 
-                      {compatibleSupplies.length > 0 && (
-                        <optgroup label={`⭐ Compatíveis com ${printerModel || 'Impressora'}`}>
-                          {compatibleSupplies.map((sup) => {
+                        {compatibleSupplies.length > 0 && (
+                          <optgroup label={`⭐ Compatíveis com ${printerModel || 'Impressora'}`}>
+                            {compatibleSupplies.map((sup) => {
+                              const isPending = !sup.valor_compra || !sup.rendimento_paginas
+                              const marker = isPending ? ' ⚠️ (sem preço)' : ''
+                              return (
+                                <option key={sup.id} value={sup.id}>
+                                  {sup.modelo_suprimento} ({sup.tipo} • {sup.fabricante}){marker}
+                                </option>
+                              )
+                            })}
+                          </optgroup>
+                        )}
+
+                        <optgroup label="Demais Suprimentos Cadastrados">
+                          {otherSupplies.map((sup) => {
                             const isPending = !sup.valor_compra || !sup.rendimento_paginas
                             const marker = isPending ? ' ⚠️ (sem preço)' : ''
                             return (
@@ -216,20 +237,9 @@ export function SupplySlotsGrid({
                             )
                           })}
                         </optgroup>
-                      )}
-
-                      <optgroup label="Demais Suprimentos Cadastrados">
-                        {otherSupplies.map((sup) => {
-                          const isPending = !sup.valor_compra || !sup.rendimento_paginas
-                          const marker = isPending ? ' ⚠️ (sem preço)' : ''
-                          return (
-                            <option key={sup.id} value={sup.id}>
-                              {sup.modelo_suprimento} ({sup.tipo} • {sup.fabricante}){marker}
-                            </option>
-                          )
-                        })}
-                      </optgroup>
-                    </select>
+                      </select>
+                      <ChevronDown className="h-3.5 w-3.5 absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none" />
+                    </div>
                   </div>
                 )}
 
