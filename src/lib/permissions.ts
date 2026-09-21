@@ -1,6 +1,7 @@
 import type { UserRole } from '@/types'
 
 export type PermissionModule =
+  | 'dashboard'
   | 'clientes'
   | 'os_create'
   | 'agendamentos'
@@ -24,6 +25,7 @@ export type PermissionModule =
 export type UserPermissions = Record<PermissionModule, boolean>
 
 export const PERMISSION_LABELS: Record<PermissionModule, string> = {
+  dashboard: 'Dashboard (Painel Inicial)',
   clientes: 'Cadastro de Clientes',
   os_create: 'Cadastro de Ordens de Serviço (criar OS)',
   agendamentos: 'Atendimentos / Agendamentos',
@@ -46,6 +48,7 @@ export const PERMISSION_LABELS: Record<PermissionModule, string> = {
 }
 
 export const ALL_PERMISSION_MODULES: PermissionModule[] = [
+  'dashboard',
   'clientes',
   'os_create',
   'agendamentos',
@@ -71,6 +74,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
   switch (role) {
     case 'admin':
       return {
+        dashboard: true,
         clientes: true,
         os_create: true,
         agendamentos: true,
@@ -93,6 +97,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
       }
     case 'attendant':
       return {
+        dashboard: true,
         clientes: true,
         os_create: true,
         agendamentos: true,
@@ -115,6 +120,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
       }
     case 'technician':
       return {
+        dashboard: true,
         clientes: true,
         os_create: true,
         agendamentos: true,
@@ -137,6 +143,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
       }
     default:
       return {
+        dashboard: false,
         clientes: false,
         os_create: false,
         agendamentos: false,

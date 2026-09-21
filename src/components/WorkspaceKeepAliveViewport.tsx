@@ -27,7 +27,11 @@ function renderComponentForPath(path: string) {
   const [pathname] = path.split('?')
 
   if (pathname === '/' || pathname === '/dashboard') {
-    return <Dashboard />
+    return (
+      <PermissionRoute module="dashboard">
+        <Dashboard />
+      </PermissionRoute>
+    )
   }
   if (pathname === '/ordens') {
     return (

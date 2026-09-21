@@ -19,7 +19,10 @@ export function Topbar() {
   const [searchQuery, setSearchQuery] = useState('')
   const navigate = useNavigate()
   const location = useLocation()
-  const showBackButton = location.pathname !== '/' && location.pathname !== '/dashboard'
+  const showBackButton =
+    location.pathname !== '/' &&
+    location.pathname !== '/dashboard' &&
+    location.pathname !== '/sem-acesso'
   const { notifications, unreadCount, markAllAsRead, requestBrowserPermission, browserPermission } =
     useNotifications()
   const { hasPermission } = usePermissions()

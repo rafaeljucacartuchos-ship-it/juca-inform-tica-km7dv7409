@@ -70,8 +70,8 @@ export function WorkspaceTabsBar() {
   // Ativa listener do atalho ESC
   useWorkspaceEscShortcut()
 
-  // Se for mobile ou houver apenas 1 aba não fechável (dashboard), ainda podemos exibir ou ocultar no mobile
-  if (!isDesktopWorkspace) {
+  // Se for mobile ou se não houver abas, não exibe
+  if (!isDesktopWorkspace || tabs.length === 0) {
     return null
   }
 

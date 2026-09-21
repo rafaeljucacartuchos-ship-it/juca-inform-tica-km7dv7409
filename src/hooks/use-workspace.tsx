@@ -127,7 +127,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       /* ignore parse error */
     }
 
-    // Default: Dashboard sempre presente
+    // Se começou no dashboard ou raiz, inicia com a aba do Dashboard
     return [
       {
         id: '/dashboard',
@@ -135,7 +135,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         basePath: '/dashboard',
         moduleKey: 'dashboard',
         title: 'Dashboard',
-        closable: false,
+        closable: true,
         lastActiveAt: Date.now(),
       },
     ]
@@ -237,9 +237,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   // Sincroniza rota atual com as abas abertas no desktop
   useEffect(() => {
-    // Não criar abas para páginas públicas como /login, /share, /proposta
+    // Não criar abas para páginas públicas ou especiais como /login, /share, /proposta, /sem-acesso
     if (
       currentBase.startsWith('/login') ||
+      currentBase.startsWith('/sem-acesso') ||
       currentBase.startsWith('/share') ||
       currentBase.startsWith('/proposta') ||
       (currentBase.startsWith('/ordens/') && currentBase.endsWith('/imprimir')) ||
@@ -281,14 +282,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         return prev
       }
 
-      const isDashboard = currentBase === '/dashboard' || currentBase === '/'
       const newTab: WorkspaceTab = {
         id: tabId,
         path: currentPath,
         basePath: currentBase,
         moduleKey,
         title: defaultTitle,
-        closable: !isDashboard,
+        closable: true,
         lastActiveAt: now,
       }
 
@@ -355,14 +355,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           return prev
         }
 
-        const isDashboard = targetBase === '/dashboard' || targetBase === '/'
         const newTab: WorkspaceTab = {
           id: tabId,
           path: targetPath,
           basePath: targetBase,
           moduleKey,
           title: options?.title || defaultTitle,
-          closable: !isDashboard,
+          closable: true,
           lastActiveAt: now,
         }
 
@@ -399,7 +398,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         if (nextTab) {
           navigate(nextTab.path)
         } else {
-          navigate('/dashboard')
+          navigate('/')
         }
       }
     },

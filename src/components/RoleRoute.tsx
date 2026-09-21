@@ -19,7 +19,7 @@ export function RoleRoute({ allowedRoles }: RoleRouteProps) {
   }
 
   if (!user || !allowedRoles.includes(user.role)) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to="/sem-acesso" replace />
   }
 
   return <Outlet />

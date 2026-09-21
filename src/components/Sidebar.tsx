@@ -92,7 +92,12 @@ export function Sidebar({ onNavClick }: SidebarProps) {
   }, [isCadastroActive])
 
   const mainNavItems = [
-    { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, show: true },
+    {
+      label: 'Dashboard',
+      path: '/dashboard',
+      icon: LayoutDashboard,
+      show: hasPermission('dashboard'),
+    },
     { label: 'Ordens de Serviço', path: '/ordens', icon: Wrench, show: hasPermission('ordens') },
     {
       label: 'Orçamentos',

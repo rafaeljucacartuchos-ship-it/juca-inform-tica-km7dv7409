@@ -13,6 +13,7 @@ import { PermissionRoute } from '@/components/PermissionRoute'
 import Layout from '@/components/Layout'
 import Login from '@/pages/Login'
 import Dashboard from '@/pages/Dashboard'
+import SemAcesso from '@/pages/SemAcesso'
 import OrdensDeServico from '@/pages/OrdensDeServico'
 import OrdemDetail from '@/pages/OrdemDetail'
 import OrdemAssinatura from '@/pages/OrdemAssinatura'
@@ -113,7 +114,10 @@ const App = () => {
                       </Route>
                       <Route element={<Layout />}>
                         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                        <Route path="/dashboard" element={<Dashboard />} />
+                        <Route path="/sem-acesso" element={<SemAcesso />} />
+                        <Route element={<PermissionRoute module="dashboard" />}>
+                          <Route path="/dashboard" element={<Dashboard />} />
+                        </Route>
                         <Route element={<PermissionRoute module="ordens" />}>
                           <Route path="/ordens" element={<OrdensDeServico />} />
                           <Route path="/ordens/:id" element={<OrdemDetail />} />
