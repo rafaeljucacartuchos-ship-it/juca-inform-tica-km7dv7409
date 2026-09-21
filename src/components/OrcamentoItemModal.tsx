@@ -71,28 +71,32 @@ export function OrcamentoItemModal({
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<SearchResult[]>([])
   const [activeTab, setActiveTab] = useState<'all' | 'product' | 'service'>('all')
+  // Modo busca dedicada no mobile: quando ativo, o topo do modal vira exclusivamente o campo de busca
+  // e o restante da área útil exibe os resultados ou instruções de busca, garantindo 100% de visibilidade
+  const [mobileSearchMode, setMobileSearchMode] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputSearchRef = useRef<HTMLInputElement>(null)
   const searchContainerRef = useRef<HTMLDivElement>(null)
   const scrollBodyRef = useRef<HTMLDivElement>(null)
   const { visibleHeight, isKeyboardOpen } = useVisualViewport()
 
-  // Quando o input de busca ganha foco no mobile, rola suavemente para o topo visível
-  // após o teclado do iOS subir (~150ms a 200ms)
   const handleSearchFocus = () => {
-    setTimeout(() => {
-      if (searchContainerRef.current) {
-        searchContainerRef.current.scrollIntoView({
-          behavior: 'smooth',
-          block: 'start',
-        })
-      } else if (inputSearchRef.current) {
-        inputSearchRef.current.scrollIntoView({
-          behavior: 'smooth',
-          block: 'start',
-        })
+    // No mobile (< 640px), ativa imediatamente o modo busca dedicada
+    // para que a busca fique ancorada no topo visível acima do teclado
+    if (typeof window !== 'undefined' && window.innerWidth < 640) {
+      setMobileSearchMode(true)
+    }
+    if (scrollBodyRef.current) {
+      scrollBodyRef.current.scrollTop = 0
+    }
+    const scrollToTop = () => {
+      if (scrollBodyRef.current) {
+        scrollBodyRef.current.scrollTop = 0
       }
-    }, 180)
+    }
+    setTimeout(scrollToTop, 50)
+    setTimeout(scrollToTop, 180)
+    setTimeout(scrollToTop, 350)
   }
 
   useEffect(() => {
@@ -127,6 +131,7 @@ export function OrcamentoItemModal({
       setDescontoItemTipo('valor')
       setQuery('')
       setResults([])
+      setMobileSearchMode(false)
     }
   }, [open, itemToEdit, defaultKind])
 
@@ -254,6 +259,10 @@ export function OrcamentoItemModal({
     setDescontoItem(0)
     setResults([])
     setQuery('')
+    setMobileSearchMode(false)
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
   }
 
   const handleSave = async (e: React.FormEvent) => {
@@ -451,10 +460,12 @@ export function OrcamentoItemModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         style={{
+          top: 'var(--visual-viewport-offset-top, 0px)',
+          bottom: 'auto',
           maxHeight: 'var(--teclado-altura, var(--app-visible-height, 100dvh))',
           height: 'var(--teclado-altura, var(--app-visible-height, 100dvh))',
         }}
-        className="w-full max-w-full sm:max-w-2xl lg:max-w-3xl h-[var(--teclado-altura,var(--app-visible-height,100dvh))] sm:h-auto max-h-[var(--teclado-altura,var(--app-visible-height,100dvh))] sm:max-h-[92vh] rounded-none sm:rounded-lg p-0 gap-0 flex flex-col overflow-hidden"
+        className="w-full max-w-full sm:max-w-2xl lg:max-w-3xl top-[var(--visual-viewport-offset-top,0px)] bottom-auto h-[var(--teclado-altura,var(--app-visible-height,100dvh))] sm:h-auto max-h-[var(--teclado-altura,var(--app-visible-height,100dvh))] sm:max-h-[92vh] rounded-none sm:rounded-lg p-0 gap-0 flex flex-col overflow-hidden"
       >
         <DialogHeader className="px-4 py-3 sm:px-5 sm:pt-4 sm:pb-2 border-b border-slate-100 shrink-0">
           <DialogTitle className="text-base font-bold text-slate-900">
@@ -473,9 +484,256 @@ export function OrcamentoItemModal({
           noValidate
           className="flex flex-col flex-1 min-h-0 overflow-hidden"
         >
+          {/* MODO BUSCA DEDICADA NO MOBILE:
+              Quando o usuário toca para pesquisar no iPhone, este painel assume 100% da
+              área visível do modal (topo do Dialog, acima do teclado), garantindo que
+              o campo de busca e os resultados fiquem SEMPRE visíveis e NUNCA fiquem atrás do teclado.
+          */}
+          {!isEditing && mobileSearchMode ? (
+            <div className="flex-1 min-h-0 flex flex-col bg-slate-50 overflow-hidden sm:hidden">
+              {/* Barra de Busca Fixa no Topo da Área Visível */}
+              <div className="p-3 bg-white border-b border-slate-200 shrink-0 space-y-2 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                    <Search className="h-3.5 w-3.5 text-indigo-600" />
+                    <span>Buscar no Catálogo</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileSearchMode(false)
+                      if (document.activeElement instanceof HTMLElement) {
+                        document.activeElement.blur()
+                      }
+                    }}
+                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 px-2 py-0.5 rounded bg-indigo-50"
+                  >
+                    Voltar ao formulário
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    ref={inputSearchRef}
+                    value={query}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setQuery(val)
+                      // Sincroniza também como fallback na descrição se o usuário apenas digitar
+                      if (!selectedProductId) {
+                        setDescricao(val)
+                      }
+                    }}
+                    placeholder="Digite para filtrar produtos e peças..."
+                    className="pl-8 pr-8 h-10 text-sm bg-slate-50 border-indigo-300 focus-visible:ring-indigo-500 font-medium"
+                    autoComplete="off"
+                    autoFocus
+                  />
+                  {query && (
+                    <button
+                      type="button"
+                      onClick={() => setQuery('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1.5"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filtros em abas no mobile */}
+                {results.length > 0 && (
+                  <div className="flex items-center gap-1.5 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('all')}
+                      className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-colors ${
+                        activeTab === 'all'
+                          ? 'bg-slate-800 text-white'
+                          : 'text-slate-600 hover:bg-slate-200 bg-slate-100'
+                      }`}
+                    >
+                      Todos ({results.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('product')}
+                      className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-colors ${
+                        activeTab === 'product'
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-indigo-700 bg-indigo-50'
+                      }`}
+                    >
+                      Produtos ({results.filter((r) => r.kind === 'product').length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('service')}
+                      className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-colors ${
+                        activeTab === 'service'
+                          ? 'bg-emerald-600 text-white'
+                          : 'text-emerald-700 bg-emerald-50'
+                      }`}
+                    >
+                      Serviços ({results.filter((r) => r.kind === 'service').length})
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Lista de Resultados Ocupando Todo o Restante da Altura Visível Acima do Teclado */}
+              <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-100 bg-white overscroll-contain">
+                {loading && (
+                  <div className="p-8 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-indigo-600" />
+                    <span>Pesquisando catálogo...</span>
+                  </div>
+                )}
+
+                {!loading && query.trim() && results.length === 0 && (
+                  <div className="p-8 text-center text-xs text-slate-500 space-y-2">
+                    <p className="font-medium text-slate-700">Nenhum resultado para "{query}"</p>
+                    <p className="text-[11px] text-slate-400">
+                      Você pode voltar e digitar o item livremente sem vincular ao catálogo.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setDescricao(query)
+                        setMobileSearchMode(false)
+                        if (document.activeElement instanceof HTMLElement) {
+                          document.activeElement.blur()
+                        }
+                      }}
+                      className="text-xs mt-2"
+                    >
+                      Usar "{query}" como descrição livre
+                    </Button>
+                  </div>
+                )}
+
+                {!loading && !query.trim() && (
+                  <div className="p-6 text-center text-xs text-slate-500 space-y-2">
+                    <p className="font-semibold text-slate-700">
+                      🔍 Digite o nome do produto ou peça
+                    </p>
+                    <p className="text-[11px] text-slate-400 leading-relaxed max-w-xs mx-auto">
+                      Os resultados aparecerão em tempo real aqui. Ao selecionar, os dados são
+                      preenchidos automaticamente no formulário.
+                    </p>
+                  </div>
+                )}
+
+                {!loading &&
+                  results
+                    .filter((r) => activeTab === 'all' || r.kind === activeTab)
+                    .map((item) => {
+                      const isOutOfStock =
+                        item.kind === 'product' &&
+                        typeof item.stockQuantity === 'number' &&
+                        item.stockQuantity <= 0
+
+                      return (
+                        <button
+                          key={`mobile-${item.kind}-${item.id}`}
+                          type="button"
+                          onClick={() => handleSelectSearchResult(item)}
+                          className="w-full flex items-start justify-between gap-3 p-3 text-left hover:bg-indigo-50/70 transition-colors min-h-[52px] touch-manipulation active:bg-indigo-100"
+                        >
+                          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                            {item.kind === 'product' ? (
+                              <Package className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
+                            ) : (
+                              <Wrench className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <span className="font-semibold text-slate-900 text-xs sm:text-sm block leading-snug break-words">
+                                {item.name}
+                              </span>
+                              {item.description && item.description.trim() !== item.name.trim() && (
+                                <p className="text-[11px] text-slate-600 mt-1 leading-relaxed break-words bg-slate-50 rounded px-2 py-1 border border-slate-100">
+                                  {item.description}
+                                </p>
+                              )}
+                              <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                <Badge
+                                  variant="outline"
+                                  className="text-[9px] px-1.5 py-0 h-4 border-slate-200 font-medium"
+                                >
+                                  {item.kind === 'product' ? 'Produto' : 'Serviço'}
+                                </Badge>
+                                {item.sku && (
+                                  <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1 py-0.2 rounded">
+                                    SKU: {item.sku}
+                                  </span>
+                                )}
+                                {typeof item.stockQuantity === 'number' && (
+                                  <span
+                                    className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-semibold ${
+                                      isOutOfStock
+                                        ? 'bg-rose-100 text-rose-700'
+                                        : item.stockQuantity < 5
+                                          ? 'bg-amber-100 text-amber-800'
+                                          : 'bg-emerald-100 text-emerald-800'
+                                    }`}
+                                  >
+                                    Estoque: {item.stockQuantity} un
+                                  </span>
+                                )}
+                                {isOutOfStock && (
+                                  <span className="text-[10px] text-rose-600 font-semibold flex items-center gap-0.5">
+                                    <AlertTriangle className="h-3 w-3" /> Falta de estoque
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="font-mono font-bold text-slate-900 text-sm block">
+                              R$ {(item.price || 0).toFixed(2)}
+                            </span>
+                            <span className="text-[10px] text-indigo-600 font-bold block mt-1">
+                              Selecionar
+                            </span>
+                          </div>
+                        </button>
+                      )
+                    })}
+              </div>
+
+              {/* Botão inferior para fechar modo busca se não quiser escolher nada */}
+              <div className="p-2.5 bg-slate-100 border-t border-slate-200 shrink-0 flex items-center justify-between">
+                <span className="text-[11px] text-slate-500">
+                  Quer cadastrar item não tabelado?
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (query.trim() && !descricao.trim()) {
+                      setDescricao(query.trim())
+                    }
+                    setMobileSearchMode(false)
+                    if (document.activeElement instanceof HTMLElement) {
+                      document.activeElement.blur()
+                    }
+                  }}
+                  className="text-xs h-8"
+                >
+                  Continuar Preenchimento Livre
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
           <div
             ref={scrollBodyRef}
-            className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs overscroll-contain"
+            className={`flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs overscroll-contain ${
+              mobileSearchMode ? 'hidden sm:block' : ''
+            }`}
           >
             {/* Aviso informativo de digitação livre */}
             <div className="p-2.5 bg-blue-50/70 border border-blue-200 rounded-lg text-blue-900 text-[11px] leading-relaxed">
@@ -492,9 +750,18 @@ export function OrcamentoItemModal({
                 className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-lg scroll-mt-2"
               >
                 <div className="flex items-center justify-between">
-                  <label className="font-semibold text-slate-700 block">
-                    Buscar no Catálogo (Opcional - preenchimento rápido)
-                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <label className="font-semibold text-slate-700 block">
+                      Buscar no Catálogo (Opcional - preenchimento rápido)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setMobileSearchMode(true)}
+                      className="sm:hidden text-[10px] text-indigo-600 font-semibold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200"
+                    >
+                      Abrir busca focada
+                    </button>
+                  </div>
                   {selectedProductId && (
                     <button
                       type="button"

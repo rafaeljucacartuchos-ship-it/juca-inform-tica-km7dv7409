@@ -30,7 +30,8 @@ export function useVisualViewport(): VisualViewportState {
       const vv = window.visualViewport
       const height = vv ? Math.round(vv.height) : window.innerHeight
       const offsetTop = vv ? Math.round(vv.offsetTop || 0) : 0
-      const isKeyboardOpen = window.innerHeight - height > 120
+      // No iOS, quando o teclado abre, a diferença entre window.innerHeight e vv.height supera ~100px
+      const isKeyboardOpen = typeof window !== 'undefined' && window.innerHeight - height > 100
 
       // Atualiza variáveis CSS em documentElement para fallback global
       document.documentElement.style.setProperty('--app-visible-height', `${height}px`)

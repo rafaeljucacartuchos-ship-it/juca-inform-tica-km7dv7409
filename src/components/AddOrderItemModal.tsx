@@ -223,18 +223,20 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         style={{
+          top: 'var(--visual-viewport-offset-top, 0px)',
+          bottom: 'auto',
           maxHeight: 'var(--teclado-altura, var(--app-visible-height, 100dvh))',
           height: 'var(--teclado-altura, var(--app-visible-height, 100dvh))',
         }}
-        className="w-full max-w-full sm:max-w-2xl lg:max-w-3xl h-[var(--teclado-altura,var(--app-visible-height,100dvh))] sm:h-auto max-h-[var(--teclado-altura,var(--app-visible-height,100dvh))] sm:max-h-[90vh] rounded-none sm:rounded-lg p-0 gap-0 flex flex-col overflow-hidden"
+        className="w-full max-w-full sm:max-w-2xl top-[var(--visual-viewport-offset-top,0px)] bottom-auto h-[var(--teclado-altura,var(--app-visible-height,100dvh))] sm:h-auto max-h-[var(--teclado-altura,var(--app-visible-height,100dvh))] sm:max-h-[90vh] rounded-none sm:rounded-lg p-0 gap-0 flex flex-col overflow-hidden"
       >
+        {' '}
         {/* Cabeçalho fixo (shrink-0) */}
         <DialogHeader className="px-4 py-3 sm:px-5 sm:pt-4 sm:pb-2 border-b border-slate-100 shrink-0">
           <DialogTitle className="text-base font-bold text-slate-900">
             Adicionar Item / Serviço
           </DialogTitle>
         </DialogHeader>
-
         {/* Bloco de busca e abas fixo no topo (shrink-0) — mesmo padrão visual do OrcamentoItemModal */}
         <div className="p-3 sm:p-4 bg-slate-50 border-b border-slate-200 shrink-0 space-y-2">
           <div className="relative">
@@ -302,7 +304,6 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
             </button>
           </div>
         </div>
-
         {/* Lista de resultados rolável (flex-1 min-h-0 overflow-y-auto) */}
         <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-100 bg-white">
           {loading && <div className="py-8 text-center text-xs text-slate-400">Buscando...</div>}
@@ -374,7 +375,6 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
               )
             })}
         </div>
-
         {/* Painel do Item Selecionado e Edição de Valores (fixo ou visível no rodapé com shrink-0) */}
         {selectedItem && (
           <div className="shrink-0 p-3 sm:p-4 bg-slate-50 border-t border-slate-200 space-y-2.5">
@@ -538,7 +538,6 @@ export function AddOrderItemModal({ open, onOpenChange, orderId, currentTotal, o
             </div>
           </div>
         )}
-
         {/* Rodapé fixo (shrink-0) */}
         <div className="shrink-0 px-4 py-2.5 sm:py-3 border-t border-slate-200 bg-slate-50/70 flex justify-end">
           <Button

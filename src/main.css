@@ -164,8 +164,10 @@
 
     [role='dialog'] {
       /* Usa a altura visível calculada dinamicamente via visualViewport */
-      max-height: var(--teclado-altura, var(--app-visible-height, 100dvh));
-      height: var(--teclado-altura, var(--app-visible-height, 100dvh));
+      top: var(--visual-viewport-offset-top, 0px) !important;
+      bottom: auto !important;
+      max-height: var(--teclado-altura, var(--app-visible-height, 100dvh)) !important;
+      height: var(--teclado-altura, var(--app-visible-height, 100dvh)) !important;
     }
   }
 

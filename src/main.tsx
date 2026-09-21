@@ -21,7 +21,7 @@ function Root() {
         document.documentElement.style.setProperty('--visual-viewport-height', `${height}px`)
         document.documentElement.style.setProperty('--visual-viewport-offset-top', `${offsetTop}px`)
         // Detecta se teclado está aberto no mobile (diferença expressiva entre window.innerHeight e vv.height)
-        const isKeyboardOpen = window.innerHeight - height > 120
+        const isKeyboardOpen = window.innerHeight - height > 100
         document.documentElement.setAttribute(
           'data-keyboard-open',
           isKeyboardOpen ? 'true' : 'false',
