@@ -551,14 +551,14 @@ export default function Dashboard() {
         </div>
 
         {/* Botões discretos de Estoque e Relatórios no cabeçalho */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <Button
             onClick={() => setProductSearchOpen(true)}
             variant="outline"
             size="sm"
-            className="h-9 px-3 text-xs font-semibold gap-1.5 border-slate-200 text-slate-700 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/50 shadow-2xs"
+            className="flex-1 sm:flex-initial min-h-[44px] sm:min-h-0 h-11 sm:h-9 px-3 text-xs font-semibold gap-1.5 border-slate-200 text-slate-700 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/50 shadow-2xs touch-manipulation"
           >
-            <Search className="h-3.5 w-3.5 text-indigo-600" />
+            <Search className="h-4 w-4 text-indigo-600" />
             <span>Consultar Estoque</span>
           </Button>
 
@@ -566,20 +566,20 @@ export default function Dashboard() {
             variant="outline"
             size="sm"
             onClick={() => setExportOpen(true)}
-            className="gap-1.5 h-9 px-3 text-xs font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50 shadow-2xs"
+            className="min-h-[44px] sm:min-h-0 h-11 sm:h-9 gap-1.5 px-3 text-xs font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50 shadow-2xs touch-manipulation"
           >
-            <FileDown className="h-3.5 w-3.5 text-indigo-600" />
-            <span className="hidden sm:inline">Relatórios</span>
+            <FileDown className="h-4 w-4 text-indigo-600" />
+            <span>Relatórios</span>
           </Button>
 
           <Button
             variant="outline"
             size="sm"
             onClick={() => setExportOrdersOpen(true)}
-            className="gap-1.5 h-9 px-3 text-xs font-semibold border-slate-200 text-slate-700 hover:bg-slate-50 shadow-2xs"
+            className="min-h-[44px] sm:min-h-0 h-11 sm:h-9 gap-1.5 px-3 text-xs font-semibold border-slate-200 text-slate-700 hover:bg-slate-50 shadow-2xs touch-manipulation"
           >
-            <FileDown className="h-3.5 w-3.5 text-slate-600" />
-            <span className="hidden sm:inline">Lista OS</span>
+            <FileDown className="h-4 w-4 text-slate-600" />
+            <span>Lista OS</span>
           </Button>
         </div>
       </div>
@@ -609,13 +609,13 @@ export default function Dashboard() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 shadow-2xs">
+          <div className="inline-flex flex-wrap sm:flex-nowrap rounded-lg border border-slate-200 bg-slate-50 p-0.5 shadow-2xs w-full sm:w-auto">
             {(['today', 'week', 'month', 'custom'] as Period[]).map((p) => (
               <Button
                 key={p}
                 size="sm"
                 variant={period === p ? 'default' : 'ghost'}
-                className={`h-8 text-xs font-semibold transition-all ${
+                className={`flex-1 sm:flex-initial min-h-[40px] sm:min-h-0 h-10 sm:h-8 text-xs font-semibold transition-all touch-manipulation ${
                   period === p
                     ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -668,7 +668,105 @@ export default function Dashboard() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto w-full">
+          {/* VISUALIZAÇÃO 1 (MOBILE/TABLET): CARTÕES EMPILHADOS */}
+          <div className="block lg:hidden divide-y divide-slate-100">
+            {technicianProduction.rows.map((row) => (
+              <div
+                key={row.technicianId}
+                onClick={() => {
+                  window.location.href = `/ordens?tecnico=${encodeURIComponent(row.technicianName)}`
+                }}
+                className="p-4 space-y-3 hover:bg-indigo-50/40 active:bg-indigo-100/50 transition-colors cursor-pointer touch-manipulation"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0">
+                      {row.technicianName.substring(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-900">{row.technicianName}</h4>
+                      <span className="text-[10px] text-slate-500">Toque para filtrar O.S.</span>
+                    </div>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200">
+                    {formatCurrencyBRL(row.osValorTotal + row.orcValorAprovados)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {/* Bloco OS */}
+                  <div className="p-2.5 rounded-lg bg-blue-50/60 border border-blue-100 space-y-1">
+                    <span className="text-[10px] font-bold text-blue-900 block uppercase">
+                      Ordens de Serviço
+                    </span>
+                    <div className="flex justify-between text-slate-700">
+                      <span>Criadas / Concl.:</span>
+                      <span className="font-mono font-semibold">
+                        {row.osCriadas} /{' '}
+                        <strong className="text-emerald-700">{row.osConcluidas}</strong>
+                      </span>
+                    </div>
+                    <div className="flex justify-between font-bold text-blue-950 pt-1 border-t border-blue-200/60">
+                      <span>Valor Total:</span>
+                      <span className="font-mono">{formatCurrencyBRL(row.osValorTotal)}</span>
+                    </div>
+                  </div>
+
+                  {/* Bloco Orçamentos */}
+                  <div className="p-2.5 rounded-lg bg-emerald-50/60 border border-emerald-100 space-y-1">
+                    <span className="text-[10px] font-bold text-emerald-900 block uppercase">
+                      Orçamentos
+                    </span>
+                    <div className="flex justify-between text-slate-700">
+                      <span>Aprov. / Pend.:</span>
+                      <span className="font-mono font-semibold">
+                        <strong className="text-emerald-700">{row.orcAprovados}</strong> /{' '}
+                        {row.orcPendentes}
+                      </span>
+                    </div>
+                    <div className="flex justify-between font-bold text-emerald-950 pt-1 border-t border-emerald-200/60">
+                      <span>Aprovados:</span>
+                      <span className="font-mono">{formatCurrencyBRL(row.orcValorAprovados)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {technicianProduction.rows.length === 0 && (
+              <div className="py-8 text-center text-muted-foreground text-xs font-medium">
+                Nenhum técnico com perfil "technician" localizado.
+              </div>
+            )}
+
+            {/* Total Geral em Card Mobile */}
+            {technicianProduction.rows.length > 0 && (
+              <div className="p-4 bg-slate-100 border-t-2 border-slate-300 space-y-2">
+                <span className="text-[11px] font-black uppercase text-slate-800 tracking-wider block">
+                  Totais Gerais da Equipe
+                </span>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-white p-2 rounded-md border border-slate-200">
+                    <span className="text-[10px] text-slate-500 block">Total O.S. Concluídas</span>
+                    <span className="font-mono font-bold text-emerald-700 text-sm">
+                      {technicianProduction.totals.osConcluidas} (
+                      {formatCurrencyBRL(technicianProduction.totals.osValorTotal)})
+                    </span>
+                  </div>
+                  <div className="bg-white p-2 rounded-md border border-slate-200">
+                    <span className="text-[10px] text-slate-500 block">Orçamentos Aprovados</span>
+                    <span className="font-mono font-bold text-emerald-800 text-sm">
+                      {technicianProduction.totals.orcAprovados} (
+                      {formatCurrencyBRL(technicianProduction.totals.orcValorAprovados)})
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* VISUALIZAÇÃO 2 (DESKTOP/NOTEBOOK): TABELA COMPLETA */}
+          <div className="hidden lg:block overflow-x-auto w-full">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 border-b border-slate-100 text-muted-foreground font-semibold uppercase tracking-wider">
                 <tr>
@@ -696,7 +794,7 @@ export default function Dashboard() {
                   <th className="py-2 px-3 text-right bg-blue-50/30 font-bold text-blue-950">
                     Valor Total O.S.
                   </th>
-                  {/* Orçamentos sem Vínculo O.S. - Limpos sem prefixo repetido (v0.0.232) */}
+                  {/* Orçamentos sem Vínculo O.S. */}
                   <th className="py-2 px-3 text-right bg-emerald-50/30 border-l border-emerald-100 font-bold text-slate-800">
                     Criados
                   </th>

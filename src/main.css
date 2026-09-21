@@ -145,6 +145,7 @@
   }
 
   @media (max-width: 768px) {
+    /* Mínimo 16px no mobile para prevenir zoom automático no iOS Safari */
     input,
     select,
     textarea {
@@ -153,6 +154,22 @@
 
     [role='dialog'] {
       max-height: var(--app-visible-height, 100dvh);
+    }
+  }
+
+  /* Diretrizes Mobile-First e Responsividade Total */
+  h1 {
+    font-size: clamp(1.25rem, 4vw + 0.5rem, 2rem);
+  }
+  h2 {
+    font-size: clamp(1.1rem, 3vw + 0.4rem, 1.5rem);
+  }
+
+  /* Alvos de toque acessíveis no mobile (mínimo 44x44px) */
+  @media (pointer: coarse) {
+    .touch-target-44 {
+      min-height: 44px;
+      min-width: 44px;
     }
   }
 }

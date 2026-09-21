@@ -738,7 +738,7 @@ export default function OrcamentosList() {
             setObservacoes('')
             setCreateModalOpen(true)
           }}
-          className="h-10 px-4 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-sm w-full sm:w-auto justify-center"
+          className="min-h-[44px] h-11 px-4 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-sm w-full sm:w-auto justify-center touch-manipulation active:scale-[0.98]"
         >
           <Plus className="h-4 w-4" /> Novo Orçamento
         </Button>
@@ -749,7 +749,7 @@ export default function OrcamentosList() {
         <button
           type="button"
           onClick={() => setStatusFilter('todos')}
-          className={`p-2.5 rounded-lg border text-left transition-all ${
+          className={`p-2.5 rounded-lg border text-left min-h-[50px] touch-manipulation transition-all active:scale-95 ${
             statusFilter === 'todos'
               ? 'bg-indigo-50 border-indigo-300 ring-1 ring-indigo-400'
               : 'bg-white border-slate-200 hover:bg-slate-50'
@@ -762,7 +762,7 @@ export default function OrcamentosList() {
         <button
           type="button"
           onClick={() => setStatusFilter('enviado')}
-          className={`p-2.5 rounded-lg border text-left transition-all ${
+          className={`p-2.5 rounded-lg border text-left min-h-[50px] touch-manipulation transition-all active:scale-95 ${
             statusFilter === 'enviado'
               ? 'bg-blue-50 border-blue-300 ring-1 ring-blue-400'
               : 'bg-white border-slate-200 hover:bg-slate-50'
@@ -775,7 +775,7 @@ export default function OrcamentosList() {
         <button
           type="button"
           onClick={() => setStatusFilter('aguardando_aprovacao')}
-          className={`p-2.5 rounded-lg border text-left transition-all ${
+          className={`p-2.5 rounded-lg border text-left min-h-[50px] touch-manipulation transition-all active:scale-95 ${
             statusFilter === 'aguardando_aprovacao'
               ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-400'
               : 'bg-white border-slate-200 hover:bg-slate-50'
@@ -790,7 +790,7 @@ export default function OrcamentosList() {
         <button
           type="button"
           onClick={() => setStatusFilter('aprovado')}
-          className={`p-2.5 rounded-lg border text-left transition-all ${
+          className={`p-2.5 rounded-lg border text-left min-h-[50px] touch-manipulation transition-all active:scale-95 ${
             statusFilter === 'aprovado'
               ? 'bg-emerald-50 border-emerald-300 ring-1 ring-emerald-400'
               : 'bg-white border-slate-200 hover:bg-slate-50'
@@ -805,7 +805,7 @@ export default function OrcamentosList() {
         <button
           type="button"
           onClick={() => setStatusFilter('faturado')}
-          className={`p-2.5 rounded-lg border text-left transition-all ${
+          className={`p-2.5 rounded-lg border text-left min-h-[50px] touch-manipulation transition-all active:scale-95 ${
             statusFilter === 'faturado'
               ? 'bg-purple-50 border-purple-300 ring-1 ring-purple-400'
               : 'bg-white border-slate-200 hover:bg-slate-50'
@@ -820,7 +820,7 @@ export default function OrcamentosList() {
         <button
           type="button"
           onClick={() => setStatusFilter('rejeitado')}
-          className={`p-2.5 rounded-lg border text-left transition-all ${
+          className={`p-2.5 rounded-lg border text-left min-h-[50px] touch-manipulation transition-all active:scale-95 ${
             statusFilter === 'rejeitado'
               ? 'bg-rose-50 border-rose-300 ring-1 ring-rose-400'
               : 'bg-white border-slate-200 hover:bg-slate-50'
@@ -1143,10 +1143,10 @@ export default function OrcamentosList() {
                         type="button"
                         size="sm"
                         onClick={(e) => handleForwardToCustomer(orc, e)}
-                        className="w-full h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-2xs"
+                        className="w-full min-h-[44px] sm:min-h-0 h-11 sm:h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-2xs touch-manipulation active:scale-[0.98]"
                         title="Encaminhar proposta ou retomar negociação via WhatsApp / Compartilhar"
                       >
-                        <Share className="h-3.5 w-3.5" />
+                        <Share className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                         <span>Encaminhar ao Cliente</span>
                       </Button>
                     </div>
@@ -1172,7 +1172,7 @@ export default function OrcamentosList() {
                       e.stopPropagation()
                       handleOpenOrcamento(orc.id)
                     }}
-                    className="h-7 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 p-1"
+                    className="min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 h-11 sm:h-7 px-2 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 touch-manipulation"
                   >
                     Abrir <ArrowRight className="h-3.5 w-3.5 ml-1" />
                   </Button>

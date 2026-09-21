@@ -551,7 +551,50 @@ export default function PropostaPublica() {
           </CardHeader>
 
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            {/* Visualização 1 (Mobile): Cartões Empilhados */}
+            <div className="block sm:hidden divide-y divide-slate-100">
+              {data.items.length === 0 ? (
+                <div className="py-6 text-center text-slate-400 text-xs">
+                  Nenhum item adicionado a este orçamento.
+                </div>
+              ) : (
+                data.items.map((it, idx) => (
+                  <div key={it.id || idx} className="p-3.5 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="font-bold text-slate-900 text-xs block">
+                          {it.descricao}
+                        </span>
+                        <span className="text-[11px] text-slate-500 capitalize block mt-0.5">
+                          {it.tipo} • {it.quantidade}x R${' '}
+                          {(it.valor_unitario || 0).toLocaleString('pt-BR', {
+                            minimumFractionDigits: 2,
+                          })}
+                        </span>
+                      </div>
+                      <span className="font-mono font-bold text-slate-900 text-xs shrink-0">
+                        R${' '}
+                        {(it.valor_total_item || 0).toLocaleString('pt-BR', {
+                          minimumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+                    {it.desconto_item && it.desconto_item > 0 && (
+                      <div className="text-[11px] text-emerald-700 font-mono font-medium">
+                        Desconto: -R${' '}
+                        {(it.desconto_item_tipo === 'percentual'
+                          ? (it.valor_unitario * it.quantidade * it.desconto_item) / 100
+                          : it.desconto_item
+                        ).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Visualização 2 (Desktop): Tabela Completa */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-semibold">
                   <tr>
@@ -574,13 +617,6 @@ export default function PropostaPublica() {
                       <tr key={it.id || idx} className="hover:bg-slate-50/70">
                         <td className="py-2.5 px-3">
                           <div className="font-medium text-slate-900">{it.descricao}</div>
-                          <div className="text-[10px] text-slate-400 capitalize sm:hidden">
-                            {it.tipo} • {it.quantidade}x R${' '}
-                            {(it.valor_unitario || 0).toLocaleString('pt-BR', {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}
-                          </div>
                         </td>
                         <td className="py-2.5 px-2 text-center font-mono">{it.quantidade}</td>
                         <td className="py-2.5 px-3 text-right font-mono text-slate-700 hidden sm:table-cell">
@@ -816,7 +852,7 @@ export default function PropostaPublica() {
                     variant="outline"
                     size="sm"
                     onClick={() => setSignatureModalOpen(true)}
-                    className="w-full text-xs font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50 h-9"
+                    className="w-full text-xs font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50 min-h-[44px] h-11 touch-manipulation active:scale-[0.98]"
                   >
                     Refazer Assinatura
                   </Button>
@@ -829,7 +865,7 @@ export default function PropostaPublica() {
                   <Button
                     type="button"
                     onClick={() => setSignatureModalOpen(true)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-10 px-5 rounded-lg shadow-sm"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs min-h-[44px] h-11 px-5 rounded-lg shadow-sm touch-manipulation active:scale-[0.98]"
                   >
                     Assinar com o Dedo
                   </Button>

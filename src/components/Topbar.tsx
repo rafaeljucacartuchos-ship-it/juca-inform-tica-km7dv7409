@@ -44,9 +44,10 @@ export function Topbar() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="md:hidden text-slate-600 hover:bg-slate-100"
+                aria-label="Abrir menu de navegação"
+                className="md:hidden text-slate-600 hover:bg-slate-100 min-h-[44px] min-w-[44px] h-11 w-11 touch-manipulation active:scale-95"
               >
-                <Menu className="h-5 w-5" />
+                <Menu className="h-6 w-6" />
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="p-0 w-64 border-r-0 bg-slate-900">
@@ -60,10 +61,11 @@ export function Topbar() {
               variant="ghost"
               size="icon"
               onClick={() => navigate(-1)}
-              className="h-9 w-9 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg shrink-0"
+              className="min-h-[44px] min-w-[44px] h-11 w-11 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg shrink-0 touch-manipulation active:scale-95"
               title="Voltar para a página anterior"
+              aria-label="Voltar para a página anterior"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-5 w-5" />
             </Button>
           )}
 
@@ -107,11 +109,12 @@ export function Topbar() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="relative text-slate-600 hover:bg-slate-100 rounded-full h-9 w-9"
+                aria-label="Notificações"
+                className="relative text-slate-600 hover:bg-slate-100 rounded-full min-h-[44px] min-w-[44px] h-11 w-11 touch-manipulation active:scale-95"
               >
                 <Bell className="h-5 w-5" />
                 {unreadCount > 0 && (
-                  <span className="absolute top-0 right-0 h-4 min-w-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
+                  <span className="absolute top-1 right-1 h-4 min-w-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
@@ -131,10 +134,11 @@ export function Topbar() {
           {hasPermission('os_create') && (
             <Button
               onClick={() => setNewOrderOpen(true)}
-              className="gap-1.5 h-9 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm shadow-indigo-600/20 px-3 sm:px-4 text-xs sm:text-sm rounded-lg"
+              className="gap-1.5 min-h-[44px] h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm shadow-indigo-600/20 px-3.5 sm:px-4 text-xs sm:text-sm rounded-lg touch-manipulation active:scale-95"
             >
               <Plus className="h-4 w-4" />
-              <span>Nova Ordem</span>
+              <span className="hidden xs:inline">Nova Ordem</span>
+              <span className="xs:hidden">Nova OS</span>
             </Button>
           )}
         </div>

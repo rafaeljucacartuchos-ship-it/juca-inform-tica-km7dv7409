@@ -209,7 +209,7 @@ export function Sidebar({ onNavClick }: SidebarProps) {
 
   const navLinkClass = (isActive: boolean) =>
     cn(
-      'group relative flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm font-medium transition-all duration-200',
+      'group relative flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm font-medium min-h-[44px] touch-manipulation transition-all duration-200 active:scale-[0.98]',
       isActive
         ? 'bg-indigo-600/20 text-indigo-300 shadow-inner'
         : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200',
@@ -263,7 +263,7 @@ export function Sidebar({ onNavClick }: SidebarProps) {
 
         {showCadastro && (
           <Collapsible open={cadastroOpen} onOpenChange={setCadastroOpen}>
-            <CollapsibleTrigger className="w-full group flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 transition-all duration-200">
+            <CollapsibleTrigger className="w-full group flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm font-medium min-h-[44px] touch-manipulation text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 transition-all duration-200 active:scale-[0.98]">
               <Database
                 className={cn(
                   'h-5 w-5 transition-transform duration-200 group-hover:scale-110',
@@ -288,7 +288,7 @@ export function Sidebar({ onNavClick }: SidebarProps) {
                     to={item.path}
                     onClick={(e) => handleModuleClick(e, item.path)}
                     className={cn(
-                      'flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition-all duration-200',
+                      'flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium min-h-[44px] touch-manipulation transition-all duration-200 active:scale-[0.98]',
                       isActive
                         ? 'bg-indigo-600/20 text-indigo-300'
                         : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200',
@@ -355,7 +355,7 @@ export function Sidebar({ onNavClick }: SidebarProps) {
           variant="ghost"
           size="sm"
           onClick={signOut}
-          className="w-full justify-start gap-2 text-slate-400 hover:bg-red-500/10 hover:text-red-400 h-9 font-medium"
+          className="w-full justify-start gap-2 text-slate-400 hover:bg-red-500/10 hover:text-red-400 min-h-[44px] h-11 font-medium touch-manipulation"
         >
           <LogOut className="h-4 w-4" />
           <span>Sair da conta</span>

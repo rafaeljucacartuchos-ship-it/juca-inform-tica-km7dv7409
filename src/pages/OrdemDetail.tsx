@@ -1218,7 +1218,7 @@ export default function OrdemDetail() {
               size="sm"
               data-workspace-inner-close="true"
               onClick={() => navigate('/ordens')}
-              className="h-9 gap-1.5 shrink-0 text-xs font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 shadow-xs"
+              className="min-h-[44px] h-11 px-3 sm:px-3 sm:h-9 gap-1.5 shrink-0 text-xs font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 shadow-xs touch-manipulation"
               title="Voltar para a listagem de Ordens de Serviço (ESC)"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -1245,7 +1245,7 @@ export default function OrdemDetail() {
               variant="outline"
               size="sm"
               onClick={() => setConfirmDeleteOsOpen(true)}
-              className="h-9 text-xs font-semibold border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 gap-1.5 shadow-xs"
+              className="min-h-[44px] sm:min-h-0 h-11 sm:h-9 text-xs font-semibold border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 gap-1.5 shadow-xs touch-manipulation"
               title="Excluir Ordem de Serviço (Ação administrativa / com permissão)"
             >
               <Trash2 className="h-4 w-4 text-rose-600" />
@@ -1258,20 +1258,20 @@ export default function OrdemDetail() {
           <Button
             onClick={handleStartService}
             disabled={starting}
-            className="w-full sm:w-auto sm:self-start h-11 text-sm font-bold gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-600/20"
+            className="w-full sm:w-auto sm:self-start min-h-[44px] h-12 text-sm font-bold gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-600/20 touch-manipulation active:scale-[0.98]"
           >
             <Play className="h-5 w-5" />
             <span>{starting ? 'Iniciando...' : 'Iniciar Atendimento'}</span>
           </Button>
         )}
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full">
           {/* Ação Principal 1: Orçamento Integrado à OS */}
           {orcamentosList.length > 0 ? (
             <Button
               size="sm"
               onClick={() => navigate(`/orcamentos/${activeOrcamento?.id || orcamentosList[0].id}`)}
-              className="text-xs gap-1.5 h-9 justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+              className="text-xs gap-1.5 min-h-[44px] sm:min-h-0 h-11 sm:h-9 flex-1 sm:flex-initial justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold touch-manipulation active:scale-[0.98]"
             >
               <FileText className="h-4 w-4" />
               <span>
@@ -1308,7 +1308,7 @@ export default function OrdemDetail() {
                   setCreatingOrcamento(false)
                 }
               }}
-              className="text-xs gap-1.5 h-9 justify-center border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 font-bold"
+              className="text-xs gap-1.5 min-h-[44px] sm:min-h-0 h-11 sm:h-9 flex-1 sm:flex-initial justify-center border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 font-bold touch-manipulation active:scale-[0.98]"
             >
               {creatingOrcamento ? (
                 <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
@@ -1325,7 +1325,7 @@ export default function OrdemDetail() {
               size="sm"
               onClick={() => setConfirmFinalizarOpen(true)}
               disabled={finalizingOrder}
-              className="text-xs gap-1.5 h-9 justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm"
+              className="text-xs gap-1.5 min-h-[44px] sm:min-h-0 h-11 sm:h-9 flex-1 sm:flex-initial justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm touch-manipulation active:scale-[0.98]"
               title="Finalizar esta Ordem de Serviço"
             >
               <CheckCircle2 className="h-4 w-4" />
@@ -1337,7 +1337,7 @@ export default function OrdemDetail() {
           <RecordActionsMenu
             label={`O.S. #${order.number}`}
             title="Mais ações desta O.S."
-            triggerClassName="h-9 w-9 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 shadow-xs rounded-md"
+            triggerClassName="min-h-[44px] min-w-[44px] h-11 w-11 sm:h-9 sm:w-9 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 shadow-xs rounded-md touch-manipulation"
             items={[
               {
                 key: 'print',

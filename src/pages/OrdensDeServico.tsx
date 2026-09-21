@@ -513,13 +513,13 @@ export default function OrdensDeServico() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center rounded-lg border border-slate-200 bg-white p-1 shadow-2xs">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center rounded-lg border border-slate-200 bg-white p-1 shadow-2xs flex-1 sm:flex-initial">
             <Button
               variant={viewMode === 'kanban' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('kanban')}
-              className="h-7 px-2 text-xs"
+              className="flex-1 sm:flex-initial min-h-[38px] sm:min-h-0 h-9 sm:h-7 px-3 text-xs touch-manipulation font-semibold"
             >
               <LayoutGrid className="h-3.5 w-3.5 mr-1" /> Kanban
             </Button>
@@ -527,7 +527,7 @@ export default function OrdensDeServico() {
               variant={viewMode === 'list' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('list')}
-              className="h-7 px-2 text-xs"
+              className="flex-1 sm:flex-initial min-h-[38px] sm:min-h-0 h-9 sm:h-7 px-3 text-xs touch-manipulation font-semibold"
             >
               <List className="h-3.5 w-3.5 mr-1" /> Lista
             </Button>
@@ -536,7 +536,7 @@ export default function OrdensDeServico() {
           {user?.role !== 'technician' && (
             <Button
               onClick={() => setNewModalOpen(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 h-9 text-xs sm:text-sm"
+              className="w-full sm:w-auto min-h-[44px] h-11 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 text-xs sm:text-sm touch-manipulation active:scale-[0.98]"
             >
               <Plus className="h-4 w-4" />
               <span>Nova Ordem</span>
@@ -885,7 +885,82 @@ export default function OrdensDeServico() {
       ) : (
         <Card className="border-slate-200 shadow-sm">
           <CardContent className="p-0">
-            <div className="overflow-x-auto w-full">
+            {/* VISUALIZAÇÃO 1 (MOBILE/TABLET): CARTÕES EMPILHADOS */}
+            <div className="block lg:hidden divide-y divide-slate-100">
+              {filteredOrders.map((o) => (
+                <div key={o.id} className="p-4 space-y-3 hover:bg-slate-50/80 transition-colors">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Link
+                          to={`/ordens/${o.id}`}
+                          className="font-mono font-bold text-sm text-indigo-600 hover:underline"
+                        >
+                          #{o.number}
+                        </Link>
+                        <StatusBadge status={o.status} />
+                      </div>
+                      <h4 className="font-semibold text-slate-900 text-sm line-clamp-1">
+                        {o.title}
+                      </h4>
+                      <p className="text-xs text-slate-600 truncate">
+                        {o.expand?.customer?.name || 'Cliente não identificado'}
+                      </p>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className="font-mono font-bold text-sm text-slate-900 block">
+                        R$ {(o.total || 0).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
+                    <span className="flex items-center gap-1">
+                      <Wrench className="h-3.5 w-3.5 text-indigo-500" />
+                      {o.expand?.technician?.name || 'Sem técnico'}
+                    </span>
+                    {o.attendance_date ? (
+                      <span className="flex items-center gap-1 font-medium text-slate-700">
+                        <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                        {formatAttendanceDateDisplay(o.attendance_date)}{' '}
+                        {o.attendance_time && `(${o.attendance_time})`}
+                      </span>
+                    ) : (
+                      <span className="italic text-slate-400">Não agendado</span>
+                    )}
+                  </div>
+
+                  {/* Ações Mobile com toque acessível (min 44px) */}
+                  <div className="flex items-center gap-2 pt-2">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => navigate(`/ordens/${o.id}`)}
+                      className="flex-1 min-h-[44px] h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-lg touch-manipulation active:scale-[0.98]"
+                    >
+                      Abrir Ordem
+                    </Button>
+                    <div className="min-h-[44px] min-w-[44px] flex items-center justify-center">
+                      <RecordActionsMenu
+                        label={`Ações: ${o.number}`}
+                        items={buildOrderActions(o)}
+                        title={`Mais ações da O.S. ${o.number}`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {filteredOrders.length === 0 && (
+                <div className="p-8 text-center text-sm text-slate-500 font-medium">
+                  Nenhuma ordem de serviço encontrada com os filtros atuais.
+                </div>
+              )}
+            </div>
+
+            {/* VISUALIZAÇÃO 2 (DESKTOP/NOTEBOOK): TABELA COMPLETA */}
+            <div className="hidden lg:block overflow-x-auto w-full">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
                   <tr>
@@ -949,7 +1024,7 @@ export default function OrdensDeServico() {
                             variant="ghost"
                             size="sm"
                             onClick={() => navigate(`/ordens/${o.id}`)}
-                            className="h-7 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-semibold px-2"
+                            className="h-8 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-semibold px-2.5 touch-manipulation"
                             title="Ver detalhes da O.S."
                           >
                             Abrir
