@@ -431,6 +431,8 @@ export interface Orcamento {
   total_geral?: number
   token_acesso?: string
   enviado_em?: string
+  proposta_apresentada_em?: string
+  proposta_apresentada_por?: string
   created?: string
   updated?: string
   expand?: {
@@ -438,6 +440,7 @@ export interface Orcamento {
     id_usuario_criador?: User
     cliente_id?: Customer
     responsavel_id?: User
+    proposta_apresentada_por?: User
   }
 }
 

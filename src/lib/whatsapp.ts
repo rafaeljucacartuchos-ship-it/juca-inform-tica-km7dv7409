@@ -379,6 +379,45 @@ export function buildRentalProposalClosingMessage(params: {
  * Mensagem amigável de retomada de negociação para orçamentos pendentes/enviados.
  * 'Olá, {primeiro nome}! Passando para saber se consegui te ajudar com o orçamento {numero} — {resumo}? A proposta fica válida por {X dias|tempo limitado} e temos condição de fechar por {total BRL}. {link da proposta, se houver} Qualquer dúvida me chama por aqui! 😉'
  */
+/**
+ * Mensagem da PRIMEIRA apresentação da proposta de serviço ao cliente via WhatsApp (v0.0.265).
+ * Template oficial exato:
+ * "Oi, {NOME}! Tudo bem?
+ *
+ * Aqui é o(a) {TÉCNICO}, da JUCA Informática. 😊
+ *
+ * Finalizei o diagnóstico do seu {EQUIPAMENTO} e preparei a proposta de serviço para você conferir:
+ *
+ * 👉 {LINK DA PROPOSTA}
+ *
+ * Nela estão o diagnóstico do problema, o que será feito e os valores — tudo detalhado, sem surpresa. Qualquer dúvida é só me chamar que eu te explico com prazer.
+ *
+ * Aprovar por aí ou me dar um retorno aqui, e já agendamos o serviço! 🚀"
+ */
+export function buildOrcamentoPrimeiraApresentacaoMessage(params: {
+  customerName: string
+  technicianName?: string
+  equipment?: string
+  propostaUrl: string
+}): string {
+  const { customerName, technicianName, equipment, propostaUrl } = params
+  const firstName = customerName.trim().split(/\s+/)[0] || 'Cliente'
+  const tech = technicianName?.trim() || 'Técnico(a)'
+  const equip =
+    equipment?.trim() && equipment.toLowerCase() !== 'não especificado'
+      ? equipment.trim()
+      : 'equipamento'
+
+  return (
+    `Oi, ${firstName}! Tudo bem?\n\n` +
+    `Aqui é o(a) ${tech}, da JUCA Informática. 😊\n\n` +
+    `Finalizei o diagnóstico do seu ${equip} e preparei a proposta de serviço para você conferir:\n\n` +
+    `👉 ${propostaUrl}\n\n` +
+    `Nela estão o diagnóstico do problema, o que será feito e os valores — tudo detalhado, sem surpresa. Qualquer dúvida é só me chamar que eu te explico com prazer.\n\n` +
+    `Aprovar por aí ou me dar um retorno aqui, e já agendamos o serviço! 🚀`
+  )
+}
+
 export function buildOrcamentoRetomadaNegociacaoMessage(params: {
   customerName: string
   numeroOrcamento?: string
