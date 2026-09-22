@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Star,
   Trophy,
@@ -10,6 +11,7 @@ import {
   MessageSquare,
   UserCheck,
   Calendar,
+  Phone,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -20,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { formatPhone } from '@/lib/phones'
 import {
   getEvaluations,
   getTechnicianRatingSummaries,
@@ -346,17 +349,53 @@ export default function RelatoriosAvaliacoes() {
                 }
                 const SatIcon = satInfo.icon
 
+                const serviceOrder = item.expand?.service_order
+                const customer = serviceOrder?.expand?.customer
+                const customerId = customer?.id || serviceOrder?.customer
+                const customerName =
+                  customer?.nome_fantasia || customer?.razao_social || customer?.name
+                const rawCustomerPhone = customer?.celular || customer?.phone
+                const formattedCustomerPhone = rawCustomerPhone ? formatPhone(rawCustomerPhone) : ''
+
                 return (
                   <div
                     key={item.id}
                     className="p-4 space-y-2 hover:bg-slate-50/60 transition-colors"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono font-bold text-xs text-indigo-600">
-                          OS #{item.expand?.service_order?.number || '—'}
+                          OS #{serviceOrder?.number || '—'}
                         </span>
+
+                        {formattedCustomerPhone && (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 font-mono font-normal">
+                            <Phone className="h-3 w-3 text-slate-400" />
+                            {formattedCustomerPhone}
+                          </span>
+                        )}
+
                         <span className="text-slate-300">•</span>
+
+                        <span className="text-xs">
+                          <span className="text-slate-500 font-medium">Cliente: </span>
+                          {customerName && customerId ? (
+                            <Link
+                              to={`/clientes/${customerId}`}
+                              className="font-bold text-indigo-600 hover:text-indigo-800 hover:underline transition-colors"
+                              title="Abrir cadastro do cliente"
+                            >
+                              {customerName}
+                            </Link>
+                          ) : customerName ? (
+                            <span className="font-semibold text-slate-700">{customerName}</span>
+                          ) : (
+                            <span className="text-slate-400 italic">Cliente não identificado</span>
+                          )}
+                        </span>
+
+                        <span className="text-slate-300">•</span>
+
                         <span className="text-xs font-semibold text-slate-800">
                           Técnico: {item.expand?.technician?.name || 'Não atribuído'}
                         </span>

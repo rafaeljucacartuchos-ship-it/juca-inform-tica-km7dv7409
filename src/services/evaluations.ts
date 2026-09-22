@@ -14,6 +14,17 @@ export interface EvaluationRecord {
       id: string
       number: string
       title: string
+      customer?: string
+      expand?: {
+        customer?: {
+          id: string
+          name?: string
+          razao_social?: string
+          nome_fantasia?: string
+          phone?: string
+          celular?: string
+        }
+      }
     }
     technician?: {
       id: string
@@ -22,7 +33,6 @@ export interface EvaluationRecord {
     }
   }
 }
-
 export interface TechnicianRatingSummary {
   technicianId: string
   technicianName: string
@@ -41,7 +51,7 @@ export async function getEvaluations(filter: string = ''): Promise<EvaluationRec
     const list = await pb.collection('evaluations').getFullList<EvaluationRecord>({
       filter,
       sort: '-created',
-      expand: 'service_order,technician',
+      expand: 'service_order,service_order.customer,technician',
     })
     return list
   } catch (err) {
