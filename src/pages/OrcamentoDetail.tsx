@@ -109,6 +109,7 @@ import {
 } from '@/components/OrcamentoServicoSelectModal'
 import { OrcamentoPhotos } from '@/components/OrcamentoPhotos'
 import { OrcamentoAssinaturaModal } from '@/components/OrcamentoAssinaturaModal'
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
 import { ServiceOrderLinkSection } from '@/components/ServiceOrderLinkSection'
 import {
   openWhatsApp,
@@ -239,6 +240,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
   const [modalLockKind, setModalLockKind] = useState(false)
   const [servicoSelectModalOpen, setServicoSelectModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<OrcamentoItem | null>(null)
+  const [itemToDelete, setItemToDelete] = useState<{ id: string; desc: string } | null>(null)
   const [scannerOpen, setScannerOpen] = useState(false)
   const [signatureModalOpen, setSignatureModalOpen] = useState(false)
   const [signerRole, setSignerRole] = useState<'customer' | 'technician'>('customer')
@@ -695,9 +697,16 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
     }
   }
 
-  // Exclusão de item com confirmação
-  const handleDeleteItem = async (itemId: string, desc: string) => {
-    if (!confirm(`Deseja remover o item "${desc}" do orçamento?`)) return
+  // Exclusão de item com confirmação via modal do sistema (compatível com PWA desktop)
+  const handleRequestDeleteItem = (itemId: string, desc: string) => {
+    setItemToDelete({ id: itemId, desc })
+  }
+
+  const handleConfirmDeleteItem = async () => {
+    if (!itemToDelete) return
+    const { id: itemId } = itemToDelete
+    setItemToDelete(null)
+
     if (isNew) {
       setItems((prev) => prev.filter((it) => it.id !== itemId))
       toast({ title: 'Item removido do orçamento' })
@@ -2806,7 +2815,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() => handleDeleteItem(it.id, it.descricao)}
+                                    onClick={() => handleRequestDeleteItem(it.id, it.descricao)}
                                     className="h-7 w-7 text-red-500 hover:bg-red-50"
                                     title="Excluir produto"
                                   >
@@ -2980,7 +2989,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() => handleDeleteItem(it.id, it.descricao)}
+                                    onClick={() => handleRequestDeleteItem(it.id, it.descricao)}
                                     className="h-7 w-7 text-red-500 hover:bg-red-50"
                                     title="Excluir serviço"
                                   >
@@ -4073,6 +4082,17 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
         open={servicoSelectModalOpen}
         onOpenChange={setServicoSelectModalOpen}
         onSelect={handleSelectServicoCadastrado}
+      />
+
+      {/* Modal de Confirmação de Exclusão de Item do Orçamento (Próprio do Sistema / PWA-safe) */}
+      <ConfirmDeleteDialog
+        open={!!itemToDelete}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setItemToDelete(null)
+        }}
+        onConfirm={handleConfirmDeleteItem}
+        title="Excluir Item do Orçamento"
+        description={`Deseja realmente remover o item "${itemToDelete?.desc}" deste orçamento?`}
       />
 
       {/* Modal de Itens (Produtos e Serviços) */}

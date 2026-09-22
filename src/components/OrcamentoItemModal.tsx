@@ -80,6 +80,73 @@ export function OrcamentoItemModal({
   const scrollBodyRef = useRef<HTMLDivElement>(null)
   const { visibleHeight, isKeyboardOpen } = useVisualViewport()
 
+  // Controle de detecção desktop vs mobile
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.innerWidth >= 640
+  })
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 640)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  // Arraste da janela no desktop
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const dragStartRef = useRef<{
+    startX: number
+    startY: number
+    initX: number
+    initY: number
+  } | null>(null)
+  const isDraggingRef = useRef(false)
+
+  // Reseta posição arrastada toda vez que o modal abre ou troca de item
+  useEffect(() => {
+    if (open) {
+      setDragOffset({ x: 0, y: 0 })
+    }
+  }, [open, itemToEdit])
+
+  const handleHeaderMouseDown = (e: React.MouseEvent) => {
+    // Só permite arrastar no desktop e botão esquerdo
+    if (!isDesktop || e.button !== 0) return
+    const target = e.target as HTMLElement
+    // Não inicia arraste se clicou em botões ou inputs dentro do header
+    if (target.closest('button') || target.closest('input')) return
+
+    isDraggingRef.current = true
+    dragStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initX: dragOffset.x,
+      initY: dragOffset.y,
+    }
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (!isDraggingRef.current || !dragStartRef.current) return
+      const dx = moveEvent.clientX - dragStartRef.current.startX
+      const dy = moveEvent.clientY - dragStartRef.current.startY
+      setDragOffset({
+        x: dragStartRef.current.initX + dx,
+        y: dragStartRef.current.initY + dy,
+      })
+    }
+
+    const onMouseUp = () => {
+      isDraggingRef.current = false
+      dragStartRef.current = null
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+  }
+
   const handleSearchFocus = () => {
     // No mobile (< 640px), ativa imediatamente o modo busca dedicada
     // para que a busca fique ancorada no topo visível acima do teclado
@@ -459,24 +526,43 @@ export function OrcamentoItemModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        style={{
-          top: 'var(--visual-viewport-offset-top, 0px)',
-          bottom: 'auto',
-          maxHeight: 'var(--teclado-altura, var(--app-visible-height, 100dvh))',
-          height: 'var(--teclado-altura, var(--app-visible-height, 100dvh))',
-        }}
-        className="w-full max-w-full sm:max-w-2xl lg:max-w-3xl top-[var(--visual-viewport-offset-top,0px)] bottom-auto h-[var(--teclado-altura,var(--app-visible-height,100dvh))] sm:h-auto max-h-[var(--teclado-altura,var(--app-visible-height,100dvh))] sm:max-h-[92vh] rounded-none sm:rounded-lg p-0 gap-0 flex flex-col overflow-hidden"
+        style={
+          isDesktop
+            ? {
+                transform: `translate(calc(-50% + ${dragOffset.x}px), calc(-50% + ${dragOffset.y}px))`,
+                maxHeight: '88vh',
+                height: 'auto',
+              }
+            : {
+                top: 'var(--visual-viewport-offset-top, 0px)',
+                bottom: 'auto',
+                maxHeight: 'var(--teclado-altura, var(--app-visible-height, 100dvh))',
+                height: 'var(--teclado-altura, var(--app-visible-height, 100dvh))',
+              }
+        }
+        className="w-full max-w-full sm:max-w-2xl lg:max-w-3xl rounded-none sm:rounded-xl p-0 gap-0 flex flex-col overflow-hidden sm:max-h-[88vh] sm:border sm:border-slate-200 sm:shadow-2xl"
       >
-        <DialogHeader className="px-4 py-3 sm:px-5 sm:pt-4 sm:pb-2 border-b border-slate-100 shrink-0">
-          <DialogTitle className="text-base font-bold text-slate-900">
-            {isEditing
-              ? kind === 'servico'
-                ? 'Editar Serviço'
-                : 'Editar Produto'
-              : kind === 'servico'
-                ? 'Adicionar Serviço / Mão de Obra'
-                : 'Adicionar Produto / Peça'}
-          </DialogTitle>
+        <DialogHeader
+          onMouseDown={handleHeaderMouseDown}
+          className={`px-4 py-3 sm:px-5 sm:py-3.5 border-b border-slate-100 shrink-0 select-none bg-slate-50/50 ${
+            isDesktop ? 'cursor-grab active:cursor-grabbing' : ''
+          }`}
+          title={isDesktop ? 'Clique e arraste para mover a janela' : undefined}
+        >
+          <div className="flex items-center justify-between pr-8">
+            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              {isEditing
+                ? kind === 'servico'
+                  ? 'Editar Serviço'
+                  : 'Editar Produto'
+                : kind === 'servico'
+                  ? 'Adicionar Serviço / Mão de Obra'
+                  : 'Adicionar Produto / Peça'}
+            </DialogTitle>
+            {isDesktop && (
+              <span className="text-[11px] text-slate-400 font-normal">arrastar janela</span>
+            )}
+          </div>
         </DialogHeader>
 
         <form
