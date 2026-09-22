@@ -53,6 +53,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Orcamento, OrcamentoStatus, OrderStatus, ServiceOrder, User, Customer } from '@/types'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 /** Formata tempo decorrido relativo em português (ex: "3 dias", "5 horas", "15 minutos") */
 function formatElapsedHuman(isoDate: string): string {
@@ -1139,16 +1140,37 @@ export default function OrcamentosList() {
                   {/* BOTÃO EM DESTAQUE: ENCAMINHAR AO CLIENTE (status aguardando_aprovacao ou enviado) */}
                   {(orc.status === 'aguardando_aprovacao' || orc.status === 'enviado') && (
                     <div className="pt-1">
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={(e) => handleForwardToCustomer(orc, e)}
-                        className="w-full min-h-[44px] sm:min-h-0 h-11 sm:h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-2xs touch-manipulation active:scale-[0.98]"
-                        title="Encaminhar proposta ou retomar negociação via WhatsApp / Compartilhar"
-                      >
-                        <Share className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-                        <span>Encaminhar ao Cliente</span>
-                      </Button>
+                      {orc.proposta_apresentada_em ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={(e) => handleForwardToCustomer(orc, e)}
+                          className="w-full min-h-[44px] sm:min-h-0 h-11 sm:h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-2xs touch-manipulation active:scale-[0.98]"
+                          title="Encaminhar proposta ou retomar negociação via WhatsApp / Compartilhar"
+                        >
+                          <Share className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                          <span>Encaminhar ao Cliente</span>
+                        </Button>
+                      ) : (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span tabIndex={0} className="block w-full cursor-not-allowed">
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled
+                                className="w-full min-h-[44px] sm:min-h-0 h-11 sm:h-8 text-xs font-bold bg-slate-300 text-slate-500 gap-1.5 shadow-2xs cursor-not-allowed"
+                              >
+                                <Share className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                                <span>Encaminhar ao Cliente</span>
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Envie a proposta ao cliente primeiro</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                     </div>
                   )}
                 </CardContent>

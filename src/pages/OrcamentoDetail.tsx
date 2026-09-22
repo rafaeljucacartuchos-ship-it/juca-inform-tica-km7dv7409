@@ -116,6 +116,7 @@ import {
   buildWhatsAppUrl,
   buildOrcamentoPropostaMessage,
   buildOrcamentoAprovadoAgradecimentoMessage,
+  buildOrcamentoPrimeiraApresentacaoMessage,
 } from '@/lib/whatsapp'
 import { generateRandomToken } from '@/services/orcamentos'
 import { useDraftState } from '@/hooks/use-draft-state'
@@ -980,6 +981,72 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
     }
     return orcamento?.equipamento_independente || 'Não especificado'
   }, [orcamento])
+
+  const handleEnviarPropostaPrimeiraVez = async () => {
+    if (!orcamento) return
+    const phone = activeCustomerPhone
+    if (!phone || phone.trim().length < 8) {
+      toast({
+        title: 'Cliente sem telefone cadastrado',
+        description: 'Cadastre o celular do cliente antes de enviar a proposta.',
+        variant: 'destructive',
+      })
+      return
+    }
+    let token = orcamento.token_acesso
+    if (!token) {
+      try {
+        const generated = await generateRandomToken(32)
+        const updated = await updateOrcamento(orcamento.id, { token_acesso: generated })
+        token = updated.token_acesso || generated
+        setOrcamento((prev) => (prev ? { ...prev, token_acesso: token } : prev))
+      } catch {
+        token = orcamento.id
+      }
+    }
+    const propostaUrl = `${window.location.origin}/proposta/${token || orcamento.id}`
+    const mensagem = buildOrcamentoPrimeiraApresentacaoMessage({
+      customerName: activeCustomerName,
+      technicianName: activeResponsibleName || user?.name || 'Técnico(a)',
+      equipment: activeEquipmentName,
+      propostaUrl,
+    })
+    openWhatsApp(phone, mensagem)
+    try {
+      const nowIso = new Date().toISOString()
+      const updatePayload: Partial<Orcamento> = {
+        proposta_apresentada_em: nowIso,
+        proposta_apresentada_por: user?.id,
+        enviado_em: orcamento.enviado_em || nowIso,
+      }
+      if (orcamento.status === 'rascunho' || orcamento.status === 'aguardando_aprovacao') {
+        updatePayload.status = 'enviado'
+      }
+      await updateOrcamento(orcamento.id, updatePayload)
+      if (
+        orcamento.id_os &&
+        (orcamento.status === 'rascunho' || orcamento.status === 'aguardando_aprovacao')
+      ) {
+        await updateOsStatus(
+          orcamento.id_os,
+          'orcamento_enviado',
+          `Proposta do orçamento ${orcamento.numero_orcamento} apresentada ao cliente via WhatsApp`,
+          user?.id,
+        )
+      }
+      toast({
+        title: 'Proposta enviada ao cliente!',
+        description: 'Apresentação inicial registrada no orçamento com sucesso.',
+      })
+      loadAll()
+    } catch {
+      toast({
+        title: 'WhatsApp aberto!',
+        description: 'Porém houve aviso ao persistir a data de apresentação.',
+        variant: 'destructive',
+      })
+    }
+  }
 
   // 1. WhatsApp: wa.me NÃO anexa arquivos. Solução: link do PDF do orçamento + Compartilhamento Nativo
   const handleWhatsApp = async () => {
@@ -1911,6 +1978,25 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                     (Histórico - substituído por novo orçamento)
                   </span>
                 )}
+                {orcamento.proposta_apresentada_em && (
+                  <Badge
+                    variant="outline"
+                    className="text-[11px] bg-emerald-50 text-emerald-800 border-emerald-300 font-medium"
+                  >
+                    Proposta apresentada em{' '}
+                    {new Date(orcamento.proposta_apresentada_em).toLocaleDateString('pt-BR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}{' '}
+                    por{' '}
+                    {orcamento.expand?.proposta_apresentada_por?.name ||
+                      systemUsers.find((u) => u.id === orcamento.proposta_apresentada_por)?.name ||
+                      'Colaborador'}
+                  </Badge>
+                )}
               </div>
               <p className="text-xs text-slate-500 truncate">
                 {orcamento.id_os
@@ -2065,6 +2151,21 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
 
           {orcamento.status !== 'aprovado' &&
             orcamento.status !== 'faturado' &&
+            orcamento.status !== 'substituido' && (
+              <Button
+                size="sm"
+                disabled={isNew}
+                onClick={handleEnviarPropostaPrimeiraVez}
+                className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-bold shadow-xs"
+                title="Enviar a mensagem de primeira apresentação da proposta via WhatsApp"
+              >
+                <Send className="h-3.5 w-3.5" />
+                <span>Enviar Proposta ao Cliente</span>
+              </Button>
+            )}
+
+          {orcamento.status !== 'aprovado' &&
+            orcamento.status !== 'faturado' &&
             orcamento.status !== 'rejeitado' &&
             orcamento.status !== 'substituido' &&
             canEdit && (
@@ -2102,16 +2203,35 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
             </div>
           )}
 
-          {orcamento.status === 'rejeitado' && canEdit && (
-            <Button
-              size="sm"
-              onClick={() => setRetomarModalOpen(true)}
-              className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1.5 font-bold shadow-xs"
-              title="Retomar a negociação deste orçamento e retorná-lo para Aguardando Aprovação"
-            >
-              <RotateCcw className="h-3.5 w-3.5" /> Retomar Negociação
-            </Button>
-          )}
+          {orcamento.status === 'rejeitado' &&
+            canEdit &&
+            (orcamento.proposta_apresentada_em ? (
+              <Button
+                size="sm"
+                onClick={() => setRetomarModalOpen(true)}
+                className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1.5 font-bold shadow-xs"
+                title="Retomar a negociação deste orçamento e retorná-lo para Aguardando Aprovação"
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> Retomar Negociação
+              </Button>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0} className="inline-block cursor-not-allowed">
+                    <Button
+                      size="sm"
+                      disabled
+                      className="h-8 text-xs bg-amber-600 text-white gap-1.5 font-bold shadow-xs opacity-50 cursor-not-allowed"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" /> Retomar Negociação
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Envie a proposta ao cliente primeiro</p>
+                </TooltipContent>
+              </Tooltip>
+            ))}
 
           {orcamento.status !== 'rejeitado' && orcamento.status !== 'faturado' && (
             <Button

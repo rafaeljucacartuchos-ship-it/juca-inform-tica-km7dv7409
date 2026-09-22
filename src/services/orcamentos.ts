@@ -88,7 +88,7 @@ export async function getOrcamentos(options?: {
       filter: filters.length > 0 ? filters.join(' && ') : undefined,
       sort: '-created',
       expand:
-        'id_os,id_usuario_criador,cliente_id,responsavel_id,id_os.customer,id_os.technician,id_os.equipment_ref',
+        'id_os,id_usuario_criador,cliente_id,responsavel_id,proposta_apresentada_por,id_os.customer,id_os.technician,id_os.equipment_ref',
     })
   } catch {
     return []
@@ -98,7 +98,7 @@ export async function getOrcamentos(options?: {
 export async function getOrcamento(id: string): Promise<Orcamento> {
   const record = await pb.collection('orcamentos').getOne<Orcamento>(id, {
     expand:
-      'id_os,id_usuario_criador,cliente_id,responsavel_id,id_os.customer,id_os.technician,id_os.equipment_ref',
+      'id_os,id_usuario_criador,cliente_id,responsavel_id,proposta_apresentada_por,id_os.customer,id_os.technician,id_os.equipment_ref',
   })
   if (!record.token_acesso) {
     try {
