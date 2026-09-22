@@ -14,7 +14,7 @@ cronAdd('juquinha_pos_venda_cron', '* * * * *', () => {
     // Exclui avaliações do avanço automático por tempo, pois dependem de 'Cliente respondeu'
     var pending = $app.findRecordsByFilter(
       'pos_venda_messages',
-      'status = "pending" && tipo != "avaliacao_tecnico" && tipo != "avaliacao_google" && (scheduled_at = null || scheduled_at = "" || scheduled_at <= "' +
+      'status = "pending" && tipo != "avaliacao_satisfacao" && tipo != "avaliacao_tecnico" && tipo != "avaliacao_google" && (scheduled_at = null || scheduled_at = "" || scheduled_at <= "' +
         nowIso +
         '")',
       'scheduled_at',

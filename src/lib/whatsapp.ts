@@ -277,6 +277,64 @@ export function buildOrcamentoAprovadoAgradecimentoMessage(params: {
   )
 }
 
+/**
+ * Mensagem oficial unificada de Avaliação de Satisfação (nota 0 a 5).
+ * Pergunta PRIMEIRO a nota de satisfação, antes de qualquer pedido do Google.
+ * Modelo solicitado pelo usuário Rafael:
+ *
+ * "🔧 *JUCA CARTUCHOS E INFORMÁTICA*
+ *
+ * Oi, {NOME}! *Juquinha* aqui de novo! 😊
+ *
+ * Seu equipamento foi atendido pelo técnico {TÉCNICO} e encerramos a O.S. {NUMERO_OS} hoje.
+ *
+ * *De 0 a 5, como você avalia o atendimento que recebeu?*
+ *
+ * Me responde com uma notinha (0 a 5) que eu fico muito grato! 🙏"
+ */
+export function buildAvaliacaoSatisfacaoMessage(params: {
+  customerName: string
+  technicianName?: string
+  orderNumber?: string
+}): string {
+  const { customerName, technicianName, orderNumber } = params
+  const firstName = customerName.trim().split(/\s+/)[0] || 'Cliente'
+  const tech = technicianName?.trim() || 'da nossa equipe técnica'
+  const osLabel = orderNumber?.trim() ? orderNumber.trim() : 'sua O.S.'
+
+  return (
+    `🔧 *JUCA CARTUCHOS E INFORMÁTICA*\n\n` +
+    `Oi, ${firstName}! *Juquinha* aqui de novo! 😊\n\n` +
+    `Seu equipamento foi atendido pelo técnico ${tech} e encerramos a O.S. ${osLabel} hoje.\n\n` +
+    `*De 0 a 5, como você avalia o atendimento que recebeu?*\n\n` +
+    `Me responde com uma notinha (0 a 5) que eu fico muito grato! 🙏` +
+    WHATSAPP_FOOTER
+  )
+}
+
+/**
+ * Segunda etapa do funil (disponível quando a nota registrada for 4 ou 5):
+ * Convite amigável para registrar uma avaliação de 5 estrelas no Google Meu Negócio.
+ */
+export function buildGoogleReviewRequestMessage(params: {
+  customerName: string
+  googleReviewUrl?: string
+}): string {
+  const { customerName, googleReviewUrl = GOOGLE_REVIEW_URL } = params
+  const firstName = customerName.trim().split(/\s+/)[0] || 'Cliente'
+  const gLink = googleReviewUrl?.trim() || GOOGLE_REVIEW_URL
+
+  return (
+    `🔧 *JUCA CARTUCHOS E INFORMÁTICA*\n\n` +
+    `Oi, ${firstName}! *Juquinha* por aqui mais uma vez! 🌐✨\n\n` +
+    `Muito obrigado pelo feedback tão positivo! A sua opinião é muito importante para nós e ajuda outros clientes a conhecerem a dedicação da nossa equipe.\n\n` +
+    `Poderia dedicar 30 segundinhos para deixar uma avaliação 5 estrelas no nosso perfil do Google?\n\n` +
+    `👉 ${gLink}\n\n` +
+    `Muito obrigado pela parceria e carinho de sempre! 🚀` +
+    WHATSAPP_FOOTER
+  )
+}
+
 export function buildCompletionEvaluationMessage(
   customerName: string,
   orderNumber: string,
@@ -301,7 +359,7 @@ export function buildCompletionEvaluationMessage(
   if (details?.itemsSummary && details?.serviceReport) {
     servicePart = `após ${details.serviceReport.trim()} e itens: ${details.itemsSummary.trim()}`
   } else if (details?.itemsSummary) {
-    servicePart = `após serviço realizado com ${details.itemsSummary.trim()}`
+    servicePart = `após ${details.serviceReport.trim()}`
   } else if (details?.serviceReport) {
     servicePart = `após ${details.serviceReport.trim()}`
   }
@@ -321,7 +379,6 @@ export function buildCompletionEvaluationMessage(
     WHATSAPP_FOOTER
   )
 }
-
 /**
  * Abre o WhatsApp com a mensagem de avaliação de conclusão.
  * Usada quando o status da O.S. muda para "Concluída".

@@ -1,8 +1,13 @@
 import pb from '@/lib/pocketbase/client'
-import { PosVendaMessage, PosVendaTipo, SystemSetting } from '@/types'
+import { PosVendaMessage, PosVendaTipo, PosVendaFunilStatus, SystemSetting } from '@/types'
 import { getCustomerDisplayName, getCustomerPhone } from '@/services/customers'
 import { notifyStaffMembers } from '@/services/notifications'
-import { WHATSAPP_FOOTER, WHATSAPP_HEADER } from '@/lib/whatsapp'
+import {
+  WHATSAPP_FOOTER,
+  WHATSAPP_HEADER,
+  buildAvaliacaoSatisfacaoMessage,
+  buildGoogleReviewRequestMessage,
+} from '@/lib/whatsapp'
 
 export const getPosVendaMessages = async (filterStr = '', sortStr = '-scheduled_at') => {
   return pb.collection('pos_venda_messages').getFullList<PosVendaMessage>({
@@ -108,6 +113,14 @@ export function buildJuquinhaMessageText(params: {
         `Eu${techMention} ficamos muito felizes em te atender! Se tiver qualquer dúvida, detalhe ou precisar de um ajuste, é só me responder por aqui que estou à sua disposição!`
       break
     }
+    case 'avaliacao_satisfacao': {
+      // Mensagem unificada de Avaliação de Satisfação (nota 0 a 5 primeiro)
+      return buildAvaliacaoSatisfacaoMessage({
+        customerName,
+        technicianName,
+        orderNumber,
+      })
+    }
     case 'avaliacao_tecnico': {
       const techLabel = technicianName.trim() ? `*${technicianName.trim()}*` : 'nosso técnico'
       body =
@@ -188,13 +201,18 @@ export function buildJuquinhaWaLink(phone: string, text: string): string {
 }
 
 /**
- * Auxiliar: cria mensagens de avaliação para uma dada mensagem de referência (check-in ou pos_venda_7d).
- * Cria as duas avaliações (avaliacao_tecnico e avaliacao_google) se ainda não existirem para a mesma O.S.
+ * Auxiliar: cria a mensagem UNIFICADA de Avaliação de Satisfação (nota 0 a 5)
+ * para a mesma O.S. se ainda não existir.
+ * Se já existirem registros legados (avaliacao_tecnico / avaliacao_google), não quebra.
  */
 export async function createEvaluationsForOrder(
   refMsg: PosVendaMessage,
   initialStatus: 'pending' | 'ready' = 'pending',
-): Promise<{ techMsg?: PosVendaMessage; googleMsg?: PosVendaMessage }> {
+): Promise<{
+  satisfacaoMsg?: PosVendaMessage
+  techMsg?: PosVendaMessage
+  googleMsg?: PosVendaMessage
+}> {
   const cust = refMsg.expand?.customer
   const so = refMsg.expand?.service_order
   const custId = refMsg.customer
@@ -202,21 +220,22 @@ export async function createEvaluationsForOrder(
 
   const custName = getCustomerDisplayName(cust)
   const phone = getCustomerPhone(cust)
-  const equip = so?.equipment || ''
   const soNumber = so?.number || ''
   const techName = so?.expand?.technician?.name || ''
-  const googleReviewUrl = await getGoogleReviewUrl()
 
   const nowIso = new Date().toISOString()
 
   // Verifica se já existem avaliações criadas para esta OS
-  let existingTech = null
-  let existingGoogle = null
+  let existingSatisfacao: PosVendaMessage | undefined
+  let existingTech: PosVendaMessage | undefined
+  let existingGoogle: PosVendaMessage | undefined
+
   if (soId) {
     try {
       const existing = await pb.collection('pos_venda_messages').getFullList<PosVendaMessage>({
-        filter: `service_order = "${soId}" && (tipo = "avaliacao_tecnico" || tipo = "avaliacao_google")`,
+        filter: `service_order = "${soId}" && (tipo = "avaliacao_satisfacao" || tipo = "avaliacao_tecnico" || tipo = "avaliacao_google")`,
       })
+      existingSatisfacao = existing.find((m) => m.tipo === 'avaliacao_satisfacao')
       existingTech = existing.find((m) => m.tipo === 'avaliacao_tecnico')
       existingGoogle = existing.find((m) => m.tipo === 'avaliacao_google')
     } catch {
@@ -224,53 +243,36 @@ export async function createEvaluationsForOrder(
     }
   }
 
-  let techMsg = existingTech || undefined
-  let googleMsg = existingGoogle || undefined
-
-  if (!existingTech) {
-    const textTecnico = buildJuquinhaMessageText({
-      tipo: 'avaliacao_tecnico',
-      customerName: custName,
-      equipment: equip,
-      orderNumber: soNumber,
-      technicianName: techName,
-    })
-    const waLinkTecnico = buildJuquinhaWaLink(phone, textTecnico)
-    techMsg = await createPosVendaMessage({
-      customer: custId,
-      service_order: soId,
-      tipo: 'avaliacao_tecnico',
-      status: initialStatus,
-      scheduled_at: nowIso,
-      texto_gerado: textTecnico,
-      wa_me_link: waLinkTecnico,
-      channel: 'whatsapp',
-    })
+  // Se já existe o unificado, retorna
+  if (existingSatisfacao) {
+    return { satisfacaoMsg: existingSatisfacao, techMsg: existingTech, googleMsg: existingGoogle }
   }
 
-  if (!existingGoogle) {
-    const textGoogle = buildJuquinhaMessageText({
-      tipo: 'avaliacao_google',
+  // Se NÃO existe nem unificado nem legados, cria o CARD UNIFICADO
+  if (!existingTech && !existingGoogle) {
+    const textSatisfacao = buildAvaliacaoSatisfacaoMessage({
       customerName: custName,
-      equipment: equip,
-      orderNumber: soNumber,
       technicianName: techName,
-      googleReviewUrl,
+      orderNumber: soNumber,
     })
-    const waLinkGoogle = buildJuquinhaWaLink(phone, textGoogle)
-    googleMsg = await createPosVendaMessage({
+    const waLink = buildJuquinhaWaLink(phone, textSatisfacao)
+
+    const satisfacaoMsg = await createPosVendaMessage({
       customer: custId,
       service_order: soId,
-      tipo: 'avaliacao_google',
+      tipo: 'avaliacao_satisfacao',
       status: initialStatus,
+      status_funil: 'aguardando_nota',
       scheduled_at: nowIso,
-      texto_gerado: textGoogle,
-      wa_me_link: waLinkGoogle,
+      texto_gerado: textSatisfacao,
+      wa_me_link: waLink,
       channel: 'whatsapp',
     })
+
+    return { satisfacaoMsg }
   }
 
-  return { techMsg, googleMsg }
+  return { techMsg: existingTech, googleMsg: existingGoogle }
 }
 
 /**
@@ -280,7 +282,7 @@ export async function promoteEvaluationsToReady(soId: string): Promise<number> {
   if (!soId) return 0
   try {
     const evals = await pb.collection('pos_venda_messages').getFullList<PosVendaMessage>({
-      filter: `service_order = "${soId}" && (tipo = "avaliacao_tecnico" || tipo = "avaliacao_google") && status = "pending"`,
+      filter: `service_order = "${soId}" && (tipo = "avaliacao_satisfacao" || tipo = "avaliacao_tecnico" || tipo = "avaliacao_google") && status = "pending"`,
     })
     for (const ev of evals) {
       await pb.collection('pos_venda_messages').update(ev.id, {
@@ -292,6 +294,123 @@ export async function promoteEvaluationsToReady(soId: string): Promise<number> {
     console.warn('Erro ao promover avaliações para ready:', err)
     return 0
   }
+}
+
+/**
+ * REGISTRAR NOTA DO CLIENTE NO FUNIL DE AVALIAÇÃO (0 a 5):
+ * - Nota 4 ou 5:
+ *   Funil avança para 'google_sugerido'. Mensagem do Google é disponibilizada com link e 1-toque WhatsApp.
+ *   Salva na coleção de avaliações (evaluations) com satisfação 'excelente' (5) ou 'bom' (4).
+ * - Nota 0 a 3:
+ *   Funil vira 'critica_contato_pendente'. Alerta interno destacado para contato imediato do Rafael.
+ *   Salva na coleção de avaliações (evaluations) com satisfação 'pode_melhorar' (2-3) ou 'nao_gostei' (0-1).
+ *   Cria notificação para administradores e atendentes alertando sobre a crítica pendente.
+ */
+export async function registrarNotaAvaliacao(params: {
+  messageId: string
+  serviceOrderId?: string
+  technicianId?: string
+  nota: number
+  feedback?: string
+  customerName?: string
+  orderNumber?: string
+}): Promise<PosVendaMessage> {
+  const {
+    messageId,
+    serviceOrderId,
+    technicianId,
+    nota,
+    feedback = '',
+    customerName = 'Cliente',
+    orderNumber = '',
+  } = params
+
+  const isSatisfied = nota >= 4
+  const statusFunil: PosVendaFunilStatus = isSatisfied
+    ? 'google_sugerido'
+    : 'critica_contato_pendente'
+
+  // 1) Atualiza a mensagem de pós-venda
+  const updated = await pb.collection('pos_venda_messages').update<PosVendaMessage>(messageId, {
+    nota_avaliacao: nota,
+    status_funil: statusFunil,
+    cliente_respondeu: true,
+    cliente_respondeu_em: new Date().toISOString(),
+    feedback_cliente: feedback,
+  })
+
+  // 2) Alimenta a coleção 'evaluations' para refletir no Relatório de Avaliações existente
+  if (serviceOrderId) {
+    try {
+      // Mapear nota para o enum satisfaction existente
+      let satisfaction: 'nao_gostei' | 'bom' | 'excelente' | 'pode_melhorar' = 'excelente'
+      if (nota >= 5) satisfaction = 'excelente'
+      else if (nota === 4) satisfaction = 'bom'
+      else if (nota >= 2) satisfaction = 'pode_melhorar'
+      else satisfaction = 'nao_gostei'
+
+      // Se já houver avaliação registrada para a O.S., atualiza; senão cria nova
+      const existingEvals = await pb.collection('evaluations').getFullList({
+        filter: `service_order = "${serviceOrderId}"`,
+      })
+
+      if (existingEvals.length > 0) {
+        await pb.collection('evaluations').update(existingEvals[0].id, {
+          rating: Math.max(1, Math.min(5, nota === 0 ? 1 : nota)), // evaluations rating é 1-5 na média
+          satisfaction,
+          feedback:
+            feedback || (nota <= 3 ? `Avaliação pós-venda: Nota ${nota}/5 registrada.` : ''),
+          technician: technicianId || existingEvals[0].technician,
+        })
+      } else {
+        await pb.collection('evaluations').create({
+          service_order: serviceOrderId,
+          technician: technicianId || null,
+          rating: Math.max(1, Math.min(5, nota === 0 ? 1 : nota)),
+          satisfaction,
+          feedback:
+            feedback || (nota <= 3 ? `Avaliação pós-venda: Nota ${nota}/5 registrada.` : ''),
+        })
+      }
+    } catch (evalErr) {
+      console.warn('Erro ao registrar avaliação na coleção evaluations:', evalErr)
+    }
+  }
+
+  // 3) Se for crítica (nota 0-3), cria alerta interno para a equipe (Rafael) ligar para o cliente
+  if (!isSatisfied) {
+    try {
+      const osLabel = orderNumber ? `OS #${orderNumber}` : 'O.S.'
+      await notifyStaffMembers({
+        title: `⚠️ Crítica de Pós-venda: Nota ${nota} na ${osLabel}`,
+        message: `${customerName} avaliou com nota ${nota}/5 na ${osLabel}. Contato imediato recomendado para entender e solucionar antes de avaliação pública.`,
+        type: 'service_order',
+        link: '/pos-venda',
+      })
+    } catch (notifErr) {
+      console.warn('Erro ao notificar crítica de pós-venda:', notifErr)
+    }
+  }
+
+  return updated
+}
+
+/**
+ * Marca a etapa do Google como enviada (disparada)
+ */
+export async function marcarGoogleEnviado(messageId: string): Promise<PosVendaMessage> {
+  return pb.collection('pos_venda_messages').update<PosVendaMessage>(messageId, {
+    status_funil: 'google_enviado',
+  })
+}
+
+/**
+ * Marca a crítica como resolvida / tratada
+ */
+export async function marcarCriticaResolvida(messageId: string): Promise<PosVendaMessage> {
+  return pb.collection('pos_venda_messages').update<PosVendaMessage>(messageId, {
+    status_funil: 'resolvido',
+  })
 }
 
 /**
@@ -406,6 +525,7 @@ export const markPosVendaMessageResponded = async (
  * ETAPA 2 — LIBERAR AVALIAÇÕES MANUALMENTE (fallback / ação explícita):
  */
 export async function releaseJuquinhaEvaluations(msg: PosVendaMessage): Promise<{
+  satisfacaoMsg?: PosVendaMessage
   techMsg?: PosVendaMessage
   googleMsg?: PosVendaMessage
 }> {

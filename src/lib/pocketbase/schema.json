@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-22T23:27:39.217Z",
+  "generatedAt": "2026-09-22T23:53:20.048Z",
   "collections": [
     {
       "name": "users",
@@ -1440,6 +1440,7 @@
             "checkin_pos_venda",
             "avaliacao_tecnico",
             "avaliacao_google",
+            "avaliacao_satisfacao",
             "avaliacao_30min",
             "pos_venda_7d",
             "oferta_30d"
@@ -1511,6 +1512,31 @@
         {
           "name": "avaliacoes_liberadas",
           "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "nota_avaliacao",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status_funil",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": [
+            "aguardando_nota",
+            "critica_contato_pendente",
+            "google_sugerido",
+            "google_enviado",
+            "resolvido"
+          ]
+        },
+        {
+          "name": "feedback_cliente",
+          "type": "text",
           "required": false,
           "system": false
         }

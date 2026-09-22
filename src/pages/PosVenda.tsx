@@ -20,6 +20,9 @@ import {
   Gift,
   ArrowRight,
   SlidersHorizontal,
+  AlertTriangle,
+  PhoneCall,
+  ExternalLink,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -53,7 +56,11 @@ import {
   createPosVendaMessage,
   buildJuquinhaMessageText,
   buildJuquinhaWaLink,
+  registrarNotaAvaliacao,
+  marcarGoogleEnviado,
+  marcarCriticaResolvida,
 } from '@/services/pos_venda'
+import { buildGoogleReviewRequestMessage, GOOGLE_REVIEW_URL } from '@/lib/whatsapp'
 import { PosVendaMessage, PosVendaTipo, Customer, ServiceOrder } from '@/types'
 import { getCustomerDisplayName, getCustomerPhone, getCustomers } from '@/services/customers'
 import { getServiceOrders } from '@/services/service_orders'
@@ -105,6 +112,11 @@ export default function PosVendaJuquinha() {
   // Estado para ações de resposta e liberação
   const [markingRespondedId, setMarkingRespondedId] = useState<string | null>(null)
   const [releasingEvaluationsId, setReleasingEvaluationsId] = useState<string | null>(null)
+
+  // Estado para registro de nota e funil na UI
+  const [savingNotaId, setSavingNotaId] = useState<string | null>(null)
+  const [criticaNotesOpenId, setCriticaNotesOpenId] = useState<string | null>(null)
+  const [criticaNotesText, setCriticaNotesText] = useState('')
 
   // Modal Nova Mensagem Manual
   const [newMsgModalOpen, setNewMsgModalOpen] = useState(false)
@@ -161,9 +173,11 @@ export default function PosVendaJuquinha() {
       toast({
         title: 'WhatsApp aberto!',
         description:
-          msg.tipo === 'pos_venda_7d'
-            ? 'Mensagem marcada como enviada e avaliações geradas automaticamente!'
-            : 'Mensagem marcada como enviada no histórico.',
+          msg.tipo === 'pos_venda_7d' || msg.tipo === 'checkin_pos_venda'
+            ? 'Mensagem marcada como enviada e avaliação de satisfação preparada!'
+            : msg.tipo === 'avaliacao_satisfacao'
+              ? 'Pergunta de nota (0 a 5) enviada! Aguardando resposta do cliente.'
+              : 'Mensagem marcada como enviada no histórico.',
       })
       loadData()
     } catch {
@@ -190,9 +204,8 @@ export default function PosVendaJuquinha() {
       toast({
         title: 'Cliente marcado como respondido!',
         description:
-          'Avaliações (Técnico e Google) liberadas como prontas e notificação enviada para a equipe!',
+          'Avaliação de satisfação liberada como pronta e notificação enviada para a equipe!',
       })
-
       await loadData()
     } catch (err) {
       toast({
@@ -211,9 +224,8 @@ export default function PosVendaJuquinha() {
     try {
       await releaseJuquinhaEvaluations(msg)
       toast({
-        title: 'Avaliações liberadas com sucesso!',
-        description:
-          '2 mensagens: Avaliação do Técnico (⭐) e Avaliação no Google (🌐) prontas para disparo.',
+        title: 'Avaliação de satisfação liberada com sucesso!',
+        description: 'Mensagem unificada de satisfação (nota 0 a 5) pronta para disparo.',
       })
       setActiveBox('avaliacoes')
       await loadData()
@@ -486,7 +498,13 @@ export default function PosVendaJuquinha() {
     return messages
       .filter((m) => {
         if (m.status !== 'pending') return false
-        if (m.tipo === 'avaliacao_tecnico' || m.tipo === 'avaliacao_google') return false // avaliações pendentes aguardam resposta
+        if (
+          m.tipo === 'avaliacao_satisfacao' ||
+          m.tipo === 'avaliacao_tecnico' ||
+          m.tipo === 'avaliacao_google'
+        ) {
+          return false // avaliações pendentes aguardam nota do cliente
+        }
         const schedMs = m.scheduled_at ? new Date(m.scheduled_at).getTime() : 0
         // Deve ser data futura
         return schedMs > now
@@ -507,16 +525,29 @@ export default function PosVendaJuquinha() {
       .sort((a, b) => getOrderCompletionDate(a).getTime() - getOrderCompletionDate(b).getTime())
   }, [messages])
 
-  // e) 'Avaliações (Técnico + Google)':
-  // Todas as mensagens das O.S. que já tiveram QUALQUER mensagem enviada (histórico de contato),
-  // com as avaliações prontas em destaque no topo, e avaliações pendentes ou enviadas em seguida.
+  // e) 'Avaliações (Unificada + Legados)':
+  // Todas as mensagens de avaliação: o novo card unificado 'avaliacao_satisfacao' (com funil de nota 0-5)
+  // e cards legados preservados (avaliacao_tecnico / avaliacao_google).
+  // Críticas pendentes de contato (0-3) e prontas vêm no topo!
   const avaliacoesMessages = useMemo(() => {
     return messages
-      .filter((m) => m.tipo === 'avaliacao_tecnico' || m.tipo === 'avaliacao_google')
+      .filter(
+        (m) =>
+          m.tipo === 'avaliacao_satisfacao' ||
+          m.tipo === 'avaliacao_tecnico' ||
+          m.tipo === 'avaliacao_google',
+      )
       .sort((a, b) => {
-        // Prontas (ready) vêm primeiro no topo
+        // Críticas pendentes no topo máximo para Rafael ligar imediatamente
+        const isCriticaA = a.status_funil === 'critica_contato_pendente'
+        const isCriticaB = b.status_funil === 'critica_contato_pendente'
+        if (isCriticaA && !isCriticaB) return -1
+        if (isCriticaB && !isCriticaA) return 1
+
+        // Prontas (ready) vêm em seguida no topo
         if (a.status === 'ready' && b.status !== 'ready') return -1
         if (b.status === 'ready' && a.status !== 'ready') return 1
+
         // Entre prontas ou mesmo status: mais antiga da conclusão primeiro
         return getOrderCompletionDate(a).getTime() - getOrderCompletionDate(b).getTime()
       })
@@ -604,16 +635,23 @@ export default function PosVendaJuquinha() {
             🎁 Oferta (30 dias)
           </Badge>
         )
+      case 'avaliacao_satisfacao':
+        return (
+          <Badge className="bg-gradient-to-r from-amber-100 via-yellow-100 to-sky-100 text-slate-900 border-amber-300 text-[11px] font-bold gap-1 shadow-2xs">
+            <Star className="h-3 w-3 text-amber-600 fill-amber-500" />
+            <Globe className="h-3 w-3 text-sky-600" />⭐ + 🌐 Avaliação de Satisfação
+          </Badge>
+        )
       case 'avaliacao_tecnico':
         return (
           <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-[11px] font-bold gap-1">
-            <Star className="h-3 w-3 text-amber-600 fill-amber-500" /> Avaliação do Técnico
+            <Star className="h-3 w-3 text-amber-600 fill-amber-500" /> Avaliação do Técnico (legado)
           </Badge>
         )
       case 'avaliacao_google':
         return (
           <Badge className="bg-sky-100 text-sky-900 border-sky-300 text-[11px] font-bold gap-1">
-            <Globe className="h-3 w-3 text-sky-600" /> Avaliação no Google
+            <Globe className="h-3 w-3 text-sky-600" /> Avaliação no Google (legado)
           </Badge>
         )
       case 'avaliacao_30min':
@@ -669,7 +707,72 @@ export default function PosVendaJuquinha() {
       }
     }
 
-    // Avaliações pendentes aguardando resposta do cliente
+    // Avaliação Unificada de Satisfação: reflete o funil (aguardando nota -> 4-5 Google sugerido/enviado -> 0-3 Crítica)
+    if (tipo === 'avaliacao_satisfacao') {
+      const nota = msg.nota_avaliacao
+      const funil =
+        msg.status_funil ||
+        (typeof nota === 'number'
+          ? nota >= 4
+            ? 'google_sugerido'
+            : 'critica_contato_pendente'
+          : 'aguardando_nota')
+
+      if (funil === 'critica_contato_pendente') {
+        return (
+          <Badge className="bg-red-600 text-white font-black gap-1 text-[11px] shadow-sm animate-pulse border-red-700">
+            <AlertTriangle className="h-3 w-3" />
+            ⚠️ Crítica — requer contato (Nota {nota}/5)
+          </Badge>
+        )
+      }
+      if (funil === 'resolvido') {
+        return (
+          <Badge className="bg-slate-200 text-slate-800 border border-slate-300 font-bold gap-1 text-[11px]">
+            <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+            Crítica Resolvida (Nota {nota}/5)
+          </Badge>
+        )
+      }
+      if (funil === 'google_enviado') {
+        return (
+          <Badge className="bg-emerald-600 text-white font-bold gap-1 text-[11px] shadow-2xs">
+            <Check className="h-3 w-3" />
+            Google Enviado • Nota {nota}/5 ⭐
+          </Badge>
+        )
+      }
+      if (funil === 'google_sugerido') {
+        return (
+          <Badge className="bg-sky-600 text-white font-bold gap-1 text-[11px] shadow-2xs">
+            <Globe className="h-3 w-3" />
+            Cliente Satisfeito • Google Sugerido (Nota {nota}/5)
+          </Badge>
+        )
+      }
+      if (status === 'sent') {
+        return (
+          <Badge className="bg-amber-100 text-amber-900 border border-amber-300 font-bold gap-1 text-[11px]">
+            <Clock className="h-3 w-3 text-amber-600" />
+            Pergunta enviada • Aguardando nota do cliente
+          </Badge>
+        )
+      }
+      if (status === 'ready') {
+        return (
+          <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold gap-1 text-[11px]">
+            <Send className="h-3 w-3" /> Pronta p/ Pergunta de Satisfação
+          </Badge>
+        )
+      }
+      return (
+        <Badge className="bg-slate-200 text-slate-700 border border-slate-300 font-semibold gap-1 text-[11px]">
+          <Clock className="h-3 w-3 text-slate-500" /> Aguardando nota do cliente
+        </Badge>
+      )
+    }
+
+    // Avaliações legadas pendentes aguardando resposta do cliente
     if ((tipo === 'avaliacao_tecnico' || tipo === 'avaliacao_google') && status === 'pending') {
       return (
         <Badge className="bg-slate-200 text-slate-700 border border-slate-300 font-semibold gap-1 text-[11px]">
@@ -708,7 +811,30 @@ export default function PosVendaJuquinha() {
 
   // Estilização do card conforme situação
   const getCardVisualClasses = (msg: PosVendaMessage) => {
-    // Avaliações prontas: destaque dourado/âmbar
+    // FUNIL DE AVALIAÇÃO UNIFICADA:
+    if (msg.tipo === 'avaliacao_satisfacao') {
+      const funil = msg.status_funil
+      // Crítica (nota 0 a 3) pendente: destaque vermelho/âmbar chamativo com anel de alerta
+      if (funil === 'critica_contato_pendente') {
+        return 'border-2 border-red-500 bg-gradient-to-br from-red-50 via-rose-50/70 to-white shadow-lg ring-2 ring-red-400/50'
+      }
+      // Cliente satisfeito (nota 4-5) com Google sugerido
+      if (funil === 'google_sugerido') {
+        return 'border-2 border-sky-500 bg-gradient-to-br from-sky-50/90 via-emerald-50/40 to-white shadow-md ring-2 ring-sky-300/40'
+      }
+      if (funil === 'google_enviado') {
+        return 'border-2 border-emerald-400 bg-emerald-50/40 shadow-xs'
+      }
+      if (funil === 'resolvido') {
+        return 'border-slate-300 bg-slate-50/80'
+      }
+      // Pronta para envio da primeira pergunta (0-5)
+      if (msg.status === 'ready') {
+        return 'border-2 border-amber-400 bg-gradient-to-br from-amber-50/90 via-yellow-50/40 to-white shadow-md ring-2 ring-amber-300/40'
+      }
+    }
+
+    // Avaliações legadas prontas: destaque dourado/âmbar
     if (
       (msg.tipo === 'avaliacao_tecnico' || msg.tipo === 'avaliacao_google') &&
       msg.status === 'ready'
@@ -752,7 +878,10 @@ export default function PosVendaJuquinha() {
     )
     const msg7d = sisterMessages.find((m) => m.tipo === 'pos_venda_7d')
     const evals = sisterMessages.filter(
-      (m) => m.tipo === 'avaliacao_tecnico' || m.tipo === 'avaliacao_google',
+      (m) =>
+        m.tipo === 'avaliacao_satisfacao' ||
+        m.tipo === 'avaliacao_tecnico' ||
+        m.tipo === 'avaliacao_google',
     )
     const msg30d = sisterMessages.find((m) => m.tipo === 'oferta_30d')
 
@@ -762,10 +891,25 @@ export default function PosVendaJuquinha() {
     const state7d =
       msg7d?.status === 'sent' ? 'done' : msg7d?.status === 'ready' ? 'active' : 'pending'
 
-    const anyEvalSent = evals.some((e) => e.status === 'sent')
-    const allEvalSent = evals.length > 0 && evals.every((e) => e.status === 'sent')
-    const anyEvalReady = evals.some((e) => e.status === 'ready')
-    const evalState = allEvalSent ? 'done' : anyEvalSent || anyEvalReady ? 'active' : 'pending'
+    const anyEvalDone = evals.some(
+      (e) =>
+        e.status === 'sent' ||
+        e.status_funil === 'google_enviado' ||
+        e.status_funil === 'resolvido',
+    )
+    const anyEvalReady = evals.some(
+      (e) =>
+        e.status === 'ready' ||
+        e.status_funil === 'google_sugerido' ||
+        e.status_funil === 'critica_contato_pendente',
+    )
+    const evalState = anyEvalDone
+      ? 'done'
+      : anyEvalReady
+        ? 'active'
+        : evals.length > 0
+          ? 'active'
+          : 'pending'
 
     const state30d =
       msg30d?.status === 'sent' ? 'done' : msg30d?.status === 'ready' ? 'active' : 'pending'
@@ -775,7 +919,9 @@ export default function PosVendaJuquinha() {
       currentMsg.tipo === 'checkin_pos_venda' || currentMsg.tipo === 'avaliacao_30min'
     const isThis7d = currentMsg.tipo === 'pos_venda_7d'
     const isThisEval =
-      currentMsg.tipo === 'avaliacao_tecnico' || currentMsg.tipo === 'avaliacao_google'
+      currentMsg.tipo === 'avaliacao_satisfacao' ||
+      currentMsg.tipo === 'avaliacao_tecnico' ||
+      currentMsg.tipo === 'avaliacao_google'
     const isThis30d = currentMsg.tipo === 'oferta_30d'
 
     const steps = [
@@ -847,6 +993,105 @@ export default function PosVendaJuquinha() {
     )
   }
 
+  // Handlers para o Funil de Avaliação Unificada
+  const handleSelectNota = async (msg: PosVendaMessage, nota: number) => {
+    setSavingNotaId(msg.id)
+    try {
+      const cust = msg.expand?.customer
+      const so = msg.expand?.service_order
+      const custName = getCustomerDisplayName(cust)
+      const soNumber = so?.number || ''
+      const techId = so?.technician || undefined
+
+      await registrarNotaAvaliacao({
+        messageId: msg.id,
+        serviceOrderId: msg.service_order,
+        technicianId: techId,
+        nota,
+        customerName: custName,
+        orderNumber: soNumber,
+      })
+
+      if (nota >= 4) {
+        toast({
+          title: `Nota ${nota}/5 registrada! ⭐`,
+          description:
+            'Cliente satisfeito! O pedido de avaliação 5 estrelas no Google foi liberado abaixo para disparo.',
+        })
+      } else {
+        toast({
+          title: `⚠️ Alerta de Crítica gerado! (Nota ${nota}/5)`,
+          description:
+            'Card destacado em vermelho. Contato recomendado antes de qualquer avaliação pública.',
+          variant: 'destructive',
+        })
+      }
+
+      await loadData()
+    } catch (err) {
+      toast({
+        title: 'Erro ao registrar nota',
+        description: String(err),
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingNotaId(null)
+    }
+  }
+
+  // Disparo da segunda etapa: Pedido de Avaliação no Google
+  const handleSendGoogleReviewRequest = async (msg: PosVendaMessage) => {
+    const cust = msg.expand?.customer
+    const custName = getCustomerDisplayName(cust)
+    const phone = getCustomerPhone(cust)
+
+    const googleText = buildGoogleReviewRequestMessage({
+      customerName: custName,
+      googleReviewUrl: googleUrl || GOOGLE_REVIEW_URL,
+    })
+    const waLink = buildJuquinhaWaLink(phone, googleText)
+
+    if (waLink) {
+      window.open(waLink, '_blank')
+    }
+
+    try {
+      await marcarGoogleEnviado(msg.id)
+      toast({
+        title: 'WhatsApp do Google aberto!',
+        description: 'Status atualizado para: Google Enviado.',
+      })
+      await loadData()
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // Resolver crítica de pós-venda (após contato telefônico do Rafael)
+  const handleResolveCritica = async (msg: PosVendaMessage) => {
+    try {
+      await pb.collection('pos_venda_messages').update(msg.id, {
+        status_funil: 'resolvido',
+        feedback_cliente: criticaNotesText
+          ? `${msg.feedback_cliente ? msg.feedback_cliente + ' | ' : ''}Resolução: ${criticaNotesText}`
+          : msg.feedback_cliente,
+      })
+      toast({
+        title: 'Crítica marcada como resolvida!',
+        description: 'Contato registrado com sucesso.',
+      })
+      setCriticaNotesOpenId(null)
+      setCriticaNotesText('')
+      await loadData()
+    } catch (err) {
+      toast({
+        title: 'Erro ao resolver crítica',
+        description: String(err),
+        variant: 'destructive',
+      })
+    }
+  }
+
   // Contadores das caixas
   const countReady7d = ready7dMessages.length
   const countOfertas30d = ofertas30dMessages.length
@@ -854,7 +1099,15 @@ export default function PosVendaJuquinha() {
   const countCheckin = checkinMessages.length
   const countCheckinResponded = checkinMessages.filter((m) => m.cliente_respondeu).length
   const countAvaliacoes = avaliacoesMessages.length
-  const countAvaliacoesProntas = avaliacoesMessages.filter((m) => m.status === 'ready').length
+  const countAvaliacoesProntas = avaliacoesMessages.filter(
+    (m) =>
+      m.status === 'ready' ||
+      m.status_funil === 'critica_contato_pendente' ||
+      m.status_funil === 'google_sugerido',
+  ).length
+  const countCriticasPendentes = avaliacoesMessages.filter(
+    (m) => m.status_funil === 'critica_contato_pendente',
+  ).length
 
   return (
     <div className="space-y-6">
@@ -871,7 +1124,7 @@ export default function PosVendaJuquinha() {
                   Pós-venda — Juquinha
                 </h1>
                 <Badge className="bg-emerald-400 text-slate-950 font-black text-[10px] uppercase tracking-wider">
-                  v0.0.183
+                  v0.0.268
                 </Badge>
               </div>
               <p className="text-xs sm:text-sm text-indigo-200 mt-0.5">
@@ -1027,7 +1280,7 @@ export default function PosVendaJuquinha() {
             </div>
           </button>
 
-          {/* Caixa E: Avaliações (Técnico + Google) */}
+          {/* Caixa E: Avaliação Unificada de Satisfação */}
           <button
             type="button"
             onClick={() => setActiveBox('avaliacoes')}
@@ -1039,7 +1292,7 @@ export default function PosVendaJuquinha() {
           >
             <div className="flex items-center justify-between">
               <span className="text-indigo-200 text-[11px] block font-medium">
-                ⭐ Avaliações (Téc+Google)
+                ⭐+🌐 Avaliação Unificada
               </span>
               {activeBox === 'avaliacoes' && (
                 <span className="text-[10px] font-bold text-amber-200 bg-amber-950/60 px-1.5 py-0.2 rounded">
@@ -1049,11 +1302,15 @@ export default function PosVendaJuquinha() {
             </div>
             <div className="flex items-baseline gap-1.5 mt-0.5">
               <span className="text-xl font-bold font-mono text-amber-200">{countAvaliacoes}</span>
-              {countAvaliacoesProntas > 0 && (
+              {countCriticasPendentes > 0 ? (
+                <span className="text-[10px] text-red-300 font-bold bg-red-950/70 px-1 rounded animate-pulse">
+                  ⚠️ {countCriticasPendentes} críticas!
+                </span>
+              ) : countAvaliacoesProntas > 0 ? (
                 <span className="text-[10px] text-emerald-300 font-bold bg-emerald-950/50 px-1 rounded">
                   {countAvaliacoesProntas} prontas
                 </span>
-              )}
+              ) : null}
             </div>
           </button>
         </div>
@@ -1065,18 +1322,24 @@ export default function PosVendaJuquinha() {
           <HelpCircle className="h-4 w-4 text-indigo-600 mt-0.5 shrink-0" />
           <div className="space-y-1 flex-1">
             <p className="font-bold text-slate-900">
-              Cadeia Automática do Pós-venda por Data de Conclusão da O.S. (v0.0.183):
+              Cadeia Automática do Pós-venda por Data de Conclusão da O.S. (v0.0.268):
             </p>
             <p className="text-slate-600 text-[11px] leading-relaxed">
               <strong>1) Disparar 7 dias:</strong> Ao enviar a mensagem de 7 dias, o sistema gera
-              automaticamente as 2 avaliações (Técnico ⭐ e Google 🌐) como pendentes.
+              automaticamente a <strong>Avaliação de Satisfação unificada (⭐ + 🌐)</strong>.
               <br />
-              <strong>2) Cliente respondeu:</strong> Ao marcar "Cliente respondeu", as avaliações
-              são promovidas instantaneamente para prontas (ready) e uma notificação é gerada para a
-              equipe.
+              <strong>2) Pergunta de nota 0 a 5 primeiro:</strong> O WhatsApp do Juquinha pergunta
+              como o cliente avalia o atendimento. Ao receber a nota, você registra no card:
               <br />
-              <strong>3) Ordenação inteligente:</strong> As mensagens de ação mostram as mais
-              antigas primeiro (urgentes no topo); as agendadas mostram a próxima a vencer.
+              &nbsp;&nbsp;• <strong>Nota 4 ou 5:</strong> Cliente satisfeito! O sistema libera a
+              mensagem do Google com link para avaliação pública 5 estrelas.
+              <br />
+              &nbsp;&nbsp;• <strong>Nota 0 a 3:</strong> Transforma-se em{' '}
+              <strong>Alerta Interno de Crítica</strong> (fundo vermelho), para Rafael entrar em
+              contato antes que o cliente avalie mal publicamente.
+              <br />
+              <strong>3) Ordenação inteligente:</strong> Críticas urgentes no topo máximo, seguidas
+              pelas prontas para disparo.
             </p>
             <p className="text-[10px] text-slate-500 italic pt-0.5 border-t border-indigo-200/40">
               * Nota: A leitura automática das respostas do WhatsApp requer a API Oficial da Meta. O
@@ -1226,7 +1489,15 @@ export default function PosVendaJuquinha() {
             const isCheckin = msg.tipo === 'checkin_pos_venda' || msg.tipo === 'avaliacao_30min'
             const is7d = msg.tipo === 'pos_venda_7d'
             const is30d = msg.tipo === 'oferta_30d'
-            const isEval = msg.tipo === 'avaliacao_tecnico' || msg.tipo === 'avaliacao_google'
+            const isSatisfacaoUnificada = msg.tipo === 'avaliacao_satisfacao'
+            const isLegacyEval = msg.tipo === 'avaliacao_tecnico' || msg.tipo === 'avaliacao_google'
+            const isEval = isSatisfacaoUnificada || isLegacyEval
+
+            const isCritica =
+              isSatisfacaoUnificada && msg.status_funil === 'critica_contato_pendente'
+            const isGoogleSugerido =
+              isSatisfacaoUnificada &&
+              (msg.status_funil === 'google_sugerido' || msg.status_funil === 'google_enviado')
 
             const isReleasingThis = releasingEvaluationsId === msg.id
             const isMarkingResponded = markingRespondedId === msg.id
@@ -1241,17 +1512,21 @@ export default function PosVendaJuquinha() {
                 {/* Faixa decorativa no topo para destacar situação */}
                 <div
                   className={`h-1.5 w-full ${
-                    isEval && msg.status === 'ready'
-                      ? 'bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 animate-pulse'
-                      : isCheckin && msg.cliente_respondeu && !msg.avaliacoes_liberadas
-                        ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500 animate-pulse'
-                        : is7d && msg.status === 'ready'
-                          ? 'bg-emerald-500'
-                          : is30d && msg.status === 'ready'
-                            ? 'bg-purple-500'
-                            : msg.status === 'sent'
-                              ? 'bg-slate-400'
-                              : 'bg-indigo-400'
+                    isCritica
+                      ? 'bg-gradient-to-r from-red-500 via-rose-600 to-red-700 animate-pulse'
+                      : isGoogleSugerido
+                        ? 'bg-gradient-to-r from-sky-400 via-emerald-500 to-teal-500'
+                        : isEval && msg.status === 'ready'
+                          ? 'bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 animate-pulse'
+                          : isCheckin && msg.cliente_respondeu && !msg.avaliacoes_liberadas
+                            ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500 animate-pulse'
+                            : is7d && msg.status === 'ready'
+                              ? 'bg-emerald-500'
+                              : is30d && msg.status === 'ready'
+                                ? 'bg-purple-500'
+                                : msg.status === 'sent'
+                                  ? 'bg-slate-400'
+                                  : 'bg-indigo-400'
                   }`}
                 />
 
@@ -1329,13 +1604,247 @@ export default function PosVendaJuquinha() {
                   {/* Item 3: Linha do Tempo do Fluxo (Check-in → 7 dias → Avaliações → Oferta) */}
                   {renderFlowTimeline(msg)}
 
-                  {/* Texto da Mensagem */}
-                  <div className="bg-white/80 p-3 rounded-xl border border-slate-200/80 text-xs text-slate-800 whitespace-pre-wrap font-sans leading-relaxed">
-                    {msg.texto_gerado || (
-                      <span className="text-slate-400 italic">
-                        O texto será gerado no momento do disparo comercial pelo Juquinha.
-                      </span>
+                  {/* FUNIL CONFORME A RESPOSTA (Item 2 do pedido do Rafael):
+                      Card Unificado de Avaliação de Satisfação (nota 0 a 5) */}
+                  {isSatisfacaoUnificada && (
+                    <div className="space-y-3 pt-1">
+                      {/* Seletor de Nota (0 a 5) */}
+                      <div className="bg-gradient-to-r from-amber-50/70 via-slate-50 to-indigo-50/70 p-3 rounded-xl border border-amber-200/70 space-y-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                          <Label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-400" />
+                            Registrar nota que o cliente respondeu (0 a 5):
+                          </Label>
+                          {typeof msg.nota_avaliacao === 'number' && (
+                            <span className="text-[11px] font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
+                              Nota atual:{' '}
+                              <strong
+                                className={
+                                  msg.nota_avaliacao >= 4 ? 'text-emerald-600' : 'text-red-600'
+                                }
+                              >
+                                {msg.nota_avaliacao} / 5
+                              </strong>
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                          {[0, 1, 2, 3, 4, 5].map((notaVal) => {
+                            const isSelected = msg.nota_avaliacao === notaVal
+                            const isHigh = notaVal >= 4
+                            let btnClasses =
+                              'h-8 px-3 text-xs font-bold rounded-lg transition-all border '
+
+                            if (isSelected) {
+                              btnClasses += isHigh
+                                ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm ring-2 ring-emerald-300'
+                                : 'bg-red-600 text-white border-red-700 shadow-sm ring-2 ring-red-300'
+                            } else {
+                              btnClasses += isHigh
+                                ? 'bg-white hover:bg-emerald-50 text-emerald-800 border-emerald-200 hover:border-emerald-300'
+                                : 'bg-white hover:bg-red-50 text-red-800 border-red-200 hover:border-red-300'
+                            }
+
+                            return (
+                              <button
+                                key={notaVal}
+                                type="button"
+                                disabled={savingNotaId === msg.id}
+                                onClick={() => handleSelectNota(msg, notaVal)}
+                                className={btnClasses}
+                              >
+                                {notaVal === 0 ? '0 (Péssimo)' : `${notaVal} ⭐`}
+                              </button>
+                            )
+                          })}
+                          {savingNotaId === msg.id && (
+                            <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                              <RefreshCw className="h-3 w-3 animate-spin" /> Registrando...
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500">
+                          {typeof msg.nota_avaliacao !== 'number'
+                            ? 'Clique na nota recebida para ativar o funil: notas 4-5 liberam o Google; notas 0-3 ativam alerta interno de crítica.'
+                            : msg.nota_avaliacao >= 4
+                              ? '✓ Nota alta: Google liberado abaixo com botão de WhatsApp!'
+                              : '⚠️ Nota baixa: Crítica gerada internamente para contato do Rafael.'}
+                        </p>
+                      </div>
+
+                      {/* RAMIFICAÇÃO FUNIL A: NOTA 4 OU 5 (CLIENTE SATISFEITO -> DISPARO DO GOOGLE) */}
+                      {typeof msg.nota_avaliacao === 'number' && msg.nota_avaliacao >= 4 && (
+                        <div className="bg-emerald-50/80 border-2 border-emerald-400/90 rounded-xl p-3.5 space-y-2.5 shadow-xs">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/80 pb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="h-7 w-7 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                                <Globe className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <p className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                                  <span>
+                                    Cliente satisfeito ({msg.nota_avaliacao}⭐) — Envie o pedido de
+                                    avaliação no Google!
+                                  </span>
+                                  {msg.status_funil === 'google_enviado' && (
+                                    <Badge className="bg-emerald-600 text-white text-[10px] font-bold">
+                                      ✓ Enviado
+                                    </Badge>
+                                  )}
+                                </p>
+                                <p className="text-[11px] text-emerald-800">
+                                  Excelente momento para captar 5 estrelas públicas no perfil do
+                                  Google Meu Negócio.
+                                </p>
+                              </div>
+                            </div>
+
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => handleSendGoogleReviewRequest(msg)}
+                              className="h-8 text-xs font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shrink-0"
+                            >
+                              <Send className="h-3.5 w-3.5" />
+                              <span>
+                                {msg.status_funil === 'google_enviado'
+                                  ? 'Reenviar Pedido Google'
+                                  : 'Disparar Pedido Google'}
+                              </span>
+                            </Button>
+                          </div>
+
+                          {/* Mensagem sugerida do Google */}
+                          <div className="bg-white/90 p-2.5 rounded-lg border border-emerald-200 text-xs text-slate-800 whitespace-pre-wrap font-sans">
+                            {buildGoogleReviewRequestMessage({
+                              customerName: custName,
+                              googleReviewUrl: googleUrl || GOOGLE_REVIEW_URL,
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* RAMIFICAÇÃO FUNIL B: NOTA 0 A 3 (CRÍTICA -> ALERTA INTERNO, NÃO MOSTRA GOOGLE) */}
+                      {typeof msg.nota_avaliacao === 'number' && msg.nota_avaliacao <= 3 && (
+                        <div className="bg-red-50/90 border-2 border-red-500 rounded-xl p-3.5 space-y-2.5 shadow-md">
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 border-b border-red-200 pb-2">
+                            <div className="flex items-start gap-2.5">
+                              <div className="h-8 w-8 rounded-full bg-red-600 text-white flex items-center justify-center shrink-0 mt-0.5 animate-pulse">
+                                <AlertTriangle className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <p className="text-xs font-black text-red-950 flex items-center gap-1.5 flex-wrap">
+                                  <span>
+                                    ⚠️ ALERTA INTERNO DE CRÍTICA — REQUER CONTATO IMEDIATO
+                                  </span>
+                                  <Badge className="bg-red-600 text-white text-[10px] font-bold">
+                                    Nota {msg.nota_avaliacao} / 5
+                                  </Badge>
+                                </p>
+                                <p className="text-[11px] text-red-800 font-semibold mt-0.5">
+                                  Pedido do Google BLOQUEADO propositalmente para evitar avaliação
+                                  pública negativa.
+                                </p>
+                                <p className="text-[11px] text-slate-700 mt-1">
+                                  <strong>Objetivo:</strong> Rafael ligar para {custName} ({phone})
+                                  antes de qualquer manifestação pública para entender e reverter o
+                                  descontentamento.
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              {phone && (
+                                <a
+                                  href={`tel:${phone}`}
+                                  className="inline-flex items-center gap-1 h-8 px-3 text-xs font-bold rounded-lg bg-red-600 hover:bg-red-700 text-white shadow-xs"
+                                >
+                                  <PhoneCall className="h-3.5 w-3.5" />
+                                  <span>Ligar Agora</span>
+                                </a>
+                              )}
+                              {msg.status_funil !== 'resolvido' ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setCriticaNotesOpenId(msg.id)
+                                    setCriticaNotesText(msg.feedback_cliente || '')
+                                  }}
+                                  className="h-8 text-xs font-bold border-red-300 text-red-700 hover:bg-red-100"
+                                >
+                                  <Check className="h-3.5 w-3.5 mr-1" />
+                                  Resolver Crítica
+                                </Button>
+                              ) : (
+                                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-xs font-bold">
+                                  ✓ Crítica Tratada
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Campo de anotação de resolução de crítica */}
+                          {criticaNotesOpenId === msg.id && (
+                            <div className="p-3 bg-white rounded-lg border border-red-200 space-y-2">
+                              <Label className="text-xs font-bold text-slate-800">
+                                Anote o desfecho do contato telefônico com {custName}:
+                              </Label>
+                              <Textarea
+                                value={criticaNotesText}
+                                onChange={(e) => setCriticaNotesText(e.target.value)}
+                                placeholder="Ex: Conversei com o cliente, recalibramos a impressora e ele ficou satisfeito..."
+                                rows={2}
+                                className="text-xs"
+                              />
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setCriticaNotesOpenId(null)}
+                                  className="h-7 text-xs"
+                                >
+                                  Cancelar
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => handleResolveCritica(msg)}
+                                  className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                                >
+                                  Salvar e Marcar Resolvido
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
+                          {msg.feedback_cliente && (
+                            <div className="text-[11px] text-slate-700 bg-white/70 p-2 rounded border border-red-200">
+                              <strong>Histórico / Feedback:</strong> {msg.feedback_cliente}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Texto da Mensagem (Pergunta de satisfação 0 a 5 ou texto padrão) */}
+                  <div className="space-y-1">
+                    {isSatisfacaoUnificada && (
+                      <p className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                        <span>1ª Etapa — Mensagem WhatsApp de Pergunta de Nota:</span>
+                      </p>
                     )}
+                    <div className="bg-white/80 p-3 rounded-xl border border-slate-200/80 text-xs text-slate-800 whitespace-pre-wrap font-sans leading-relaxed">
+                      {msg.texto_gerado || (
+                        <span className="text-slate-400 italic">
+                          O texto será gerado no momento do disparo comercial pelo Juquinha.
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Ações Rápidas em Cadeia (Item 2 e 3) */}
@@ -1486,11 +1995,14 @@ export default function PosVendaJuquinha() {
                     <SelectItem value="oferta_30d" className="text-xs">
                       🎁 Oferta Especial (30 dias)
                     </SelectItem>
+                    <SelectItem value="avaliacao_satisfacao" className="text-xs">
+                      ⭐ + 🌐 Avaliação de Satisfação (Unificada 0-5)
+                    </SelectItem>
                     <SelectItem value="avaliacao_tecnico" className="text-xs">
-                      ⭐ Avaliação do Técnico
+                      ⭐ Avaliação do Técnico (legado)
                     </SelectItem>
                     <SelectItem value="avaliacao_google" className="text-xs">
-                      🌐 Avaliação no Google
+                      🌐 Avaliação no Google (legado)
                     </SelectItem>
                   </SelectContent>
                 </Select>

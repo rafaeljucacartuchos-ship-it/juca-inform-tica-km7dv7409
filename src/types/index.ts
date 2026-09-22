@@ -308,10 +308,18 @@ export type PosVendaTipo =
   | 'checkin_pos_venda'
   | 'avaliacao_tecnico'
   | 'avaliacao_google'
+  | 'avaliacao_satisfacao'
   | 'avaliacao_30min'
   | 'pos_venda_7d'
   | 'oferta_30d'
 export type PosVendaStatus = 'pending' | 'ready' | 'sent' | 'dismissed'
+
+export type PosVendaFunilStatus =
+  | 'aguardando_nota'
+  | 'critica_contato_pendente'
+  | 'google_sugerido'
+  | 'google_enviado'
+  | 'resolvido'
 
 export interface PosVendaMessage {
   id: string
@@ -327,6 +335,9 @@ export interface PosVendaMessage {
   cliente_respondeu?: boolean
   cliente_respondeu_em?: string
   avaliacoes_liberadas?: boolean
+  nota_avaliacao?: number
+  status_funil?: PosVendaFunilStatus
+  feedback_cliente?: string
   created?: string
   updated?: string
   expand?: {
