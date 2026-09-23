@@ -32,9 +32,95 @@ const checkedAndRepairedMessageIds = new Set<string>()
 // Helper para aguardar ms (throttle/serialização)
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+/**
+ * Aplica as regras de silêncio do pós-venda da JUCA Informática:
+ * - Mensagem pendente/ready há 7+ dias sem resposta -> status 'lembrete' (para reenvio único)
+ * - Mensagem pendente/ready/lembrete há 14+ dias sem resposta -> status 'sem_resposta' (arquivamento lógico - sai da vista/fila)
+ * - Nunca apaga do banco (preserva histórico completo para LGPD e auditoria)
+ * - Respeita lote máximo de 5 atualizações com 150ms throttle para evitar erro 429
+ */
+export async function aplicarRegrasDeSilencio(
+  messages: PosVendaMessage[],
+): Promise<{ lembretesCount: number; arquivadosCount: number }> {
+  const now = Date.now()
+  const SETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000
+  const QUATORZE_DIAS_MS = 14 * 24 * 60 * 60 * 1000
+
+  let lembretesCount = 0
+  let arquivadosCount = 0
+  let processedInRun = 0
+  const MAX_PER_CYCLE = 5
+
+  for (const m of messages) {
+    if (processedInRun >= MAX_PER_CYCLE) break
+    // Não altera mensagens já enviadas, descartadas, com resposta do cliente ou já arquivadas
+    const currentStatus = m.status as string
+    if (
+      currentStatus === 'sent' ||
+      currentStatus === 'dismissed' ||
+      currentStatus === 'sem_resposta'
+    )
+      continue
+    if (m.cliente_respondeu) continue
+    // Não aplica regra em log interno
+    if (m.tipo === 'log_interno') continue
+
+    // Data de referência: scheduled_at se houver, ou created
+    const baseDateMs = m.scheduled_at
+      ? new Date(m.scheduled_at).getTime()
+      : m.created
+        ? new Date(m.created).getTime()
+        : 0
+    if (!baseDateMs || isNaN(baseDateMs)) continue
+
+    const diffMs = now - baseDateMs
+
+    // Regra 14+ dias: arquivamento lógico por silêncio
+    if (diffMs >= QUATORZE_DIAS_MS && currentStatus !== 'sem_resposta') {
+      try {
+        await pb.collection('pos_venda_messages').update(m.id, {
+          status: 'sem_resposta',
+        })
+        m.status = 'sem_resposta'
+        arquivadosCount++
+        processedInRun++
+        await sleep(150)
+      } catch (err: unknown) {
+        const status = (err as { status?: number })?.status
+        if (status === 429) break
+      }
+    }
+    // Regra 7+ dias: vira lembrete para reenvio único (se ainda estava pending ou ready)
+    else if (diffMs >= SETE_DIAS_MS && (m.status === 'pending' || m.status === 'ready')) {
+      try {
+        await pb.collection('pos_venda_messages').update(m.id, {
+          status: 'lembrete',
+        })
+        m.status = 'lembrete'
+        lembretesCount++
+        processedInRun++
+        await sleep(150)
+      } catch (err: unknown) {
+        const status = (err as { status?: number })?.status
+        if (status === 429) break
+      }
+    }
+  }
+
+  return { lembretesCount, arquivadosCount }
+}
+
 export const getPosVendaMessages = async (filterStr = '', sortStr = '-scheduled_at') => {
+  // Filtro padrão: por regra de silêncio e higiene visual, 'sem_resposta' não aparece nas listagens normais
+  let effectiveFilter = filterStr
+  if (!effectiveFilter) {
+    effectiveFilter = 'status != "sem_resposta"'
+  } else if (!effectiveFilter.includes('status') && !effectiveFilter.includes('sem_resposta')) {
+    effectiveFilter = `(${effectiveFilter}) && status != "sem_resposta"`
+  }
+
   const records = await pb.collection('pos_venda_messages').getFullList<PosVendaMessage>({
-    filter: filterStr,
+    filter: effectiveFilter,
     expand: 'customer,service_order,service_order.technician,service_order.equipment_ref',
     sort: sortStr,
   })
@@ -105,6 +191,70 @@ export const getPosVendaMessages = async (filterStr = '', sortStr = '-scheduled_
     }
   }
 
+  // Idempotente: Garante etapas de pós-venda para ordens concluídas recentemente que ainda não tenham mensagens
+  try {
+    await ensurePostSaleSequenceForCompletedOrders()
+  } catch {
+    /* ignore */
+  }
+
+  // Regeneração higienizada apenas de mensagens pendentes/lembrete (preservando histórico sent etc.)
+  // Aplica novo cabeçalho único JUCA INFORMÁTICA, tratamento de gênero e menção ao equipamento
+  const pendingToRefresh = records.filter(
+    (m) =>
+      (m.status === 'pending' || m.status === 'ready' || m.status === 'lembrete') &&
+      m.tipo !== 'log_interno' &&
+      m.tipo !== 'documento_os' &&
+      !checkedAndRepairedMessageIds.has(`refresh_${m.id}`),
+  )
+
+  for (const m of pendingToRefresh.slice(0, 5)) {
+    try {
+      const cust = m.expand?.customer
+      const so = m.expand?.service_order
+      const custName = getCustomerDisplayName(cust)
+      const phone = getCustomerPhone(cust)
+      const soNumber = so?.number || ''
+      const equip = so?.equipment || ''
+      const techName = so?.expand?.technician?.name || ''
+      const serviceReport = so?.service_report || so?.description || ''
+
+      const newText = buildJuquinhaMessageText({
+        tipo: m.tipo,
+        customerName: custName,
+        equipment: equip,
+        orderNumber: soNumber,
+        technicianName: techName,
+        serviceReport,
+      })
+
+      // Se o texto anterior continha 'CARTUCHOS' ou o novo texto for mais atualizado, regrava
+      if (
+        m.texto_gerado?.includes('JUCA CARTUCHOS') ||
+        (m.status === 'lembrete' && !m.texto_gerado?.includes('lembrete'))
+      ) {
+        const waLink = buildJuquinhaWaLink(phone, newText)
+        await pb.collection('pos_venda_messages').update(m.id, {
+          texto_gerado: newText,
+          wa_me_link: waLink,
+        })
+        m.texto_gerado = newText
+        m.wa_me_link = waLink
+        await sleep(150)
+      }
+      checkedAndRepairedMessageIds.add(`refresh_${m.id}`)
+    } catch {
+      checkedAndRepairedMessageIds.add(`refresh_${m.id}`)
+    }
+  }
+
+  // Executa checagem de silêncio em lote controlado
+  try {
+    await aplicarRegrasDeSilencio(records)
+  } catch {
+    /* ignore */
+  }
+
   return records
 }
 
@@ -116,6 +266,184 @@ export const dismissPosVendaMessage = async (id: string) => {
 
 export const createPosVendaMessage = async (data: Partial<PosVendaMessage>) => {
   return pb.collection('pos_venda_messages').create<PosVendaMessage>(data)
+}
+
+// Guarda em memória se a rotina de auto-criação de pós-venda já correu nesta sessão para não sobrecarregar
+let hasCheckedAutoCreationInSession = false
+
+/**
+ * FASE 3: Criação automática idempotente das 4 etapas de pós-venda para ordens concluídas/fechadas:
+ * 1) Check-in 30min ('checkin_pos_venda')
+ * 2) Pós-venda 7 dias ('pos_venda_7d')
+ * 3) Avaliação de satisfação ('avaliacao_satisfacao')
+ * 4) Oferta / Revisão 30 dias ('oferta_30d')
+ * Idempotente: nunca duplica mensagem para a mesma O.S./etapa.
+ */
+export async function ensurePostSaleSequenceForCompletedOrders(): Promise<number> {
+  if (hasCheckedAutoCreationInSession) return 0
+
+  try {
+    // Busca até 10 ordens de serviço concluídas ou fechadas
+    const completedOrders = await pb.collection('service_orders').getList<any>(1, 10, {
+      filter: 'status = "completed" || status = "closed"',
+      sort: '-updated',
+      expand: 'customer,technician',
+    })
+
+    if (!completedOrders.items || completedOrders.items.length === 0) {
+      hasCheckedAutoCreationInSession = true
+      return 0
+    }
+
+    let createdCount = 0
+
+    for (const order of completedOrders.items) {
+      const soId = order.id
+      const cust = order.expand?.customer
+      const custId = order.customer
+      if (!custId) continue
+
+      // Respeita consentimento LGPD
+      if (cust && cust.whatsapp_consent === false) continue
+
+      const custName = getCustomerDisplayName(cust)
+      const phone = getCustomerPhone(cust)
+      const soNumber = order.number || ''
+      const equip = order.equipment || ''
+      const techName = order.expand?.technician?.name || ''
+      const serviceReport = order.service_report || order.description || ''
+
+      // Busca mensagens já existentes para esta OS
+      const existing = await pb.collection('pos_venda_messages').getFullList<PosVendaMessage>({
+        filter: `service_order = "${soId}"`,
+      })
+
+      const existingTypes = new Set(existing.map((m) => m.tipo))
+      const orderDoneDateMs = order.updated ? new Date(order.updated).getTime() : Date.now()
+
+      // 1) Check-in (30 min após conclusão)
+      if (!existingTypes.has('checkin_pos_venda') && !existingTypes.has('avaliacao_30min')) {
+        const textCheckin = buildJuquinhaMessageText({
+          tipo: 'checkin_pos_venda',
+          customerName: custName,
+          equipment: equip,
+          orderNumber: soNumber,
+          technicianName: techName,
+          serviceReport,
+        })
+        const waLink = buildJuquinhaWaLink(phone, textCheckin)
+        const schedCheckin = new Date(orderDoneDateMs + 30 * 60 * 1000).toISOString()
+
+        await createPosVendaMessage({
+          customer: custId,
+          service_order: soId,
+          tipo: 'checkin_pos_venda',
+          status: 'pending',
+          scheduled_at: schedCheckin,
+          texto_gerado: textCheckin,
+          wa_me_link: waLink,
+          channel: 'whatsapp',
+        })
+        createdCount++
+        await sleep(150)
+      }
+
+      // 2) Pós-venda 7 dias
+      if (!existingTypes.has('pos_venda_7d')) {
+        const text7d = buildJuquinhaMessageText({
+          tipo: 'pos_venda_7d',
+          customerName: custName,
+          equipment: equip,
+          orderNumber: soNumber,
+          technicianName: techName,
+          serviceReport,
+        })
+        const waLink = buildJuquinhaWaLink(phone, text7d)
+        const sched7d = new Date(orderDoneDateMs + 7 * 24 * 60 * 60 * 1000).toISOString()
+
+        await createPosVendaMessage({
+          customer: custId,
+          service_order: soId,
+          tipo: 'pos_venda_7d',
+          status: 'pending',
+          scheduled_at: sched7d,
+          texto_gerado: text7d,
+          wa_me_link: waLink,
+          channel: 'whatsapp',
+        })
+        createdCount++
+        await sleep(150)
+      }
+
+      // 3) Avaliação de satisfação unificada (0 a 5)
+      if (
+        !existingTypes.has('avaliacao_satisfacao') &&
+        !existingTypes.has('avaliacao_tecnico') &&
+        !existingTypes.has('avaliacao_google')
+      ) {
+        const token = await generatePosVendaToken(32)
+        const origin = typeof window !== 'undefined' ? window.location.origin : ''
+        const evalUrl = origin ? `${origin}/avaliar/${token}` : ''
+        const textSatisfacao = buildAvaliacaoSatisfacaoMessage({
+          customerName: custName,
+          technicianName: techName,
+          orderNumber: soNumber,
+          evaluationUrl: evalUrl,
+        })
+        const waLink = buildJuquinhaWaLink(phone, textSatisfacao)
+        // Agendada para junto do 7d ou logo após
+        const schedEval = new Date(orderDoneDateMs + 7 * 24 * 60 * 60 * 1000).toISOString()
+
+        await createPosVendaMessage({
+          customer: custId,
+          service_order: soId,
+          tipo: 'avaliacao_satisfacao',
+          status: 'pending',
+          status_funil: 'aguardando_nota',
+          scheduled_at: schedEval,
+          texto_gerado: textSatisfacao,
+          wa_me_link: waLink,
+          channel: 'whatsapp',
+          token_acesso: token,
+        })
+        createdCount++
+        await sleep(150)
+      }
+
+      // 4) Oferta / Revisão 30 dias
+      if (!existingTypes.has('oferta_30d')) {
+        const text30d = buildJuquinhaMessageText({
+          tipo: 'oferta_30d',
+          customerName: custName,
+          equipment: equip,
+          orderNumber: soNumber,
+          technicianName: techName,
+          serviceReport,
+        })
+        const waLink = buildJuquinhaWaLink(phone, text30d)
+        const sched30d = new Date(orderDoneDateMs + 30 * 24 * 60 * 60 * 1000).toISOString()
+
+        await createPosVendaMessage({
+          customer: custId,
+          service_order: soId,
+          tipo: 'oferta_30d',
+          status: 'pending',
+          scheduled_at: sched30d,
+          texto_gerado: text30d,
+          wa_me_link: waLink,
+          channel: 'whatsapp',
+        })
+        createdCount++
+        await sleep(150)
+      }
+    }
+
+    hasCheckedAutoCreationInSession = true
+    return createdCount
+  } catch (err: unknown) {
+    hasCheckedAutoCreationInSession = true
+    return 0
+  }
 }
 
 /**
@@ -189,13 +517,64 @@ export function buildJuquinhaMessageText(params: {
   } = params
 
   const firstName = customerName.trim().split(' ')[0] || 'Cliente'
-  const equipPart = equipment.trim() ? `o seu *${equipment.trim()}*` : 'o seu equipamento'
+
+  let cleanEquip = equipment ? equipment.trim() : ''
+  const upperEquip = cleanEquip.toUpperCase()
+  if (
+    !cleanEquip ||
+    upperEquip === 'SEM MARCA' ||
+    upperEquip === 'NÃO INFORMADO' ||
+    upperEquip === 'NAO INFORMADO' ||
+    upperEquip === 'OUTRO' ||
+    upperEquip === 'OUTROS' ||
+    upperEquip === 'EQUIPAMENTO'
+  ) {
+    cleanEquip = ''
+  }
+
+  const lowerEquip = cleanEquip.toLowerCase()
+  const isFem =
+    lowerEquip.startsWith('impressora') ||
+    lowerEquip.startsWith('multifuncional') ||
+    lowerEquip.startsWith('placa') ||
+    lowerEquip.startsWith('fonte') ||
+    lowerEquip.startsWith('tela') ||
+    lowerEquip.startsWith('tv') ||
+    lowerEquip.startsWith('máquina') ||
+    lowerEquip.startsWith('maquina')
+
+  const equipPart = cleanEquip
+    ? isFem
+      ? `a sua *${cleanEquip}*`
+      : `o seu *${cleanEquip}*`
+    : 'o seu equipamento'
   const osPart = orderNumber.trim() ? ` (O.S. *${orderNumber.trim()}*)` : ''
   const techMention = technicianName.trim() ? ` e o técnico *${technicianName.trim()}*` : ''
 
   let body = ''
 
   switch (tipo) {
+    case 'documento_os': {
+      body =
+        `Olá, *${firstName}*! Tudo bem? Aqui é o *Juquinha* da JUCA Informática!\n\n` +
+        `Segue o documento oficial da sua O.S. referente ${equipPart}${osPart}.\n\n` +
+        `Qualquer dúvida ou caso precise de algo mais, estamos à total disposição!`
+      break
+    }
+    case 'follow_up_proposta': {
+      body =
+        `Oi, ${firstName}! Tudo bem? Aqui é o *Juquinha* da JUCA Informática. 😊\n\n` +
+        `Estou acompanhando sua proposta referente ${equipPart}${osPart}.\n\n` +
+        `Queria saber: ficou dentro do que você estava procurando ou gostaria que eu verificasse outra opção para você?\n\n` +
+        `Pode me falar com sinceridade, assim consigo te ajudar melhor!`
+      break
+    }
+    case 'log_interno': {
+      body =
+        `[Log Interno JUCA] Registro de sistema para ${customerName}${osPart}.\n` +
+        `Equipamento: ${cleanEquip || 'equipamento'}.`
+      break
+    }
     case 'checkin_pos_venda': {
       body =
         `Oi, ${firstName}! Tudo bem com você? Aqui é o *Juquinha* da JUCA Informática! 😄🙋‍♂️\n\n` +

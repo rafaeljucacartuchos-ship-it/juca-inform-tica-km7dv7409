@@ -94,9 +94,9 @@ export default function PosVendaJuquinha() {
   >('all')
 
   // Sub-filtro de status para a caixa 'todas'
-  const [statusSubFilter, setStatusSubFilter] = useState<'all' | 'ready' | 'pending' | 'sent'>(
-    'all',
-  )
+  const [statusSubFilter, setStatusSubFilter] = useState<
+    'all' | 'ready' | 'lembrete' | 'pending' | 'sent'
+  >('all')
 
   // Modal de configurações do Juquinha (Google Review URL, etc.)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -128,6 +128,12 @@ export default function PosVendaJuquinha() {
   const [manualTipo, setManualTipo] = useState<PosVendaTipo>('checkin_pos_venda')
   const [manualText, setManualText] = useState('')
   const [creatingManualMsg, setCreatingManualMsg] = useState(false)
+
+  // Estado para disparo em lote blindado (máx 5 por lote, 150ms throttle, 429 ignorado)
+  const [isBatchSending, setIsBatchSending] = useState(false)
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(
+    null,
+  )
 
   const loadData = async () => {
     try {
@@ -209,6 +215,65 @@ export default function PosVendaJuquinha() {
       loadData()
     } catch {
       /* ignore */
+    }
+  }
+
+  /**
+   * FASE 1: Disparo em lote BLINDADO
+   * - Máximo 5 itens por lote
+   * - Pausa de 150ms entre requisições
+   * - Erro 429 capturado e ignorado silenciosamente
+   * - Abre os links no WhatsApp e marca cada um como enviado
+   */
+  const handleDispararTudoFilaDoDia = async () => {
+    if (overdueQueueMessages.length === 0) {
+      toast({ title: 'A fila de envio de hoje está vazia!' })
+      return
+    }
+
+    const batch = overdueQueueMessages.slice(0, 5)
+    setIsBatchSending(true)
+    setBatchProgress({ current: 0, total: batch.length })
+
+    let sentSuccess = 0
+
+    try {
+      for (let i = 0; i < batch.length; i++) {
+        const item = batch[i]
+        setBatchProgress({ current: i + 1, total: batch.length })
+
+        if (item.wa_me_link) {
+          window.open(item.wa_me_link, '_blank')
+        }
+
+        try {
+          await markPosVendaMessageSent(item.id, item)
+          sentSuccess++
+        } catch (err: unknown) {
+          const status = (err as { status?: number })?.status
+          if (status === 429) {
+            // Rate limit capturado e ignorado silenciosamente
+            break
+          }
+        }
+
+        // Throttle obrigatório de 150ms
+        await new Promise((resolve) => setTimeout(resolve, 150))
+      }
+
+      toast({
+        title: `Lote de ${sentSuccess} mensagem(ns) processado!`,
+        description:
+          batch.length < overdueQueueMessages.length
+            ? `Restam ${overdueQueueMessages.length - batch.length} na fila. Clique novamente para o próximo lote.`
+            : 'Todas as mensagens da fila foram disparadas.',
+      })
+      await loadData()
+    } catch {
+      /* ignore */
+    } finally {
+      setIsBatchSending(false)
+      setBatchProgress(null)
     }
   }
 
@@ -458,6 +523,16 @@ export default function PosVendaJuquinha() {
     return Math.ceil(diffMs / 86400000)
   }
 
+  // Dias de atraso (quando scheduled_at <= agora)
+  const getDaysOverdue = (msg: PosVendaMessage): number => {
+    const baseMs = msg.scheduled_at
+      ? new Date(msg.scheduled_at).getTime()
+      : new Date(msg.created).getTime()
+    const diffMs = Date.now() - baseMs
+    if (diffMs <= 0) return 0
+    return Math.floor(diffMs / 86400000)
+  }
+
   // Verifica se os N dias da conclusão já passaram
   const hasDaysPassedSinceCompletion = (msg: PosVendaMessage, targetDays: number): boolean => {
     const days = getDaysSinceCompletion(msg)
@@ -483,14 +558,45 @@ export default function PosVendaJuquinha() {
   // a) 'Prontas para Disparo (7 dias)':
   // Mensagens tipo pos_venda_7d cujos 7 dias da conclusão JÁ PASSARAM (status ready,
   // ou pending com scheduled_at <= agora), ordenadas da mais antiga para a mais recente.
+  // =========================================================================
+  // FASE 1: FILA DE ENVIO DE HOJE (Consolida TODAS as mensagens pendentes vencidas)
+  // scheduled_at <= agora, status != 'sent' | 'dismissed' | 'sem_resposta',
+  // ordenadas pelo maior atraso primeiro (scheduled_at mais antigo no topo).
+  // =========================================================================
+  const overdueQueueMessages = useMemo(() => {
+    const now = Date.now()
+    return messages
+      .filter((m) => {
+        if (m.status === 'sent' || m.status === 'dismissed' || m.status === 'sem_resposta')
+          return false
+        if (m.tipo === 'log_interno') return false
+        // Data agendada vencida ou status ready/lembrete
+        const schedMs = m.scheduled_at ? new Date(m.scheduled_at).getTime() : 0
+        const isScheduledOverdue = schedMs > 0 && schedMs <= now
+        const isReadyOrLembrete = m.status === 'ready' || m.status === 'lembrete'
+        return isScheduledOverdue || isReadyOrLembrete
+      })
+      .sort((a, b) => {
+        const schedA = a.scheduled_at
+          ? new Date(a.scheduled_at).getTime()
+          : new Date(a.created).getTime()
+        const schedB = b.scheduled_at
+          ? new Date(b.scheduled_at).getTime()
+          : new Date(b.created).getTime()
+        // Mais antigo primeiro = maior atraso no topo
+        return schedA - schedB
+      })
+  }, [messages])
+
   const ready7dMessages = useMemo(() => {
     const now = Date.now()
     return messages
       .filter((m) => {
         if (m.tipo !== 'pos_venda_7d') return false
-        if (m.status === 'dismissed' || m.status === 'sent') return false
+        if (m.status === 'dismissed' || m.status === 'sent' || m.status === 'sem_resposta')
+          return false
         const schedMs = m.scheduled_at ? new Date(m.scheduled_at).getTime() : 0
-        const isReadyByStatus = m.status === 'ready'
+        const isReadyByStatus = m.status === 'ready' || m.status === 'lembrete'
         const isReadyByTime = schedMs > 0 && schedMs <= now
         const is7dPassed = hasDaysPassedSinceCompletion(m, 7)
         return isReadyByStatus || isReadyByTime || is7dPassed
@@ -506,9 +612,10 @@ export default function PosVendaJuquinha() {
     return messages
       .filter((m) => {
         if (m.tipo !== 'oferta_30d') return false
-        if (m.status === 'dismissed' || m.status === 'sent') return false
+        if (m.status === 'dismissed' || m.status === 'sent' || m.status === 'sem_resposta')
+          return false
         const schedMs = m.scheduled_at ? new Date(m.scheduled_at).getTime() : 0
-        const isReadyByStatus = m.status === 'ready'
+        const isReadyByStatus = m.status === 'ready' || m.status === 'lembrete'
         const isReadyByTime = schedMs > 0 && schedMs <= now
         const is30dPassed = hasDaysPassedSinceCompletion(m, 30)
         return isReadyByStatus || isReadyByTime || is30dPassed
@@ -548,7 +655,11 @@ export default function PosVendaJuquinha() {
   // (cliente_respondeu=true) e pendentes de resposta, ordenadas por data de conclusão da OS.
   const checkinMessages = useMemo(() => {
     return messages
-      .filter((m) => m.tipo === 'checkin_pos_venda' || m.tipo === 'avaliacao_30min')
+      .filter(
+        (m) =>
+          (m.tipo === 'checkin_pos_venda' || m.tipo === 'avaliacao_30min') &&
+          m.status !== 'sem_resposta',
+      )
       .sort((a, b) => getOrderCompletionDate(a).getTime() - getOrderCompletionDate(b).getTime())
   }, [messages])
 
@@ -562,6 +673,7 @@ export default function PosVendaJuquinha() {
       .filter(
         (m) =>
           m.status !== 'dismissed' &&
+          m.status !== 'sem_resposta' &&
           (m.tipo === 'avaliacao_satisfacao' ||
             m.tipo === 'avaliacao_tecnico' ||
             m.tipo === 'avaliacao_google'),
@@ -695,10 +807,28 @@ export default function PosVendaJuquinha() {
             ⭐ Avaliação (30 min)
           </Badge>
         )
+      case 'documento_os':
+        return (
+          <Badge className="bg-sky-100 text-sky-900 border-sky-300 text-[11px] font-bold gap-1">
+            📄 Documento O.S. (Check-in/Laudo)
+          </Badge>
+        )
+      case 'follow_up_proposta':
+        return (
+          <Badge className="bg-indigo-100 text-indigo-900 border-indigo-300 text-[11px] font-bold gap-1">
+            🤝 Follow-up Proposta
+          </Badge>
+        )
+      case 'log_interno':
+        return (
+          <Badge className="bg-slate-100 text-slate-700 border-slate-300 text-[11px] font-medium gap-1">
+            📝 Log Interno JUCA
+          </Badge>
+        )
       case 'resumo_finalizacao':
         return (
           <Badge className="bg-slate-100 text-slate-800 border-slate-200 text-[11px] font-bold">
-            📄 Resumo de Conclusão
+            📄 Resumo de Conclusão (legado)
           </Badge>
         )
       default:
@@ -817,6 +947,21 @@ export default function PosVendaJuquinha() {
     }
 
     switch (status) {
+      case 'lembrete':
+        return (
+          <Badge className="bg-amber-500 text-white font-bold gap-1 text-[11px] shadow-xs animate-pulse">
+            <Clock className="h-3 w-3" /> ⏰ Lembrete (Reenvio Único)
+          </Badge>
+        )
+      case 'sem_resposta':
+        return (
+          <Badge
+            variant="outline"
+            className="bg-slate-100 text-slate-500 border-slate-300 text-[11px]"
+          >
+            <Clock className="h-3 w-3 mr-1" /> Sem Resposta (Arquivado)
+          </Badge>
+        )
       case 'ready':
         return (
           <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold gap-1 text-[11px]">
@@ -1146,8 +1291,145 @@ export default function PosVendaJuquinha() {
   ).length
 
   return (
-    <div className="space-y-6">
-      {/* Top Banner de Identidade do Juquinha */}
+    <div className="space-y-6 pb-20">
+      {/* =========================================================================
+          FASE 1: PAINEL DA FILA DE ENVIO DE HOJE (🚀 Fila de Envio de Hoje)
+          Consolida TODAS as mensagens pendentes cujo prazo venceu (scheduled_at <= agora),
+          ordenadas pelo maior atraso primeiro. Disparo individual ou "Disparar tudo"
+          em lote blindado (máx 5, 150ms throttle, 429 silencioso).
+      ========================================================================= */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-2 border-indigo-500/40 rounded-2xl p-4 sm:p-5 shadow-xl text-white">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-3 border-b border-indigo-500/20">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-xl shrink-0">
+              🚀
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base sm:text-lg font-black tracking-tight flex items-center gap-2">
+                  Fila de Envio de Hoje
+                </h2>
+                <Badge className="bg-amber-400 text-slate-950 font-black text-[11px] px-2 py-0.5">
+                  {overdueQueueMessages.length} pendente(s) vencida(s)
+                </Badge>
+                {overdueQueueMessages.some((m) => m.status === 'lembrete') && (
+                  <Badge className="bg-rose-500 text-white font-bold text-[10px] animate-pulse">
+                    ⏰ Lembretes (7+ dias)
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-indigo-200/90 mt-0.5">
+                Mensagens cujo prazo venceu ordenadas pelo maior atraso. Envio blindado em lotes de
+                no máximo 5 contatos.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Button
+              size="sm"
+              onClick={handleDispararTudoFilaDoDia}
+              disabled={overdueQueueMessages.length === 0 || isBatchSending}
+              className="w-full sm:w-auto font-black text-xs h-9 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-lg gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {isBatchSending ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  <span>
+                    Enviando lote ({batchProgress?.current}/{batchProgress?.total})...
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Send className="h-3.5 w-3.5" />
+                  <span>
+                    Disparar tudo{' '}
+                    {overdueQueueMessages.length > 5
+                      ? `(lote de 5 de ${overdueQueueMessages.length})`
+                      : `(${overdueQueueMessages.length})`}
+                  </span>
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {/* Lista compacta da fila de hoje */}
+        {overdueQueueMessages.length === 0 ? (
+          <div className="py-4 text-center text-xs text-indigo-200/70 flex items-center justify-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+            <span>Tudo em dia! Nenhuma mensagem atrasada ou pendente na fila hoje.</span>
+          </div>
+        ) : (
+          <div className="mt-3 divide-y divide-white/5 max-h-72 overflow-y-auto pr-1">
+            {overdueQueueMessages.slice(0, 15).map((item) => {
+              const cust = item.expand?.customer
+              const so = item.expand?.service_order
+              const custName = getCustomerDisplayName(cust)
+              const soNum =
+                so?.number ||
+                (item.service_order ? `#${item.service_order.slice(0, 6)}` : 'S/ O.S.')
+              const overdueDays = getDaysOverdue(item)
+
+              return (
+                <div
+                  key={item.id}
+                  className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-white/5 px-2 rounded-lg transition-colors"
+                >
+                  <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+                    <div className="shrink-0 mt-0.5 sm:mt-0">{getTipoBadge(item.tipo)}</div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-xs text-white truncate max-w-[200px] sm:max-w-[280px]">
+                          {custName}
+                        </span>
+                        <span className="text-[11px] font-mono font-semibold text-indigo-300">
+                          {soNum}
+                        </span>
+                        {item.status === 'lembrete' && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                            Lembrete único
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-indigo-300/80 flex items-center gap-2 mt-0.5">
+                        <span>
+                          {so?.equipment ? `Equipamento: ${so.equipment}` : 'Sem equipamento'}
+                        </span>
+                        <span>•</span>
+                        <span
+                          className={
+                            overdueDays > 0 ? 'text-amber-300 font-semibold' : 'text-emerald-300'
+                          }
+                        >
+                          {overdueDays === 0 ? 'Vence hoje' : `${overdueDays} dia(s) em atraso`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    <Button
+                      size="sm"
+                      onClick={() => handleSendOneTouch(item)}
+                      className="h-7 text-[11px] font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-2.5 gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <Send className="h-3 w-3" />
+                      <span>Disparar WhatsApp</span>
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+            {overdueQueueMessages.length > 15 && (
+              <div className="pt-2 text-center text-[11px] text-indigo-300/60 italic">
+                + {overdueQueueMessages.length - 15} outras mensagens na fila...
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      {/* Top Banner de Identidade do Juquinha */}{' '}
       <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 rounded-2xl p-4 sm:p-6 text-white shadow-lg border border-indigo-700/40 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
           <div className="flex items-center gap-3.5">
@@ -1160,12 +1442,12 @@ export default function PosVendaJuquinha() {
                   Pós-venda — Juquinha
                 </h1>
                 <Badge className="bg-emerald-400 text-slate-950 font-black text-[10px] uppercase tracking-wider">
-                  v0.0.269
+                  v0.0.273
                 </Badge>
               </div>
               <p className="text-xs sm:text-sm text-indigo-200 mt-0.5">
-                Fluxo por data de conclusão da O.S. com cadeia automática: envio 7d gera card
-                unificado de satisfação (0-5) e resposta do cliente libera disparo.
+                Fila de envio de hoje, regras de silêncio e cadeia de pós-venda humanizada JUCA
+                Informática.
               </p>
             </div>
           </div>
@@ -1351,14 +1633,13 @@ export default function PosVendaJuquinha() {
           </button>
         </div>
       </div>
-
       {/* Explicação Didática da Cadeia Automática e Limitação do WhatsApp */}
       <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-xl p-3.5 sm:p-4 text-xs text-indigo-950 space-y-1.5">
         <div className="flex items-start gap-2.5">
           <HelpCircle className="h-4 w-4 text-indigo-600 mt-0.5 shrink-0" />
           <div className="space-y-1 flex-1">
             <p className="font-bold text-slate-900">
-              Cadeia Automática do Pós-venda por Data de Conclusão da O.S. (v0.0.269):
+              Cadeia Automática do Pós-venda por Data de Conclusão da O.S. (v0.0.273):
             </p>
             <p className="text-slate-600 text-[11px] leading-relaxed">
               <strong>1) Disparar 7 dias:</strong> Ao enviar a mensagem de 7 dias, o sistema gera
@@ -1384,7 +1665,6 @@ export default function PosVendaJuquinha() {
           </div>
         </div>
       </div>
-
       {/* Barra de Filtros e Busca */}
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-2 flex-wrap">
@@ -1463,6 +1743,14 @@ export default function PosVendaJuquinha() {
                 Prontas
               </Button>
               <Button
+                variant={statusSubFilter === 'lembrete' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setStatusSubFilter('lembrete')}
+                className="h-7 text-[11px] px-2 font-bold text-amber-600"
+              >
+                Lembretes
+              </Button>
+              <Button
                 variant={statusSubFilter === 'pending' ? 'secondary' : 'ghost'}
                 size="sm"
                 onClick={() => setStatusSubFilter('pending')}
@@ -1492,7 +1780,6 @@ export default function PosVendaJuquinha() {
           />
         </div>
       </div>
-
       {/* Lista de Mensagens de Pós-Venda Reorganizadas */}
       <div className="space-y-3">
         {loading && messages.length === 0 ? (
@@ -1989,7 +2276,6 @@ export default function PosVendaJuquinha() {
           })
         )}
       </div>
-
       {/* Modal de Nova Mensagem Manual */}
       <Dialog open={newMsgModalOpen} onOpenChange={setNewMsgModalOpen}>
         <DialogContent className="max-w-lg">
@@ -2040,6 +2326,15 @@ export default function PosVendaJuquinha() {
                     </SelectItem>
                     <SelectItem value="avaliacao_satisfacao" className="text-xs">
                       ⭐ + 🌐 Avaliação de Satisfação (Unificada 0-5)
+                    </SelectItem>
+                    <SelectItem value="documento_os" className="text-xs">
+                      📄 Documento O.S. (Check-in/Laudo)
+                    </SelectItem>
+                    <SelectItem value="follow_up_proposta" className="text-xs">
+                      🤝 Follow-up de Proposta
+                    </SelectItem>
+                    <SelectItem value="log_interno" className="text-xs">
+                      📝 Log Interno JUCA
                     </SelectItem>
                     <SelectItem value="avaliacao_tecnico" className="text-xs">
                       ⭐ Avaliação do Técnico (legado)
@@ -2124,7 +2419,6 @@ export default function PosVendaJuquinha() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Modal de Configurações do Juquinha */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="max-w-md">
@@ -2182,7 +2476,6 @@ export default function PosVendaJuquinha() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Modal de Personalização com IA do Juquinha */}
       <Dialog open={customModalOpen} onOpenChange={setCustomModalOpen}>
         <DialogContent className="max-w-lg">

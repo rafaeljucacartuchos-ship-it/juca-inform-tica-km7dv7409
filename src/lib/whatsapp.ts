@@ -1,14 +1,74 @@
-// Cabeçalho padrão exibido no topo de TODAS as mensagens WhatsApp.
-export const WHATSAPP_HEADER = '🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n'
-// Rodapé padrão com a assinatura da empresa.
+// Cabeçalho padrão padronizado exibido no topo das mensagens WhatsApp (v0.0.273)
+export const WHATSAPP_HEADER = '🛠️ *JUCA INFORMÁTICA*\n\n'
+// Rodapé padrão com a assinatura humanizada do Juquinha
 export const WHATSAPP_FOOTER =
-  '\n\nJuca Cartuchos e Informática Ltda\n(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981'
+  '\n\n— *Juquinha — JUCA Informática*\n📞 (67) 3441-4981 | (67) 99654-4981'
 // Link de avaliação no Google (fixo conforme solicitado).
 export const GOOGLE_REVIEW_URL = 'https://g.page/r/CfKb0UxVRFNsEAI/review'
 
 import { normalizePhone, sanitizePhone } from './phones'
 
 export { normalizePhone, sanitizePhone } from './phones'
+
+/**
+ * Higieniza a menção ao equipamento do cliente:
+ * - Se vier vazio, "SEM MARCA", "NÃO INFORMADO", "OUTRO", etc. -> "seu equipamento"
+ * - Faz ajuste de gênero e contração ("do seu Notebook", "da sua Impressora", etc.)
+ */
+export function sanitizeEquipmentDescription(equipment?: string): string {
+  if (!equipment) return 'seu equipamento'
+  const trimmed = equipment.trim()
+  if (!trimmed) return 'seu equipamento'
+  const upper = trimmed.toUpperCase()
+  if (
+    upper === 'SEM MARCA' ||
+    upper === 'NÃO INFORMADO' ||
+    upper === 'NAO INFORMADO' ||
+    upper === 'OUTRO' ||
+    upper === 'OUTROS' ||
+    upper === 'EQUIPAMENTO' ||
+    upper === 'DESCONHECIDO'
+  ) {
+    return 'seu equipamento'
+  }
+  return trimmed
+}
+
+/**
+ * Constrói a frase de referência ao equipamento com gênero correto:
+ * ex: "do seu Notebook Dell Inspiron", "da sua Impressora HP Laser", "do seu Computador", "do seu equipamento"
+ */
+export function buildEquipmentPrepositionPhrase(
+  equipment?: string,
+  prefix: 'do' | 'o' | 'de' = 'do',
+): string {
+  const sanitized = sanitizeEquipmentDescription(equipment)
+  if (sanitized === 'seu equipamento') {
+    if (prefix === 'do') return 'do seu equipamento'
+    if (prefix === 'o') return 'o seu equipamento'
+    return 'de seu equipamento'
+  }
+
+  const lower = sanitized.toLowerCase()
+  const isFeminine =
+    lower.startsWith('impressora') ||
+    lower.startsWith('multifuncional') ||
+    lower.startsWith('placa') ||
+    lower.startsWith('fonte') ||
+    lower.startsWith('tela') ||
+    lower.startsWith('caixa') ||
+    lower.startsWith('tv') ||
+    lower.startsWith('máquina') ||
+    lower.startsWith('maquina')
+
+  if (prefix === 'do') {
+    return isFeminine ? `da sua *${sanitized}*` : `do seu *${sanitized}*`
+  }
+  if (prefix === 'o') {
+    return isFeminine ? `a sua *${sanitized}*` : `o seu *${sanitized}*`
+  }
+  return isFeminine ? `da sua *${sanitized}*` : `do seu *${sanitized}*`
+}
 
 export function buildWhatsAppUrl(phone: string, message: string): string {
   const digits = sanitizePhone(phone)
@@ -243,16 +303,22 @@ export function buildOsDocumentMessage(params: {
     ? `\n🛠️ *Laudo / Execução:* ${serviceReport.slice(0, 90)}${serviceReport.length > 90 ? '...' : ''}`
     : ''
 
+  const cleanEquip = sanitizeEquipmentDescription(equipment)
+  const equipPhrase =
+    cleanEquip !== 'seu equipamento'
+      ? ` referente ${buildEquipmentPrepositionPhrase(cleanEquip, 'do')}`
+      : ' referente ao seu equipamento'
+
   return (
-    `🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n` +
+    `🛠️ *JUCA INFORMÁTICA*\n\n` +
     `Olá, *${firstName}*! Tudo bem?\n\n` +
-    `Segue o documento oficial da sua *Ordem de Serviço (${osNumber}${orcPart})*${equipPart}.\n\n` +
+    `Segue o documento oficial da sua *Ordem de Serviço (${osNumber}${orcPart})*${equipPhrase}.\n\n` +
     `📄 *Documento Completo da O.S.:* Contém os dados de check-in, fotos do equipamento, laudo técnico/serviço executado, itens do orçamento vinculado e assinaturas.${techPart}${laudoPart}\n\n` +
     `Acesse o documento oficial no link abaixo (otimizado para leitura e impressão em folha única A4):\n\n` +
     `👉 ${documentUrl}\n\n` +
     `Agradecemos a preferência e confiança!\n\n` +
-    `JUCA INFORMÁTICA\n` +
-    `(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981`
+    `— *Juquinha — JUCA Informática*\n` +
+    `📞 (67) 3441-4981 | (67) 99654-4981`
   )
 }
 
@@ -266,14 +332,14 @@ export function buildOrcamentoAprovadoAgradecimentoMessage(params: {
 }): string {
   const { customerName, numeroOrcamento, equipment } = params
   const firstName = customerName.split(' ')[0] || customerName
-  const equipPart = equipment ? ` da sua *${equipment}*` : ''
+  const equipPhrase = equipment ? ` ${buildEquipmentPrepositionPhrase(equipment, 'do')}` : ''
 
   return (
-    `🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n` +
+    `🛠️ *JUCA INFORMÁTICA*\n\n` +
     `Olá, *${firstName}*! 🎉 Que alegria que a proposta *${numeroOrcamento}* foi aprovada!\n\n` +
-    `O reparo${equipPart} já está em boas mãos com a equipe JUCA. Muito obrigado pela confiança — a gente cuida de tudo pra você! 💙\n\n` +
-    `Juca Informática\n` +
-    `(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981`
+    `O reparo${equipPhrase} já está em boas mãos com a equipe JUCA. Muito obrigado pela confiança — a gente cuida de tudo pra você! 💙\n\n` +
+    `— *Juquinha — JUCA Informática*\n` +
+    `📞 (67) 3441-4981 | (67) 99654-4981`
   )
 }
 
@@ -282,7 +348,7 @@ export function buildOrcamentoAprovadoAgradecimentoMessage(params: {
  * Pergunta PRIMEIRO a nota de satisfação, antes de qualquer pedido do Google.
  * Modelo solicitado pelo usuário Rafael:
  *
- * "🔧 *JUCA CARTUCHOS E INFORMÁTICA*
+ * "🛠️ *JUCA INFORMÁTICA*
  *
  * Oi, {NOME}! *Juquinha* aqui de novo! 😊
  *
@@ -308,7 +374,7 @@ export function buildAvaliacaoSatisfacaoMessage(params: {
     : '\n\nMe responde com uma notinha (0 a 5) que eu fico muito grato! 🙏'
 
   return (
-    `🔧 *JUCA CARTUCHOS E INFORMÁTICA*\n\n` +
+    `🛠️ *JUCA INFORMÁTICA*\n\n` +
     `Oi, ${firstName}! *Juquinha* aqui de novo! 😊\n\n` +
     `Seu equipamento foi atendido pelo técnico ${tech} e encerramos a O.S. ${osLabel} hoje.\n\n` +
     `*De 0 a 5, como você avalia o atendimento que recebeu?*` +
@@ -330,7 +396,7 @@ export function buildGoogleReviewRequestMessage(params: {
   const gLink = googleReviewUrl?.trim() || GOOGLE_REVIEW_URL
 
   return (
-    `🔧 *JUCA CARTUCHOS E INFORMÁTICA*\n\n` +
+    `🛠️ *JUCA INFORMÁTICA*\n\n` +
     `Oi, ${firstName}! *Juquinha* por aqui mais uma vez! 🌐✨\n\n` +
     `Muito obrigado pelo feedback tão positivo! A sua opinião é muito importante para nós e ajuda outros clientes a conhecerem a dedicação da nossa equipe.\n\n` +
     `Poderia dedicar 30 segundinhos para deixar uma avaliação 5 estrelas no nosso perfil do Google?\n\n` +

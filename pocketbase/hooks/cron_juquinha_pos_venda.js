@@ -127,7 +127,36 @@ cronAdd('juquinha_pos_venda_cron', '* * * * *', () => {
         var footer = '\n\n— *Juquinha — JUCA Informática*\n📞 (67) 3441-4981 | (67) 99654-4981'
         var textBody = ''
 
-        var equipPart = equip ? 'o seu *' + equip + '*' : 'o seu equipamento'
+        var cleanEquip = equip ? equip.trim() : ''
+        var upperEquip = cleanEquip.toUpperCase()
+        if (
+          !cleanEquip ||
+          upperEquip === 'SEM MARCA' ||
+          upperEquip === 'NÃO INFORMADO' ||
+          upperEquip === 'NAO INFORMADO' ||
+          upperEquip === 'OUTRO' ||
+          upperEquip === 'OUTROS' ||
+          upperEquip === 'EQUIPAMENTO'
+        ) {
+          cleanEquip = ''
+        }
+
+        var lowerEquip = cleanEquip.toLowerCase()
+        var isFem =
+          lowerEquip.startsWith('impressora') ||
+          lowerEquip.startsWith('multifuncional') ||
+          lowerEquip.startsWith('placa') ||
+          lowerEquip.startsWith('fonte') ||
+          lowerEquip.startsWith('tela') ||
+          lowerEquip.startsWith('tv') ||
+          lowerEquip.startsWith('máquina') ||
+          lowerEquip.startsWith('maquina')
+
+        var equipPart = cleanEquip
+          ? isFem
+            ? 'a sua *' + cleanEquip + '*'
+            : 'o seu *' + cleanEquip + '*'
+          : 'o seu equipamento'
         var osPart = soNumber ? ' (O.S. *' + soNumber + '*)' : ''
         var techMention = techName ? ' e o técnico *' + techName + '*' : ''
 
