@@ -134,8 +134,12 @@ export default function PosVendaJuquinha() {
       setLoading(true)
       const list = await getPosVendaMessages('', '-created')
       setMessages(list)
-    } catch {
-      toast({ title: 'Erro ao carregar mensagens de pós-venda', variant: 'destructive' })
+    } catch (err: unknown) {
+      // Se for rate limit (429), não alarma o usuário com toast vermelho de erro
+      const status = (err as { status?: number })?.status
+      if (status !== 429) {
+        toast({ title: 'Erro ao carregar mensagens de pós-venda', variant: 'destructive' })
+      }
     } finally {
       setLoading(false)
     }
@@ -147,20 +151,9 @@ export default function PosVendaJuquinha() {
 
     const initializePosVenda = async () => {
       try {
-        const { convertedOrdersCount } = await unificarAvaliacoesLegadasPendentes()
-        if (isMounted && convertedOrdersCount > 0) {
-          toast({
-            title: `${convertedOrdersCount} ${
-              convertedOrdersCount === 1
-                ? 'avaliação antiga foi unificada'
-                : 'avaliações antigas foram unificadas'
-            }`,
-            description:
-              'Pares legados pendentes foram substituídos por card unificado de satisfação 0-5.',
-          })
-        }
+        await unificarAvaliacoesLegadasPendentes()
       } catch (err) {
-        console.warn('Migração automática de avaliações legadas:', err)
+        console.warn('Migração de avaliações legadas:', err)
       }
 
       if (isMounted) {

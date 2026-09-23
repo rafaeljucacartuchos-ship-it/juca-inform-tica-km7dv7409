@@ -26,6 +26,12 @@ export async function generatePosVendaToken(len = 32): Promise<string> {
   return res
 }
 
+// Cache local na sessão/navegador para registrar mensagens já verificadas/atualizadas nesta sessão
+const checkedAndRepairedMessageIds = new Set<string>()
+
+// Helper para aguardar ms (throttle/serialização)
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 export const getPosVendaMessages = async (filterStr = '', sortStr = '-scheduled_at') => {
   const records = await pb.collection('pos_venda_messages').getFullList<PosVendaMessage>({
     filter: filterStr,
@@ -33,42 +39,69 @@ export const getPosVendaMessages = async (filterStr = '', sortStr = '-scheduled_
     sort: sortStr,
   })
 
-  // Garante que todo card de avaliacao_satisfacao tenha token_acesso e wa_me_link com o link atualizado
+  // Garante de forma controlada (lote máx. 5, serializado, sem 429) que cards antigos de satisfação
+  // tenham token_acesso e wa_me_link corretos. Registros já em conformidade são ignorados.
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  const candidates = records.filter(
+    (m) =>
+      m.tipo === 'avaliacao_satisfacao' &&
+      (!m.token_acesso || !m.wa_me_link || !m.wa_me_link.includes('/avaliar/')) &&
+      !checkedAndRepairedMessageIds.has(m.id),
+  )
+
+  // Processa no máximo 5 registros por chamada para evitar rajadas e limite de requisições
+  const batchToProcess = candidates.slice(0, 5)
+
+  for (const m of batchToProcess) {
+    try {
+      const token = m.token_acesso || (await generatePosVendaToken(32))
+      const evalUrl = origin ? `${origin}/avaliar/${token}` : ''
+      const cust = m.expand?.customer
+      const so = m.expand?.service_order
+      const custName = getCustomerDisplayName(cust)
+      const phone = getCustomerPhone(cust)
+      const soNumber = so?.number || ''
+      const techName = so?.expand?.technician?.name || ''
+
+      const textSatisfacao = buildAvaliacaoSatisfacaoMessage({
+        customerName: custName,
+        technicianName: techName,
+        orderNumber: soNumber,
+        evaluationUrl: evalUrl,
+      })
+      const waLink = buildJuquinhaWaLink(phone, textSatisfacao)
+
+      await pb.collection('pos_venda_messages').update(m.id, {
+        token_acesso: token,
+        texto_gerado: textSatisfacao,
+        wa_me_link: waLink,
+      })
+
+      m.token_acesso = token
+      m.texto_gerado = textSatisfacao
+      m.wa_me_link = waLink
+      checkedAndRepairedMessageIds.add(m.id)
+
+      // Pausa defensiva entre gravações consecutivas
+      await sleep(150)
+    } catch (err: unknown) {
+      // Ignora silenciosamente 429 / falhas de limite ou rede
+      // Marca temporariamente na sessão para não entrar em loop infinito se o servidor estiver restritivo
+      const status = (err as { status?: number })?.status
+      if (status === 429 || status === 400 || status === 403) {
+        checkedAndRepairedMessageIds.add(m.id)
+      }
+    }
+  }
+
+  // Marca os demais que já possuem wa_me_link com /avaliar/ como verificados
   for (const m of records) {
     if (
       m.tipo === 'avaliacao_satisfacao' &&
-      (!m.token_acesso || !m.wa_me_link?.includes('/avaliar/'))
+      m.token_acesso &&
+      m.wa_me_link?.includes('/avaliar/')
     ) {
-      try {
-        const token = m.token_acesso || (await generatePosVendaToken(32))
-        const evalUrl = origin ? `${origin}/avaliar/${token}` : ''
-        const cust = m.expand?.customer
-        const so = m.expand?.service_order
-        const custName = getCustomerDisplayName(cust)
-        const phone = getCustomerPhone(cust)
-        const soNumber = so?.number || ''
-        const techName = so?.expand?.technician?.name || ''
-
-        const textSatisfacao = buildAvaliacaoSatisfacaoMessage({
-          customerName: custName,
-          technicianName: techName,
-          orderNumber: soNumber,
-          evaluationUrl: evalUrl,
-        })
-        const waLink = buildJuquinhaWaLink(phone, textSatisfacao)
-
-        await pb.collection('pos_venda_messages').update(m.id, {
-          token_acesso: token,
-          texto_gerado: textSatisfacao,
-          wa_me_link: waLink,
-        })
-        m.token_acesso = token
-        m.texto_gerado = textSatisfacao
-        m.wa_me_link = waLink
-      } catch {
-        /* ignore */
-      }
+      checkedAndRepairedMessageIds.add(m.id)
     }
   }
 
@@ -644,10 +677,17 @@ export async function releaseJuquinhaEvaluations(msg: PosVendaMessage): Promise<
  * - O novo card unificado herda scheduled_at, cliente, O.S., telefone e texto gerado oficial.
  * - Retorna a quantidade de O.S. que foram unificadas.
  */
+// Guarda em memória se a rotina de unificação já correu nesta sessão para evitar execuções repetidas
+let hasUnifiedInSession = false
+
 export async function unificarAvaliacoesLegadasPendentes(): Promise<{
   convertedOrdersCount: number
   convertedOrders: string[]
 }> {
+  if (hasUnifiedInSession) {
+    return { convertedOrdersCount: 0, convertedOrders: [] }
+  }
+
   try {
     // 1) Busca todas as mensagens de avaliação com expand
     const allEvalMessages = await pb.collection('pos_venda_messages').getFullList<PosVendaMessage>({
@@ -668,8 +708,14 @@ export async function unificarAvaliacoesLegadasPendentes(): Promise<{
 
     const convertedOrders: string[] = []
     const nowIso = new Date().toISOString()
+    const MAX_UNIFICATIONS_PER_RUN = 5
+    let countThisRun = 0
 
     for (const [soId, msgs] of byOrder.entries()) {
+      if (countThisRun >= MAX_UNIFICATIONS_PER_RUN) {
+        break
+      }
+
       // Já tem card unificado de satisfação?
       const hasSatisfacao = msgs.some((m) => m.tipo === 'avaliacao_satisfacao')
       if (hasSatisfacao) {
@@ -714,41 +760,64 @@ export async function unificarAvaliacoesLegadasPendentes(): Promise<{
       // o status inicial pode ser 'ready'; caso contrário 'pending'
       const isAlreadyResponded = msgs.some((m) => m.cliente_respondeu || m.avaliacoes_liberadas)
 
-      // Cria a mensagem unificada
-      await createPosVendaMessage({
-        customer: custId,
-        service_order: soId,
-        tipo: 'avaliacao_satisfacao',
-        status: isAlreadyResponded ? 'ready' : 'pending',
-        status_funil: 'aguardando_nota',
-        scheduled_at: refMsg.scheduled_at || nowIso,
-        texto_gerado: textSatisfacao,
-        wa_me_link: waLink,
-        channel: 'whatsapp',
-        token_acesso: token,
-      })
+      try {
+        // Cria a mensagem unificada
+        await createPosVendaMessage({
+          customer: custId,
+          service_order: soId,
+          tipo: 'avaliacao_satisfacao',
+          status: isAlreadyResponded ? 'ready' : 'pending',
+          status_funil: 'aguardando_nota',
+          scheduled_at: refMsg.scheduled_at || nowIso,
+          texto_gerado: textSatisfacao,
+          wa_me_link: waLink,
+          channel: 'whatsapp',
+          token_acesso: token,
+        })
 
-      // Desativa os registros legados pendentes (exclusão lógica via dismissed)
-      for (const leg of pendingLegacy) {
-        try {
-          await pb.collection('pos_venda_messages').update(leg.id, {
-            status: 'dismissed',
-            feedback_cliente: 'Substituído por card unificado de satisfação (0-5)',
-          })
-        } catch (upErr) {
-          console.warn(`Erro ao descartar mensagem legada ${leg.id}:`, upErr)
+        // Serializa com pausa
+        await sleep(150)
+
+        // Desativa os registros legados pendentes (exclusão lógica via dismissed)
+        for (const leg of pendingLegacy) {
+          try {
+            await pb.collection('pos_venda_messages').update(leg.id, {
+              status: 'dismissed',
+              feedback_cliente: 'Substituído por card unificado de satisfação (0-5)',
+            })
+            await sleep(100)
+          } catch (upErr: unknown) {
+            // Ignora silenciosamente rate limit
+            const status = (upErr as { status?: number })?.status
+            if (status !== 429) {
+              console.warn(`Erro ao descartar mensagem legada ${leg.id}:`, upErr)
+            }
+          }
+        }
+
+        convertedOrders.push(soNumber ? `OS #${soNumber}` : soId)
+        countThisRun++
+      } catch (createErr: unknown) {
+        // Se 429 na criação, interrompe e sai silenciosamente
+        const status = (createErr as { status?: number })?.status
+        if (status === 429) {
+          break
         }
       }
-
-      convertedOrders.push(soNumber ? `OS #${soNumber}` : soId)
     }
+
+    hasUnifiedInSession = true
 
     return {
       convertedOrdersCount: convertedOrders.length,
       convertedOrders,
     }
-  } catch (err) {
-    console.error('Erro na unificação de avaliações legadas:', err)
+  } catch (err: unknown) {
+    const status = (err as { status?: number })?.status
+    if (status !== 429) {
+      console.error('Erro na unificação de avaliações legadas:', err)
+    }
+    hasUnifiedInSession = true
     return { convertedOrdersCount: 0, convertedOrders: [] }
   }
 }
