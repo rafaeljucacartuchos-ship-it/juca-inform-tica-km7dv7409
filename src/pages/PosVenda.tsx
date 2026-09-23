@@ -59,7 +59,6 @@ import {
   registrarNotaAvaliacao,
   marcarGoogleEnviado,
   marcarCriticaResolvida,
-  unificarAvaliacoesLegadasPendentes,
 } from '@/services/pos_venda'
 import { buildGoogleReviewRequestMessage, GOOGLE_REVIEW_URL } from '@/lib/whatsapp'
 import { PosVendaMessage, PosVendaTipo, Customer, ServiceOrder } from '@/types'
@@ -151,23 +150,11 @@ export default function PosVendaJuquinha() {
     }
   }
 
-  // Executa migração/unificação silenciosa dos pares legados pendentes na montagem inicial
+  // Carregamento 100% somente leitura na montagem inicial
   useEffect(() => {
     let isMounted = true
 
-    const initializePosVenda = async () => {
-      try {
-        await unificarAvaliacoesLegadasPendentes()
-      } catch (err) {
-        console.warn('Migração de avaliações legadas:', err)
-      }
-
-      if (isMounted) {
-        await loadData()
-      }
-    }
-
-    initializePosVenda()
+    loadData()
 
     getGoogleReviewUrl()
       .then((url) => {
@@ -1442,7 +1429,7 @@ export default function PosVendaJuquinha() {
                   Pós-venda — Juquinha
                 </h1>
                 <Badge className="bg-emerald-400 text-slate-950 font-black text-[10px] uppercase tracking-wider">
-                  v0.0.273
+                  v0.0.274
                 </Badge>
               </div>
               <p className="text-xs sm:text-sm text-indigo-200 mt-0.5">
@@ -1639,7 +1626,7 @@ export default function PosVendaJuquinha() {
           <HelpCircle className="h-4 w-4 text-indigo-600 mt-0.5 shrink-0" />
           <div className="space-y-1 flex-1">
             <p className="font-bold text-slate-900">
-              Cadeia Automática do Pós-venda por Data de Conclusão da O.S. (v0.0.273):
+              Cadeia Automática do Pós-venda por Data de Conclusão da O.S. (v0.0.274):
             </p>
             <p className="text-slate-600 text-[11px] leading-relaxed">
               <strong>1) Disparar 7 dias:</strong> Ao enviar a mensagem de 7 dias, o sistema gera
