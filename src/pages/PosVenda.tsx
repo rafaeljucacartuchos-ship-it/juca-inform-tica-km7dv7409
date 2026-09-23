@@ -59,6 +59,7 @@ import {
   registrarNotaAvaliacao,
   marcarGoogleEnviado,
   marcarCriticaResolvida,
+  unificarAvaliacoesLegadasPendentes,
 } from '@/services/pos_venda'
 import { buildGoogleReviewRequestMessage, GOOGLE_REVIEW_URL } from '@/lib/whatsapp'
 import { PosVendaMessage, PosVendaTipo, Customer, ServiceOrder } from '@/types'
@@ -140,11 +141,44 @@ export default function PosVendaJuquinha() {
     }
   }
 
+  // Executa migração/unificação silenciosa dos pares legados pendentes na montagem inicial
   useEffect(() => {
-    loadData()
+    let isMounted = true
+
+    const initializePosVenda = async () => {
+      try {
+        const { convertedOrdersCount } = await unificarAvaliacoesLegadasPendentes()
+        if (isMounted && convertedOrdersCount > 0) {
+          toast({
+            title: `${convertedOrdersCount} ${
+              convertedOrdersCount === 1
+                ? 'avaliação antiga foi unificada'
+                : 'avaliações antigas foram unificadas'
+            }`,
+            description:
+              'Pares legados pendentes foram substituídos por card unificado de satisfação 0-5.',
+          })
+        }
+      } catch (err) {
+        console.warn('Migração automática de avaliações legadas:', err)
+      }
+
+      if (isMounted) {
+        await loadData()
+      }
+    }
+
+    initializePosVenda()
+
     getGoogleReviewUrl()
-      .then(setGoogleUrl)
+      .then((url) => {
+        if (isMounted) setGoogleUrl(url)
+      })
       .catch(() => {})
+
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   useRealtime('pos_venda_messages', loadData)
@@ -526,16 +560,18 @@ export default function PosVendaJuquinha() {
   }, [messages])
 
   // e) 'Avaliações (Unificada + Legados)':
-  // Todas as mensagens de avaliação: o novo card unificado 'avaliacao_satisfacao' (com funil de nota 0-5)
-  // e cards legados preservados (avaliacao_tecnico / avaliacao_google).
+  // Todas as mensagens de avaliação ativas: o novo card unificado 'avaliacao_satisfacao' (com funil de nota 0-5)
+  // e cards legados já disparados/histórico (avaliacao_tecnico / avaliacao_google).
+  // Descarta mensagens com status 'dismissed' (excluídas logicamente / substituídas).
   // Críticas pendentes de contato (0-3) e prontas vêm no topo!
   const avaliacoesMessages = useMemo(() => {
     return messages
       .filter(
         (m) =>
-          m.tipo === 'avaliacao_satisfacao' ||
-          m.tipo === 'avaliacao_tecnico' ||
-          m.tipo === 'avaliacao_google',
+          m.status !== 'dismissed' &&
+          (m.tipo === 'avaliacao_satisfacao' ||
+            m.tipo === 'avaliacao_tecnico' ||
+            m.tipo === 'avaliacao_google'),
       )
       .sort((a, b) => {
         // Críticas pendentes no topo máximo para Rafael ligar imediatamente
@@ -582,8 +618,14 @@ export default function PosVendaJuquinha() {
       case 'todas':
       default:
         list = messages
-          .slice()
           .filter((m) => {
+            // Esconde mensagens substituídas por card unificado
+            if (
+              (m.tipo === 'avaliacao_tecnico' || m.tipo === 'avaliacao_google') &&
+              m.status === 'dismissed'
+            ) {
+              return false
+            }
             if (statusSubFilter === 'all') return true
             return m.status === statusSubFilter
           })
@@ -879,9 +921,10 @@ export default function PosVendaJuquinha() {
     const msg7d = sisterMessages.find((m) => m.tipo === 'pos_venda_7d')
     const evals = sisterMessages.filter(
       (m) =>
-        m.tipo === 'avaliacao_satisfacao' ||
-        m.tipo === 'avaliacao_tecnico' ||
-        m.tipo === 'avaliacao_google',
+        m.status !== 'dismissed' &&
+        (m.tipo === 'avaliacao_satisfacao' ||
+          m.tipo === 'avaliacao_tecnico' ||
+          m.tipo === 'avaliacao_google'),
     )
     const msg30d = sisterMessages.find((m) => m.tipo === 'oferta_30d')
 
@@ -1124,12 +1167,12 @@ export default function PosVendaJuquinha() {
                   Pós-venda — Juquinha
                 </h1>
                 <Badge className="bg-emerald-400 text-slate-950 font-black text-[10px] uppercase tracking-wider">
-                  v0.0.268
+                  v0.0.269
                 </Badge>
               </div>
               <p className="text-xs sm:text-sm text-indigo-200 mt-0.5">
-                Fluxo por data de conclusão da O.S. com cadeia automática: envio 7d gera avaliações
-                e resposta do cliente libera disparo.
+                Fluxo por data de conclusão da O.S. com cadeia automática: envio 7d gera card
+                unificado de satisfação (0-5) e resposta do cliente libera disparo.
               </p>
             </div>
           </div>
@@ -1322,7 +1365,7 @@ export default function PosVendaJuquinha() {
           <HelpCircle className="h-4 w-4 text-indigo-600 mt-0.5 shrink-0" />
           <div className="space-y-1 flex-1">
             <p className="font-bold text-slate-900">
-              Cadeia Automática do Pós-venda por Data de Conclusão da O.S. (v0.0.268):
+              Cadeia Automática do Pós-venda por Data de Conclusão da O.S. (v0.0.269):
             </p>
             <p className="text-slate-600 text-[11px] leading-relaxed">
               <strong>1) Disparar 7 dias:</strong> Ao enviar a mensagem de 7 dias, o sistema gera

@@ -248,31 +248,50 @@ export async function createEvaluationsForOrder(
     return { satisfacaoMsg: existingSatisfacao, techMsg: existingTech, googleMsg: existingGoogle }
   }
 
-  // Se NÃO existe nem unificado nem legados, cria o CARD UNIFICADO
-  if (!existingTech && !existingGoogle) {
-    const textSatisfacao = buildAvaliacaoSatisfacaoMessage({
-      customerName: custName,
-      technicianName: techName,
-      orderNumber: soNumber,
-    })
-    const waLink = buildJuquinhaWaLink(phone, textSatisfacao)
+  // Se NÃO existe o unificado, cria o CARD UNIFICADO
+  // Se existirem legados pendentes, eles devem ser substituídos (descartados/dismissed)
+  const textSatisfacao = buildAvaliacaoSatisfacaoMessage({
+    customerName: custName,
+    technicianName: techName,
+    orderNumber: soNumber,
+  })
+  const waLink = buildJuquinhaWaLink(phone, textSatisfacao)
 
-    const satisfacaoMsg = await createPosVendaMessage({
-      customer: custId,
-      service_order: soId,
-      tipo: 'avaliacao_satisfacao',
-      status: initialStatus,
-      status_funil: 'aguardando_nota',
-      scheduled_at: nowIso,
-      texto_gerado: textSatisfacao,
-      wa_me_link: waLink,
-      channel: 'whatsapp',
-    })
+  const satisfacaoMsg = await createPosVendaMessage({
+    customer: custId,
+    service_order: soId,
+    tipo: 'avaliacao_satisfacao',
+    status: initialStatus,
+    status_funil: 'aguardando_nota',
+    scheduled_at: nowIso,
+    texto_gerado: textSatisfacao,
+    wa_me_link: waLink,
+    channel: 'whatsapp',
+  })
 
-    return { satisfacaoMsg }
+  // Desativa legados pendentes para não duplicarem cards
+  if (existingTech && existingTech.status === 'pending') {
+    try {
+      await pb.collection('pos_venda_messages').update(existingTech.id, {
+        status: 'dismissed',
+        feedback_cliente: 'Substituído por card unificado de satisfação (0-5)',
+      })
+    } catch {
+      /* ignore */
+    }
+  }
+  if (existingGoogle && existingGoogle.status === 'pending') {
+    try {
+      await pb.collection('pos_venda_messages').update(existingGoogle.id, {
+        status: 'dismissed',
+        feedback_cliente: 'Substituído por card unificado de satisfação (0-5)',
+      })
+    } catch {
+      /* ignore */
+    }
   }
 
-  return { techMsg: existingTech, googleMsg: existingGoogle }
+  return { satisfacaoMsg }
 }
 
 /**
@@ -464,9 +483,9 @@ export const markPosVendaMessageSent = async (
  * CADEIA AUTOMÁTICA AO MARCAR 'CLIENTE RESPONDEU':
  * Quando o check-in OU a mensagem de 7 dias for marcada como 'Cliente respondeu':
  * 1) Atualiza a mensagem com cliente_respondeu=true, cliente_respondeu_em=agora, avaliacoes_liberadas=true
- * 2) Garante que as avaliações (avaliacao_tecnico e avaliacao_google) existam e sejam promovidas para 'ready'
+ * 2) Garante que a avaliação unificada (avaliacao_satisfacao) exista e seja promovida para 'ready'
  * 3) Dispara notificação para atendentes e admins:
- *    '💬 [Cliente] respondeu — avaliações da OS #X prontas para disparo' com link /pos-venda
+ *    '💬 [Cliente] respondeu — avaliação da OS #X pronta para disparo' com link /pos-venda
  */
 export const markPosVendaMessageResponded = async (
   id: string,
@@ -496,7 +515,7 @@ export const markPosVendaMessageResponded = async (
 
   // 2) Cria (se não existirem) e promove as avaliações para 'ready'
   try {
-    // Garante que existam
+    // Garante que existam (e substitui legados pendentes se houver)
     await createEvaluationsForOrder(msg, 'ready')
     // Promove quaisquer que estivessem pending
     if (soId) {
@@ -509,8 +528,8 @@ export const markPosVendaMessageResponded = async (
   // 3) Notificação para atendentes e admin
   try {
     await notifyStaffMembers({
-      title: `💬 ${custName} respondeu — avaliações da ${osLabel} prontas para disparo`,
-      message: `${custName} respondeu ao contato de pós-venda da ${osLabel}. As mensagens de avaliação do técnico e Google estão prontas para disparo!`,
+      title: `💬 ${custName} respondeu — avaliação da ${osLabel} pronta para disparo`,
+      message: `${custName} respondeu ao contato de pós-venda da ${osLabel}. A avaliação de satisfação está pronta para disparo!`,
       type: 'service_order',
       link: '/pos-venda',
     })
@@ -548,4 +567,116 @@ export async function releaseJuquinhaEvaluations(msg: PosVendaMessage): Promise<
   }
 
   return result
+}
+
+/**
+ * CONVERSÃO / MIGRAÇÃO AUTOMÁTICA DOS PARES LEGADOS DE AVALIAÇÃO:
+ * Substitui os pares legados de avaliação (avaliacao_tecnico + avaliacao_google)
+ * ainda pendentes por um único card unificado de satisfação 0-5 (avaliacao_satisfacao).
+ * - Pares/mensagens que já foram disparados (status != 'pending') ficam intocados como histórico.
+ * - Os registros legados pendentes são desativados com status 'dismissed' (exclusão lógica).
+ * - O novo card unificado herda scheduled_at, cliente, O.S., telefone e texto gerado oficial.
+ * - Retorna a quantidade de O.S. que foram unificadas.
+ */
+export async function unificarAvaliacoesLegadasPendentes(): Promise<{
+  convertedOrdersCount: number
+  convertedOrders: string[]
+}> {
+  try {
+    // 1) Busca todas as mensagens de avaliação com expand
+    const allEvalMessages = await pb.collection('pos_venda_messages').getFullList<PosVendaMessage>({
+      filter:
+        'tipo = "avaliacao_satisfacao" || tipo = "avaliacao_tecnico" || tipo = "avaliacao_google"',
+      expand: 'customer,service_order,service_order.technician,service_order.equipment_ref',
+      sort: 'created',
+    })
+
+    // 2) Agrupa por O.S. (service_order)
+    const byOrder = new Map<string, PosVendaMessage[]>()
+    for (const msg of allEvalMessages) {
+      if (!msg.service_order) continue
+      const list = byOrder.get(msg.service_order) || []
+      list.push(msg)
+      byOrder.set(msg.service_order, list)
+    }
+
+    const convertedOrders: string[] = []
+    const nowIso = new Date().toISOString()
+
+    for (const [soId, msgs] of byOrder.entries()) {
+      // Já tem card unificado de satisfação?
+      const hasSatisfacao = msgs.some((m) => m.tipo === 'avaliacao_satisfacao')
+      if (hasSatisfacao) {
+        continue
+      }
+
+      // Encontra legados pendentes dessa OS
+      const pendingLegacy = msgs.filter(
+        (m) =>
+          (m.tipo === 'avaliacao_tecnico' || m.tipo === 'avaliacao_google') &&
+          m.status === 'pending',
+      )
+
+      // Se não tem nenhum legado pendente, não há o que unificar nesta OS
+      if (pendingLegacy.length === 0) {
+        continue
+      }
+
+      // Referência para montar a nova mensagem unificada
+      const refMsg = pendingLegacy[0]
+      const cust = refMsg.expand?.customer
+      const so = refMsg.expand?.service_order
+      const custId = refMsg.customer
+      const custName = getCustomerDisplayName(cust)
+      const phone = getCustomerPhone(cust)
+      const soNumber = so?.number || ''
+      const techName = so?.expand?.technician?.name || ''
+
+      const textSatisfacao = buildAvaliacaoSatisfacaoMessage({
+        customerName: custName,
+        technicianName: techName,
+        orderNumber: soNumber,
+      })
+      const waLink = buildJuquinhaWaLink(phone, textSatisfacao)
+
+      // Se a OS já teve cliente_respondeu=true ou avaliacoes_liberadas em alguma mensagem,
+      // o status inicial pode ser 'ready'; caso contrário 'pending'
+      const isAlreadyResponded = msgs.some((m) => m.cliente_respondeu || m.avaliacoes_liberadas)
+
+      // Cria a mensagem unificada
+      await createPosVendaMessage({
+        customer: custId,
+        service_order: soId,
+        tipo: 'avaliacao_satisfacao',
+        status: isAlreadyResponded ? 'ready' : 'pending',
+        status_funil: 'aguardando_nota',
+        scheduled_at: refMsg.scheduled_at || nowIso,
+        texto_gerado: textSatisfacao,
+        wa_me_link: waLink,
+        channel: 'whatsapp',
+      })
+
+      // Desativa os registros legados pendentes (exclusão lógica via dismissed)
+      for (const leg of pendingLegacy) {
+        try {
+          await pb.collection('pos_venda_messages').update(leg.id, {
+            status: 'dismissed',
+            feedback_cliente: 'Substituído por card unificado de satisfação (0-5)',
+          })
+        } catch (upErr) {
+          console.warn(`Erro ao descartar mensagem legada ${leg.id}:`, upErr)
+        }
+      }
+
+      convertedOrders.push(soNumber ? `OS #${soNumber}` : soId)
+    }
+
+    return {
+      convertedOrdersCount: convertedOrders.length,
+      convertedOrders,
+    }
+  } catch (err) {
+    console.error('Erro na unificação de avaliações legadas:', err)
+    return { convertedOrdersCount: 0, convertedOrders: [] }
+  }
 }
