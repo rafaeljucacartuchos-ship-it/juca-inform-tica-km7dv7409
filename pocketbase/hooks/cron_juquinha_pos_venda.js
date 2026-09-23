@@ -127,108 +127,149 @@ cronAdd('juquinha_pos_venda_cron', '* * * * *', () => {
         var footer = '\n\n— *Juquinha — JUCA Informática*\n📞 (67) 3441-4981 | (67) 99654-4981'
         var textBody = ''
 
-        var cleanEquip = equip ? equip.trim() : ''
-        var upperEquip = cleanEquip.toUpperCase()
-        if (
-          !cleanEquip ||
-          upperEquip === 'SEM MARCA' ||
-          upperEquip === 'NÃO INFORMADO' ||
-          upperEquip === 'NAO INFORMADO' ||
-          upperEquip === 'OUTRO' ||
-          upperEquip === 'OUTROS' ||
-          upperEquip === 'EQUIPAMENTO'
-        ) {
-          cleanEquip = ''
+        function sanitizeEquipment(eq) {
+          if (!eq) return 'seu equipamento'
+          var trimmed = eq.trim()
+          if (!trimmed) return 'seu equipamento'
+          var up = trimmed.toUpperCase()
+          if (
+            up === 'SEM MARCA' ||
+            up === 'NÃO INFORMADO' ||
+            up === 'NAO INFORMADO' ||
+            up === 'OUTRO' ||
+            up === 'OUTROS' ||
+            up === 'EQUIPAMENTO' ||
+            up === 'DESCONHECIDO'
+          ) {
+            return 'seu equipamento'
+          }
+          return trimmed
         }
 
-        var lowerEquip = cleanEquip.toLowerCase()
-        var isFem =
-          lowerEquip.startsWith('impressora') ||
-          lowerEquip.startsWith('multifuncional') ||
-          lowerEquip.startsWith('placa') ||
-          lowerEquip.startsWith('fonte') ||
-          lowerEquip.startsWith('tela') ||
-          lowerEquip.startsWith('tv') ||
-          lowerEquip.startsWith('máquina') ||
-          lowerEquip.startsWith('maquina')
-
-        var equipPart = cleanEquip
-          ? isFem
-            ? 'a sua *' + cleanEquip + '*'
-            : 'o seu *' + cleanEquip + '*'
-          : 'o seu equipamento'
-        var osPart = soNumber ? ' (O.S. *' + soNumber + '*)' : ''
-        var techMention = techName ? ' e o técnico *' + techName + '*' : ''
-
-        var servicePart = ''
-        if (itemsSummary && serviceReport) {
-          servicePart = 'após a realização de ' + serviceReport + ' e aplicação de ' + itemsSummary
-        } else if (itemsSummary) {
-          servicePart = 'após a realização do serviço com ' + itemsSummary
-        } else if (serviceReport) {
-          servicePart = 'após ' + serviceReport
+        function buildEquipPhrase(eq, prefix) {
+          var s = sanitizeEquipment(eq)
+          if (s === 'seu equipamento') {
+            if (prefix === 'do') return 'do seu equipamento'
+            if (prefix === 'o') return 'o seu equipamento'
+            return 'de seu equipamento'
+          }
+          var low = s.toLowerCase()
+          var isFem =
+            low.startsWith('impressora') ||
+            low.startsWith('multifuncional') ||
+            low.startsWith('placa') ||
+            low.startsWith('fonte') ||
+            low.startsWith('tela') ||
+            low.startsWith('caixa') ||
+            low.startsWith('tv') ||
+            low.startsWith('máquina') ||
+            low.startsWith('maquina')
+          if (prefix === 'do') {
+            return isFem ? 'da sua *' + s + '*' : 'do seu *' + s + '*'
+          }
+          if (prefix === 'o') {
+            return isFem ? 'a sua *' + s + '*' : 'o seu *' + s + '*'
+          }
+          return isFem ? 'da sua *' + s + '*' : 'do seu *' + s + '*'
         }
+
+        var equipPhraseDo = buildEquipPhrase(equip, 'do')
+        var techPart = techName ? ' pelo técnico *' + techName + '*' : ''
+
+        var originUrl =
+          'https://assistencia-tecnica-movel-86527--skip-app.shrd00.internal.goskip.dev'
+        var envPublic = $os.getenv('APP_PUBLIC_URL') || $os.getenv('FRONTEND_URL') || ''
+        if (envPublic) originUrl = envPublic.replace(/\/+$/, '')
+
+        // Se a mensagem já tiver token_acesso, reaproveita; senão gera token seguro
+        var token = msgRec.getString('token_acesso')
+        if (!token) {
+          var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+          token = ''
+          for (var tIdx = 0; tIdx < 32; tIdx++) {
+            var randIdx = Math.floor(Math.random() * chars.length)
+            token += chars.charAt(randIdx)
+          }
+          msgRec.set('token_acesso', token)
+        }
+        var evalUrl = originUrl + '/avaliar/' + token
+
+        function buildEvalLinkBlock(url) {
+          if (url && url.trim()) {
+            return '\n\nDe 0 a 5, como você avalia? Toque na sua nota aqui 👉 ' + url.trim()
+          }
+          return '\n\nDe 0 a 5, como você avalia? Se puder responder com a sua nota, ficamos imensamente gratos! 🙏'
+        }
+
+        var evalLinkBlock = buildEvalLinkBlock(evalUrl)
 
         if (tipo === 'checkin_pos_venda') {
           textBody =
             'Oi, ' +
             firstName +
-            '! Tudo bem com você? Aqui é o *Juquinha* da JUCA Informática! 😄🙋‍♂️\n\n' +
-            'Passando rapidinho para bater um papo e saber: como está ' +
-            equipPart +
-            osPart +
+            '! Tudo bem com você? 😄\n\n' +
+            'Passando rapidinho para saber: como está o funcionamento ' +
+            equipPhraseDo +
             '?\n\n' +
-            'Você já teve um tempinho de testar? Está gostando do serviço que fizemos por aqui? Ficou tudo 100% como você esperava?\n\n' +
-            'Eu' +
-            techMention +
-            ' ficamos muito felizes em te atender! Se tiver qualquer dúvida, detalhe ou precisar de um ajuste, é só me responder por aqui que estou à sua disposição!'
+            'Já conseguiu testar no dia a dia? Ficou tudo 100% como você esperava?\n\n' +
+            (techName ? 'O atendimento foi realizado com toda dedicação' + techPart + '. ' : '') +
+            'Se tiver qualquer dúvida ou precisar de um ajuste, estamos à sua inteira disposição!' +
+            evalLinkBlock
         } else if (tipo === 'pos_venda_7d') {
           var detailsLine = ''
-          if (servicePart) {
-            detailsLine = ' após o serviço de ' + servicePart
+          if (serviceReport) {
+            detailsLine = ' após ' + serviceReport
+          } else if (itemsSummary) {
+            detailsLine = ' após ' + itemsSummary
           }
           textBody =
             'Olá, ' +
             firstName +
-            '! Tudo ótimo por aí? Aqui é o *Juquinha* da JUCA Informática novamente! 🛠️👋\n\n' +
-            'Já se passou uma semaninha desde que finalizamos ' +
-            equipPart +
-            osPart +
+            '! Tudo bem? 🛠️\n\n' +
+            'Já se passou uma semaninha desde o serviço ' +
+            equipPhraseDo +
             detailsLine +
-            (techName ? ' com o nosso técnico *' + techName + '*' : '') +
+            techPart +
             '.\n\n' +
-            'Como tem sido o uso no dia a dia? O equipamento está respondendo direitinho, rápido e sem nenhum problema?\n\n' +
-            'Conta para mim! Se precisar de qualquer suporte complementar ou orientação, nós estamos por aqui para te dar total apoio!'
+            'Como tem sido o uso na rotina? O equipamento está respondendo rápido e perfeitamente?\n\n' +
+            'Conta para a gente! Se precisar de qualquer orientação complementar, estamos por aqui!' +
+            evalLinkBlock
         } else if (tipo === 'oferta_30d') {
           textBody =
             'Oi, ' +
             firstName +
-            '! Como você está? Aqui é o *Juquinha* da JUCA Informática passando para te dar um alô! ✨😊\n\n' +
-            'Já faz 1 mês que cuidamos de ' +
-            equipPart +
-            osPart +
+            '! Como você está? ✨😊\n\n' +
+            'Já faz 1 mês que cuidamos ' +
+            equipPhraseDo +
             ' e esperamos que tudo continue funcionando perfeitamente por aí!\n\n' +
-            'Você já sabe: manutenção preventiva e cuidado contínuo evitam surpresas e mantêm seu trabalho sempre fluindo.\n\n' +
-            'Se estiver precisando de recarga de cartuchos, toners, cabos, SSD/memória ou um check-up com descontos especiais de cliente parceiro, me dá um toque aqui no WhatsApp!\n\n' +
+            'Manutenção preventiva e cuidado contínuo evitam surpresas e mantêm seu trabalho sempre fluindo.\n\n' +
+            'Se estiver precisando de recarga de cartuchos, toners, cabos, SSD/memória ou um check-up com condições especiais de cliente parceiro, me dá um toque aqui no WhatsApp!\n\n' +
             (techName
-              ? 'O técnico *' +
-                techName +
-                '* e toda a nossa família JUCA mandam aquele abraço forte!'
-              : 'Toda a nossa equipe da JUCA manda aquele abraço forte!')
+              ? 'O técnico *' + techName + '* e toda a nossa equipe mandam aquele abraço!'
+              : 'Toda a nossa equipe da JUCA manda aquele abraço!')
         } else if (tipo === 'avaliacao_30min') {
           textBody =
             'Oi, ' +
             firstName +
-            '! Tudo bem? Aqui é o *Juquinha* da JUCA Informática! 🙋‍♂️\n\n' +
-            'Passando para agradecer pela confiança em trazer ' +
-            equipPart +
-            osPart +
+            '! Tudo bem? 😊\n\n' +
+            'Passando para agradecer pela confiança no atendimento ' +
+            equipPhraseDo +
             '!\n\n' +
-            'A sua opinião é fundamental para nós. Se puder deixar uma avaliação rápida no Google, nos ajuda muito: ⭐⭐⭐⭐⭐\n\n' +
-            '👉 ' +
-            googleReviewUrl +
-            '\n\n' +
-            'Muito obrigado de coração!'
+            'A sua opinião é fundamental para nós.' +
+            evalLinkBlock
+        } else if (tipo === 'avaliacao_satisfacao' || tipo === 'avaliacao_tecnico') {
+          var techLabel = techName ? '*' + techName + '*' : 'da nossa equipe técnica'
+          textBody =
+            'Oi, ' +
+            firstName +
+            '! Que bom falar com você! 😊\n\n' +
+            'O atendimento ' +
+            equipPhraseDo +
+            ' foi realizado pelo técnico ' +
+            techLabel +
+            '.\n\n' +
+            'Como você avalia o serviço e a atenção dele?' +
+            evalLinkBlock
         }
 
         var fullMessage = header + textBody + footer

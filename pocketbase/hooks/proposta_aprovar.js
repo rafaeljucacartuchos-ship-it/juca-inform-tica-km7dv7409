@@ -209,7 +209,7 @@ routerAdd('POST', '/backend/v1/proposta/{token}/aprovar', (e) => {
           const firstName = custName.split(' ')[0] || custName
           const equipPart = equipName ? ' da sua *' + equipName + '*' : ''
           const msgAgradecimento =
-            '🛠️ *JUCA CARTUCHOS E INFORMÁTICA*\n\n' +
+            '🛠️ *JUCA INFORMÁTICA*\n\n' +
             'Olá, *' +
             firstName +
             '*! 🎉 Que alegria que a proposta *' +
@@ -218,8 +218,8 @@ routerAdd('POST', '/backend/v1/proposta/{token}/aprovar', (e) => {
             'O reparo' +
             equipPart +
             ' já está em boas mãos com a equipe JUCA. Muito obrigado pela confiança — a gente cuida de tudo pra você! 💙\n\n' +
-            'Juca Informática\n' +
-            '(67) 3441-4981 | (67) 3441-9275 | (67) 99654-4981'
+            '— *Juquinha — JUCA Informática*\n' +
+            '📞 (67) 3441-4981 | (67) 99654-4981'
 
           const waUrl = digits
             ? 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msgAgradecimento)
