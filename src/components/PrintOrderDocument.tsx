@@ -188,7 +188,7 @@ export function PrintOrderDocument({
         await offlinePb.create('pos_venda_messages', {
           customer: custId,
           service_order: order.id,
-          tipo: 'resumo_finalizacao',
+          tipo: 'documento_os',
           status: 'sent',
           scheduled_at: new Date().toISOString(),
           sent_at: new Date().toISOString(),

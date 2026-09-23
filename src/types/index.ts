@@ -305,6 +305,9 @@ export interface ServiceAttachment {
 
 export type PosVendaTipo =
   | 'resumo_finalizacao'
+  | 'documento_os'
+  | 'follow_up_proposta'
+  | 'log_interno'
   | 'checkin_pos_venda'
   | 'avaliacao_tecnico'
   | 'avaliacao_google'
@@ -312,7 +315,13 @@ export type PosVendaTipo =
   | 'avaliacao_30min'
   | 'pos_venda_7d'
   | 'oferta_30d'
-export type PosVendaStatus = 'pending' | 'ready' | 'sent' | 'dismissed'
+export type PosVendaStatus =
+  | 'pending'
+  | 'ready'
+  | 'sent'
+  | 'dismissed'
+  | 'lembrete'
+  | 'sem_resposta'
 
 export type PosVendaFunilStatus =
   | 'aguardando_nota'

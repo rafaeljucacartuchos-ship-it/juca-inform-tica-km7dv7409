@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-23T00:47:34.239Z",
+  "generatedAt": "2026-09-23T01:07:36.208Z",
   "collections": [
     {
       "name": "users",
@@ -1443,7 +1443,10 @@
             "avaliacao_satisfacao",
             "avaliacao_30min",
             "pos_venda_7d",
-            "oferta_30d"
+            "oferta_30d",
+            "documento_os",
+            "follow_up_proposta",
+            "log_interno"
           ]
         },
         {
@@ -1451,7 +1454,7 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["pending", "ready", "sent", "dismissed"]
+          "selectValues": ["pending", "ready", "sent", "dismissed", "lembrete", "sem_resposta"]
         },
         {
           "name": "scheduled_at",
