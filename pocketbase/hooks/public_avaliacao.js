@@ -67,9 +67,11 @@ routerAdd('GET', '/backend/v1/avaliar/{token}', (e) => {
     }
   } catch (_) {}
 
-  // Verifica se já foi avaliado
+  // Verifica se já foi avaliado (apenas se o cliente de fato respondeu)
   const jaAvaliado =
-    typeof message.get('nota_avaliacao') === 'number' && message.getInt('nota_avaliacao') >= 0
+    message.getBool('cliente_respondeu') &&
+    typeof message.get('nota_avaliacao') === 'number' &&
+    message.getInt('nota_avaliacao') >= 0
 
   return e.json(200, {
     id: message.id,
