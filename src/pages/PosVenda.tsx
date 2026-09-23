@@ -1654,20 +1654,27 @@ export default function PosVendaJuquinha() {
                       {/* Seletor de Nota (0 a 5) */}
                       <div className="bg-gradient-to-r from-amber-50/70 via-slate-50 to-indigo-50/70 p-3 rounded-xl border border-amber-200/70 space-y-2">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                          <Label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                            <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-400" />
-                            Registrar nota que o cliente respondeu (0 a 5):
-                          </Label>
+                          <div>
+                            <Label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                              <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-400" />
+                              Nota de Satisfação (0 a 5):
+                            </Label>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              100% automático quando o cliente clica no link do WhatsApp. Botoeira
+                              abaixo disponível para fallback manual:
+                            </p>
+                          </div>
                           {typeof msg.nota_avaliacao === 'number' && (
-                            <span className="text-[11px] font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
-                              Nota atual:{' '}
+                            <span className="text-[11px] font-bold text-slate-700 bg-white px-2.5 py-1 rounded border border-slate-200 shadow-xs">
+                              Nota registrada:{' '}
                               <strong
                                 className={
                                   msg.nota_avaliacao >= 4 ? 'text-emerald-600' : 'text-red-600'
                                 }
                               >
                                 {msg.nota_avaliacao} / 5
-                              </strong>
+                              </strong>{' '}
+                              {msg.cliente_respondeu ? '(pelo link do cliente)' : '(manual)'}
                             </span>
                           )}
                         </div>

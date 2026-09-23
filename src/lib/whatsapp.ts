@@ -296,18 +296,23 @@ export function buildAvaliacaoSatisfacaoMessage(params: {
   customerName: string
   technicianName?: string
   orderNumber?: string
+  evaluationUrl?: string
 }): string {
-  const { customerName, technicianName, orderNumber } = params
+  const { customerName, technicianName, orderNumber, evaluationUrl } = params
   const firstName = customerName.trim().split(/\s+/)[0] || 'Cliente'
   const tech = technicianName?.trim() || 'da nossa equipe técnica'
   const osLabel = orderNumber?.trim() ? orderNumber.trim() : 'sua O.S.'
+
+  const linkBlock = evaluationUrl?.trim()
+    ? `\n\nToque na sua nota aqui 👉 ${evaluationUrl.trim()}`
+    : '\n\nMe responde com uma notinha (0 a 5) que eu fico muito grato! 🙏'
 
   return (
     `🔧 *JUCA CARTUCHOS E INFORMÁTICA*\n\n` +
     `Oi, ${firstName}! *Juquinha* aqui de novo! 😊\n\n` +
     `Seu equipamento foi atendido pelo técnico ${tech} e encerramos a O.S. ${osLabel} hoje.\n\n` +
-    `*De 0 a 5, como você avalia o atendimento que recebeu?*\n\n` +
-    `Me responde com uma notinha (0 a 5) que eu fico muito grato! 🙏` +
+    `*De 0 a 5, como você avalia o atendimento que recebeu?*` +
+    linkBlock +
     WHATSAPP_FOOTER
   )
 }

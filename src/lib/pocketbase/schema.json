@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-23T00:11:19.374Z",
+  "generatedAt": "2026-09-23T00:30:05.548Z",
   "collections": [
     {
       "name": "users",
@@ -1539,12 +1539,19 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "token_acesso",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
         "CREATE INDEX idx_pos_venda_status_sched ON pos_venda_messages (status, scheduled_at)",
         "CREATE INDEX idx_pos_venda_customer ON pos_venda_messages (customer)",
-        "CREATE INDEX idx_pos_venda_so ON pos_venda_messages (service_order)"
+        "CREATE INDEX idx_pos_venda_so ON pos_venda_messages (service_order)",
+        "CREATE INDEX `idx_pos_venda_token` ON `pos_venda_messages` (token_acesso)"
       ]
     },
     {

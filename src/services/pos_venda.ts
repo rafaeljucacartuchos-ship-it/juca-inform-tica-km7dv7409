@@ -9,12 +9,70 @@ import {
   buildGoogleReviewRequestMessage,
 } from '@/lib/whatsapp'
 
+export async function generatePosVendaToken(len = 32): Promise<string> {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let res = ''
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const arr = new Uint8Array(len)
+    crypto.getRandomValues(arr)
+    for (let i = 0; i < len; i++) {
+      res += chars[arr[i] % chars.length]
+    }
+    return res
+  }
+  for (let i = 0; i < len; i++) {
+    res += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return res
+}
+
 export const getPosVendaMessages = async (filterStr = '', sortStr = '-scheduled_at') => {
-  return pb.collection('pos_venda_messages').getFullList<PosVendaMessage>({
+  const records = await pb.collection('pos_venda_messages').getFullList<PosVendaMessage>({
     filter: filterStr,
     expand: 'customer,service_order,service_order.technician,service_order.equipment_ref',
     sort: sortStr,
   })
+
+  // Garante que todo card de avaliacao_satisfacao tenha token_acesso e wa_me_link com o link atualizado
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  for (const m of records) {
+    if (
+      m.tipo === 'avaliacao_satisfacao' &&
+      (!m.token_acesso || !m.wa_me_link?.includes('/avaliar/'))
+    ) {
+      try {
+        const token = m.token_acesso || (await generatePosVendaToken(32))
+        const evalUrl = origin ? `${origin}/avaliar/${token}` : ''
+        const cust = m.expand?.customer
+        const so = m.expand?.service_order
+        const custName = getCustomerDisplayName(cust)
+        const phone = getCustomerPhone(cust)
+        const soNumber = so?.number || ''
+        const techName = so?.expand?.technician?.name || ''
+
+        const textSatisfacao = buildAvaliacaoSatisfacaoMessage({
+          customerName: custName,
+          technicianName: techName,
+          orderNumber: soNumber,
+          evaluationUrl: evalUrl,
+        })
+        const waLink = buildJuquinhaWaLink(phone, textSatisfacao)
+
+        await pb.collection('pos_venda_messages').update(m.id, {
+          token_acesso: token,
+          texto_gerado: textSatisfacao,
+          wa_me_link: waLink,
+        })
+        m.token_acesso = token
+        m.texto_gerado = textSatisfacao
+        m.wa_me_link = waLink
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  return records
 }
 
 export const dismissPosVendaMessage = async (id: string) => {
@@ -114,11 +172,13 @@ export function buildJuquinhaMessageText(params: {
       break
     }
     case 'avaliacao_satisfacao': {
-      // Mensagem unificada de Avaliação de Satisfação (nota 0 a 5 primeiro)
+      // Mensagem unificada de Avaliação de Satisfação (nota 0 a 5 primeiro com link direto)
       return buildAvaliacaoSatisfacaoMessage({
         customerName,
         technicianName,
         orderNumber,
+        evaluationUrl:
+          typeof window !== 'undefined' ? `${window.location.origin}/avaliar/link` : undefined,
       })
     }
     case 'avaliacao_tecnico': {
@@ -249,11 +309,16 @@ export async function createEvaluationsForOrder(
   }
 
   // Se NÃO existe o unificado, cria o CARD UNIFICADO
-  // Se existirem legados pendentes, eles devem ser substituídos (descartados/dismissed)
+  // Gera token opaco e seguro para o link público da O.S.
+  const token = await generatePosVendaToken(32)
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  const evalUrl = origin ? `${origin}/avaliar/${token}` : ''
+
   const textSatisfacao = buildAvaliacaoSatisfacaoMessage({
     customerName: custName,
     technicianName: techName,
     orderNumber: soNumber,
+    evaluationUrl: evalUrl,
   })
   const waLink = buildJuquinhaWaLink(phone, textSatisfacao)
 
@@ -267,6 +332,7 @@ export async function createEvaluationsForOrder(
     texto_gerado: textSatisfacao,
     wa_me_link: waLink,
     channel: 'whatsapp',
+    token_acesso: token,
   })
 
   // Desativa legados pendentes para não duplicarem cards
@@ -632,10 +698,15 @@ export async function unificarAvaliacoesLegadasPendentes(): Promise<{
       const soNumber = so?.number || ''
       const techName = so?.expand?.technician?.name || ''
 
+      const token = await generatePosVendaToken(32)
+      const origin = typeof window !== 'undefined' ? window.location.origin : ''
+      const evalUrl = origin ? `${origin}/avaliar/${token}` : ''
+
       const textSatisfacao = buildAvaliacaoSatisfacaoMessage({
         customerName: custName,
         technicianName: techName,
         orderNumber: soNumber,
+        evaluationUrl: evalUrl,
       })
       const waLink = buildJuquinhaWaLink(phone, textSatisfacao)
 
@@ -654,6 +725,7 @@ export async function unificarAvaliacoesLegadasPendentes(): Promise<{
         texto_gerado: textSatisfacao,
         wa_me_link: waLink,
         channel: 'whatsapp',
+        token_acesso: token,
       })
 
       // Desativa os registros legados pendentes (exclusão lógica via dismissed)

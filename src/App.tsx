@@ -43,6 +43,7 @@ import OrdemShare from '@/pages/OrdemShare'
 import OrdemPrint from '@/pages/OrdemPrint'
 import PropostaPublica from '@/pages/PropostaPublica'
 import PropostaLocacaoPublica from '@/pages/PropostaLocacaoPublica'
+import AvaliacaoPublica from '@/pages/AvaliacaoPublica'
 import NotFound from '@/pages/NotFound'
 import { PwaInstallHint } from '@/components/PwaInstallHint'
 import { offlinePb } from '@/lib/offline-pb'
@@ -187,6 +188,7 @@ const App = () => {
                     <Route path="/share/:id" element={<OrdemShare />} />
                     <Route path="/proposta/:token" element={<PropostaPublica />} />
                     <Route path="/proposta-locacao/:id" element={<PropostaLocacaoPublica />} />
+                    <Route path="/avaliar/:token" element={<AvaliacaoPublica />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </WorkspaceProvider>

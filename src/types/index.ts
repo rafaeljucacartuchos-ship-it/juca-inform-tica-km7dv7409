@@ -338,6 +338,7 @@ export interface PosVendaMessage {
   nota_avaliacao?: number
   status_funil?: PosVendaFunilStatus
   feedback_cliente?: string
+  token_acesso?: string
   created?: string
   updated?: string
   expand?: {
