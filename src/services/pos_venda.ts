@@ -6,7 +6,9 @@ import {
   WHATSAPP_FOOTER,
   WHATSAPP_HEADER,
   buildAvaliacaoSatisfacaoMessage,
+  buildEquipmentPrepositionPhrase,
   buildGoogleReviewRequestMessage,
+  sanitizeEquipmentDescription,
 } from '@/lib/whatsapp'
 
 export async function generatePosVendaToken(len = 32): Promise<string> {
@@ -216,109 +218,109 @@ export function buildJuquinhaMessageText(params: {
   googleReviewUrl?: string
   itemsSummary?: string
   serviceReport?: string
+  evaluationUrl?: string
+  isLembrete?: boolean
 }): string {
   const {
     tipo,
     customerName,
     equipment = '',
-    orderNumber = '',
     technicianName = '',
     googleReviewUrl = 'https://g.page/r/CfKb0UxVRFNsEAI/review',
     itemsSummary = '',
     serviceReport = '',
+    evaluationUrl,
+    isLembrete = false,
   } = params
 
   const firstName = customerName.trim().split(' ')[0] || 'Cliente'
+  const equipPhraseDo = buildEquipmentPrepositionPhrase(equipment, 'do')
+  const techPart = technicianName.trim() ? ` pelo técnico *${technicianName.trim()}*` : ''
 
-  let cleanEquip = equipment ? equipment.trim() : ''
-  const upperEquip = cleanEquip.toUpperCase()
-  if (
-    !cleanEquip ||
-    upperEquip === 'SEM MARCA' ||
-    upperEquip === 'NÃO INFORMADO' ||
-    upperEquip === 'NAO INFORMADO' ||
-    upperEquip === 'OUTRO' ||
-    upperEquip === 'OUTROS' ||
-    upperEquip === 'EQUIPAMENTO'
-  ) {
-    cleanEquip = ''
-  }
+  // Avaliação link padrão: se fornecido ou se estiver no browser
+  const evalLink =
+    evaluationUrl?.trim() ||
+    (typeof window !== 'undefined' ? `${window.location.origin}/avaliar/link` : '')
 
-  const lowerEquip = cleanEquip.toLowerCase()
-  const isFem =
-    lowerEquip.startsWith('impressora') ||
-    lowerEquip.startsWith('multifuncional') ||
-    lowerEquip.startsWith('placa') ||
-    lowerEquip.startsWith('fonte') ||
-    lowerEquip.startsWith('tela') ||
-    lowerEquip.startsWith('tv') ||
-    lowerEquip.startsWith('máquina') ||
-    lowerEquip.startsWith('maquina')
-
-  const equipPart = cleanEquip
-    ? isFem
-      ? `a sua *${cleanEquip}*`
-      : `o seu *${cleanEquip}*`
-    : 'o seu equipamento'
-  const osPart = orderNumber.trim() ? ` (O.S. *${orderNumber.trim()}*)` : ''
-  const techMention = technicianName.trim() ? ` e o técnico *${technicianName.trim()}*` : ''
+  const evalLinkBlock = evalLink
+    ? `\n\nDe 0 a 5, como você avalia? Toque na sua nota aqui 👉 ${evalLink}`
+    : '\n\nDe 0 a 5, como você avalia? Se puder responder com a sua nota, ficamos imensamente gratos! 🙏'
 
   let body = ''
 
   switch (tipo) {
     case 'documento_os': {
       body =
-        `Olá, *${firstName}*! Tudo bem? Aqui é o *Juquinha* da JUCA Informática!\n\n` +
-        `Segue o documento oficial da sua O.S. referente ${equipPart}${osPart}.\n\n` +
+        `Olá, *${firstName}*! Tudo bem? 😊\n\n` +
+        `Segue o documento oficial do atendimento ${equipPhraseDo}.\n\n` +
         `Qualquer dúvida ou caso precise de algo mais, estamos à total disposição!`
       break
     }
     case 'follow_up_proposta': {
       body =
-        `Oi, ${firstName}! Tudo bem? Aqui é o *Juquinha* da JUCA Informática. 😊\n\n` +
-        `Estou acompanhando sua proposta referente ${equipPart}${osPart}.\n\n` +
+        `Oi, ${firstName}! Tudo bem? 😊\n\n` +
+        `Estou acompanhando sua proposta referente ${equipPhraseDo}.\n\n` +
         `Queria saber: ficou dentro do que você estava procurando ou gostaria que eu verificasse outra opção para você?\n\n` +
         `Pode me falar com sinceridade, assim consigo te ajudar melhor!`
       break
     }
     case 'log_interno': {
       body =
-        `[Log Interno JUCA] Registro de sistema para ${customerName}${osPart}.\n` +
-        `Equipamento: ${cleanEquip || 'equipamento'}.`
+        `[Log Interno JUCA] Registro de sistema para ${customerName}.\n` +
+        `Equipamento: ${sanitizeEquipmentDescription(equipment)}.`
       break
     }
     case 'checkin_pos_venda': {
+      const lembreteIntro = isLembrete
+        ? `Passando apenas para um lembrete rápido sobre o atendimento ${equipPhraseDo}.\n\n`
+        : `Passando rapidinho para saber: como está o funcionamento ${equipPhraseDo}?\n\n`
+
       body =
-        `Oi, ${firstName}! Tudo bem com você? Aqui é o *Juquinha* da JUCA Informática! 😄🙋‍♂️\n\n` +
-        `Passando rapidinho para bater um papo e saber: como está ${equipPart}${osPart}?\n\n` +
-        `Você já teve um tempinho de testar? Está gostando do serviço que fizemos por aqui? Ficou tudo 100% como você esperava?\n\n` +
-        `Eu${techMention} ficamos muito felizes em te atender! Se tiver qualquer dúvida, detalhe ou precisar de um ajuste, é só me responder por aqui que estou à sua disposição!`
+        `Oi, ${firstName}! Tudo bem com você? 😄\n\n` +
+        lembreteIntro +
+        `Já conseguiu testar no dia a dia? Ficou tudo 100% como você esperava?\n\n` +
+        (technicianName.trim()
+          ? `O atendimento foi realizado com toda dedicação${techPart}. `
+          : '') +
+        `Se tiver qualquer dúvida ou precisar de um ajuste, estamos à sua inteira disposição!` +
+        evalLinkBlock
       break
     }
-    case 'avaliacao_satisfacao': {
-      // Mensagem unificada de Avaliação de Satisfação (nota 0 a 5 primeiro com link direto)
+    case 'pos_venda_7d': {
+      let detailsLine = ''
+      if (serviceReport) {
+        detailsLine = ` após ${serviceReport}`
+      } else if (itemsSummary) {
+        detailsLine = ` após ${itemsSummary}`
+      }
+
+      const lembreteIntro = isLembrete
+        ? `Passando para um breve lembrete de acompanhamento ${equipPhraseDo}${detailsLine}.\n\n`
+        : `Já se passou uma semaninha desde o serviço ${equipPhraseDo}${detailsLine}${techPart}.\n\n`
+
+      body =
+        `Olá, ${firstName}! Tudo bem? 🛠️\n\n` +
+        lembreteIntro +
+        `Como tem sido o uso na rotina? O equipamento está respondendo rápido e perfeitamente?\n\n` +
+        `Conta para a gente! Se precisar de qualquer orientação complementar, estamos por aqui!` +
+        evalLinkBlock
+      break
+    }
+    case 'avaliacao_satisfacao':
+    case 'avaliacao_tecnico': {
       return buildAvaliacaoSatisfacaoMessage({
         customerName,
         technicianName,
-        orderNumber,
-        evaluationUrl:
-          typeof window !== 'undefined' ? `${window.location.origin}/avaliar/link` : undefined,
+        equipment,
+        evaluationUrl: evalLink,
       })
-    }
-    case 'avaliacao_tecnico': {
-      const techLabel = technicianName.trim() ? `*${technicianName.trim()}*` : 'nosso técnico'
-      body =
-        `Oi, ${firstName}! Que bom falar com você! Aqui é o *Juquinha* da JUCA! ⭐\n\n` +
-        `Como você achou o atendimento e a atenção do técnico ${techLabel}${osPart ? ` na sua ${osPart}` : ''}?\n\n` +
-        `De 1 a 5 estrelas ⭐, como você avalia o trabalho dele? Se puder responder com uma nota ou uma palavrinha sobre o que achou, ficamos imensamente gratos!`
-      break
     }
     case 'avaliacao_google': {
       const gLink = googleReviewUrl.trim()
         ? `\n\n👉 ${googleReviewUrl.trim()}\n\n`
         : '\n\n(Acesse nossa página no Google e deixe seu comentário!)\n\n'
       body =
-        `Oi, ${firstName}! *Juquinha* por aqui mais uma vez! 🌐✨\n\n` +
+        `Oi, ${firstName}! Que bom falar com você! 🌐✨\n\n` +
         `A sua opinião no Google é muito importante para nós e ajuda outros clientes a conhecerem a dedicação da nossa equipe.\n\n` +
         `Poderia dedicar 30 segundinhos para deixar uma avaliação 5 estrelas no nosso perfil do Google?` +
         gLink +
@@ -327,42 +329,31 @@ export function buildJuquinhaMessageText(params: {
     }
     case 'avaliacao_30min': {
       body =
-        `Oi, ${firstName}! Tudo bem? Aqui é o *Juquinha* da JUCA Informática! 🙋‍♂️\n\n` +
-        `Passando para agradecer pela confiança em trazer ${equipPart}${osPart}!\n\n` +
-        `A sua opinião é fundamental para nós. Se puder deixar uma avaliação rápida no Google, nos ajuda muito: ⭐⭐⭐⭐⭐\n\n` +
-        `👉 ${googleReviewUrl}\n\n` +
-        `Muito obrigado de coração!`
-      break
-    }
-    case 'pos_venda_7d': {
-      let detailsLine = ''
-      if (serviceReport) {
-        detailsLine = ` após o serviço de ${serviceReport}`
-      } else if (itemsSummary) {
-        detailsLine = ` após ${itemsSummary}`
-      }
-      body =
-        `Olá, ${firstName}! Tudo ótimo por aí? Aqui é o *Juquinha* da JUCA Informática novamente! 🛠️👋\n\n` +
-        `Já se passou uma semaninha desde que finalizamos ${equipPart}${osPart}${detailsLine}${technicianName ? ` com o nosso técnico *${technicianName}*` : ''}.\n\n` +
-        `Como tem sido o uso no dia a dia? O equipamento está respondendo direitinho, rápido e sem nenhum problema?\n\n` +
-        `Conta para mim! Se precisar de qualquer suporte complementar ou orientação, nós estamos por aqui para te dar total apoio!`
+        `Oi, ${firstName}! Tudo bem? 😊\n\n` +
+        `Passando para agradecer pela confiança no atendimento ${equipPhraseDo}!\n\n` +
+        `A sua opinião é fundamental para nós.` +
+        evalLinkBlock
       break
     }
     case 'oferta_30d': {
+      const lembreteIntro = isLembrete
+        ? `Passando para um lembrete amigo: já faz 1 mês que cuidamos ${equipPhraseDo}!\n\n`
+        : `Já faz 1 mês que cuidamos ${equipPhraseDo} e esperamos que tudo continue funcionando perfeitamente por aí!\n\n`
+
       body =
-        `Oi, ${firstName}! Como você está? Aqui é o *Juquinha* da JUCA Informática passando para te dar um alô! ✨😊\n\n` +
-        `Já faz 1 mês que cuidamos de ${equipPart}${osPart} e esperamos que tudo continue funcionando perfeitamente por aí!\n\n` +
-        `Você já sabe: manutenção preventiva e cuidado contínuo evitam surpresas e mantêm seu trabalho sempre fluindo.\n\n` +
-        `Se estiver precisando de recarga de cartuchos, toners, cabos, SSD/memória ou um check-up com descontos especiais de cliente parceiro, me dá um toque aqui no WhatsApp!\n\n` +
-        (technicianName
-          ? `O técnico *${technicianName}* e toda a nossa família JUCA mandam aquele abraço forte!`
-          : `Toda a nossa equipe da JUCA manda aquele abraço forte!`)
+        `Oi, ${firstName}! Como você está? ✨😊\n\n` +
+        lembreteIntro +
+        `Manutenção preventiva e cuidado contínuo evitam surpresas e mantêm seu trabalho sempre fluindo.\n\n` +
+        `Se estiver precisando de recarga de cartuchos, toners, cabos, SSD/memória ou um check-up com condições especiais de cliente parceiro, me dá um toque aqui no WhatsApp!\n\n` +
+        (technicianName.trim()
+          ? `O técnico *${technicianName.trim()}* e toda a nossa equipe mandam aquele abraço!`
+          : `Toda a nossa equipe da JUCA manda aquele abraço!`)
       break
     }
     default: {
       body =
-        `Oi, ${firstName}! Tudo bem? Aqui é o *Juquinha* da JUCA Informática! 😄\n\n` +
-        `Passando para saber se está tudo bem com ${equipPart}${osPart}. Qualquer dúvida ou suporte, estamos sempre à disposição!`
+        `Oi, ${firstName}! Tudo bem? 😄\n\n` +
+        `Passando para saber se está tudo bem ${equipPhraseDo}. Qualquer dúvida ou suporte, estamos sempre à disposição!`
       break
     }
   }
@@ -438,9 +429,13 @@ export async function createEvaluationsForOrder(
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
   const evalUrl = origin ? `${origin}/avaliar/${token}` : ''
 
+  const equipName =
+    so?.expand?.equipment_ref?.name || so?.expand?.equipment_ref?.model || so?.equipment || ''
+
   const textSatisfacao = buildAvaliacaoSatisfacaoMessage({
     customerName: custName,
     technicianName: techName,
+    equipment: equipName,
     orderNumber: soNumber,
     evaluationUrl: evalUrl,
   })
@@ -839,9 +834,13 @@ export async function unificarAvaliacoesLegadasPendentes(): Promise<{
       const origin = typeof window !== 'undefined' ? window.location.origin : ''
       const evalUrl = origin ? `${origin}/avaliar/${token}` : ''
 
+      const equipName =
+        so?.expand?.equipment_ref?.name || so?.expand?.equipment_ref?.model || so?.equipment || ''
+
       const textSatisfacao = buildAvaliacaoSatisfacaoMessage({
         customerName: custName,
         technicianName: techName,
+        equipment: equipName,
         orderNumber: soNumber,
         evaluationUrl: evalUrl,
       })

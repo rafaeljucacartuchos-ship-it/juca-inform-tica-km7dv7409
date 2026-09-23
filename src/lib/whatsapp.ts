@@ -361,23 +361,24 @@ export function buildOrcamentoAprovadoAgradecimentoMessage(params: {
 export function buildAvaliacaoSatisfacaoMessage(params: {
   customerName: string
   technicianName?: string
+  equipment?: string
   orderNumber?: string
   evaluationUrl?: string
 }): string {
-  const { customerName, technicianName, orderNumber, evaluationUrl } = params
+  const { customerName, technicianName, equipment, evaluationUrl } = params
   const firstName = customerName.trim().split(/\s+/)[0] || 'Cliente'
   const tech = technicianName?.trim() || 'da nossa equipe técnica'
-  const osLabel = orderNumber?.trim() ? orderNumber.trim() : 'sua O.S.'
+  const equipPhrase = buildEquipmentPrepositionPhrase(equipment, 'do')
 
   const linkBlock = evaluationUrl?.trim()
-    ? `\n\nToque na sua nota aqui 👉 ${evaluationUrl.trim()}`
-    : '\n\nMe responde com uma notinha (0 a 5) que eu fico muito grato! 🙏'
+    ? `\n\nDe 0 a 5, como você avalia? Toque na sua nota aqui 👉 ${evaluationUrl.trim()}`
+    : '\n\nDe 0 a 5, como você avalia? Se puder responder com a sua nota, ficamos imensamente gratos! 🙏'
 
   return (
-    `🛠️ *JUCA INFORMÁTICA*\n\n` +
-    `Oi, ${firstName}! *Juquinha* aqui de novo! 😊\n\n` +
-    `Seu equipamento foi atendido pelo técnico ${tech} e encerramos a O.S. ${osLabel} hoje.\n\n` +
-    `*De 0 a 5, como você avalia o atendimento que recebeu?*` +
+    WHATSAPP_HEADER +
+    `Oi, ${firstName}! Que bom falar com você! 😊\n\n` +
+    `O atendimento ${equipPhrase} foi realizado pelo técnico *${tech}*.\n\n` +
+    `Como você avalia o serviço e a atenção dele?` +
     linkBlock +
     WHATSAPP_FOOTER
   )
@@ -408,45 +409,33 @@ export function buildGoogleReviewRequestMessage(params: {
 
 export function buildCompletionEvaluationMessage(
   customerName: string,
-  orderNumber: string,
+  _orderNumber: string,
   shareUrl: string,
   details?: {
     equipment?: string
     serviceReport?: string
     technicianName?: string
     itemsSummary?: string
+    evaluationUrl?: string
   },
 ): string {
   const firstName = customerName.split(' ')[0] || customerName
-  const equipPart = details?.equipment
-    ? ` o seu *${details.equipment.trim()}*`
-    : ' o seu equipamento'
-  const osPart = orderNumber ? ` (O.S. *${orderNumber}*)` : ''
+  const equipPhrase = buildEquipmentPrepositionPhrase(details?.equipment, 'o')
   const techPart = details?.technicianName?.trim()
-    ? `cuidado com carinho pelo nosso técnico *${details.technicianName.trim()}*`
-    : `cuidado com toda dedicação pela nossa equipe técnica`
+    ? `pelo nosso técnico *${details.technicianName.trim()}*`
+    : `pela nossa equipe técnica`
 
-  let servicePart = ''
-  if (details?.itemsSummary && details?.serviceReport) {
-    servicePart = `após ${details.serviceReport.trim()} e itens: ${details.itemsSummary.trim()}`
-  } else if (details?.itemsSummary) {
-    servicePart = `após ${details.serviceReport.trim()}`
-  } else if (details?.serviceReport) {
-    servicePart = `após ${details.serviceReport.trim()}`
-  }
+  const evalLink = details?.evaluationUrl?.trim() || shareUrl?.trim()
+  const evalBlock = evalLink
+    ? `\n\nDe 0 a 5, como você avalia? Toque na sua nota aqui 👉 ${evalLink}`
+    : ''
 
   return (
     WHATSAPP_HEADER +
-    `Olá, *${firstName}*! Tudo bem? Aqui é o *Juquinha* da JUCA Informática! 🙋‍♂️\n\n` +
-    `Sua Ordem de Serviço *${orderNumber}* foi finalizada com sucesso! 🎉\n\n` +
-    `Agradecemos de coração pela confiança em trazer${equipPart}${osPart}, ${techPart}${servicePart ? ' (' + servicePart + ')' : ''}.\n\n` +
-    (shareUrl
-      ? `Acompanhe os detalhes da OS e o termo de conclusão pelo link:\n${shareUrl}\n\n`
-      : '') +
-    `A sua avaliação é muito importante para valorizar o trabalho do técnico e ajudar a JUCA a crescer!\n` +
-    `Dedique 30 segundinhos para nos avaliar no Google — é rapidinho e ajuda muito: ⭐⭐⭐⭐⭐\n` +
-    `${GOOGLE_REVIEW_URL}\n\n` +
-    `Qualquer dúvida, estamos sempre à disposição!` +
+    `Olá, *${firstName}*! Tudo bem? 🎉\n\n` +
+    `Finalizamos com sucesso o atendimento d${equipPhrase} realizado com dedicação ${techPart}.\n\n` +
+    `A sua opinião é fundamental para nós!` +
+    evalBlock +
     WHATSAPP_FOOTER
   )
 }
