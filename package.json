@@ -17,8 +17,8 @@
     "postbuild": "node scripts/copy-logo.js && node scripts/inject-sw-timestamp.mjs",
     "postbuild:dev": "node scripts/copy-logo.js && node scripts/inject-sw-timestamp.mjs --dev",
     "preview": "vite preview",
-    "test": "echo \"there are no tests for this project\" && exit 0",
-    "test:watch": "echo \"there are no tests for this project\" && exit 0"
+    "test": "node --test tests/*.test.mjs",
+    "test:watch": "node --test --watch tests/*.test.mjs"
   },
   "dependencies": {
     "xlsx": "^0.18.5",
