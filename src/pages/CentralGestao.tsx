@@ -117,6 +117,7 @@ function ManagementDashboard() {
       </>}
 
       <section className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-6">
+        <Link to="/central/whatsapp" className="mb-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-medium text-white">Abrir Central WhatsApp <ArrowRight size={16} /></Link>
         <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="flex items-center gap-2 font-semibold text-emerald-950"><MessageCircle size={20} /> Central WhatsApp JUCA</h2><span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs text-amber-900">Aguardando conexão</span></div>
         <p className="mt-3 max-w-3xl text-sm text-slate-600">O número da empresa ainda não está conectado. As conversas, filas, tempos de resposta e transferências entre setores ficarão disponíveis após a integração.</p>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -129,3 +130,4 @@ function ManagementDashboard() {
     </div>
   )
 }
+

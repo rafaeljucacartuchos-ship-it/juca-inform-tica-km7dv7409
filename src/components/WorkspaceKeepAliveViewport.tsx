@@ -3,6 +3,7 @@ import { useLocation, matchPath } from 'react-router-dom'
 import { useWorkspace } from '@/hooks/use-workspace'
 import Dashboard from '@/pages/Dashboard'
 import CentralGestao from '@/pages/CentralGestao'
+import CentralWhatsApp from '@/pages/CentralWhatsApp'
 import OrdensDeServico from '@/pages/OrdensDeServico'
 import OrdemDetail from '@/pages/OrdemDetail'
 import OrcamentosList from '@/pages/OrcamentosList'
@@ -30,6 +31,7 @@ import { PermissionRoute } from '@/components/PermissionRoute'
 function renderComponentForPath(path: string) {
   const [pathname] = path.split('?')
   if (pathname === '/central') return <CentralGestao />
+  if (pathname === '/central/whatsapp') return <CentralWhatsApp />
 
   if (pathname === '/' || pathname === '/dashboard') {
     return (
@@ -292,3 +294,4 @@ export function WorkspaceKeepAliveViewport({ fallbackContent }: WorkspaceKeepAli
     </>
   )
 }
+

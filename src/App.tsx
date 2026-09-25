@@ -15,6 +15,7 @@ import Layout from '@/components/Layout'
 import Login from '@/pages/Login'
 import Dashboard from '@/pages/Dashboard'
 import CentralGestao from '@/pages/CentralGestao'
+import CentralWhatsApp from '@/pages/CentralWhatsApp'
 import SemAcesso from '@/pages/SemAcesso'
 import OrdensDeServico from '@/pages/OrdensDeServico'
 import OrdemDetail from '@/pages/OrdemDetail'
@@ -130,6 +131,7 @@ const App = () => {
                         <Route path="/" element={<RoleBasedHomeRedirect />} />
                         <Route path="/sem-acesso" element={<SemAcesso />} />
                         <Route path="/central" element={<CentralGestao />} />
+                        <Route path="/central/whatsapp" element={<CentralWhatsApp />} />
                         <Route element={<PermissionRoute module="dashboard" />}>
                           <Route path="/dashboard" element={<Dashboard />} />
                         </Route>
@@ -204,3 +206,4 @@ const App = () => {
 }
 
 export default App
+
