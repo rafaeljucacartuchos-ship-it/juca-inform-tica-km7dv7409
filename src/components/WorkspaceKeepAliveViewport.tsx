@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react'
 import { useLocation, matchPath } from 'react-router-dom'
 import { useWorkspace } from '@/hooks/use-workspace'
 import Dashboard from '@/pages/Dashboard'
+import CentralGestao from '@/pages/CentralGestao'
 import OrdensDeServico from '@/pages/OrdensDeServico'
 import OrdemDetail from '@/pages/OrdemDetail'
 import OrcamentosList from '@/pages/OrcamentosList'
@@ -28,6 +29,7 @@ import { PermissionRoute } from '@/components/PermissionRoute'
 // Mapeador de componente com base no path
 function renderComponentForPath(path: string) {
   const [pathname] = path.split('?')
+  if (pathname === '/central') return <CentralGestao />
 
   if (pathname === '/' || pathname === '/dashboard') {
     return (

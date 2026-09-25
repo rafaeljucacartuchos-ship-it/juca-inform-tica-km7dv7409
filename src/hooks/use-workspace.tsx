@@ -46,6 +46,9 @@ export function getModuleInfoFromPath(pathname: string): {
   if (pathname === '/' || pathname === '/dashboard') {
     return { moduleKey: 'dashboard', defaultTitle: 'Dashboard' }
   }
+  if (pathname === '/central') {
+    return { moduleKey: 'central', defaultTitle: 'Central de gestão' }
+  }
   if (pathname.startsWith('/ordens')) {
     if (pathname === '/ordens') return { moduleKey: 'ordens', defaultTitle: 'Ordens de Serviço' }
     return { moduleKey: 'ordens', defaultTitle: 'Ordem de Serviço' }
