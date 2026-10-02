@@ -531,7 +531,7 @@ export function OrcamentoItemModal({
             ? {
                 transform: `translate(calc(-50% + ${dragOffset.x}px), calc(-50% + ${dragOffset.y}px))`,
                 maxHeight: '88vh',
-                height: 'auto',
+                height: '88vh',
               }
             : {
                 top: 'var(--visual-viewport-offset-top, 0px)',
