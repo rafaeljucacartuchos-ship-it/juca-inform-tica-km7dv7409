@@ -2322,12 +2322,6 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                       // atualiza o número do orçamento para espelhar a O.S. (ex: ORC-0074),
                       // garantindo que fique 100% como se tivesse sido criado de dentro da O.S.!
                       const updates: Partial<Orcamento> = { id_os: selectedOs.id }
-                      if (selectedOs.number) {
-                        const derivedNum = deriveOrcamentoNumberFromOs(selectedOs.number)
-                        if (derivedNum && derivedNum !== orcamento.numero_orcamento) {
-                          updates.numero_orcamento = derivedNum
-                        }
-                      }
                       await updateOrcamento(id, updates)
                       if (previousOsId && previousOsId !== selectedOs.id) {
                         try {
