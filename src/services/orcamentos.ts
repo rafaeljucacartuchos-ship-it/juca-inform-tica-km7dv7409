@@ -436,6 +436,7 @@ export async function createOrcamento(params: {
   const token_acesso = await generateRandomToken(32)
   const createPayload: Record<string, any> = {
     numero_orcamento,
+    tipo_origem: id_os ? 'OS' : 'AVULSO',
     status: 'aguardando_aprovacao',
     validade: Number(validade) || predecessorData.validade || 15,
     observacoes: observacoes || predecessorData.observacoes || '',
