@@ -529,9 +529,10 @@ export function OrcamentoItemModal({
         style={
           isDesktop
             ? {
+                top: '50%',
                 transform: `translate(calc(-50% + ${dragOffset.x}px), calc(-50% + ${dragOffset.y}px))`,
                 maxHeight: '88vh',
-                height: '88vh',
+                height: 'auto',
               }
             : {
                 top: 'var(--visual-viewport-offset-top, 0px)',
