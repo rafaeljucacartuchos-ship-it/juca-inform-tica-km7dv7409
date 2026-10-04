@@ -27,35 +27,8 @@ routerAdd('GET', '/backend/v1/proposta/{token}', (e) => {
       } catch (_) {}
     }
 
-    // Se id_os não estava preenchido ou não encontrou por id, tenta resolver pelo número do orçamento
-    // (ex: ORC-0074 ou ORC-0074-REV1 -> OS-0074 ou 0074)
-    if (!osRecord) {
-      try {
-        const numOrc = orcamento.getString('numero_orcamento') || ''
-        const match = numOrc.replace(/-REV\d+$/i, '').match(/\d+/)
-        if (match && match[0]) {
-          const digits = match[0]
-          const padded = digits.padStart(4, '0')
-          const foundOsList = $app.findRecordsByFilter(
-            'service_orders',
-            'number = "OS-' +
-              padded +
-              '" || number = "' +
-              padded +
-              '" || number = "' +
-              digits +
-              '"',
-            '-created',
-            1,
-            0,
-          )
-          if (foundOsList && foundOsList.length > 0) {
-            osRecord = foundOsList[0]
-            osId = osRecord.id
-          }
-        }
-      } catch (_) {}
-    }
+    // Apenas o vínculo explícito id_os autoriza carregar dados de uma OS.
+    // Números iguais não representam relacionamento entre registros.
 
     if (osRecord) {
       let osNumStr = osRecord.getString('number') || ''
