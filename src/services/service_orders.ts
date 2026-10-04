@@ -283,6 +283,10 @@ export async function migrateOrcamentoToServiceOrder(
     return summary
   }
 
+  if (orcamento.id_os !== targetOsId) {
+    throw new Error('Vincule este orçamento à OS escolhida antes de copiar seus dados.')
+  }
+
   // 2. RESOLUÇÃO INTELIGENTE DA FONTE DO ORÇAMENTO (v0.0.245)
   // Se o orçamento indicado estiver vazio (sem itens ou total 0), busca a versão
   // mais recente com dados da mesma família (mesma raiz de numero_orcamento ou mesma O.S.),
@@ -304,66 +308,7 @@ export async function migrateOrcamentoToServiceOrder(
     sort: 'created',
   })
 
-  if (orcItens.length === 0 || (Number(effectiveOrcamento.total_geral) || 0) === 0) {
-    try {
-      const baseNumber = (effectiveOrcamento.numero_orcamento || '').replace(/-REV\d+/i, '').trim()
-
-      const familyFilters: string[] = []
-      if (baseNumber) {
-        familyFilters.push(`numero_orcamento ~ "${baseNumber}"`)
-      }
-      if (effectiveOrcamento.id_os || targetOsId) {
-        familyFilters.push(`id_os = "${effectiveOrcamento.id_os || targetOsId}"`)
-      }
-
-      const orcCandidates = await pb.collection('orcamentos').getFullList<Orcamento>({
-        filter: familyFilters.length > 0 ? familyFilters.join(' || ') : undefined,
-        sort: '-created',
-      })
-
-      // Ordena candidatos: não-substituídos primeiro, depois mais recentes
-      const sortedCandidates = [...orcCandidates]
-        .filter((c) => c.id !== effectiveOrcamento.id)
-        .sort((a, b) => {
-          const aNonSub = a.status !== 'substituido' ? 1 : 0
-          const bNonSub = b.status !== 'substituido' ? 1 : 0
-          if (aNonSub !== bNonSub) return bNonSub - aNonSub
-          return new Date(b.created || 0).getTime() - new Date(a.created || 0).getTime()
-        })
-
-      for (const cand of sortedCandidates) {
-        const candItens = await pb.collection('orcamento_itens').getFullList<{
-          id: string
-          id_orcamento: string
-          tipo: 'produto' | 'servico'
-          id_produto?: string
-          descricao: string
-          quantidade: number
-          valor_unitario: number
-          desconto_item?: number
-          desconto_item_tipo?: 'percentual' | 'valor'
-          valor_total_item: number
-        }>({
-          filter: `id_orcamento = "${cand.id}"`,
-          sort: 'created',
-        })
-
-        if (candItens.length > 0) {
-          effectiveOrcamento = cand
-          orcItens = candItens
-          console.log(
-            `[migrateOrcamentoToServiceOrder] Fonte do orçamento substituída pelo irmão com dados: ${cand.numero_orcamento} (${cand.id}) com ${candItens.length} itens.`,
-          )
-          break
-        }
-      }
-    } catch (resolveErr) {
-      console.warn(
-        '[migrateOrcamentoToServiceOrder] Falha ao resolver versão com dados da família do orçamento:',
-        resolveErr,
-      )
-    }
-  }
+  // Copia exclusivamente os itens do orçamento solicitado, inclusive quando vazio.
 
   summary.itemsTotal = orcItens.length
 
