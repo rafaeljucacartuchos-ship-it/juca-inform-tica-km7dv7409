@@ -229,7 +229,11 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
     draft: draftOrcamentoNovo,
     saveDraft: saveDraftOrcamentoNovo,
     clearDraft: clearDraftOrcamentoNovo,
-  } = useDraftState<any>('juca:draft:orcamento-novo', '/orcamentos/novo', 'Novo Orçamento')
+  } = useDraftState<any>(
+    `juca:draft:orcamento-novo:${navState?.id_os || navState?.fromOs || 'avulso'}`,
+    '/orcamentos/novo',
+    'Novo Orçamento',
+  )
 
   const [loadError, setLoadError] = useState<string | null>(null)
   const [parcelasInput, setParcelasInput] = useState<string>('1')
@@ -312,7 +316,10 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
       // Se houver rascunho gravado no localStorage e não veio de transição explícita com novo pricingItem
       const savedDraftData = draftOrcamentoNovo?.formData
       const shouldUseSavedDraft =
-        !pricingItem && savedDraftData && Array.isArray(savedDraftData.items)
+        !pricingItem &&
+        savedDraftData &&
+        Array.isArray(savedDraftData.items) &&
+        (savedDraftData.orcamento?.id_os || '') === (navState?.id_os || navState?.fromOs || '')
 
       if (shouldUseSavedDraft) {
         setOrcamento(savedDraftData.orcamento)
@@ -408,27 +415,8 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
     }
 
     try {
-      // 1. Tenta buscar o orçamento diretamente pelo ID
-      let o: Orcamento | null = null
-      try {
-        o = await getOrcamento(id)
-      } catch (errFirst) {
-        console.warn('getOrcamento direto falhou, tentando fallback:', errFirst)
-        // Fallback: se 'id' for na verdade um id_os ou número de OS, tenta buscar o orçamento da OS
-        try {
-          const list = await pb.collection('orcamentos').getFullList<Orcamento>({
-            filter: `id_os = "${id}" || numero_orcamento = "${id}"`,
-            sort: '-created',
-            expand:
-              'id_os,id_usuario_criador,cliente_id,responsavel_id,id_os.customer,id_os.technician,id_os.equipment_ref',
-          })
-          if (list.length > 0) {
-            o = list[0]
-          }
-        } catch {
-          /* intentionally ignored */
-        }
-      }
+      // O endereço identifica exclusivamente o orçamento pelo seu ID interno.
+      const o = await getOrcamento(id)
 
       if (!o) {
         toast({ title: 'Orçamento não encontrado', variant: 'destructive' })
