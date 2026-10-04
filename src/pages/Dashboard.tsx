@@ -145,12 +145,10 @@ export default function Dashboard() {
         pb
           .collection('service_orders')
           .getFullList({ expand: 'customer,technician', requestKey: null }),
-        pb
-          .collection('orcamentos')
-          .getFullList({
-            expand: 'cliente_id,responsavel_id,id_usuario_criador,id_os,id_os.customer',
-            requestKey: null,
-          }),
+        pb.collection('orcamentos').getFullList({
+          expand: 'cliente_id,responsavel_id,id_usuario_criador,id_os,id_os.customer',
+          requestKey: null,
+        }),
         pb.collection('payments').getFullList({ requestKey: null }),
         pb.collection('status_history').getFullList({ requestKey: null }),
         pb.collection('users').getFullList({ requestKey: null }),

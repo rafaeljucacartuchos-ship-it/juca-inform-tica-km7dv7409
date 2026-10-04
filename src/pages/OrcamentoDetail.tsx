@@ -151,7 +151,7 @@ const STATUS_CONFIG: Record<
     border: 'border-emerald-300',
   },
   rejeitado: {
-    label: 'Rejeitado',
+    label: 'Cancelado',
     color: 'text-rose-700',
     bg: 'bg-rose-100',
     border: 'border-rose-300',
@@ -1451,6 +1451,12 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
       await updateOrcamento(orcamento.id, {
         status: 'rejeitado',
         motivo_rejeicao: motivoRejeicao.trim(),
+        observacoes: [
+          orcamento.observacoes,
+          `[Cancelado em ${new Date().toISOString()} por ${user?.id || 'usuário'}; motivo: ${motivoRejeicao.trim()}]`,
+        ]
+          .filter(Boolean)
+          .join('\n'),
       })
       if (orcamento.id_os) {
         await updateOsStatus(
@@ -1465,7 +1471,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
           /* best effort */
         }
       }
-      toast({ title: 'Orçamento marcado como rejeitado.' })
+      toast({ title: 'Orçamento cancelado; histórico preservado.' })
       setRejeicaoModalOpen(false)
       loadAll()
     } catch {
@@ -1485,6 +1491,12 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
 
       await updateOrcamento(orcamento.id, {
         status: 'aguardando_aprovacao',
+        observacoes: [
+          orcamento.observacoes,
+          `[Resgatado para renegociação em ${new Date().toISOString()} por ${user?.id || 'usuário'}; estado anterior: Cancelado; motivo anterior: ${orcamento.motivo_rejeicao || 'não informado'}; valor anterior: ${orcamento.total_geral}. Nova aprovação necessária.]`,
+        ]
+          .filter(Boolean)
+          .join('\n'),
       })
 
       if (orcamento.id_os) {
@@ -2204,7 +2216,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                 className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1.5 font-bold shadow-xs"
                 title="Retomar a negociação deste orçamento e retorná-lo para Aguardando Aprovação"
               >
-                <RotateCcw className="h-3.5 w-3.5" /> Retomar Negociação
+                <RotateCcw className="h-3.5 w-3.5" /> Resgatar para renegociação
               </Button>
             ) : (
               <Tooltip>
@@ -2215,7 +2227,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                       disabled
                       className="h-8 text-xs bg-amber-600 text-white gap-1.5 font-bold shadow-xs opacity-50 cursor-not-allowed"
                     >
-                      <RotateCcw className="h-3.5 w-3.5" /> Retomar Negociação
+                      <RotateCcw className="h-3.5 w-3.5" /> Resgatar para renegociação
                     </Button>
                   </span>
                 </TooltipTrigger>
@@ -2232,13 +2244,13 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
               onClick={() => setRejeicaoModalOpen(true)}
               className="h-8 text-xs border-rose-300 text-rose-700 hover:bg-rose-50 gap-1"
             >
-              <XCircle className="h-3.5 w-3.5" /> Rejeitar Orçamento
+              <XCircle className="h-3.5 w-3.5" /> Cancelar Orçamento
             </Button>
           )}
 
           {orcamento.motivo_rejeicao && (
             <div className="w-full mt-1 p-2 bg-rose-50 border border-rose-200 rounded text-rose-800 text-[11px]">
-              <strong>Motivo da rejeição:</strong> {orcamento.motivo_rejeicao}
+              <strong>Motivo do cancelamento:</strong> {orcamento.motivo_rejeicao}
             </div>
           )}
         </div>
@@ -4217,17 +4229,18 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Retomar Negociação */}
+      {/* Modal de Resgatar para renegociação */}
       <Dialog open={retomarModalOpen} onOpenChange={setRetomarModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <RotateCcw className="h-5 w-5 text-amber-600" /> Retomar Negociação do Orçamento
+              <RotateCcw className="h-5 w-5 text-amber-600" /> Resgatar para renegociação do
+              Orçamento
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2 text-xs">
             <p className="text-slate-600">
-              Ao retomar a negociação, o orçamento sairá do status <strong>Rejeitado</strong> e
+              Ao retomar a negociação, o orçamento sairá do status <strong>Cancelado</strong> e
               voltará para <strong>Aguardando Aprovação</strong>. Você poderá alterar itens,
               reenviar a proposta ao cliente e registrar uma nova aprovação ou recusa.
             </p>
