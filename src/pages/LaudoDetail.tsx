@@ -253,6 +253,38 @@ export function LaudoDetail() {
     }
   }
 
+  const aplicarModelo = () => {
+    const modelo: Partial<LaudoTecnico> = {
+      problema_relatado:
+        'Relato do cliente (não é constatação técnica): [PREENCHER]\nData do recebimento e acessórios entregues: [PREENCHER]\nEstado aparente de entrada e identificação das fotos: [PREENCHER]',
+      diagnostico_tecnico:
+        'Finalidade e escopo da avaliação: [PREENCHER]\nConstatações objetivas e componentes examinados: [PREENCHER]\nEvidências (foto/arquivo, data e referência à OS): [PREENCHER]\nHipóteses e grau de certeza; não atribuir causa sem evidência: [PREENCHER]',
+      testes_realizados:
+        'Data/local da avaliação: [PREENCHER]\nTeste, procedimento e condições de execução: [PREENCHER]\nInstrumento/software e referência utilizada, se houver: [PREENCHER]\nResultado observado, unidade e critério de comparação: [PREENCHER]\nTestes não realizados e motivo: [PREENCHER]',
+      servicos_realizados:
+        'Intervenções efetivamente executadas (ou nenhuma): [PREENCHER]\nAutorização prévia: referência, data e escopo aprovado (ou não se aplica): [PREENCHER]',
+      pecas_substituidas:
+        'Peça, identificação, quantidade e condição (ou nenhuma): [PREENCHER]\nDestino das peças removidas e autorização correspondente: [PREENCHER]',
+      conclusao_parecer:
+        'Resultado: defeito constatado / não reproduzido / inconclusivo: [PREENCHER]\nFundamentação nos testes registrados: [PREENCHER]\nViabilidade de reparo e pendências; distinguir recomendação de serviço realizado: [PREENCHER]\nCausa: demonstrada com evidências ou não determinada: [PREENCHER]',
+      recomendacoes:
+        'Próximos passos e cuidados justificados: [PREENCHER]\nReparo proposto depende de orçamento e autorização: [PREENCHER]\nGarantia do serviço executado e documento de referência, preservados os direitos legais: [PREENCHER]',
+      observacoes:
+        'Limitações da avaliação, itens não examinados e defeitos intermitentes: [PREENCHER]\nDados/backup: situação informada, escopo de acesso e autorização, sem registrar senhas: [PREENCHER]\nAnexos e referências preservados na OS (nome/data): [PREENCHER]\nDestinatário/finalidade externa; exigências de profissional habilitado a confirmar: [PREENCHER]',
+    }
+    setLaudo((prev) => {
+      const next = { ...prev }
+      for (const [key, value] of Object.entries(modelo)) {
+        if (!String((prev as any)[key] || '').trim()) (next as any)[key] = value
+      }
+      return next
+    })
+    toast({
+      title: 'Modelo inserido nos campos vazios',
+      description: 'Substitua todos os marcadores pelas informações reais antes de finalizar.',
+    })
+  }
+
   // Salva ou finaliza o laudo
   const handleSave = async (finalizar = false) => {
     if (!laudo.numero_laudo?.trim()) {
@@ -260,6 +292,36 @@ export function LaudoDetail() {
       return
     }
 
+    if (finalizar || laudo.status === 'finalizado') {
+      const required: [string, unknown][] = [
+        ['Cliente', laudo.cliente_nome],
+        ['Equipamento', laudo.equipamento_nome],
+        [
+          'Modelo ou identificação do equipamento',
+          laudo.equipamento_modelo || laudo.equipamento_serial,
+        ],
+        ['Relato', laudo.problema_relatado],
+        ['Diagnóstico', laudo.diagnostico_tecnico],
+        ['Testes e resultados', laudo.testes_realizados],
+        ['Conclusão', laudo.conclusao_parecer],
+        ['Limitações e observações', laudo.observacoes],
+        ['Responsável identificado', laudo.tecnico_nome],
+      ]
+      const missing = required.filter(([, v]) => !String(v || '').trim()).map(([k]) => k)
+      const unfinished = Object.values(laudo).some(
+        (v) => typeof v === 'string' && v.includes('[PREENCHER]'),
+      )
+      if (missing.length || unfinished) {
+        toast({
+          title: 'Revise o relatório antes de finalizar',
+          description: missing.length
+            ? 'Preencha: ' + missing.join(', ')
+            : 'Substitua os marcadores [PREENCHER] por informações reais ou não se aplica, com justificativa.',
+          variant: 'destructive',
+        })
+        return
+      }
+    }
     setSaving(true)
     try {
       const payload: Partial<LaudoTecnico> = {
@@ -674,12 +736,26 @@ export function LaudoDetail() {
         </Card>
       </div>
 
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm space-y-2">
+        <p>
+          Este módulo documenta o atendimento da assistência. Não emite perícia, certificação, ART
+          ou TRT. Para seguradoras ou processos, confirme as exigências do destinatário e encaminhe
+          a profissional habilitado quando necessário.
+        </p>
+        <p>
+          Registre apenas fatos e testes efetivamente realizados. Diferencie relato, evidência e
+          hipótese. Não presuma mau uso, descarga elétrica ou perda total sem fundamentação.
+        </p>
+        <Button type="button" variant="outline" onClick={aplicarModelo}>
+          Inserir modelo completo nos campos vazios
+        </Button>
+      </div>
       {/* BLOCO 3: CONTEÚDO TÉCNICO E PARECER DO LAUDO */}
       <Card className="border-slate-200 shadow-sm">
         <CardHeader className="pb-3 border-b border-slate-100">
           <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
             <FileCheck2 className="h-4 w-4 text-indigo-600" />
-            Conteúdo Técnico do Laudo Pericial
+            Relatório de Diagnóstico e Atendimento Técnico
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-4 space-y-4 text-xs">
@@ -708,7 +784,7 @@ export function LaudoDetail() {
                 }
                 rows={3}
                 className="text-xs bg-white mt-1 border-indigo-200"
-                placeholder="Análise técnica minuciosa realizada em bancada..."
+                placeholder="Descreva o que foi observado e as evidências; diferencie hipótese e causa comprovada."
               />
             </div>
           </div>
@@ -782,13 +858,15 @@ export function LaudoDetail() {
             </div>
 
             <div>
-              <Label className="text-xs font-bold text-slate-700">Observações Gerais</Label>
+              <Label className="text-xs font-bold text-slate-700">
+                Limitações, evidências e observações compartilhadas
+              </Label>
               <Textarea
                 value={laudo.observacoes || ''}
                 onChange={(e) => setLaudo((prev) => ({ ...prev, observacoes: e.target.value }))}
                 rows={2}
                 className="text-xs bg-white mt-1"
-                placeholder="Observações complementares internas ou gerais..."
+                placeholder="Limitações, anexos e referências. Este conteúdo será impresso; não insira senhas ou notas internas."
               />
             </div>
           </div>
