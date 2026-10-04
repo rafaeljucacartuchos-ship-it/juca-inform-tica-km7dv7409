@@ -132,7 +132,7 @@ export function LaudosList() {
             Laudos Técnicos
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Emissão de laudos periciais e diagnósticos técnicos vinculados a O.S., orçamentos e
+            Relatórios descritivos de diagnóstico e atendimento vinculados a O.S., orçamentos e
             equipamentos.
           </p>
         </div>
