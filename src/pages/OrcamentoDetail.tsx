@@ -1486,7 +1486,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
 
     try {
       const motivoAnterior = orcamento.motivo_rejeicao
-        ? ` (Motivo anterior da rejeição: ${orcamento.motivo_rejeicao})`
+        ? ` (Motivo anterior do cancelamento: ${orcamento.motivo_rejeicao})`
         : ''
 
       await updateOrcamento(orcamento.id, {
@@ -2207,35 +2207,16 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
             </div>
           )}
 
-          {orcamento.status === 'rejeitado' &&
-            canEdit &&
-            (orcamento.proposta_apresentada_em ? (
-              <Button
-                size="sm"
-                onClick={() => setRetomarModalOpen(true)}
-                className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1.5 font-bold shadow-xs"
-                title="Retomar a negociação deste orçamento e retorná-lo para Aguardando Aprovação"
-              >
-                <RotateCcw className="h-3.5 w-3.5" /> Resgatar para renegociação
-              </Button>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span tabIndex={0} className="inline-block cursor-not-allowed">
-                    <Button
-                      size="sm"
-                      disabled
-                      className="h-8 text-xs bg-amber-600 text-white gap-1.5 font-bold shadow-xs opacity-50 cursor-not-allowed"
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" /> Resgatar para renegociação
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Envie a proposta ao cliente primeiro</p>
-                </TooltipContent>
-              </Tooltip>
-            ))}
+          {orcamento.status === 'rejeitado' && canEdit && (
+            <Button
+              size="sm"
+              onClick={() => setRetomarModalOpen(true)}
+              className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1.5 font-bold shadow-xs"
+              title="Resgatar este orçamento para uma nova negociação, preservando o histórico"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Resgatar para renegociação
+            </Button>
+          )}
 
           {orcamento.status !== 'rejeitado' && orcamento.status !== 'faturado' && (
             <Button
@@ -4194,7 +4175,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <XCircle className="h-5 w-5 text-rose-600" /> Motivo da Rejeição do Orçamento
+              <XCircle className="h-5 w-5 text-rose-600" /> Motivo do Cancelamento do Orçamento
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2 text-xs">
@@ -4223,7 +4204,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
               onClick={handleRejeitar}
               className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
             >
-              Confirmar Rejeição
+              Confirmar Cancelamento
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -4248,8 +4229,8 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
             {orcamento.motivo_rejeicao && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-900 space-y-1">
                 <span className="font-bold block flex items-center gap-1.5 text-amber-800">
-                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" /> Motivo da Rejeição
-                  Anterior:
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" /> Motivo do
+                  Cancelamento Anterior:
                 </span>
                 <p className="text-slate-800 italic bg-white/70 p-2 rounded border border-amber-100">
                   "{orcamento.motivo_rejeicao}"
@@ -4285,7 +4266,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
               ) : (
                 <>
                   <RotateCcw className="h-3.5 w-3.5" />
-                  Confirmar e Retomar
+                  Confirmar resgate
                 </>
               )}
             </Button>
