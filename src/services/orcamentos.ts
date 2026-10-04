@@ -317,7 +317,7 @@ export async function createOrcamento(params: {
     // o índice único CREATE UNIQUE INDEX idx_orcamentos_numero.
     try {
       const conflicting = await pb.collection('orcamentos').getFullList<Orcamento>({
-        filter: `numero_orcamento = "${numero_orcamento}"`,
+        filter: `id_os = "${id_os}" && numero_orcamento = "${numero_orcamento}"`,
       })
 
       let revIndex = 1
@@ -391,9 +391,7 @@ export async function createOrcamento(params: {
           .replace(/-REV\d+/i, '')
           .trim()
         const familyList = await pb.collection('orcamentos').getFullList<Orcamento>({
-          filter: id_os
-            ? `id_os = "${id_os}" || numero_orcamento ~ "${baseNum}"`
-            : `numero_orcamento ~ "${baseNum}"`,
+          filter: id_os ? `id_os = "${id_os}"` : `numero_orcamento ~ "${baseNum}"`,
           sort: '-created',
         })
         for (const fam of familyList) {
