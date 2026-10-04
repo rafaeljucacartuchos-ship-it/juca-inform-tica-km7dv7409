@@ -132,11 +132,7 @@ export function LaudoDetail() {
               // Busca orçamentos vinculados a esta O.S.
               const orcs = await getOrcamentosByOs(initialOsId)
               setOrcamentosList(orcs)
-              if (!initialOrcId && orcs.length > 0) {
-                // Seleciona o primeiro orçamento ativo
-                const activeOrc = orcs.find((o) => o.status !== 'substituido') || orcs[0]
-                initialOrcId = activeOrc.id
-              }
+              if (initialOrcId && !orcs.some((o) => o.id === initialOrcId)) initialOrcId = undefined
             } catch (err) {
               console.warn('Falha ao carregar OS de origem:', err)
             }
@@ -215,6 +211,14 @@ export function LaudoDetail() {
 
   // Quando o usuário seleciona uma O.S., importa automaticamente as informações do equipamento cadastrado
   const handleSelectOrder = async (order: ServiceOrder) => {
+    if (
+      laudo.id_ordem &&
+      laudo.id_ordem !== order.id &&
+      !window.confirm(
+        'Trocar a OS substituirá os dados e limpará o parecer e assinaturas deste formulário para não misturar atendimentos. Continuar?',
+      )
+    )
+      return
     try {
       const fullOrder = await getServiceOrder(order.id)
       const snapshot = buildSnapshotFromOrderAndEquipment({
@@ -226,17 +230,39 @@ export function LaudoDetail() {
       // Puxa orçamentos daquela O.S.
       const orcs = await getOrcamentosByOs(order.id)
       setOrcamentosList(orcs)
-      const activeOrc = orcs.find((o) => o.status !== 'substituido') || orcs[0]
+      const activeOrc = orcs.find((o) => o.id === laudo.id_orcamento && laudo.id_ordem === order.id)
 
       setLaudo((prev) => ({
         ...prev,
         id_ordem: order.id,
         id_cliente: fullOrder.customer,
         id_equipamento: fullOrder.equipment_ref,
-        id_orcamento: activeOrc ? activeOrc.id : prev.id_orcamento,
-        problema_relatado: prev.problema_relatado || fullOrder.description || fullOrder.title || '',
-        diagnostico_tecnico: prev.diagnostico_tecnico || fullOrder.diagnostic || '',
-        servicos_realizados: prev.servicos_realizados || fullOrder.service_report || '',
+        id_orcamento: activeOrc?.id,
+        problema_relatado:
+          (prev.id_ordem === order.id ? prev.problema_relatado : '') ||
+          fullOrder.description ||
+          fullOrder.title ||
+          '',
+        diagnostico_tecnico:
+          (prev.id_ordem === order.id ? prev.diagnostico_tecnico : '') ||
+          fullOrder.diagnostic ||
+          '',
+        servicos_realizados:
+          (prev.id_ordem === order.id ? prev.servicos_realizados : '') ||
+          fullOrder.service_report ||
+          '',
+        ...(prev.id_ordem !== order.id
+          ? {
+              testes_realizados: '',
+              pecas_substituidas: '',
+              conclusao_parecer: '',
+              recomendacoes: '',
+              observacoes: '',
+              assinatura_tecnico: '',
+              assinatura_cliente: '',
+              status: 'rascunho' as const,
+            }
+          : {}),
         ...snapshot,
       }))
 
@@ -252,6 +278,74 @@ export function LaudoDetail() {
       toast({ title: 'Erro ao importar dados da O.S.', variant: 'destructive' })
     }
   }
+
+  const [tipoSugestao, setTipoSugestao] = useState('equipamento')
+  const [resultadoSugestao, setResultadoSugestao] = useState('inconclusivo')
+  const sugestoes: Record<string, string> = {
+    problema_relatado:
+      'Segundo o cliente, o ' +
+      tipoSugestao +
+      ' apresenta: [PREENCHER]. Início e circunstâncias informadas: [PREENCHER]. Este relato ainda deve ser confrontado com os testes.',
+    diagnostico_tecnico:
+      'No ' +
+      (laudo.equipamento_nome || tipoSugestao) +
+      ', foi observado: [PREENCHER]. Evidência ou medição correspondente: [PREENCHER]. Relação com o sintoma relatado: [PREENCHER]. A causa não é presumida apenas pelo sintoma.',
+    testes_realizados:
+      'Registrar somente procedimentos executados. ' +
+      ({
+        impressora: 'Impressão de teste, alimentação de papel e qualidade de saída',
+        notebook: 'Alimentação, inicialização, armazenamento e periféricos',
+        computador: 'Alimentação, inicialização, memória e armazenamento',
+        balanca:
+          'Alimentação, teclado e funcionamento observado; não equivale a aferição metrológica',
+        equipamento: 'Inspeção visual e teste funcional compatível com o equipamento',
+      }[tipoSugestao] || 'Teste funcional') +
+      ': [PREENCHER com procedimento, resultado, data e condições]. Itens não testados e motivo: [PREENCHER].',
+    servicos_realizados:
+      'Serviços efetivamente executados: [PREENCHER, ou nenhum]. Referência da autorização prévia: [PREENCHER]. Não considerar itens apenas orçados como realizados.',
+    pecas_substituidas:
+      'Peças efetivamente substituídas: [PREENCHER, ou nenhuma]. Identificação, quantidade, condição e destino das peças retiradas: [PREENCHER].',
+    conclusao_parecer:
+      {
+        reparavel:
+          'Reparo tecnicamente viável para o defeito identificado, mediante [PREENCHER]. Fundamentação: [PREENCHER]. Execução sujeita à disponibilidade de peças e aprovação do orçamento.',
+        inviavel:
+          'Reparo tecnicamente inviável nas condições avaliadas. Impedimento técnico e evidências: [PREENCHER]. Limites da conclusão e alternativas: [PREENCHER]. Não equivale a declaração de perda total para seguro.',
+        antieconomico:
+          'Reparo tecnicamente possível, porém economicamente desaconselhado nesta avaliação. Custo estimado, valor de referência, fonte e data: [PREENCHER]. A decisão de reparar cabe ao cliente após informação e orçamento.',
+        nao_reproduzido:
+          'O defeito relatado não foi reproduzido nos testes registrados. Condições e duração: [PREENCHER]. Isso não exclui falha intermitente ou condições diferentes de uso.',
+        inconclusivo:
+          'Diagnóstico inconclusivo com os elementos disponíveis. Pendências e exames necessários: [PREENCHER]. Não é possível afirmar a causa ou a viabilidade de reparo neste momento.',
+      }[resultadoSugestao] || '',
+    recomendacoes:
+      'Recomenda-se [PREENCHER] em razão de [PREENCHER]. Intervenções adicionais dependem de orçamento e autorização. Retornar para reavaliação se o sintoma persistir.',
+    observacoes:
+      'Avaliação limitada aos itens e condições descritos. Não foram examinados: [PREENCHER]. Evidências e anexos na OS: [PREENCHER]. Dados/backup e escopo autorizado de acesso: [PREENCHER].',
+  }
+  const respostaPronta = (campo: string) => (
+    <details className="my-2 rounded border border-slate-200 p-2">
+      <summary className="cursor-pointer text-xs font-semibold text-indigo-700">
+        Resposta sugerida — revisar antes de usar
+      </summary>
+      <p className="my-2 text-xs whitespace-pre-wrap">{sugestoes[campo]}</p>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() =>
+          setLaudo((prev) => ({
+            ...prev,
+            [campo]: [String((prev as any)[campo] || '').trim(), sugestoes[campo]]
+              .filter(Boolean)
+              .join('\n\n'),
+          }))
+        }
+      >
+        Acrescentar ao campo
+      </Button>
+    </details>
+  )
 
   const aplicarModelo = () => {
     const modelo: Partial<LaudoTecnico> = {
@@ -408,7 +502,7 @@ export function LaudoDetail() {
             <p className="text-xs text-slate-500">
               {isNew
                 ? 'Vincule a O.S. para puxar todos os dados do equipamento e orçamento.'
-                : 'Edite o diagnóstico, parecer técnico e dados do equipamento periciado.'}
+                : 'Edite o diagnóstico, parecer técnico e dados do equipamento avaliado.'}
             </p>
           </div>
         </div>
@@ -746,6 +840,40 @@ export function LaudoDetail() {
           Registre apenas fatos e testes efetivamente realizados. Diferencie relato, evidência e
           hipótese. Não presuma mau uso, descarga elétrica ou perda total sem fundamentação.
         </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label>
+            Equipamento das sugestões
+            <select
+              className="block w-full border rounded p-2 bg-white"
+              value={tipoSugestao}
+              onChange={(e) => setTipoSugestao(e.target.value)}
+            >
+              <option value="equipamento">Outro / genérico</option>
+              <option value="impressora">Impressora</option>
+              <option value="notebook">Notebook</option>
+              <option value="computador">Computador</option>
+              <option value="balanca">Balança</option>
+            </select>
+          </label>
+          <label>
+            Resultado confirmado pelo responsável
+            <select
+              className="block w-full border rounded p-2 bg-white"
+              value={resultadoSugestao}
+              onChange={(e) => setResultadoSugestao(e.target.value)}
+            >
+              <option value="inconclusivo">Inconclusivo</option>
+              <option value="reparavel">Tem conserto</option>
+              <option value="inviavel">Sem viabilidade técnica</option>
+              <option value="antieconomico">Conserto antieconômico</option>
+              <option value="nao_reproduzido">Defeito não reproduzido</option>
+            </select>
+          </label>
+        </div>
+        <p>
+          As sugestões só entram quando você clicar em Acrescentar ao campo. O relato importado é
+          preservado; substitua os marcadores por fatos reais.
+        </p>
         <Button type="button" variant="outline" onClick={aplicarModelo}>
           Inserir modelo completo nos campos vazios
         </Button>
@@ -771,6 +899,7 @@ export function LaudoDetail() {
                 className="text-xs bg-white mt-1"
                 placeholder="Descrição dos sintomas ou defeitos relatados pelo cliente..."
               />
+              {respostaPronta('problema_relatado')}
             </div>
 
             <div>
@@ -786,6 +915,7 @@ export function LaudoDetail() {
                 className="text-xs bg-white mt-1 border-indigo-200"
                 placeholder="Descreva o que foi observado e as evidências; diferencie hipótese e causa comprovada."
               />
+              {respostaPronta('diagnostico_tecnico')}
             </div>
           </div>
 
@@ -800,6 +930,7 @@ export function LaudoDetail() {
               className="text-xs bg-white mt-1"
               placeholder="Testes de estresse, medição de tensões, alinhamento de cabeçote, etc."
             />
+            {respostaPronta('testes_realizados')}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -814,6 +945,7 @@ export function LaudoDetail() {
                 className="text-xs bg-white mt-1"
                 placeholder="Desoxidação de placa, regravação de BIOS, troca de rolete..."
               />
+              {respostaPronta('servicos_realizados')}
             </div>
 
             <div>
@@ -829,6 +961,7 @@ export function LaudoDetail() {
                 className="text-xs bg-white mt-1"
                 placeholder="SSD NVMe 500GB, Teclado ABNT2, Cabeça de Impressão..."
               />
+              {respostaPronta('pecas_substituidas')}
             </div>
           </div>
 
@@ -843,6 +976,7 @@ export function LaudoDetail() {
               className="text-xs bg-white mt-1 border-indigo-200"
               placeholder="Conclusão sobre a viabilidade de reparo, integridade dos componentes e conformidade..."
             />
+            {respostaPronta('conclusao_parecer')}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -855,6 +989,7 @@ export function LaudoDetail() {
                 className="text-xs bg-white mt-1"
                 placeholder="Utilizar nobreak adequado, não desligar puxando da tomada..."
               />
+              {respostaPronta('recomendacoes')}
             </div>
 
             <div>
@@ -868,6 +1003,7 @@ export function LaudoDetail() {
                 className="text-xs bg-white mt-1"
                 placeholder="Limitações, anexos e referências. Este conteúdo será impresso; não insira senhas ou notas internas."
               />
+              {respostaPronta('observacoes')}
             </div>
           </div>
         </CardContent>
