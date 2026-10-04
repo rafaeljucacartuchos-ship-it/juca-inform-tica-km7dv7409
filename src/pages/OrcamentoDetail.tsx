@@ -223,6 +223,10 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
   const [items, setItems] = useState<OrcamentoItem[]>([])
   const [anexos, setAnexos] = useState<OrcamentoAnexo[]>([])
   const [loading, setLoading] = useState(true)
+  const [createOsOpen, setCreateOsOpen] = useState(false)
+  const [creatingOs, setCreatingOs] = useState(false)
+  const [osReviewQuote, setOsReviewQuote] = useState<Orcamento | null>(null)
+  const createOsLockRef = useRef(false)
 
   // Hook de rascunho para criação de novos orçamentos
   const {
@@ -2266,6 +2270,147 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
             </CardHeader>
             <CardContent className="space-y-4 text-xs">
               {/* Controle de Vinculação à Ordem de Serviço com busca e filtros (v0.0.216 / v0.0.236 / v0.0.238) */}
+
+              {orcamento.id_os ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mb-3"
+                  onClick={() => navigate('/ordens/' + orcamento.id_os)}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" /> Abrir OS vinculada
+                </Button>
+              ) : !isNew && orcamento.status === 'aprovado' && canEditOsLink ? (
+                <Button
+                  type="button"
+                  className="mb-3"
+                  disabled={creatingOs}
+                  onClick={async () => {
+                    if (createOsLockRef.current) return
+                    if (autoSaveTimerRef.current) {
+                      toast({ title: 'Aguarde o salvamento do orçamento e tente novamente.' })
+                      return
+                    }
+                    createOsLockRef.current = true
+                    setCreatingOs(true)
+                    try {
+                      const saved = await pb
+                        .collection('orcamentos')
+                        .getOne<Orcamento>(orcamento.id, { expand: 'cliente_id' })
+                      if (saved.id_os) {
+                        await loadAll()
+                        return
+                      }
+                      if (saved.status !== 'aprovado')
+                        throw new Error('O orçamento precisa estar aprovado.')
+                      setOsReviewQuote(saved)
+                      setCreateOsOpen(true)
+                    } catch (error: any) {
+                      toast({
+                        title: 'Não foi possível preparar a OS',
+                        description: error?.message,
+                        variant: 'destructive',
+                      })
+                    } finally {
+                      createOsLockRef.current = false
+                      setCreatingOs(false)
+                    }
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-2" /> Criar ordem de serviço
+                </Button>
+              ) : null}
+              <Dialog
+                open={createOsOpen}
+                onOpenChange={(open) => {
+                  if (!creatingOs) setCreateOsOpen(open)
+                }}
+              >
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Criar OS a partir deste orçamento</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-2 text-sm">
+                    <p>
+                      <strong>Orçamento:</strong> {osReviewQuote?.numero_orcamento}
+                    </p>
+                    <p>
+                      <strong>Cliente:</strong>{' '}
+                      {osReviewQuote?.expand?.cliente_id
+                        ? getCustomerDisplayName(osReviewQuote.expand.cliente_id)
+                        : osReviewQuote?.nome_cliente_livre || 'Não selecionado'}
+                    </p>
+                    <p>
+                      <strong>Equipamento:</strong>{' '}
+                      {osReviewQuote?.equipamento_independente || 'Não informado'}
+                    </p>
+                    <p>
+                      <strong>Total:</strong>{' '}
+                      {(Number(osReviewQuote?.total_geral) || 0).toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      })}
+                    </p>
+                    <p>
+                      A nova OS terá número próprio e ficará vinculada somente a este orçamento. Os
+                      itens serão copiados e o orçamento será preservado.
+                    </p>
+                    {!osReviewQuote?.cliente_id && (
+                      <p className="text-amber-700">
+                        Selecione e salve um cliente no orçamento antes de criar a OS.
+                      </p>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={creatingOs}
+                      onClick={() => setCreateOsOpen(false)}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={creatingOs || !osReviewQuote?.cliente_id}
+                      onClick={async () => {
+                        if (!osReviewQuote || createOsLockRef.current) return
+                        createOsLockRef.current = true
+                        setCreatingOs(true)
+                        try {
+                          const result = await pb.send<{
+                            id: string
+                            number: string
+                            alreadyLinked: boolean
+                          }>('/api/juca/orcamentos/' + osReviewQuote.id + '/criar-os', {
+                            method: 'POST',
+                            body: {},
+                          })
+                          setCreateOsOpen(false)
+                          await loadAll()
+                          toast({
+                            title: result.alreadyLinked
+                              ? 'Este orçamento já possui OS'
+                              : 'OS criada e vinculada',
+                            description: result.number,
+                          })
+                        } catch (error: any) {
+                          toast({
+                            title: 'Não foi possível criar a OS',
+                            description: error?.response?.message || error?.message,
+                            variant: 'destructive',
+                          })
+                        } finally {
+                          createOsLockRef.current = false
+                          setCreatingOs(false)
+                        }
+                      }}
+                    >
+                      {creatingOs ? 'Criando…' : 'Confirmar criação da OS'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
               <ServiceOrderLinkSection
                 linkedOs={os || null}
                 idOs={orcamento.id_os || null}
