@@ -301,6 +301,22 @@ export async function createOrcamento(params: {
       numero_orcamento = await generateNextOrcamentoNumber(id_os)
     }
 
+    // Um número histórico ocupado por outro orçamento não autoriza alterá-lo.
+    const originalNumber = numero_orcamento
+    let alternateIndex = 0
+    while (true) {
+      const occupied = await pb.collection('orcamentos').getFullList<Orcamento>({
+        filter: `numero_orcamento = "${numero_orcamento}"`,
+        fields: 'id,id_os',
+      })
+      if (!occupied.some((record) => record.id_os !== id_os)) break
+      alternateIndex++
+      const osBase = originalNumber.replace(/^ORC-/, 'ORC-OS-')
+      numero_orcamento = alternateIndex === 1 ? osBase : `${osBase}-REV${alternateIndex - 1}`
+      if (alternateIndex > 100)
+        throw new Error('Não foi possível reservar uma numeração exclusiva para esta OS.')
+    }
+
     // Se houver orçamentos anteriores (ativos ou anteriores) ocupando o mesmo numero_orcamento
     // ou se qualquer registro na coleção já possuir esse numero_orcamento, renomeia com sufixo
     // de revisão (ex: ORC-0056-REV1, ORC-0056-REV2) para liberar o número principal e satisfazer
