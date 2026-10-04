@@ -214,27 +214,17 @@ export async function generateNextOrcamentoNumber(osIdOrNumber?: string): Promis
     }
   }
 
-  // Sem vínculo com OS: gera numeração própria ORC-0001, ORC-0002...
-  try {
-    const records = await pb.collection('orcamentos').getFullList<Orcamento>({
-      sort: '-created',
-    })
-
-    let maxNum = 0
-    // Considera apenas números no formato ORC-XXXX
-    const regex = /ORC-(\d+)/
-    for (const r of records) {
-      const match = r.numero_orcamento?.match(regex)
-      if (match && match[1]) {
-        const val = parseInt(match[1], 10)
-        if (val > maxNum) maxNum = val
-      }
-    }
-    const nextSeq = String(maxNum + 1).padStart(4, '0')
-    return `ORC-${nextSeq}`
-  } catch {
-    return `ORC-0001`
+  // Série exclusiva dos novos avulsos; números históricos permanecem intactos.
+  const records = await pb.collection('orcamentos').getFullList<Orcamento>({
+    filter: 'numero_orcamento ~ "ORC-AV-"',
+    fields: 'id,numero_orcamento',
+  })
+  let maxNum = 0
+  for (const record of records) {
+    const match = record.numero_orcamento?.match(/^ORC-AV-(\d+)$/)
+    if (match) maxNum = Math.max(maxNum, Number(match[1]))
   }
+  return `ORC-AV-${String(maxNum + 1).padStart(4, '0')}`
 }
 
 /**
@@ -468,7 +458,19 @@ export async function createOrcamento(params: {
     if (defeito_independente) createPayload.defeito_independente = defeito_independente
   }
 
-  const novo = await pb.collection('orcamentos').create<Orcamento>(createPayload)
+  // A restrição de unicidade do banco decide a disputa entre criações simultâneas.
+  let novo: Orcamento | undefined
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      novo = await pb.collection('orcamentos').create<Orcamento>(createPayload)
+      break
+    } catch (error: any) {
+      const numberError = error?.response?.data?.numero_orcamento?.code
+      if (id_os || numberError !== 'validation_not_unique' || attempt === 4) throw error
+      createPayload.numero_orcamento = await generateNextOrcamentoNumber()
+    }
+  }
+  if (!novo) throw new Error('Não foi possível reservar o número do orçamento.')
 
   // 3.1. Se clonamos itens do predecessor, copia os itens para o novo orçamento
   if (predecessorItemsToClone.length > 0) {
