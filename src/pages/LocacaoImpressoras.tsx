@@ -1,3 +1,8 @@
+import {
+  buildContractSnapshot,
+  CONTRACT_DETAIL_FIELDS,
+  type ContractDetails,
+} from '@/lib/rental-contract-template'
 import { useState, useEffect, useCallback } from 'react'
 import {
   Printer,
@@ -95,6 +100,7 @@ export default function LocacaoImpressoras() {
   const [nextContractNumber, setNextContractNumber] = useState('')
   const [contractStartDate, setContractStartDate] = useState(new Date().toISOString().split('T')[0])
   const [clausulasAdicionais, setClausulasAdicionais] = useState('')
+  const [contractDetails, setContractDetails] = useState<ContractDetails>({})
 
   // Carrega dados de precificação (parâmetros, suprimentos, impressoras e auditoria)
   const loadPricingData = useCallback(async () => {
@@ -184,94 +190,126 @@ export default function LocacaoImpressoras() {
     }
     setContractStartDate(new Date().toISOString().split('T')[0])
     setClausulasAdicionais('')
+    const c = currentQuote?.expand?.cliente_id
+    setContractDetails({
+      nome: c?.name || currentQuote?.cliente_nome_livre || '',
+      documento: currentQuote?.cliente_documento || c?.cpf_cnpj || '',
+      endereco: [currentQuote?.cliente_endereco || c?.endereco, c?.city, c?.state, c?.zip]
+        .filter(Boolean)
+        .join(', '),
+      contato: c?.email || currentQuote?.cliente_telefone || c?.phone || '',
+      serial: machine.serial || '',
+      contador: machine.contador_inicial == null ? '' : String(machine.contador_inicial),
+    })
     setContractModalOpen(true)
   }
 
-  // Confirmar geração do contrato (congela dados e grava na tabela contratos e rental_contracts)
+  const buildDraft = (): Partial<RentalContract> | null => {
+    if (!currentQuote || !machineForContract) return null
+    const locatario = {
+      nome: contractDetails.nome?.trim() || '',
+      cpf_cnpj: contractDetails.documento?.trim() || '',
+      endereco: contractDetails.endereco?.trim() || '',
+      telefone: contractDetails.contato?.trim() || '',
+    }
+    const payload: Partial<RentalContract> = {
+      proposta: currentQuote.id,
+      numero: nextContractNumber.trim(),
+      locatario_dados: locatario,
+      franquia_paginas: currentQuote.franquia_paginas,
+      valor_mensal: Math.round(machineForContract.franquiaSugerida * 100) / 100,
+      excesso_pagina_valor: Math.round(machineForContract.excedenteSugerido * 10000) / 10000,
+      contrato_meses: currentQuote.contrato_meses,
+      data_inicio: contractStartDate,
+      status: 'rascunho',
+      clausulas_adicionais: clausulasAdicionais.trim() || undefined,
+    }
+    const snapshot = buildContractSnapshot(
+      {
+        numeroContrato: payload.numero || '',
+        locatario: {
+          nome: locatario.nome,
+          cpfCnpj: locatario.cpf_cnpj,
+          endereco: locatario.endereco,
+          telefone: locatario.telefone,
+        },
+        equipamento: {
+          nome: machineForContract.machineName,
+          serial: contractDetails.serial || '',
+          contadorInicial:
+            contractDetails.contador === '' || contractDetails.contador == null
+              ? undefined
+              : Number(contractDetails.contador),
+        },
+        franquiaPaginas: payload.franquia_paginas || 0,
+        valorMensal: payload.valor_mensal || 0,
+        valorExcedentePagina: payload.excesso_pagina_valor || 0,
+        prazoMeses: payload.contrato_meses || 0,
+        dataInicio: contractStartDate,
+      },
+      contractDetails,
+      clausulasAdicionais.trim(),
+    )
+    const equipment = {
+      nome: machineForContract.machineName,
+      produto_id: machineForContract.machineId,
+      serial: contractDetails.serial || '',
+      contador_inicial: snapshot.data.equipamento.contadorInicial,
+      scanner: machineForContract.scanner,
+      scanner_dados: machineForContract.scannerDados,
+      supplies: machineForContract.supplies,
+      modelo_contrato: snapshot,
+    }
+    payload.equipamento_dados = equipment
+    return payload
+  }
+
+  const previewContract = () => {
+    const draft = buildDraft()
+    if (!draft) return
+    setCurrentContract({ ...draft, id: '', created: new Date().toISOString() } as RentalContract)
+    setContractModalOpen(false)
+    setActiveTab('contrato')
+  }
+
   const handleConfirmContract = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!currentQuote || !machineForContract) return
-
+    const draft = buildDraft()
+    if (
+      !draft ||
+      !draft.numero ||
+      !contractStartDate ||
+      !draft.contrato_meses ||
+      draft.contrato_meses < 1 ||
+      !draft.franquia_paginas ||
+      draft.franquia_paginas < 1 ||
+      !draft.valor_mensal ||
+      draft.valor_mensal < 0 ||
+      (draft.excesso_pagina_valor ?? -1) < 0
+    ) {
+      toast({
+        title: 'Confira número, data, prazo, franquia e valores antes de salvar.',
+        variant: 'destructive',
+      })
+      return
+    }
     setCreatingContract(true)
     try {
-      const frozenLocatario = {
-        nome: currentQuote.cliente_nome_livre || currentQuote.expand?.cliente_id?.name || 'Cliente',
-        cpf_cnpj: currentQuote.cliente_documento || currentQuote.expand?.cliente_id?.cpf_cnpj || '',
-        rg_ie: currentQuote.expand?.cliente_id?.rg_ie || '',
-        endereco: currentQuote.cliente_endereco || currentQuote.expand?.cliente_id?.endereco || '',
-        bairro: currentQuote.expand?.cliente_id?.bairro || '',
-        cidade: currentQuote.expand?.cliente_id?.city || 'Nova Andradina',
-        estado: currentQuote.expand?.cliente_id?.state || 'MS',
-        cep: currentQuote.expand?.cliente_id?.zip || '',
-        telefone: currentQuote.cliente_telefone || currentQuote.expand?.cliente_id?.phone || '',
-        email: currentQuote.expand?.cliente_id?.email || '',
-      }
-
-      const frozenEquipamento = {
-        produto_id: machineForContract.machineId,
-        nome: machineForContract.machineName,
-        serial: machineForContract.serial,
-        contador_inicial: machineForContract.contador_inicial || 0,
-        scanner: machineForContract.scanner,
-        scanner_dados: machineForContract.scannerDados,
-        supplies: machineForContract.supplies,
-      }
-
-      const contractPayload: Partial<RentalContract> = {
-        proposta: currentQuote.id,
-        numero: nextContractNumber.trim(),
-        locatario_dados: frozenLocatario,
-        equipamento_dados: frozenEquipamento,
-        franquia_paginas: currentQuote.franquia_paginas || 1000,
-        valor_mensal: machineForContract.franquiaSugerida,
-        excesso_pagina_valor: machineForContract.excedenteSugerido,
-        contrato_meses: currentQuote.contrato_meses || 12,
-        data_inicio: new Date(contractStartDate).toISOString(),
-        status: 'ativo',
-        clausulas_adicionais: clausulasAdicionais.trim() || undefined,
-      }
-
-      const created = await createRentalContract(contractPayload)
-
-      // Também espelha na tabela `contratos` da seção 12 se houver impressora vinculada
-      try {
-        const pricingSnapshot = (currentQuote.resultados as any)?.pricingSnapshot
-        if (pricingSnapshot?.impressora?.id) {
-          await createContratoPrecificacao({
-            cliente: frozenLocatario.nome,
-            id_impressora: pricingSnapshot.impressora.id,
-            producao_mensal_estimada: currentQuote.franquia_paginas || 1000,
-            locacao_mensal: machineForContract.franquiaSugerida,
-            mark_up_aplicado: pricingSnapshot.memoria_calculo?.mark_up_aplicado || 1.45,
-            cpp_venda_fechado: machineForContract.excedenteSugerido,
-            software_printway_mensal:
-              currentQuote.software_printway_mensal ||
-              pricingSnapshot.software_printway_mensal ||
-              0,
-            data_inicio: contractStartDate,
-            duracao_meses: currentQuote.contrato_meses || 12,
-            status: 'ativo',
-            dados_congelados: pricingSnapshot,
-          })
-        }
-      } catch (errDb) {
-        console.warn('Registro espelho em contratos_precificacao:', errDb)
-      }
-
+      const created = await createRentalContract(draft)
       toast({
-        title: 'Contrato emitido com sucesso!',
-        description: `Contrato nº ${created.numero} gerado com cláusulas padronizadas de garantia e manutenção.`,
+        title: 'Rascunho salvo',
+        description:
+          'Texto e dados desta versão foram guardados. Assinatura e entrega ainda precisam ser comprovadas.',
       })
-
       setCurrentContract(created)
       setContractModalOpen(false)
       loadContracts()
       setActiveTab('contrato')
-    } catch (err) {
-      console.error(err)
+    } catch {
       toast({
-        title: 'Erro ao emitir contrato',
-        description: 'Verifique se o número do contrato já existe.',
+        title: 'Não foi possível salvar o rascunho',
+        description:
+          'Confira a conexão e se o número já existe. Nenhum recebimento ou assinatura foi registrado.',
         variant: 'destructive',
       })
     } finally {
@@ -436,7 +474,10 @@ export default function LocacaoImpressoras() {
           {currentContract ? (
             <RentalContractPrintView
               contract={currentContract}
-              onBack={() => setActiveTab('contratos_lista')}
+              onBack={() => {
+                if (!currentContract.id) setContractModalOpen(true)
+                else setActiveTab('contratos_lista')
+              }}
             />
           ) : (
             <div className="p-8 text-center bg-white rounded-xl border border-slate-200">
@@ -464,17 +505,17 @@ export default function LocacaoImpressoras() {
 
       {/* MODAL DE EMISSÃO DE CONTRATO (CONGELA OS DADOS COM CLÁUSULAS PADRONIZADAS) */}
       <Dialog open={contractModalOpen} onOpenChange={setContractModalOpen}>
-        <DialogContent className="max-w-md p-5">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-5">
           <DialogHeader>
             <div className="flex items-center gap-2 text-indigo-600">
               <FileSignature className="h-5 w-5" />
               <DialogTitle className="text-base font-bold text-slate-900">
-                Gerar Contrato de Locação
+                Preparar contrato de locação
               </DialogTitle>
             </div>
             <DialogDescription className="text-xs text-slate-500">
-              Os dados do cliente e da máquina serão congelados permanentemente no contrato com as
-              cláusulas da Seção 17 da JUCA Cartuchos.
+              Modelo revisado com anexos e assinatura eletrônica. Salvar gera um rascunho, sem
+              ativar a locação ou comprovar assinatura.
             </DialogDescription>
           </DialogHeader>
 
@@ -495,7 +536,7 @@ export default function LocacaoImpressoras() {
                 </p>
                 <p>
                   <strong>Excedente Homologado (CPP Venda):</strong> R${' '}
-                  {machineForContract.excedenteSugerido.toFixed(6)} / pág
+                  {machineForContract.excedenteSugerido.toFixed(4)} / pág
                 </p>
               </div>
 
@@ -512,7 +553,7 @@ export default function LocacaoImpressoras() {
 
               <div className="space-y-1">
                 <Label className="text-xs font-semibold text-slate-700">
-                  Data de Início da Vigência
+                  Data prevista de entrega e início
                 </Label>
                 <Input
                   type="date"
@@ -534,7 +575,40 @@ export default function LocacaoImpressoras() {
                 />
               </div>
 
-              <DialogFooter className="pt-2 gap-2">
+              <details className="rounded border p-3" open>
+                <summary className="font-semibold cursor-pointer">
+                  Conferir cliente, equipamento e anexos
+                </summary>
+                <p className="my-2 text-slate-600">
+                  Preencha dados reais. Campos vazios ficam destacados no rascunho; fotos e
+                  comprovantes devem acompanhar o PDF no provedor de assinatura.
+                </p>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {CONTRACT_DETAIL_FIELDS.map(([key, label, type]) => (
+                    <label key={key} className="space-y-1 block">
+                      <span>{label}</span>
+                      <Input
+                        aria-label={label}
+                        type={type}
+                        min={type === 'number' ? 0 : undefined}
+                        step={key === 'valorBem' ? '0.01' : '1'}
+                        value={contractDetails[key] || ''}
+                        onChange={(e) =>
+                          setContractDetails((prev) => ({ ...prev, [key]: e.target.value }))
+                        }
+                      />
+                    </label>
+                  ))}
+                </div>
+              </details>
+              <p className="text-slate-600">
+                Assinatura por link: envie o PDF e anexos por um provedor de assinatura. O sistema
+                ainda não envia links nem armazena o PDF assinado automaticamente.
+              </p>
+              <DialogFooter className="pt-2 gap-2 flex-wrap">
+                <Button type="button" variant="outline" onClick={previewContract}>
+                  Visualizar sem salvar
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
@@ -552,7 +626,7 @@ export default function LocacaoImpressoras() {
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5"
                 >
                   <FileSignature className="h-3.5 w-3.5" />
-                  <span>{creatingContract ? 'Emitindo...' : 'Confirmar e Emitir Contrato'}</span>
+                  <span>{creatingContract ? 'Salvando...' : 'Salvar rascunho'}</span>
                 </Button>
               </DialogFooter>
             </form>
