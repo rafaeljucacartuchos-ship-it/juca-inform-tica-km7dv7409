@@ -79,6 +79,22 @@ export default function LocacaoImpressoras() {
               'Não foi possível abrir o contrato solicitado. Confira o acesso e tente novamente.',
             )
         })
+    } else if (rentalSearch.get('proposta')) {
+      setDeepLinkError('')
+      pb.collection('rental_quotes')
+        .getOne<RentalQuote>(rentalSearch.get('proposta')!, { requestKey: null })
+        .then((record) => {
+          if (alive) {
+            setCurrentQuote(record)
+            setActiveTab('proposta')
+          }
+        })
+        .catch(() => {
+          if (alive)
+            setDeepLinkError(
+              'Não foi possível abrir a proposta solicitada. Confira o acesso e tente novamente.',
+            )
+        })
     } else if (rentalSearch.get('aba') === 'contratos_lista') setActiveTab('contratos_lista')
     return () => {
       alive = false

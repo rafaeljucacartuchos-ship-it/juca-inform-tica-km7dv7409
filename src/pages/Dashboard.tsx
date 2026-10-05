@@ -840,19 +840,17 @@ function RentalDashboardPanel() {
     setBusy(true)
     try {
       const fresh = await pb.collection('rental_contracts').getOne(c.id, { requestKey: null })
-      await pb
-        .collection('rental_contracts')
-        .update(
-          c.id,
-          {
-            equipamento_dados: {
-              ...fresh.equipamento_dados,
-              registro_teste: isTest,
-              classificacao_teste: { por: user.id, em: new Date().toISOString() },
-            },
+      await pb.collection('rental_contracts').update(
+        c.id,
+        {
+          equipamento_dados: {
+            ...fresh.equipamento_dados,
+            registro_teste: isTest,
+            classificacao_teste: { por: user.id, em: new Date().toISOString() },
           },
-          { requestKey: null },
-        )
+        },
+        { requestKey: null },
+      )
       const saved = await pb.collection('rental_contracts').getOne(c.id, { requestKey: null })
       if (saved.equipamento_dados?.registro_teste !== isTest)
         throw new Error('Classificação não confirmada.')
