@@ -6,6 +6,7 @@ import type { Customer, Equipment } from '@/types'
 import { formatPhone } from '@/lib/phones'
 import pb from '@/lib/pocketbase/client'
 import { usePermissions } from '@/hooks/use-permissions'
+import { useWorkspace } from '@/hooks/use-workspace'
 import { NewEquipmentModal } from '@/components/NewEquipmentModal'
 import { EditEquipmentModal } from '@/components/EditEquipmentModal'
 import { EquipmentHistoryDialog } from '@/components/EquipmentHistoryDialog'
@@ -228,6 +229,7 @@ export function historyFilter(
 export default function ClienteDetail() {
   const { id } = useParams<{ id: string }>()
   const { isAdmin, hasPermission } = usePermissions()
+  const { openTab } = useWorkspace()
   const capabilities = {
     orders: hasPermission('ordens'),
     quotes: hasPermission('orcamentos'),
@@ -591,7 +593,16 @@ export default function ClienteDetail() {
                               {r.number}
                             </button>
                           ) : r.href ? (
-                            <Link className="font-medium text-indigo-700 underline" to={r.href}>
+                            <Link
+                              className="font-medium text-indigo-700 underline"
+                              to={r.href}
+                              onClick={(e) => {
+                                if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+                                  e.preventDefault()
+                                  openTab(r.href!)
+                                }
+                              }}
+                            >
                               {r.number}
                             </Link>
                           ) : (
