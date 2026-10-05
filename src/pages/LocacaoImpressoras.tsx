@@ -98,7 +98,9 @@ export default function LocacaoImpressoras() {
   )
   const [creatingContract, setCreatingContract] = useState(false)
   const [nextContractNumber, setNextContractNumber] = useState('')
-  const [contractStartDate, setContractStartDate] = useState(new Date().toISOString().split('T')[0])
+  const [contractStartDate, setContractStartDate] = useState(
+    new Date().toLocaleDateString('en-CA', { timeZone: 'America/Cuiaba' }),
+  )
   const [clausulasAdicionais, setClausulasAdicionais] = useState('')
   const [contractDetails, setContractDetails] = useState<ContractDetails>({})
 
@@ -188,7 +190,7 @@ export default function LocacaoImpressoras() {
       const curYear = new Date().getFullYear()
       setNextContractNumber(`CT-${curYear}-001`)
     }
-    setContractStartDate(new Date().toISOString().split('T')[0])
+    setContractStartDate(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Cuiaba' }))
     setClausulasAdicionais('')
     const c = currentQuote?.expand?.cliente_id
     setContractDetails({
