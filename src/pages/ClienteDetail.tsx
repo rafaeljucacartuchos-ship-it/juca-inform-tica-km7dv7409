@@ -73,6 +73,15 @@ export function historyDate(value: any) {
   const get = (t: string) => parts.find((p) => p.type === t)?.value
   return `${get('year')}-${get('month')}-${get('day')}`
 }
+export function historyCalendarDate(value: any) {
+  const date = String(value || '').slice(0, 10),
+    time = Date.parse(date + 'T12:00:00Z')
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) &&
+    Number.isFinite(time) &&
+    new Date(time).toISOString().slice(0, 10) === date
+    ? date
+    : ''
+}
 export function historyNormalize(value: any) {
   return String(value ?? '')
     .normalize('NFD')
@@ -191,7 +200,7 @@ export function historyRow(kind: string, r: any): HistoryRow {
     number: num || 'Registro ' + r.id,
     description: desc,
     status: r.status || '',
-    date: historyDate(kind === 'appointments' ? r.date : r.created),
+    date: kind === 'appointments' ? historyCalendarDate(r.date) : historyDate(r.created),
     href,
     value,
     test:
