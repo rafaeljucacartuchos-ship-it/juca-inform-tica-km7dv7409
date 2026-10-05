@@ -327,6 +327,7 @@ export default function Dashboard() {
   const available = !error && updated > 0
   return (
     <div className="space-y-6 pb-8">
+      <RentalDashboardPanel />
       <header className="flex flex-wrap items-start justify-between gap-4 border-b pb-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">
@@ -656,5 +657,377 @@ export default function Dashboard() {
         payments={data.payments}
       />
     </div>
+  )
+}
+
+// Rental alerts are independent from the dashboard's cash/OS date filter.
+export function rentalDate(value: any) {
+  const d = String(value || '').slice(0, 10)
+  const time = Date.parse(d + 'T12:00:00Z')
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) &&
+    Number.isFinite(time) &&
+    new Date(time).toISOString().slice(0, 10) === d
+    ? d
+    : ''
+}
+export function rentalAddMonths(value: string, months: number) {
+  if (!rentalDate(value) || !Number.isInteger(months) || months < 1) return ''
+  const [y, m, d] = value.split('-').map(Number)
+  const last = new Date(Date.UTC(y, m - 1 + months + 1, 0)).getUTCDate()
+  return new Date(Date.UTC(y, m - 1 + months, Math.min(d, last))).toISOString().slice(0, 10)
+}
+export function rentalSummary(c: any, today: string) {
+  const e = c.equipamento_dados || {},
+    management = e.gestao_locacao || {}
+  const actual = rentalDate(management.inicio_efetivo)
+  const start = actual || rentalDate(c.data_inicio)
+  const end =
+    rentalDate(management.fim_vigencia) || rentalAddMonths(start, Number(c.contrato_meses))
+  const days = end
+    ? Math.round((Date.parse(end + 'T12:00:00Z') - Date.parse(today + 'T12:00:00Z')) / 86400000)
+    : null
+  return {
+    actual,
+    start,
+    end,
+    days,
+    management,
+    legacy: !e.modelo_contrato?.version,
+    due: rentalAddMonths(rentalDate(management.ultimo_reajuste) || actual || start, 12),
+  }
+}
+export function rentalCorrection(
+  monthly: number,
+  excess: number,
+  rate: number,
+  positiveOnly: boolean,
+) {
+  if (![monthly, excess, rate].every(Number.isFinite) || monthly < 0 || excess < 0 || rate <= -100)
+    throw new Error('Valores inválidos para reajuste.')
+  const applied = positiveOnly ? Math.max(0, rate) : rate
+  return {
+    rate: applied,
+    monthly: Math.round((monthly * (1 + applied / 100) + Number.EPSILON) * 100) / 100,
+    excess: Math.round((excess * (1 + applied / 100) + Number.EPSILON) * 10000) / 10000,
+  }
+}
+function RentalDashboardPanel() {
+  const { user } = useAuth()
+  const [contracts, setContracts] = useState<any[]>([])
+  const [failure, setFailure] = useState('')
+  const [ready, setReady] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [selected, setSelected] = useState<any>(null)
+  const [index, setIndex] = useState<any>(null)
+  const [message, setMessage] = useState('')
+  const [showAll, setShowAll] = useState(false)
+  const today = day(Date.now())
+  const refresh = useCallback(async () => {
+    if (user?.role !== 'admin') return
+    try {
+      const rows = await pb
+        .collection('rental_contracts')
+        .getFullList({ sort: 'numero', requestKey: null })
+      setContracts(rows)
+      setFailure('')
+      setReady(true)
+    } catch {
+      setFailure(
+        'Não foi possível conferir os contratos. Os totais de locação estão indisponíveis.',
+      )
+      setReady(false)
+    }
+  }, [user?.role])
+  useEffect(() => {
+    refresh()
+    const focus = () => refresh()
+    window.addEventListener('focus', focus)
+    return () => window.removeEventListener('focus', focus)
+  }, [refresh])
+  const active = contracts.filter((c) => c.status === 'ativo')
+  const rows = active
+    .map((c) => ({ c, s: rentalSummary(c, today) }))
+    .sort((a, b) => (a.s.days ?? Infinity) - (b.s.days ?? Infinity))
+  const alerts = rows.filter((r) => r.s.days !== null && r.s.days <= 90)
+  const missing = rows.filter(
+    (r) =>
+      !r.s.actual ||
+      !r.s.end ||
+      !r.c.equipamento_dados?.serial ||
+      !r.c.locatario_dados?.nome ||
+      /^\d+$/.test(r.c.locatario_dados.nome),
+  )
+  const inspect = async (c: any) => {
+    if (busy) return
+    setSelected(c)
+    setIndex(null)
+    setMessage('')
+    setBusy(true)
+    try {
+      const s = rentalSummary(c, today)
+      if (!s.due) throw new Error('Informe o início da locação no contrato antes de calcular.')
+      const d = new Date(s.due + 'T12:00:00Z')
+      d.setUTCDate(1)
+      d.setUTCMonth(d.getUTCMonth() - 1)
+      const period = d.toISOString().slice(0, 7).replace('-', '')
+      // Official national IPCA accumulated over 12 months, never a future estimate.
+      const source = `https://servicodados.ibge.gov.br/api/v3/agregados/1737/periodos/${period}/variaveis/2265?localidades=N1%5B1%5D`
+      const controller = new AbortController()
+      const timeout = window.setTimeout(() => controller.abort(), 15000)
+      let response: Response
+      try {
+        response = await fetch(source, { signal: controller.signal, credentials: 'omit' })
+      } finally {
+        window.clearTimeout(timeout)
+      }
+      if (!response.ok)
+        throw new Error(
+          'O IBGE não disponibilizou o índice para esse período. Nenhum valor foi estimado.',
+        )
+      const payload = await response.json()
+      const variable = payload?.[0]
+      if (
+        String(variable?.id) !== '2265' ||
+        !String(variable?.variavel).toLowerCase().includes('12 meses') ||
+        variable?.unidade !== '%'
+      )
+        throw new Error('A resposta do IBGE não corresponde ao IPCA acumulado em 12 meses.')
+      const series = variable.resultados
+        ?.flatMap((r: any) => r.series || [])
+        .find((r: any) => String(r.localidade?.id) === '1')?.serie
+      const raw = series?.[period]
+      if (raw === undefined || !/^-?\d+(\.\d+)?$/.test(String(raw)))
+        throw new Error(
+          'Índice ainda não publicado para o aniversário do contrato. Tente novamente após a divulgação do IBGE.',
+        )
+      const rate = Number(raw),
+        result = rentalCorrection(
+          Number(c.valor_mensal),
+          Number(c.excesso_pagina_valor),
+          rate,
+          s.legacy,
+        )
+      setIndex({
+        period,
+        source,
+        officialRate: rate,
+        ...result,
+        due: s.due,
+        consultedAt: new Date().toISOString(),
+      })
+    } catch (e: any) {
+      setMessage(e.message || 'Não foi possível consultar o IPCA. Nenhum valor foi alterado.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  if (user?.role !== 'admin') return null
+  return (
+    <section
+      className="rounded-xl border bg-white p-5 space-y-4"
+      aria-label="Impressoras locadas e contratos"
+    >
+      <div className="flex flex-wrap justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Impressoras locadas · contratos</h2>
+          <p className="text-xs text-slate-500">
+            Posição atual, independente do filtro financeiro. Alertas ao abrir o dashboard.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <button className="text-sm underline" onClick={refresh}>
+            Conferir contratos
+          </button>
+          <Link className="text-sm underline" to="/locacao?aba=contratos_lista">
+            Gerenciar locações
+          </Link>
+        </div>
+      </div>
+      {failure ? (
+        <p role="alert" className="text-red-700">
+          {failure}
+        </p>
+      ) : !ready ? (
+        <p>Conferindo locações…</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="rounded-lg bg-slate-50 p-3">
+              <p className="text-xs">Contratos ativos / equipamentos previstos</p>
+              <strong className="text-2xl">{active.length}</strong>
+              <p className="text-xs">
+                Instalação comprovada em{' '}
+                {rows.filter((r) => r.s.actual && r.c.equipamento_dados?.serial).length}; demais
+                pendentes de conferência.
+              </p>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-3">
+              <p className="text-xs">Mensalidade contratada</p>
+              <strong className="text-xl">
+                {active.every((c) => validAmount(c.valor_mensal))
+                  ? money(sum(active, 'valor_mensal'))
+                  : 'Conferir valores'}
+              </strong>
+              <p className="text-xs">Sem excedentes. Não representa recebimento.</p>
+            </div>
+            <div className="rounded-lg bg-amber-50 p-3">
+              <p className="text-xs">Vencidos ou até 90 dias</p>
+              <strong className="text-2xl">{alerts.length}</strong>
+              <p className="text-xs">
+                {alerts.filter((r) => r.s.days! < 0).length} vencidos ·{' '}
+                {alerts.filter((r) => r.s.days! >= 0 && r.s.days! <= 30).length} até 30 dias
+              </p>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-3">
+              <p className="text-xs">Cadastros a conferir</p>
+              <strong className="text-2xl">{missing.length}</strong>
+              <p className="text-xs">Cliente, série ou início efetivo pendente.</p>
+            </div>
+          </div>
+          {alerts.length > 0 && (
+            <p role="alert" className="rounded bg-amber-50 p-3 text-sm">
+              Atenção: {alerts.length} contrato(s) precisam de revisão de vencimento. Datas sem
+              instalação confirmada são previsões.
+            </p>
+          )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left border-b">
+                  <th className="py-2">Cliente / contrato</th>
+                  <th>Equipamento / franquia</th>
+                  <th>Mensalidade</th>
+                  <th>Vencimento</th>
+                  <th>Reajuste</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(showAll ? rows : rows.slice(0, 8)).map(({ c, s }) => (
+                  <tr key={c.id} className="border-b align-top">
+                    <td className="py-3 pr-3">
+                      <Link
+                        className="underline"
+                        to={'/locacao?contrato=' + encodeURIComponent(c.id)}
+                      >
+                        {c.numero}
+                      </Link>
+                      <div>
+                        {c.locatario_dados?.nome && !/^\d+$/.test(c.locatario_dados.nome)
+                          ? c.locatario_dados.nome
+                          : 'Cliente: conferir cadastro'}
+                      </div>
+                    </td>
+                    <td className="pr-3">
+                      {c.equipamento_dados?.nome || 'Equipamento não informado'}
+                      <div className="text-xs">
+                        Série: {c.equipamento_dados?.serial || 'pendente'} ·{' '}
+                        {c.franquia_paginas ?? '—'} páginas
+                      </div>
+                    </td>
+                    <td className="pr-3">
+                      {validAmount(c.valor_mensal) ? money(Number(c.valor_mensal)) : 'Conferir'}
+                    </td>
+                    <td className="pr-3">
+                      {dateLabel(s.end)}
+                      <div className="text-xs">
+                        {s.days === null
+                          ? 'Sem prazo válido'
+                          : s.days < 0
+                            ? `Vencido há ${-s.days} dias`
+                            : s.days <= 30
+                              ? `Até 30 dias: faltam ${s.days}`
+                              : s.days <= 60
+                                ? `Até 60 dias: faltam ${s.days}`
+                                : s.days <= 90
+                                  ? `Até 90 dias: faltam ${s.days}`
+                                  : `Faltam ${s.days} dias`}
+                      </div>
+                      {!s.actual && (
+                        <div className="text-xs text-amber-700">Previsão: confirmar instalação</div>
+                      )}
+                    </td>
+                    <td>
+                      <button className="underline" onClick={() => inspect(c)}>
+                        Calcular / revisar
+                      </button>
+                      <p className="text-xs">
+                        {s.legacy ? 'Na prorrogação · IPCA positivo' : 'Anual · IPCA'}
+                        <br />
+                        {dateLabel(s.due)}
+                      </p>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!rows.length && <p>Nenhum contrato com status ativo.</p>}
+          {rows.length > 8 && (
+            <button className="underline" onClick={() => setShowAll(!showAll)}>
+              {showAll ? 'Mostrar menos' : 'Ver todos os contratos'}
+            </button>
+          )}
+          {selected && (
+            <div
+              className="border rounded-lg p-4 space-y-3"
+              role="region"
+              aria-label="Revisão do reajuste"
+            >
+              <div className="flex justify-between">
+                <h3 className="font-semibold">Revisão de reajuste · {selected.numero}</h3>
+                <button
+                  onClick={() => {
+                    setSelected(null)
+                    setIndex(null)
+                  }}
+                  disabled={busy}
+                >
+                  Fechar
+                </button>
+              </div>
+              {busy && <p>Consultando IPCA oficial…</p>}
+              {message && <p role="status">{message}</p>}
+              {index && (
+                <>
+                  <p>
+                    IPCA de 12 meses até {index.period.slice(4)}/{index.period.slice(0, 4)}:{' '}
+                    {index.officialRate.toLocaleString('pt-BR')}%. Aplicável:{' '}
+                    {index.rate.toLocaleString('pt-BR')}%.
+                  </p>
+                  <p>
+                    Mensalidade: {money(Number(selected.valor_mensal))} →{' '}
+                    <strong>{money(index.monthly)}</strong>. Excedente: R${' '}
+                    {Number(selected.excesso_pagina_valor).toFixed(4)} → R${' '}
+                    {index.excess.toFixed(4)} por página.
+                  </p>
+                  <a
+                    className="underline text-sm"
+                    href={index.source}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Conferir índice no IBGE
+                  </a>
+                </>
+              )}
+              <p className="text-xs text-slate-600">
+                Simulação para revisão. O contrato assinado e as cobranças não são alterados por
+                esta consulta. A data efetiva de instalação e eventuais reajustes anteriores
+                precisam estar conferidos antes de aplicar.
+              </p>
+              <Link
+                className="inline-block border rounded px-3 py-2"
+                to={'/locacao?contrato=' + encodeURIComponent(selected.id)}
+              >
+                Abrir contrato para atualização
+              </Link>
+              {user?.role !== 'admin' && (
+                <p className="text-xs">A aplicação do reajuste depende do administrador.</p>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </section>
   )
 }

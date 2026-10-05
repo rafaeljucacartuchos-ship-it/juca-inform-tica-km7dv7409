@@ -1,3 +1,5 @@
+import { useSearchParams } from 'react-router-dom'
+import pb from '@/lib/pocketbase/client'
 import {
   buildContractSnapshot,
   inheritRentalContractDetails,
@@ -56,6 +58,32 @@ import type { RentalQuote, RentalContract, RentalMachineCalculation } from '@/ty
 
 export default function LocacaoImpressoras() {
   const { toast } = useToast()
+  const [rentalSearch] = useSearchParams()
+  const [deepLinkError, setDeepLinkError] = useState('')
+  useEffect(() => {
+    let alive = true
+    const id = rentalSearch.get('contrato')
+    if (id) {
+      setDeepLinkError('')
+      pb.collection('rental_contracts')
+        .getOne<RentalContract>(id, { requestKey: null })
+        .then((record) => {
+          if (alive) {
+            setCurrentContract(record)
+            setActiveTab('contrato')
+          }
+        })
+        .catch(() => {
+          if (alive)
+            setDeepLinkError(
+              'Não foi possível abrir o contrato solicitado. Confira o acesso e tente novamente.',
+            )
+        })
+    } else if (rentalSearch.get('aba') === 'contratos_lista') setActiveTab('contratos_lista')
+    return () => {
+      alive = false
+    }
+  }, [rentalSearch])
   const { isAdmin, hasPermission } = usePermissions()
 
   // Permissões: Admin bypass total; edição restrita a gerência/admin
@@ -379,6 +407,11 @@ export default function LocacaoImpressoras() {
 
   return (
     <div className="space-y-6">
+      {deepLinkError && (
+        <p role="alert" className="text-red-700">
+          {deepLinkError}
+        </p>
+      )}
       {/* CABEÇALHO DO MÓDULO */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm print:hidden">
         <div className="flex items-center gap-3">
