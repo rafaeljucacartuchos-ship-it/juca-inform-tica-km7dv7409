@@ -43,6 +43,12 @@ export function ResultsPricingPanel({
   const [copied, setCopied] = useState(false)
   const [showBreakEvenSettings, setShowBreakEvenSettings] = useState(false)
 
+  const custoMensalEstimado = calculation.cppFornecedorTotal * producaoMensal
+  const receitaPrevista = calculation.faturamentoTotalMensal
+  const resultadoParcial = receitaPrevista - custoMensalEstimado
+  const moeda = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const margemParcial = receitaPrevista > 0 ? (resultadoParcial / receitaPrevista) * 100 : 0
+  const dadosValidos = calculation.valid && !!selectedPrinter
   const handleCopySummary = () => {
     if (!selectedPrinter) return
 
@@ -51,11 +57,11 @@ JUCA CARTUCHOS — RESUMO DE PRECIFICAÇÃO DE LOCAÇÃO
 =========================================
 Equipamento: ${selectedPrinter.modelo} (${selectedPrinter.fabricante} - ${selectedPrinter.tecnologia})
 Franquia / Produção Estimada: ${producaoMensal.toLocaleString('pt-BR')} páginas/mês
-Vigência Contratual: ${vidaUtil} meses
+Prazo de depreciação usado no cálculo: ${vidaUtil} meses (não é a vigência do contrato)
 -----------------------------------------
-CPP DE VENDA HOMOLOGADO: ${calculation.formatted.cppVenda} / página
-CUSTO MENSAL ESTIMADO: ${calculation.formatted.custoMensalProducao}
-FATURAMENTO TOTAL MENSAL: ${calculation.formatted.faturamentoTotalMensal}
+CPP DE VENDA SIMULADO: ${calculation.formatted.cppVenda} / página
+VALOR DAS PÁGINAS SIMULADAS: ${calculation.formatted.custoMensalProducao}
+RECEITA MENSAL PREVISTA (SIMULAÇÃO): ${calculation.formatted.faturamentoTotalMensal}
 =========================================`
 
     navigator.clipboard
@@ -79,6 +85,67 @@ FATURAMENTO TOTAL MENSAL: ${calculation.formatted.faturamentoTotalMensal}
 
   return (
     <div className="space-y-4">
+      <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+        <h3 className="font-bold text-slate-900">Resumo para decisão — estimativa mensal</h3>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div>
+            <p className="text-xs text-slate-500">Custo calculado</p>
+            <strong>{dadosValidos ? moeda(custoMensalEstimado) : 'Dados incompletos'}</strong>
+            <p className="text-xs">Insumos + depreciação + software</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Receita prevista</p>
+            <strong>{dadosValidos ? moeda(receitaPrevista) : 'Não calculada'}</strong>
+            <p className="text-xs">Base + valor das páginas simuladas</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Resultado antes dos custos não cadastrados</p>
+            <strong>{dadosValidos ? moeda(resultadoParcial) : 'Não calculado'}</strong>
+            <p className="text-xs">
+              {dadosValidos
+                ? margemParcial.toFixed(1) + '% da receita prevista'
+                : 'Complete o cadastro'}
+            </p>
+          </div>
+        </div>
+        <p className="text-xs text-amber-800">
+          Não é lucro líquido nem valor recebido. Impostos, deslocamentos, mão de obra,
+          inadimplência e outros custos não informados precisam ser considerados antes de fechar a
+          proposta.
+        </p>
+        <details className="border-t pt-2">
+          <summary className="cursor-pointer text-sm font-semibold">
+            Entenda o cálculo e as pendências
+          </summary>
+          <ul className="mt-2 list-disc pl-5 text-xs space-y-1">
+            <li>
+              CPP dos insumos = soma do custo dividido pelo rendimento de cada item incluído.
+              Rendimentos são estimativas e variam com cobertura e uso.
+            </li>
+            <li>
+              Equipamento = compra dividida pela vida útil e pelo volume mensal. Software mensal
+              também é dividido pelo volume.
+            </li>
+            <li>
+              O fator {markup.toFixed(2)} representa acréscimo de {((markup - 1) * 100).toFixed(1)}%
+              sobre o custo; não é a mesma porcentagem de margem sobre a venda.
+            </li>
+            <li>
+              O cálculo atual soma uma parcela base ao valor das páginas. Confirme a modalidade
+              comercial antes de emitir; franquia incluída e cobrança por todas as páginas são
+              diferentes.
+            </li>
+            <li>
+              A depreciação já integra o CPP. Confira a finalidade da parcela base para não
+              recuperar o mesmo custo duas vezes inadvertidamente.
+            </li>
+            <li>
+              Esta tela não registra leitura de contador nem comprova faturamento ou recebimento.
+              Utilize os dados reais do contrato e das leituras para cobrança.
+            </li>
+          </ul>
+        </details>
+      </section>
       {/* CARD HERO DE PRECIFICAÇÃO */}
       <div className="rounded-xl border-2 border-indigo-200 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 text-white p-6 shadow-lg space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
@@ -99,7 +166,7 @@ FATURAMENTO TOTAL MENSAL: ${calculation.formatted.faturamentoTotalMensal}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
           <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center sm:text-left space-y-1">
             <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
-              CPP de Venda Homologado (com Mark-up)
+              CPP de Venda Simulado (com Mark-up)
             </span>
             <div className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-white">
               {calculation.formatted.cppVenda}
@@ -112,7 +179,7 @@ FATURAMENTO TOTAL MENSAL: ${calculation.formatted.faturamentoTotalMensal}
 
           <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center sm:text-left space-y-1">
             <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
-              Custo Mensal de Produção Estimada ({producaoMensal.toLocaleString('pt-BR')} págs)
+              Valor de Venda das Páginas Simuladas ({producaoMensal.toLocaleString('pt-BR')} págs)
             </span>
             <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-400">
               {calculation.formatted.custoMensalProducao}
@@ -174,7 +241,7 @@ FATURAMENTO TOTAL MENSAL: ${calculation.formatted.faturamentoTotalMensal}
 
           <div className="bg-black/30 p-2.5 rounded-lg border border-white/5 col-span-2 sm:col-span-1">
             <span className="text-[10px] text-slate-400 block uppercase font-medium">
-              5. Margem Mark-up:
+              5. Fator de acréscimo:
             </span>
             <span className="font-mono font-bold text-emerald-300 text-xs">
               {markup.toFixed(2)}x sobre total
