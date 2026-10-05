@@ -1,3 +1,4 @@
+import { usePermissions } from '@/hooks/use-permissions'
 import { useState, useEffect, useMemo } from 'react'
 import {
   Calculator,
@@ -87,6 +88,7 @@ export function ModernRentalSimulator({
   initialCascadeSection,
 }: ModernRentalSimulatorProps) {
   const { toast } = useToast()
+  const { isAdmin } = usePermissions()
   // Controle de cascata aberta (accordion expansível sob demanda)
   const [cascadeOpen, setCascadeOpen] = useState<string>(initialCascadeSection || '')
 
@@ -194,6 +196,7 @@ export function ModernRentalSimulator({
 
   // Persiste inline a alteração do custo Printway na impressora
   const handleSavePrintwayCost = async (rawValue: string) => {
+    if (!isAdmin) return
     if (!selectedPrinter) return
     const sanitized = rawValue.trim().replace(',', '.')
     const parsed = sanitized === '' ? 0 : parseFloat(sanitized)
@@ -716,7 +719,7 @@ export function ModernRentalSimulator({
             <Calculator className="h-5 w-5 text-indigo-600" />
             <div>
               <h3 className="font-extrabold text-slate-900 text-sm">
-                1. Seleção do Equipamento & Parâmetros Comerciais
+                Equipamento, franquia e prazo
               </h3>
               <p className="text-xs text-slate-500">
                 Escolha a impressora do parque; seus insumos e taxas de depreciação serão carregados
@@ -745,25 +748,7 @@ export function ModernRentalSimulator({
         </div>
 
         {/* INPUTS DE PARÂMETROS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 pt-1 text-xs">
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold text-slate-700">Valor de Compra (R$) *</Label>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={equipPriceCustom}
-              onChange={(e) => setEquipPriceCustom(e.target.value)}
-              placeholder="Ex: 2094.33"
-              className={`h-9 text-xs font-mono font-bold ${
-                !equipPriceCustom || parseFloat(equipPriceCustom) <= 0
-                  ? 'border-amber-400 bg-amber-50 text-amber-900'
-                  : ''
-              }`}
-            />
-            <p className="text-[10px] text-slate-400">Ativo para depreciação</p>
-          </div>
-
+        <div className="grid sm:grid-cols-2 gap-4">
           <div className="space-y-1">
             <Label className="text-xs font-semibold text-slate-700">
               Franquia / Produção (pág/mês) *
@@ -778,70 +763,108 @@ export function ModernRentalSimulator({
             />
             <p className="text-[10px] text-slate-400">Volume estimado</p>
           </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold text-slate-700">Locação Mensal Base (R$)</Label>
+          <label className="text-xs font-semibold">
+            Prazo do contrato (meses)
             <Input
               type="number"
-              step="0.01"
-              min="0"
-              value={locacaoMensal || ''}
-              onChange={(e) => setLocacaoMensal(parseFloat(e.target.value) || 0)}
-              className="h-9 text-xs font-mono font-bold"
+              min="1"
+              max="120"
+              step="1"
+              value={contratoMeses}
+              onChange={(e) =>
+                setContratoMeses(Math.max(1, Math.min(120, parseInt(e.target.value, 10) || 1)))
+              }
             />
-            <p className="text-[10px] text-slate-400">Parcela locatícia fixa</p>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold text-slate-700">Vida Útil (meses)</Label>
-            <Input
-              type="number"
-              step="12"
-              min="12"
-              max="96"
-              value={vidaUtilCustom || ''}
-              onChange={(e) => setVidaUtilCustom(parseInt(e.target.value, 10) || 48)}
-              className="h-9 text-xs font-mono"
-            />
-            <p className="text-[10px] text-slate-400">Padrão: 48m (usados: 24m)</p>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold text-slate-700">
-              Software Printway (R$/mês)
-            </Label>
-            <Input
-              type="text"
-              value={printwayCostCustom}
-              onChange={(e) => setPrintwayCostCustom(e.target.value)}
-              onBlur={(e) => handleSavePrintwayCost(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.currentTarget.blur()
-                }
-              }}
-              placeholder="0,00"
-              className="h-9 text-xs font-mono font-bold text-indigo-950 bg-indigo-50/40 border-indigo-200 focus:border-indigo-500 focus:bg-white"
-              title="Custo mensal do software de gerenciamento Printway para esta máquina (Enter ou desfoque salva)"
-            />
-            <p className="text-[10px] text-slate-400">Diluído no volume</p>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold text-slate-700">
-              Mark-up Revenda (Fator) *
-            </Label>
-            <Input
-              type="number"
-              step="0.01"
-              min="1.0"
-              value={markupCustom || ''}
-              onChange={(e) => setMarkupCustom(parseFloat(e.target.value) || 1.45)}
-              className="h-9 text-xs font-mono font-bold text-indigo-950"
-            />
-            <p className="text-[10px] text-slate-400">Ex: 1.4500 (sobre total)</p>
-          </div>
+          </label>
         </div>
+        <details className="rounded-lg border p-3">
+          <summary className="cursor-pointer font-semibold text-sm">
+            Abrir custos e parâmetros de cálculo
+          </summary>
+          <p className="text-xs my-2">
+            Alteração dos parâmetros de cálculo reservada ao administrador.
+          </p>
+          <fieldset disabled={!isAdmin} className="grid sm:grid-cols-3 gap-3 text-xs">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">Valor de Compra (R$) *</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={equipPriceCustom}
+                onChange={(e) => setEquipPriceCustom(e.target.value)}
+                placeholder="Ex: 2094.33"
+                className={`h-9 text-xs font-mono font-bold ${
+                  !equipPriceCustom || parseFloat(equipPriceCustom) <= 0
+                    ? 'border-amber-400 bg-amber-50 text-amber-900'
+                    : ''
+                }`}
+              />
+              <p className="text-[10px] text-slate-400">Ativo para depreciação</p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">
+                Locação Mensal Base (R$)
+              </Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={locacaoMensal || ''}
+                onChange={(e) => setLocacaoMensal(parseFloat(e.target.value) || 0)}
+                className="h-9 text-xs font-mono font-bold"
+              />
+              <p className="text-[10px] text-slate-400">Parcela locatícia fixa</p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">Vida Útil (meses)</Label>
+              <Input
+                type="number"
+                step="12"
+                min="12"
+                max="96"
+                value={vidaUtilCustom || ''}
+                onChange={(e) => setVidaUtilCustom(parseInt(e.target.value, 10) || 48)}
+                className="h-9 text-xs font-mono"
+              />
+              <p className="text-[10px] text-slate-400">Padrão: 48m (usados: 24m)</p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">
+                Software Printway (R$/mês)
+              </Label>
+              <Input
+                type="text"
+                value={printwayCostCustom}
+                onChange={(e) => setPrintwayCostCustom(e.target.value)}
+                onBlur={(e) => handleSavePrintwayCost(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.currentTarget.blur()
+                  }
+                }}
+                placeholder="0,00"
+                className="h-9 text-xs font-mono font-bold text-indigo-950 bg-indigo-50/40 border-indigo-200 focus:border-indigo-500 focus:bg-white"
+                title="Custo mensal do software de gerenciamento Printway para esta máquina (Enter ou desfoque salva)"
+              />
+              <p className="text-[10px] text-slate-400">Diluído no volume</p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">
+                Mark-up Revenda (Fator) *
+              </Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="1.0"
+                value={markupCustom || ''}
+                onChange={(e) => setMarkupCustom(parseFloat(e.target.value) || 1.45)}
+                className="h-9 text-xs font-mono font-bold text-indigo-950"
+              />
+              <p className="text-[10px] text-slate-400">Ex: 1.4500 (sobre total)</p>
+            </div>
+          </fieldset>
+        </details>
 
         {/* ALERTA SE MODELO BLOQUEADO OU FALTANDO PREÇO */}
         {selectedPrinter?.bloqueada && (
@@ -857,19 +880,24 @@ export function ModernRentalSimulator({
       </div>
 
       {/* BLOCO 2: SUPRIMENTOS VINCULADOS (5 SLOTS COLORIDOS) */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3">
-        <SupplySlotsGrid
-          slots={calculation.slotsEnriquecidos}
-          allSupplies={supplies}
-          printerModel={selectedPrinter?.modelo}
-          printerManufacturer={selectedPrinter?.fabricante}
-          readOnly={readOnly}
-          onToggleSlotInclusion={handleToggleSlotInclusion}
-          onUpdateSlotSupply={handleUpdateSlotSupply}
-          onUpdateSlotValues={handleUpdateSlotValues}
-          onOpenSupplyEditModal={handleOpenSupplyEditInternal}
-        />{' '}
-      </div>
+      <details className="rounded-lg border p-3">
+        <summary className="cursor-pointer font-semibold text-sm">
+          Abrir suprimentos, preços e rendimentos
+        </summary>
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3">
+          <SupplySlotsGrid
+            slots={calculation.slotsEnriquecidos}
+            allSupplies={supplies}
+            printerModel={selectedPrinter?.modelo}
+            printerManufacturer={selectedPrinter?.fabricante}
+            readOnly={readOnly}
+            onToggleSlotInclusion={handleToggleSlotInclusion}
+            onUpdateSlotSupply={handleUpdateSlotSupply}
+            onUpdateSlotValues={handleUpdateSlotValues}
+            onOpenSupplyEditModal={handleOpenSupplyEditInternal}
+          />{' '}
+        </div>
+      </details>
 
       {/* BLOCO 3: RESULTADOS DA PRECIFICAÇÃO & BREAK-EVEN */}
       <ResultsPricingPanel
@@ -892,208 +920,215 @@ export function ModernRentalSimulator({
       />
 
       {/* BLOCO EM CASCATA: CONSULTAS & GESTÃO (SUPRIMENTOS, IMPRESSORAS E PARÂMETROS/AUDITORIA) */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all">
-        <div className="bg-gradient-to-r from-slate-50 via-indigo-50/30 to-slate-50 p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-indigo-600/10 text-indigo-700 flex items-center justify-center font-bold">
-              <Layers className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-slate-900 text-sm">
-                  Consultas e Parâmetros em Cascata
-                </h3>
-                <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                  Expansível sob demanda
-                </span>
+      <details className="rounded-lg border p-3">
+        <summary className="cursor-pointer font-semibold text-sm">
+          Abrir cadastros e configurações
+        </summary>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all">
+          <div className="bg-gradient-to-r from-slate-50 via-indigo-50/30 to-slate-50 p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-lg bg-indigo-600/10 text-indigo-700 flex items-center justify-center font-bold">
+                <Layers className="h-4 w-4" />
               </div>
-              <p className="text-xs text-slate-500">
-                Consulte ou ajuste insumos, máquinas do parque e parâmetros globais sem sair do
-                simulador.
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-slate-900 text-sm">
+                    Consultas e Parâmetros em Cascata
+                  </h3>
+                  <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                    Expansível sob demanda
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Consulte ou ajuste insumos, máquinas do parque e parâmetros globais sem sair do
+                  simulador.
+                </p>
+              </div>
             </div>
-          </div>
 
-          {/* Atalhos rápidos para abrir/fechar direto */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <Button
-              type="button"
-              variant={cascadeOpen === 'suprimentos' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() =>
-                setCascadeOpen((prev) => (prev === 'suprimentos' ? '' : 'suprimentos'))
-              }
-              className={`h-8 text-xs font-semibold gap-1.5 ${
-                cascadeOpen === 'suprimentos'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-700 border-slate-300 hover:border-indigo-400'
-              }`}
-            >
-              <Package className="h-3.5 w-3.5" />
-              <span>Suprimentos ({supplies.length})</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant={cascadeOpen === 'impressoras' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() =>
-                setCascadeOpen((prev) => (prev === 'impressoras' ? '' : 'impressoras'))
-              }
-              className={`h-8 text-xs font-semibold gap-1.5 ${
-                cascadeOpen === 'impressoras'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-700 border-slate-300 hover:border-indigo-400'
-              }`}
-            >
-              <Printer className="h-3.5 w-3.5" />
-              <span>Impressoras ({printers.length})</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant={cascadeOpen === 'parametros' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setCascadeOpen((prev) => (prev === 'parametros' ? '' : 'parametros'))}
-              className={`h-8 text-xs font-semibold gap-1.5 ${
-                cascadeOpen === 'parametros'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-700 border-slate-300 hover:border-indigo-400'
-              }`}
-            >
-              <SettingsIcon className="h-3.5 w-3.5" />
-              <span>Parâmetros & Auditoria</span>
-            </Button>
-
-            {cascadeOpen && (
+            {/* Atalhos rápidos para abrir/fechar direto */}
+            <div className="flex items-center gap-1.5 flex-wrap">
               <Button
                 type="button"
-                variant="ghost"
+                variant={cascadeOpen === 'suprimentos' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setCascadeOpen('')}
-                className="h-8 text-xs text-slate-500 hover:text-slate-900"
+                onClick={() =>
+                  setCascadeOpen((prev) => (prev === 'suprimentos' ? '' : 'suprimentos'))
+                }
+                className={`h-8 text-xs font-semibold gap-1.5 ${
+                  cascadeOpen === 'suprimentos'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-700 border-slate-300 hover:border-indigo-400'
+                }`}
               >
-                Recolher
+                <Package className="h-3.5 w-3.5" />
+                <span>Suprimentos ({supplies.length})</span>
               </Button>
-            )}
+
+              <Button
+                type="button"
+                variant={cascadeOpen === 'impressoras' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() =>
+                  setCascadeOpen((prev) => (prev === 'impressoras' ? '' : 'impressoras'))
+                }
+                className={`h-8 text-xs font-semibold gap-1.5 ${
+                  cascadeOpen === 'impressoras'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-700 border-slate-300 hover:border-indigo-400'
+                }`}
+              >
+                <Printer className="h-3.5 w-3.5" />
+                <span>Impressoras ({printers.length})</span>
+              </Button>
+
+              <Button
+                type="button"
+                variant={cascadeOpen === 'parametros' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() =>
+                  setCascadeOpen((prev) => (prev === 'parametros' ? '' : 'parametros'))
+                }
+                className={`h-8 text-xs font-semibold gap-1.5 ${
+                  cascadeOpen === 'parametros'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-700 border-slate-300 hover:border-indigo-400'
+                }`}
+              >
+                <SettingsIcon className="h-3.5 w-3.5" />
+                <span>Parâmetros & Auditoria</span>
+              </Button>
+
+              {cascadeOpen && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCascadeOpen('')}
+                  className="h-8 text-xs text-slate-500 hover:text-slate-900"
+                >
+                  Recolher
+                </Button>
+              )}
+            </div>
           </div>
+
+          {/* Accordion das 3 seções */}
+          <Accordion
+            type="single"
+            collapsible
+            value={cascadeOpen}
+            onValueChange={setCascadeOpen}
+            className="w-full divide-y divide-slate-100"
+          >
+            {/* 1. SEÇÃO EM CASCATA: SUPRIMENTOS */}
+            <AccordionItem value="suprimentos" className="border-b-0 px-4">
+              <AccordionTrigger className="py-3.5 hover:no-underline group">
+                <div className="flex items-center gap-2.5 text-left">
+                  <div className="h-7 w-7 rounded-md bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                    <Package className="h-3.5 w-3.5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                        Consulta & Edição de Suprimentos
+                      </span>
+                      <Badge variant="outline" className="text-[10px] bg-slate-50 font-mono">
+                        {supplies.length} cadastrados
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-normal">
+                      Edição inline de valor de compra, rendimento em páginas, recálculo de CPP e
+                      reajuste em lote.
+                    </p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-2 pb-5">
+                <div className="bg-slate-50/60 p-3 sm:p-4 rounded-xl border border-slate-200">
+                  <SuppliesManagementTab
+                    supplies={supplies}
+                    onReload={onReloadData}
+                    readOnly={readOnly}
+                  />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* 2. SEÇÃO EM CASCATA: IMPRESSORAS */}
+            <AccordionItem value="impressoras" className="border-b-0 px-4">
+              <AccordionTrigger className="py-3.5 hover:no-underline group">
+                <div className="flex items-center gap-2.5 text-left">
+                  <div className="h-7 w-7 rounded-md bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+                    <Printer className="h-3.5 w-3.5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                        Consulta & Cadastro de Impressoras do Parque
+                      </span>
+                      <Badge variant="outline" className="text-[10px] bg-slate-50 font-mono">
+                        {printers.length} modelos
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-normal">
+                      Parque de máquinas, mapeamento dos 5 slots de suprimentos, custos de aquisição
+                      e vida útil.
+                    </p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-2 pb-5">
+                <div className="bg-slate-50/60 p-3 sm:p-4 rounded-xl border border-slate-200">
+                  <PrintersManagementTab
+                    printers={printers}
+                    supplies={supplies}
+                    onReload={onReloadData}
+                    readOnly={!isAdmin}
+                  />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* 3. SEÇÃO EM CASCATA: PARÂMETROS & AUDITORIA */}
+            <AccordionItem value="parametros" className="border-b-0 px-4">
+              <AccordionTrigger className="py-3.5 hover:no-underline group">
+                <div className="flex items-center gap-2.5 text-left">
+                  <div className="h-7 w-7 rounded-md bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+                    <SettingsIcon className="h-3.5 w-3.5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                        Parâmetros Globais, Trilha de Auditoria & Exportação
+                      </span>
+                      <Badge variant="outline" className="text-[10px] bg-slate-50 font-mono">
+                        {auditHistory.length} logs de auditoria
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-normal">
+                      Mark-up padrão, vida útil padrão de 48m, histórico imutável de alterações e
+                      backup JSON.
+                    </p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-2 pb-5">
+                <div className="bg-slate-50/60 p-3 sm:p-4 rounded-xl border border-slate-200">
+                  <ParametersAndAuditTab
+                    parametros={parametros}
+                    auditHistory={auditHistory}
+                    supplies={supplies}
+                    printers={printers}
+                    onReload={onReloadData}
+                    readOnly={!isAdmin}
+                  />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
-
-        {/* Accordion das 3 seções */}
-        <Accordion
-          type="single"
-          collapsible
-          value={cascadeOpen}
-          onValueChange={setCascadeOpen}
-          className="w-full divide-y divide-slate-100"
-        >
-          {/* 1. SEÇÃO EM CASCATA: SUPRIMENTOS */}
-          <AccordionItem value="suprimentos" className="border-b-0 px-4">
-            <AccordionTrigger className="py-3.5 hover:no-underline group">
-              <div className="flex items-center gap-2.5 text-left">
-                <div className="h-7 w-7 rounded-md bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-                  <Package className="h-3.5 w-3.5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
-                      Consulta & Edição de Suprimentos
-                    </span>
-                    <Badge variant="outline" className="text-[10px] bg-slate-50 font-mono">
-                      {supplies.length} cadastrados
-                    </Badge>
-                  </div>
-                  <p className="text-[11px] text-slate-500 font-normal">
-                    Edição inline de valor de compra, rendimento em páginas, recálculo de CPP e
-                    reajuste em lote.
-                  </p>
-                </div>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="pt-2 pb-5">
-              <div className="bg-slate-50/60 p-3 sm:p-4 rounded-xl border border-slate-200">
-                <SuppliesManagementTab
-                  supplies={supplies}
-                  onReload={onReloadData}
-                  readOnly={readOnly}
-                />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-
-          {/* 2. SEÇÃO EM CASCATA: IMPRESSORAS */}
-          <AccordionItem value="impressoras" className="border-b-0 px-4">
-            <AccordionTrigger className="py-3.5 hover:no-underline group">
-              <div className="flex items-center gap-2.5 text-left">
-                <div className="h-7 w-7 rounded-md bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
-                  <Printer className="h-3.5 w-3.5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
-                      Consulta & Cadastro de Impressoras do Parque
-                    </span>
-                    <Badge variant="outline" className="text-[10px] bg-slate-50 font-mono">
-                      {printers.length} modelos
-                    </Badge>
-                  </div>
-                  <p className="text-[11px] text-slate-500 font-normal">
-                    Parque de máquinas, mapeamento dos 5 slots de suprimentos, custos de aquisição e
-                    vida útil.
-                  </p>
-                </div>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="pt-2 pb-5">
-              <div className="bg-slate-50/60 p-3 sm:p-4 rounded-xl border border-slate-200">
-                <PrintersManagementTab
-                  printers={printers}
-                  supplies={supplies}
-                  onReload={onReloadData}
-                  readOnly={readOnly}
-                />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-
-          {/* 3. SEÇÃO EM CASCATA: PARÂMETROS & AUDITORIA */}
-          <AccordionItem value="parametros" className="border-b-0 px-4">
-            <AccordionTrigger className="py-3.5 hover:no-underline group">
-              <div className="flex items-center gap-2.5 text-left">
-                <div className="h-7 w-7 rounded-md bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
-                  <SettingsIcon className="h-3.5 w-3.5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
-                      Parâmetros Globais, Trilha de Auditoria & Exportação
-                    </span>
-                    <Badge variant="outline" className="text-[10px] bg-slate-50 font-mono">
-                      {auditHistory.length} logs de auditoria
-                    </Badge>
-                  </div>
-                  <p className="text-[11px] text-slate-500 font-normal">
-                    Mark-up padrão, vida útil padrão de 48m, histórico imutável de alterações e
-                    backup JSON.
-                  </p>
-                </div>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="pt-2 pb-5">
-              <div className="bg-slate-50/60 p-3 sm:p-4 rounded-xl border border-slate-200">
-                <ParametersAndAuditTab
-                  parametros={parametros}
-                  auditHistory={auditHistory}
-                  supplies={supplies}
-                  printers={printers}
-                  onReload={onReloadData}
-                  readOnly={readOnly}
-                />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      </div>
+      </details>
 
       {/* MODAL DE CONFIRMAÇÃO SE HOUVER SLOTS ESTRUTURAIS/ESSENCIAIS DESMARCADOS */}
       <Dialog

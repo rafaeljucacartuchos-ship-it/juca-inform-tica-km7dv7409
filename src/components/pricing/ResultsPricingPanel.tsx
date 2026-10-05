@@ -93,67 +93,73 @@ Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarif
 
   return (
     <div className="space-y-4">
-      <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-        <h3 className="font-bold text-slate-900">Resumo para decisão — estimativa mensal</h3>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div>
-            <p className="text-xs text-slate-500">Custo calculado</p>
-            <strong>{dadosValidos ? moeda(custoMensalEstimado) : 'Dados incompletos'}</strong>
-            <p className="text-xs">Insumos + depreciação + software</p>
+      <details className="rounded-xl border border-slate-200 bg-white p-4">
+        <summary className="cursor-pointer font-semibold">
+          Abrir análise de custos e resultado
+        </summary>
+        <section className="space-y-3">
+          <h3 className="font-bold text-slate-900">Resumo para decisão — estimativa mensal</h3>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div>
+              <p className="text-xs text-slate-500">Custo calculado</p>
+              <strong>{dadosValidos ? moeda(custoMensalEstimado) : 'Dados incompletos'}</strong>
+              <p className="text-xs">Insumos + depreciação + software</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">Receita prevista</p>
+              <strong>{dadosValidos ? moeda(receitaPrevista) : 'Não calculada'}</strong>
+              <p className="text-xs">Mensalidade com páginas incluídas</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">Resultado antes dos custos não cadastrados</p>
+              <strong>{dadosValidos ? moeda(resultadoParcial) : 'Não calculado'}</strong>
+              <p className="text-xs">
+                {dadosValidos
+                  ? margemParcial.toFixed(1) + '% da receita prevista'
+                  : 'Complete o cadastro'}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs text-slate-500">Receita prevista</p>
-            <strong>{dadosValidos ? moeda(receitaPrevista) : 'Não calculada'}</strong>
-            <p className="text-xs">Mensalidade com páginas incluídas</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500">Resultado antes dos custos não cadastrados</p>
-            <strong>{dadosValidos ? moeda(resultadoParcial) : 'Não calculado'}</strong>
-            <p className="text-xs">
-              {dadosValidos
-                ? margemParcial.toFixed(1) + '% da receita prevista'
-                : 'Complete o cadastro'}
-            </p>
-          </div>
-        </div>
-        <p className="text-xs text-amber-800">
-          Não é lucro líquido nem valor recebido. Impostos, deslocamentos, mão de obra,
-          inadimplência e outros custos não informados precisam ser considerados antes de fechar a
-          proposta.
-        </p>
-        <details className="border-t pt-2">
-          <summary className="cursor-pointer text-sm font-semibold">
-            Entenda o cálculo e as pendências
-          </summary>
-          <ul className="mt-2 list-disc pl-5 text-xs space-y-1">
-            <li>
-              CPP dos insumos = soma do custo dividido pelo rendimento de cada item incluído.
-              Rendimentos são estimativas e variam com cobertura e uso.
-            </li>
-            <li>
-              Equipamento = compra dividida pela vida útil e pelo volume mensal. Software mensal
-              também é dividido pelo volume.
-            </li>
-            <li>
-              O fator {markup.toFixed(2)} representa acréscimo de {((markup - 1) * 100).toFixed(1)}%
-              sobre o custo; não é a mesma porcentagem de margem sobre a venda.
-            </li>
-            <li>
-              O cálculo atual soma uma parcela base ao valor das páginas. Confirme a modalidade
-              comercial antes de emitir; franquia incluída e cobrança por todas as páginas são
-              diferentes.
-            </li>
-            <li>
-              A depreciação já integra o CPP. Confira a finalidade da parcela base para não
-              recuperar o mesmo custo duas vezes inadvertidamente.
-            </li>
-            <li>
-              Esta tela não registra leitura de contador nem comprova faturamento ou recebimento.
-              Utilize os dados reais do contrato e das leituras para cobrança.
-            </li>
-          </ul>
-        </details>
-      </section>
+          <p className="text-xs text-amber-800">
+            Não é lucro líquido nem valor recebido. Impostos, deslocamentos, mão de obra,
+            inadimplência e outros custos não informados precisam ser considerados antes de fechar a
+            proposta.
+          </p>
+          <details className="border-t pt-2">
+            <summary className="cursor-pointer text-sm font-semibold">
+              Entenda o cálculo e as pendências
+            </summary>
+            <ul className="mt-2 list-disc pl-5 text-xs space-y-1">
+              <li>
+                CPP dos insumos = soma do custo dividido pelo rendimento de cada item incluído.
+                Rendimentos são estimativas e variam com cobertura e uso.
+              </li>
+              <li>
+                Equipamento = compra dividida pela vida útil e pelo volume mensal. Software mensal
+                também é dividido pelo volume.
+              </li>
+              <li>
+                O fator {markup.toFixed(2)} representa acréscimo de{' '}
+                {((markup - 1) * 100).toFixed(1)}% sobre o custo; não é a mesma porcentagem de
+                margem sobre a venda.
+              </li>
+              <li>
+                O cálculo atual soma uma parcela base ao valor das páginas. Confirme a modalidade
+                comercial antes de emitir; franquia incluída e cobrança por todas as páginas são
+                diferentes.
+              </li>
+              <li>
+                A depreciação já integra o CPP. Confira a finalidade da parcela base para não
+                recuperar o mesmo custo duas vezes inadvertidamente.
+              </li>
+              <li>
+                Esta tela não registra leitura de contador nem comprova faturamento ou recebimento.
+                Utilize os dados reais do contrato e das leituras para cobrança.
+              </li>
+            </ul>
+          </details>
+        </section>
+      </details>
       <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 space-y-3">
         <h3 className="font-bold">Franquia contratada + excedente</h3>
         <p className="text-sm">
@@ -204,260 +210,264 @@ Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarif
           sugerida pelo CPP de venda atual; prevalecem as condições do contrato.
         </p>
       </section>
-      {/* CARD HERO DE PRECIFICAÇÃO */}
-      <div className="rounded-xl border-2 border-indigo-200 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 text-white p-6 shadow-lg space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">
-              Precificação Automatizada em Tempo Real
-            </span>
-            <h3 className="text-base font-extrabold text-white">
-              Custo por Página (CPP) de Venda & Faturamento
-            </h3>
-          </div>
-          <Badge className="bg-amber-500 text-slate-950 font-bold text-xs">
-            Mark-up: {markup.toFixed(2)}x
-          </Badge>
-        </div>
-
-        {/* VALORES HERO */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center sm:text-left space-y-1">
-            <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
-              CPP de Venda Simulado (com Mark-up)
-            </span>
-            <div className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-white">
-              {calculation.formatted.cppVenda}
+      <details className="rounded-lg border p-3">
+        <summary className="cursor-pointer font-semibold">
+          Abrir composição do preço e comparação
+        </summary>
+        {/* CARD HERO DE PRECIFICAÇÃO */}
+        <div className="rounded-xl border-2 border-indigo-200 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 text-white p-6 shadow-lg space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">
+                Precificação Automatizada em Tempo Real
+              </span>
+              <h3 className="text-base font-extrabold text-white">
+                Custo por Página (CPP) de Venda & Faturamento
+              </h3>
             </div>
-            <p className="text-[11px] text-indigo-300">
-              Custo Total Fornecedor ({calculation.formatted.cppFornecedorTotal}) ×{' '}
-              {markup.toFixed(2)}x
-            </p>
+            <Badge className="bg-amber-500 text-slate-950 font-bold text-xs">
+              Mark-up: {markup.toFixed(2)}x
+            </Badge>
           </div>
 
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center sm:text-left space-y-1">
-            <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
-              Componente da franquia referente às páginas ({producaoMensal.toLocaleString('pt-BR')}{' '}
-              págs)
-            </span>
-            <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-400">
-              {calculation.formatted.custoMensalProducao}
-            </div>
-            {locacaoMensal > 0 && (
-              <p className="text-[11px] text-slate-300">
-                Mensalidade da franquia (base R$ {locacaoMensal.toFixed(2)} + componente de
-                páginas):{' '}
-                <strong className="text-white font-mono">
-                  {calculation.formatted.faturamentoTotalMensal}
-                </strong>
+          {/* VALORES HERO */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center sm:text-left space-y-1">
+              <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
+                CPP de Venda Simulado (com Mark-up)
+              </span>
+              <div className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-white">
+                {calculation.formatted.cppVenda}
+              </div>
+              <p className="text-[11px] text-indigo-300">
+                Custo Total Fornecedor ({calculation.formatted.cppFornecedorTotal}) ×{' '}
+                {markup.toFixed(2)}x
               </p>
-            )}
+            </div>
+
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center sm:text-left space-y-1">
+              <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
+                Componente da franquia referente às páginas (
+                {producaoMensal.toLocaleString('pt-BR')} págs)
+              </span>
+              <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-400">
+                {calculation.formatted.custoMensalProducao}
+              </div>
+              {locacaoMensal > 0 && (
+                <p className="text-[11px] text-slate-300">
+                  Mensalidade da franquia (base R$ {locacaoMensal.toFixed(2)} + componente de
+                  páginas):{' '}
+                  <strong className="text-white font-mono">
+                    {calculation.formatted.faturamentoTotalMensal}
+                  </strong>
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* DECOMPOSIÇÃO DE CUSTOS (CPP SUPRIMENTOS + EQUIPAMENTO + SOFTWARE PRINTWAY) */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs pt-1">
+            <div className="bg-black/30 p-2.5 rounded-lg border border-white/5">
+              <span className="text-[10px] text-slate-400 block uppercase font-medium">
+                1. CPP Suprimentos:
+              </span>
+              <span className="font-mono font-bold text-indigo-200 text-xs">
+                {calculation.formatted.cppSuprimentos}
+              </span>
+            </div>
+
+            <div className="bg-black/30 p-2.5 rounded-lg border border-white/5">
+              <span className="text-[10px] text-slate-400 block uppercase font-medium">
+                2. CPP Equipamento ({vidaUtil}m):
+              </span>
+              <span className="font-mono font-bold text-indigo-200 text-xs">
+                {calculation.formatted.cppEquipamento}
+              </span>
+            </div>
+
+            <div className="bg-black/30 p-2.5 rounded-lg border border-white/5">
+              <span className="text-[10px] text-slate-400 block uppercase font-medium">
+                3. Software Printway:
+              </span>
+              <span
+                className="font-mono font-bold text-indigo-200 text-xs"
+                title={`${calculation.formatted.valorSoftwarePrintway}/mês`}
+              >
+                {calculation.formatted.cppSoftwarePrintway}
+              </span>
+              <span className="text-[9px] text-slate-400 block font-mono">
+                {calculation.formatted.valorSoftwarePrintway}/mês
+              </span>
+            </div>
+
+            <div className="bg-black/30 p-2.5 rounded-lg border border-white/5">
+              <span className="text-[10px] text-slate-400 block uppercase font-medium">
+                4. CPP Total Fornecedor:
+              </span>
+              <span className="font-mono font-bold text-amber-300 text-xs">
+                {calculation.formatted.cppFornecedorTotal}
+              </span>
+            </div>
+
+            <div className="bg-black/30 p-2.5 rounded-lg border border-white/5 col-span-2 sm:col-span-1">
+              <span className="text-[10px] text-slate-400 block uppercase font-medium">
+                5. Fator de acréscimo:
+              </span>
+              <span className="font-mono font-bold text-emerald-300 text-xs">
+                {markup.toFixed(2)}x sobre total
+              </span>
+            </div>
+          </div>
+
+          {/* LISTA COMPACTA DE SLOTS INCLUÍDOS NO CÁLCULO */}
+          <div className="pt-2 border-t border-white/10 text-xs">
+            <div className="flex items-center justify-between pb-1.5">
+              <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">
+                Slots no Cálculo (
+                {
+                  calculation.slotsEnriquecidos.filter(
+                    (s) => s.visualStatus !== 'empty' && s.included,
+                  ).length
+                }{' '}
+                incluídos):
+              </span>
+              <span className="text-[11px] font-mono text-emerald-300 font-bold">
+                Subtotal CPP Suprimentos: {calculation.formatted.cppSuprimentos}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {calculation.slotsEnriquecidos
+                .filter((s) => s.visualStatus !== 'empty' && s.included)
+                .map((s) => (
+                  <div
+                    key={s.slotNumber}
+                    className="bg-white/10 hover:bg-white/15 px-2 py-1 rounded text-[11px] flex items-center gap-1.5 border border-white/10"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#E87722]" />
+                    <span className="font-bold text-white">S{s.slotNumber}:</span>
+                    <span className="text-slate-200 font-mono">{s.modelo}</span>
+                    <span className="text-amber-300 font-mono text-[10px]">
+                      (R$ {s.cppCalculado.toFixed(4)})
+                    </span>
+                  </div>
+                ))}
+              {calculation.slotsEnriquecidos.filter((s) => s.visualStatus !== 'empty' && s.included)
+                .length === 0 && (
+                <span className="text-slate-400 italic text-[11px]">
+                  Nenhum suprimento selecionado. O CPP de suprimentos está zerado.
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* DECOMPOSIÇÃO DE CUSTOS (CPP SUPRIMENTOS + EQUIPAMENTO + SOFTWARE PRINTWAY) */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs pt-1">
-          <div className="bg-black/30 p-2.5 rounded-lg border border-white/5">
-            <span className="text-[10px] text-slate-400 block uppercase font-medium">
-              1. CPP Suprimentos:
-            </span>
-            <span className="font-mono font-bold text-indigo-200 text-xs">
-              {calculation.formatted.cppSuprimentos}
-            </span>
-          </div>
-
-          <div className="bg-black/30 p-2.5 rounded-lg border border-white/5">
-            <span className="text-[10px] text-slate-400 block uppercase font-medium">
-              2. CPP Equipamento ({vidaUtil}m):
-            </span>
-            <span className="font-mono font-bold text-indigo-200 text-xs">
-              {calculation.formatted.cppEquipamento}
-            </span>
-          </div>
-
-          <div className="bg-black/30 p-2.5 rounded-lg border border-white/5">
-            <span className="text-[10px] text-slate-400 block uppercase font-medium">
-              3. Software Printway:
-            </span>
-            <span
-              className="font-mono font-bold text-indigo-200 text-xs"
-              title={`${calculation.formatted.valorSoftwarePrintway}/mês`}
+        {/* BLOCO DE BREAK-EVEN / PONTO DE EQUILÍBRIO (Seção 3.6 / 11.2) */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-indigo-600" />
+              <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wide">
+                Análise de Ponto de Equilíbrio (Break-Even entre Cenários)
+              </h4>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowBreakEvenSettings(!showBreakEvenSettings)}
+              className="text-[11px] font-semibold text-indigo-600 h-6 px-2"
             >
-              {calculation.formatted.cppSoftwarePrintway}
-            </span>
-            <span className="text-[9px] text-slate-400 block font-mono">
-              {calculation.formatted.valorSoftwarePrintway}/mês
-            </span>
+              {showBreakEvenSettings ? 'Ocultar Parâmetros' : 'Comparar Outro Modelo'}
+            </Button>
           </div>
 
-          <div className="bg-black/30 p-2.5 rounded-lg border border-white/5">
-            <span className="text-[10px] text-slate-400 block uppercase font-medium">
-              4. CPP Total Fornecedor:
-            </span>
-            <span className="font-mono font-bold text-amber-300 text-xs">
-              {calculation.formatted.cppFornecedorTotal}
-            </span>
-          </div>
+          {/* Configuração do Modelo B para Comparação */}
+          {showBreakEvenSettings && onUpdateScenarioB && (
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3 text-xs">
+              <p className="text-[11px] text-slate-600">
+                Selecione um segundo equipamento para calcular o ponto de equilíbrio de volume:
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-700">
+                    Equipamento Concorrente (Cenário B)
+                  </Label>
+                  <select
+                    value={printerScenarioB?.id || ''}
+                    onChange={(e) => {
+                      const found = availablePrinters.find((p) => p.id === e.target.value) || null
+                      onUpdateScenarioB(found, locacaoScenarioB)
+                    }}
+                    className="w-full h-8 text-xs rounded-md border border-slate-300 bg-white px-2"
+                  >
+                    <option value="">Selecione para comparar...</option>
+                    {availablePrinters.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.modelo} ({p.fabricante} - {p.tecnologia})
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-          <div className="bg-black/30 p-2.5 rounded-lg border border-white/5 col-span-2 sm:col-span-1">
-            <span className="text-[10px] text-slate-400 block uppercase font-medium">
-              5. Fator de acréscimo:
-            </span>
-            <span className="font-mono font-bold text-emerald-300 text-xs">
-              {markup.toFixed(2)}x sobre total
-            </span>
-          </div>
-        </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-700">
+                    Locação Mensal Base (Cenário B - R$)
+                  </Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={locacaoScenarioB || ''}
+                    onChange={(e) =>
+                      onUpdateScenarioB(printerScenarioB || null, parseFloat(e.target.value) || 0)
+                    }
+                    placeholder="Ex: 490.14"
+                    className="h-8 text-xs font-mono"
+                  ></Input>
+                </div>
+              </div>
+            </div>
+          )}
 
-        {/* LISTA COMPACTA DE SLOTS INCLUÍDOS NO CÁLCULO */}
-        <div className="pt-2 border-t border-white/10 text-xs">
-          <div className="flex items-center justify-between pb-1.5">
-            <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">
-              Slots no Cálculo (
-              {
-                calculation.slotsEnriquecidos.filter(
-                  (s) => s.visualStatus !== 'empty' && s.included,
-                ).length
-              }{' '}
-              incluídos):
-            </span>
-            <span className="text-[11px] font-mono text-emerald-300 font-bold">
-              Subtotal CPP Suprimentos: {calculation.formatted.cppSuprimentos}
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {calculation.slotsEnriquecidos
-              .filter((s) => s.visualStatus !== 'empty' && s.included)
-              .map((s) => (
-                <div
-                  key={s.slotNumber}
-                  className="bg-white/10 hover:bg-white/15 px-2 py-1 rounded text-[11px] flex items-center gap-1.5 border border-white/10"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#E87722]" />
-                  <span className="font-bold text-white">S{s.slotNumber}:</span>
-                  <span className="text-slate-200 font-mono">{s.modelo}</span>
-                  <span className="text-amber-300 font-mono text-[10px]">
-                    (R$ {s.cppCalculado.toFixed(4)})
+          {/* Resultado do Break-Even */}
+          {breakEven && breakEven.valid && breakEven.paginasBreakEven !== null ? (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-baseline justify-between gap-2 p-3 bg-indigo-50/70 border border-indigo-200 rounded-lg">
+                <div>
+                  <span className="text-[11px] font-medium text-indigo-800 block">
+                    Ponto de Inflexão (Break-Even):
+                  </span>
+                  <span className="font-mono font-black text-indigo-950 text-xl">
+                    {Math.round(breakEven.paginasBreakEven).toLocaleString('pt-BR')} páginas/mês
                   </span>
                 </div>
-              ))}
-            {calculation.slotsEnriquecidos.filter((s) => s.visualStatus !== 'empty' && s.included)
-              .length === 0 && (
-              <span className="text-slate-400 italic text-[11px]">
-                Nenhum suprimento selecionado. O CPP de suprimentos está zerado.
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* BLOCO DE BREAK-EVEN / PONTO DE EQUILÍBRIO (Seção 3.6 / 11.2) */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-indigo-600" />
-            <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wide">
-              Análise de Ponto de Equilíbrio (Break-Even entre Cenários)
-            </h4>
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowBreakEvenSettings(!showBreakEvenSettings)}
-            className="text-[11px] font-semibold text-indigo-600 h-6 px-2"
-          >
-            {showBreakEvenSettings ? 'Ocultar Parâmetros' : 'Comparar Outro Modelo'}
-          </Button>
-        </div>
-
-        {/* Configuração do Modelo B para Comparação */}
-        {showBreakEvenSettings && onUpdateScenarioB && (
-          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3 text-xs">
-            <p className="text-[11px] text-slate-600">
-              Selecione um segundo equipamento para calcular o ponto de equilíbrio de volume:
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold text-slate-700">
-                  Equipamento Concorrente (Cenário B)
-                </Label>
-                <select
-                  value={printerScenarioB?.id || ''}
-                  onChange={(e) => {
-                    const found = availablePrinters.find((p) => p.id === e.target.value) || null
-                    onUpdateScenarioB(found, locacaoScenarioB)
-                  }}
-                  className="w-full h-8 text-xs rounded-md border border-slate-300 bg-white px-2"
-                >
-                  <option value="">Selecione para comparar...</option>
-                  {availablePrinters.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.modelo} ({p.fabricante} - {p.tecnologia})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold text-slate-700">
-                  Locação Mensal Base (Cenário B - R$)
-                </Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={locacaoScenarioB || ''}
-                  onChange={(e) =>
-                    onUpdateScenarioB(printerScenarioB || null, parseFloat(e.target.value) || 0)
-                  }
-                  placeholder="Ex: 490.14"
-                  className="h-8 text-xs font-mono"
-                ></Input>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Resultado do Break-Even */}
-        {breakEven && breakEven.valid && breakEven.paginasBreakEven !== null ? (
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-baseline justify-between gap-2 p-3 bg-indigo-50/70 border border-indigo-200 rounded-lg">
-              <div>
-                <span className="text-[11px] font-medium text-indigo-800 block">
-                  Ponto de Inflexão (Break-Even):
-                </span>
-                <span className="font-mono font-black text-indigo-950 text-xl">
-                  {Math.round(breakEven.paginasBreakEven).toLocaleString('pt-BR')} páginas/mês
-                </span>
-              </div>
-              <div className="text-right text-[11px] text-indigo-900 space-y-0.5">
-                <div>
-                  Δ Locação: <strong>R$ {breakEven.diferencaLocacao.toFixed(2)}</strong>
-                </div>
-                <div>
-                  Δ CPP Venda: <strong>R$ {breakEven.diferencaCPP.toFixed(6)}</strong>
+                <div className="text-right text-[11px] text-indigo-900 space-y-0.5">
+                  <div>
+                    Δ Locação: <strong>R$ {breakEven.diferencaLocacao.toFixed(2)}</strong>
+                  </div>
+                  <div>
+                    Δ CPP Venda: <strong>R$ {breakEven.diferencaCPP.toFixed(6)}</strong>
+                  </div>
                 </div>
               </div>
+
+              <p className="text-xs p-2.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-950 font-medium leading-relaxed">
+                ✓ {breakEven.recomendacao}
+              </p>
             </div>
-
-            <p className="text-xs p-2.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-950 font-medium leading-relaxed">
-              ✓ {breakEven.recomendacao}
-            </p>
-          </div>
-        ) : breakEven && !breakEven.valid ? (
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
-            <span>{breakEven.recomendacao}</span>
-          </div>
-        ) : (
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 text-xs text-center">
-            Defina um segundo cenário para visualizar a curva de ponto de equilíbrio entre
-            tecnologias.
-          </div>
-        )}
-      </div>
-
+          ) : breakEven && !breakEven.valid ? (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
+              <span>{breakEven.recomendacao}</span>
+            </div>
+          ) : (
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 text-xs text-center">
+              Defina um segundo cenário para visualizar a curva de ponto de equilíbrio entre
+              tecnologias.
+            </div>
+          )}
+        </div>
+      </details>
       {/* AVISOS / BLOQUEIOS DE INTEGRIDADE (Seção 8.1 / 18) */}
       {!calculation.valid && (
         <div className="rounded-xl border-2 border-rose-300 bg-rose-50 p-4 space-y-2">
