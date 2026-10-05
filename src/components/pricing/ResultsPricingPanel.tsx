@@ -1,3 +1,4 @@
+import { usePermissions } from '@/hooks/use-permissions'
 import { useState } from 'react'
 import { FileText, Sparkles, AlertCircle, Copy, Check, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -39,6 +40,7 @@ export function ResultsPricingPanel({
   onUpdateScenarioB,
   availablePrinters = [],
 }: ResultsPricingPanelProps) {
+  const { isAdmin } = usePermissions()
   const { toast } = useToast()
   const [copied, setCopied] = useState(false)
   const [showBreakEvenSettings, setShowBreakEvenSettings] = useState(false)

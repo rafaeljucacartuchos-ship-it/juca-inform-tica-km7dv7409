@@ -88,7 +88,8 @@ export function ModernRentalSimulator({
   initialCascadeSection,
 }: ModernRentalSimulatorProps) {
   const { toast } = useToast()
-  const { isAdmin } = usePermissions()
+  const { isAdmin, hasPermission } = usePermissions()
+  const canEditValues = isAdmin || hasPermission('locacao_precos_rendimentos')
   // Controle de cascata aberta (accordion expansível sob demanda)
   const [cascadeOpen, setCascadeOpen] = useState<string>(initialCascadeSection || '')
 
@@ -228,6 +229,7 @@ export function ModernRentalSimulator({
   }
 
   const handleToggleSlotInclusion = (slotNumber: 1 | 2 | 3 | 4 | 5, included: boolean) => {
+    if (!isAdmin) return
     setIncludedSlots((prev) => ({
       ...prev,
       [slotNumber]: included,
@@ -432,6 +434,7 @@ export function ModernRentalSimulator({
 
   // Atualização de insumo ou slot na impressora selecionada
   const handleUpdateSlotSupply = async (slotNumber: 1 | 2 | 3 | 4 | 5, supplyId: string | null) => {
+    if (!isAdmin) return
     if (!selectedPrinter) return
     const field = `suprimento_${slotNumber}` as keyof ImpressoraRecord
 
@@ -476,6 +479,7 @@ export function ModernRentalSimulator({
     valorCompra: number | null,
     rendimentoPaginas: number | null,
   ) => {
+    if (!canEditValues) return
     const slot = activeSupplySlots[slotNumber - 1]
     if (!slot || !slot.supplyId) return
 
@@ -784,6 +788,20 @@ export function ModernRentalSimulator({
           <p className="text-xs my-2">
             Alteração dos parâmetros de cálculo reservada ao administrador.
           </p>
+          {!isAdmin && canEditValues && (
+            <div className="mb-3">
+              <Label htmlFor="authorized-equipment-price">Preço de compra da impressora (R$)</Label>
+              <Input
+                id="authorized-equipment-price"
+                type="number"
+                min="0"
+                step="0.01"
+                value={equipPriceCustom}
+                onChange={(e) => setEquipPriceCustom(e.target.value)}
+              />
+              <p className="text-xs text-slate-500">Alteração autorizada para esta simulação.</p>
+            </div>
+          )}
           <fieldset disabled={!isAdmin} className="grid sm:grid-cols-3 gap-3 text-xs">
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-slate-700">Valor de Compra (R$) *</Label>
@@ -890,7 +908,7 @@ export function ModernRentalSimulator({
             allSupplies={supplies}
             printerModel={selectedPrinter?.modelo}
             printerManufacturer={selectedPrinter?.fabricante}
-            readOnly={readOnly}
+            readOnly={!isAdmin}
             onToggleSlotInclusion={handleToggleSlotInclusion}
             onUpdateSlotSupply={handleUpdateSlotSupply}
             onUpdateSlotValues={handleUpdateSlotValues}
@@ -1049,7 +1067,7 @@ export function ModernRentalSimulator({
                   <SuppliesManagementTab
                     supplies={supplies}
                     onReload={onReloadData}
-                    readOnly={readOnly}
+                    readOnly={!isAdmin}
                   />
                 </div>
               </AccordionContent>
