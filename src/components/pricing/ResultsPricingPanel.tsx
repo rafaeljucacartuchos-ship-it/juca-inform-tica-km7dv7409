@@ -43,6 +43,12 @@ export function ResultsPricingPanel({
   const [copied, setCopied] = useState(false)
   const [showBreakEvenSettings, setShowBreakEvenSettings] = useState(false)
 
+  const [usoSimulado, setUsoSimulado] = useState('')
+  const usoPaginas = usoSimulado === '' ? producaoMensal : Number(usoSimulado)
+  const usoValido = Number.isFinite(usoPaginas) && usoPaginas >= 0 && Number.isInteger(usoPaginas)
+  const excedentes = usoValido ? Math.max(0, usoPaginas - producaoMensal) : 0
+  const valorExcedente = excedentes * calculation.cppVenda
+  const totalComExcedente = calculation.faturamentoTotalMensal + valorExcedente
   const custoMensalEstimado = calculation.cppFornecedorTotal * producaoMensal
   const receitaPrevista = calculation.faturamentoTotalMensal
   const resultadoParcial = receitaPrevista - custoMensalEstimado
@@ -56,12 +62,14 @@ export function ResultsPricingPanel({
 JUCA CARTUCHOS — RESUMO DE PRECIFICAÇÃO DE LOCAÇÃO
 =========================================
 Equipamento: ${selectedPrinter.modelo} (${selectedPrinter.fabricante} - ${selectedPrinter.tecnologia})
-Franquia / Produção Estimada: ${producaoMensal.toLocaleString('pt-BR')} páginas/mês
+Franquia incluída na mensalidade: ${producaoMensal.toLocaleString('pt-BR')} páginas/mês
 Prazo de depreciação usado no cálculo: ${vidaUtil} meses (não é a vigência do contrato)
 -----------------------------------------
 CPP DE VENDA SIMULADO: ${calculation.formatted.cppVenda} / página
-VALOR DAS PÁGINAS SIMULADAS: ${calculation.formatted.custoMensalProducao}
-RECEITA MENSAL PREVISTA (SIMULAÇÃO): ${calculation.formatted.faturamentoTotalMensal}
+COMPONENTE DE FORMAÇÃO DA FRANQUIA (não somar novamente): ${calculation.formatted.custoMensalProducao}
+MENSALIDADE COM FRANQUIA INCLUÍDA: ${calculation.formatted.faturamentoTotalMensal}
+EXCEDENTE: ${calculation.formatted.cppVenda} por página acima da franquia
+Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarifa excedente.
 =========================================`
 
     navigator.clipboard
@@ -96,7 +104,7 @@ RECEITA MENSAL PREVISTA (SIMULAÇÃO): ${calculation.formatted.faturamentoTotalM
           <div>
             <p className="text-xs text-slate-500">Receita prevista</p>
             <strong>{dadosValidos ? moeda(receitaPrevista) : 'Não calculada'}</strong>
-            <p className="text-xs">Base + valor das páginas simuladas</p>
+            <p className="text-xs">Mensalidade com páginas incluídas</p>
           </div>
           <div>
             <p className="text-xs text-slate-500">Resultado antes dos custos não cadastrados</p>
@@ -146,6 +154,56 @@ RECEITA MENSAL PREVISTA (SIMULAÇÃO): ${calculation.formatted.faturamentoTotalM
           </ul>
         </details>
       </section>
+      <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 space-y-3">
+        <h3 className="font-bold">Franquia contratada + excedente</h3>
+        <p className="text-sm">
+          {producaoMensal.toLocaleString('pt-BR')} páginas incluídas por mês por{' '}
+          {dadosValidos ? moeda(receitaPrevista) : 'valor a calcular'}. Excedente:{' '}
+          {calculation.formatted.cppVenda} por página.
+        </p>
+        <label className="block text-sm font-semibold">
+          Páginas no mês — simulação
+          <Input
+            type="number"
+            min="0"
+            step="1"
+            value={usoSimulado}
+            placeholder={String(producaoMensal)}
+            onChange={(e) => setUsoSimulado(e.target.value)}
+            className="mt-1 bg-white max-w-xs"
+          />
+        </label>
+        {!usoValido && (
+          <p role="alert" className="text-red-700">
+            Informe uma quantidade inteira de páginas, igual ou maior que zero.
+          </p>
+        )}
+        <div className="grid sm:grid-cols-3 gap-3 text-sm">
+          <div>
+            Páginas excedentes
+            <strong className="block">
+              {dadosValidos && usoValido ? excedentes.toLocaleString('pt-BR') : '—'}
+            </strong>
+          </div>
+          <div>
+            Valor do excedente
+            <strong className="block">
+              {dadosValidos && usoValido ? moeda(valorExcedente) : '—'}
+            </strong>
+          </div>
+          <div>
+            Total mensal simulado
+            <strong className="block">
+              {dadosValidos && usoValido ? moeda(totalComExcedente) : '—'}
+            </strong>
+          </div>
+        </div>
+        <p className="text-xs">
+          Até a franquia, vale a mensalidade contratada. Só páginas acima da franquia geram
+          excedente. Esta simulação não registra leitura, cobrança nem recebimento. Tarifa excedente
+          sugerida pelo CPP de venda atual; prevalecem as condições do contrato.
+        </p>
+      </section>
       {/* CARD HERO DE PRECIFICAÇÃO */}
       <div className="rounded-xl border-2 border-indigo-200 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 text-white p-6 shadow-lg space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
@@ -179,14 +237,16 @@ RECEITA MENSAL PREVISTA (SIMULAÇÃO): ${calculation.formatted.faturamentoTotalM
 
           <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center sm:text-left space-y-1">
             <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
-              Valor de Venda das Páginas Simuladas ({producaoMensal.toLocaleString('pt-BR')} págs)
+              Componente da franquia referente às páginas ({producaoMensal.toLocaleString('pt-BR')}{' '}
+              págs)
             </span>
             <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-400">
               {calculation.formatted.custoMensalProducao}
             </div>
             {locacaoMensal > 0 && (
               <p className="text-[11px] text-slate-300">
-                Faturamento Total (Locação R$ {locacaoMensal.toFixed(2)} + Páginas):{' '}
+                Mensalidade da franquia (base R$ {locacaoMensal.toFixed(2)} + componente de
+                páginas):{' '}
                 <strong className="text-white font-mono">
                   {calculation.formatted.faturamentoTotalMensal}
                 </strong>
