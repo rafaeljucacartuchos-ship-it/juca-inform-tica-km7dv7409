@@ -675,15 +675,22 @@ export default function LocacaoImpressoras() {
                   Conferir cliente, equipamento e anexos
                 </summary>
                 <p className="my-2 text-slate-600">
-                  Dados disponíveis foram herdados da proposta e dos cadastros vinculados. Confira o
-                  local de instalação, suprimentos e valor do bem sugeridos; informação ausente não
-                  é inventada. Fotos e comprovantes devem acompanhar a via impressa ou o PDF.
+                  Dados disponíveis foram herdados da proposta e dos cadastros vinculados. O valor
+                  do bem vem da precificação da proposta e não é alterado aqui. Confira local de
+                  instalação e suprimentos; informação ausente não é inventada. Fotos e comprovantes
+                  devem acompanhar a via impressa ou o PDF.
                 </p>
                 <div className="grid sm:grid-cols-2 gap-3">
                   {CONTRACT_DETAIL_FIELDS.map(([key, label, type]) => (
                     <label key={key} className="space-y-1 block">
                       <span>{label}</span>
                       <Input
+                        readOnly={key === 'valorBem'}
+                        title={
+                          key === 'valorBem'
+                            ? 'Herdado da precificação da proposta. Para alterar, revise a precificação e emita nova proposta.'
+                            : undefined
+                        }
                         aria-label={label}
                         type={type}
                         min={type === 'number' ? 0 : undefined}

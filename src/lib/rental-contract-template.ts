@@ -318,7 +318,13 @@ export function inheritRentalContractDetails(
   }
   const counter = machine.contador_inicial ?? linkedMachine?.contador_inicial
   const supplies = machine.supplies?.length ? machine.supplies : linkedMachine?.supplies || []
-  const price = machine.valorCompra ?? linkedMachine?.valor_compra
+  const pricing = (
+    quote.resultados as typeof quote.resultados & {
+      pricingSnapshot?: { impressora?: { id?: string; valor_compra?: number } }
+    }
+  )?.pricingSnapshot?.impressora
+  const price =
+    pricing?.id && pricing.id === machine.machineId ? pricing.valor_compra : machine.valorCompra
   return {
     nome: name,
     documento: quote.cliente_documento || c?.cpf_cnpj || '',
@@ -330,6 +336,14 @@ export function inheritRentalContractDetails(
     serial: machine.serial || linkedMachine?.serial || '',
     contador: counter == null ? '' : String(counter),
     valorBem: price && price > 0 ? String(price) : '',
+    provaValor:
+      price && price > 0
+        ? `Valor do equipamento na precificação da proposta ${quote.id}, preservado nesta negociação.`
+        : '',
+    dataValor:
+      price && price > 0 && quote.created
+        ? new Date(quote.created).toLocaleDateString('en-CA', { timeZone: 'America/Cuiaba' })
+        : '',
     supplies: supplies
       .map((s) => s.nome)
       .filter(Boolean)
