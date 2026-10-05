@@ -1,3 +1,4 @@
+import { buildContractSnapshot, contractMissingDetails } from '@/lib/rental-contract-template'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -721,6 +722,9 @@ function RentalDashboardPanel() {
   const [index, setIndex] = useState<any>(null)
   const [message, setMessage] = useState('')
   const [showAll, setShowAll] = useState(false)
+  const [renewalMonths, setRenewalMonths] = useState(12)
+  const [renewalStart, setRenewalStart] = useState('')
+  const [reviewed, setReviewed] = useState(false)
   const today = day(Date.now())
   const refresh = useCallback(async () => {
     if (user?.role !== 'admin') return
@@ -744,7 +748,10 @@ function RentalDashboardPanel() {
     window.addEventListener('focus', focus)
     return () => window.removeEventListener('focus', focus)
   }, [refresh])
-  const active = contracts.filter((c) => c.status === 'ativo')
+  const testContracts = contracts.filter((c) => c.equipamento_dados?.registro_teste === true)
+  const active = contracts.filter(
+    (c) => c.status === 'ativo' && c.equipamento_dados?.registro_teste !== true,
+  )
   const rows = active
     .map((c) => ({ c, s: rentalSummary(c, today) }))
     .sort((a, b) => (a.s.days ?? Infinity) - (b.s.days ?? Infinity))
@@ -763,6 +770,9 @@ function RentalDashboardPanel() {
     setIndex(null)
     setMessage('')
     setBusy(true)
+    setReviewed(false)
+    setRenewalMonths(Number(c.contrato_meses) || 12)
+    setRenewalStart(rentalSummary(c, today).end)
     try {
       const s = rentalSummary(c, today)
       if (!s.due) throw new Error('Informe o início da locação no contrato antes de calcular.')
@@ -770,6 +780,10 @@ function RentalDashboardPanel() {
       d.setUTCDate(1)
       d.setUTCMonth(d.getUTCMonth() - 1)
       const period = d.toISOString().slice(0, 7).replace('-', '')
+      if (period >= today.slice(0, 7).replace('-', ''))
+        throw new Error(
+          'O IPCA do período deste reajuste ainda não foi publicado. O contrato será revisado no aniversário; nenhum índice futuro será estimado.',
+        )
       // Official national IPCA accumulated over 12 months, never a future estimate.
       const source = `https://servicodados.ibge.gov.br/api/v3/agregados/1737/periodos/${period}/variaveis/2265?localidades=N1%5B1%5D`
       const controller = new AbortController()
@@ -817,6 +831,139 @@ function RentalDashboardPanel() {
       })
     } catch (e: any) {
       setMessage(e.message || 'Não foi possível consultar o IPCA. Nenhum valor foi alterado.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  const setTest = async (c: any, isTest: boolean) => {
+    if (busy || user?.role !== 'admin') return
+    setBusy(true)
+    try {
+      const fresh = await pb.collection('rental_contracts').getOne(c.id, { requestKey: null })
+      await pb
+        .collection('rental_contracts')
+        .update(
+          c.id,
+          {
+            equipamento_dados: {
+              ...fresh.equipamento_dados,
+              registro_teste: isTest,
+              classificacao_teste: { por: user.id, em: new Date().toISOString() },
+            },
+          },
+          { requestKey: null },
+        )
+      const saved = await pb.collection('rental_contracts').getOne(c.id, { requestKey: null })
+      if (saved.equipamento_dados?.registro_teste !== isTest)
+        throw new Error('Classificação não confirmada.')
+      await refresh()
+      setMessage('Classificação de teste atualizada. Registro preservado.')
+    } catch (e: any) {
+      setFailure('Não foi possível confirmar a classificação de teste. Atualize para conferir.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  const prepareRenewal = async () => {
+    if (busy || !selected || !index || !reviewed || user?.role !== 'admin') return
+    setBusy(true)
+    setMessage('')
+    try {
+      const fresh = await pb
+        .collection('rental_contracts')
+        .getOne(selected.id, { requestKey: null })
+      if (fresh.updated !== selected.updated || fresh.status !== 'ativo')
+        throw new Error('O contrato mudou. Feche e consulte o reajuste novamente.')
+      const s = rentalSummary(fresh, today),
+        snap = fresh.equipamento_dados?.modelo_contrato
+      if (!s.actual)
+        throw new Error('Confirme primeiro a data efetiva de instalação no cadastro do contrato.')
+      if (!snap?.version || contractMissingDetails(snap.details || {}).length)
+        throw new Error(
+          'Complete e revise os dados do contrato no modelo atual antes de preparar a renovação.',
+        )
+      if (
+        today < s.due ||
+        !rentalDate(renewalStart) ||
+        renewalStart < s.end ||
+        !Number.isInteger(renewalMonths) ||
+        renewalMonths < 1 ||
+        renewalMonths > 120
+      )
+        throw new Error(
+          'Confira o aniversário do reajuste, início da nova vigência e prazo de 1 a 120 meses.',
+        )
+      const digest = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(fresh.id + ':renovacao:' + index.period),
+      )
+      const id = Array.from(new Uint8Array(digest))
+        .map((n) => n.toString(16).padStart(2, '0'))
+        .join('')
+        .slice(0, 15)
+      const existing = await pb
+        .collection('rental_contracts')
+        .getList(1, 1, { filter: pb.filter('id = {:id}', { id }), requestKey: null })
+      if (existing.items.length) {
+        setMessage(
+          'Já existe um rascunho de renovação para esse período. Abra-o na lista de contratos.',
+        )
+        return
+      }
+      const number = fresh.numero + '-R' + index.period
+      const snapshot = buildContractSnapshot(
+        {
+          ...snap.data,
+          numeroContrato: number,
+          valorMensal: index.monthly,
+          valorExcedentePagina: index.excess,
+          prazoMeses: renewalMonths,
+          dataInicio: renewalStart,
+        },
+        { ...snap.details },
+        snap.adicionais || '',
+      )
+      const payload = {
+        id,
+        numero: number,
+        proposta: fresh.proposta,
+        locatario_dados: fresh.locatario_dados,
+        franquia_paginas: fresh.franquia_paginas,
+        valor_mensal: index.monthly,
+        excesso_pagina_valor: index.excess,
+        contrato_meses: renewalMonths,
+        data_inicio: renewalStart,
+        status: 'rascunho',
+        equipamento_dados: {
+          ...fresh.equipamento_dados,
+          gestao_locacao: {},
+          modelo_contrato: snapshot,
+          renovacao_de: fresh.id,
+          reajuste_preparado: {
+            ...index,
+            anterior_mensal: Number(fresh.valor_mensal),
+            anterior_excedente: Number(fresh.excesso_pagina_valor),
+            inicio_efetivo_origem: s.actual,
+            por: user.id,
+            em: new Date().toISOString(),
+          },
+        },
+      }
+      await pb.collection('rental_contracts').create(payload, { requestKey: null })
+      const saved = await pb.collection('rental_contracts').getOne(id, { requestKey: null })
+      if (saved.status !== 'rascunho' || Number(saved.valor_mensal) !== index.monthly)
+        throw new Error(
+          'O rascunho foi enviado, mas a conferência não terminou. Verifique a lista antes de repetir.',
+        )
+      setMessage(
+        'Reajuste aplicado somente ao novo rascunho ' +
+          number +
+          '. O contrato original permanece intacto. Revise e recolha a concordância do cliente antes de ativar a renovação.',
+      )
+      setReviewed(false)
+      refresh()
+    } catch (e: any) {
+      setMessage(e.message || 'Não foi possível preparar a renovação.')
     } finally {
       setBusy(false)
     }
@@ -911,6 +1058,13 @@ function RentalDashboardPanel() {
                       >
                         {c.numero}
                       </Link>
+                      <button
+                        className="block text-xs underline text-slate-500 mt-1"
+                        disabled={busy}
+                        onClick={() => setTest(c, true)}
+                      >
+                        Marcar como teste
+                      </button>
                       <div>
                         {c.locatario_dados?.nome && !/^\d+$/.test(c.locatario_dados.nome)
                           ? c.locatario_dados.nome
@@ -961,7 +1115,24 @@ function RentalDashboardPanel() {
               </tbody>
             </table>
           </div>
-          {!rows.length && <p>Nenhum contrato com status ativo.</p>}
+          {!rows.length && <p>Nenhum contrato real com status ativo.</p>}
+          {testContracts.length > 0 && (
+            <details className="text-sm">
+              <summary className="cursor-pointer">
+                Registros de teste: {testContracts.length} — excluídos dos indicadores e alertas
+              </summary>
+              {testContracts.map((c) => (
+                <div className="flex gap-3 py-2" key={c.id}>
+                  <Link className="underline" to={'/locacao?contrato=' + encodeURIComponent(c.id)}>
+                    {c.numero}
+                  </Link>
+                  <button className="underline" disabled={busy} onClick={() => setTest(c, false)}>
+                    Voltar a considerar como contrato real
+                  </button>
+                </div>
+              ))}
+            </details>
+          )}
           {rows.length > 8 && (
             <button className="underline" onClick={() => setShowAll(!showAll)}>
               {showAll ? 'Mostrar menos' : 'Ver todos os contratos'}
@@ -1015,6 +1186,57 @@ function RentalDashboardPanel() {
                 esta consulta. A data efetiva de instalação e eventuais reajustes anteriores
                 precisam estar conferidos antes de aplicar.
               </p>
+              {index && user?.role === 'admin' && (
+                <div className="border-t pt-3 space-y-2">
+                  <p className="font-medium">Aplicar na atualização do contrato</p>
+                  <label className="block text-sm">
+                    Início da renovação{' '}
+                    <input
+                      type="date"
+                      className="border rounded p-1"
+                      value={renewalStart}
+                      onChange={(e) => setRenewalStart(e.target.value)}
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    Prazo em meses{' '}
+                    <input
+                      type="number"
+                      min="1"
+                      max="120"
+                      className="border rounded p-1 w-24"
+                      value={renewalMonths}
+                      onChange={(e) => setRenewalMonths(Number(e.target.value))}
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <input
+                      type="checkbox"
+                      checked={reviewed}
+                      onChange={(e) => setReviewed(e.target.checked)}
+                    />{' '}
+                    Revisei a base, o período do índice e os dados. Quero preparar um rascunho para
+                    negociar com o cliente.
+                  </label>
+                  <button
+                    className="border rounded px-3 py-2 disabled:opacity-50"
+                    disabled={
+                      !reviewed ||
+                      busy ||
+                      !rentalSummary(selected, today).actual ||
+                      !selected.equipamento_dados?.modelo_contrato?.version ||
+                      today < index.due
+                    }
+                    onClick={prepareRenewal}
+                  >
+                    Aplicar reajuste no rascunho de renovação
+                  </button>
+                  <p className="text-xs">
+                    Liberação após conferência do início efetivo, cadastro completo e aniversário
+                    anual. Não ativa a renovação nem altera cobranças automaticamente.
+                  </p>
+                </div>
+              )}
               <Link
                 className="inline-block border rounded px-3 py-2"
                 to={'/locacao?contrato=' + encodeURIComponent(selected.id)}
