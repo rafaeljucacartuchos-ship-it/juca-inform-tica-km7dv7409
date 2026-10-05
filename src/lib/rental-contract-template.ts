@@ -291,3 +291,49 @@ export function buildContractSnapshot(
   }
 }
 export type RentalContractSnapshot = ReturnType<typeof buildContractSnapshot>
+
+// A proposta mantém as condições negociadas; cadastro complementa dados ausentes.
+export function inheritRentalContractDetails(
+  quote: import('@/types').RentalQuote,
+  machine: import('@/types').RentalMachineCalculation,
+): ContractDetails {
+  const c = quote.expand?.cliente_id
+  const linkedMachine = machine.machineId
+    ? quote.expand?.maquinas?.find((m) => m.id === machine.machineId)
+    : undefined
+  const meaningfulName = (s?: string) => (s && /[A-Za-zÀ-ÿ]{2}/.test(s.trim()) ? s.trim() : '')
+  const name =
+    meaningfulName(quote.cliente_nome_livre) ||
+    meaningfulName(c?.razao_social) ||
+    meaningfulName(c?.name) ||
+    meaningfulName(c?.nome_fantasia) ||
+    ''
+  let address =
+    quote.cliente_endereco?.trim() ||
+    c?.endereco?.trim() ||
+    [c?.street, c?.number].filter(Boolean).join(', ')
+  for (const part of [c?.bairro, c?.city, c?.state, c?.zip]) {
+    if (part && !address.toLocaleLowerCase().includes(part.toLocaleLowerCase()))
+      address += (address ? ', ' : '') + part
+  }
+  const counter = machine.contador_inicial ?? linkedMachine?.contador_inicial
+  const supplies = machine.supplies?.length ? machine.supplies : linkedMachine?.supplies || []
+  const price = machine.valorCompra ?? linkedMachine?.valor_compra
+  return {
+    nome: name,
+    documento: quote.cliente_documento || c?.cpf_cnpj || '',
+    endereco: address,
+    contato: [quote.cliente_telefone || c?.celular || c?.phone, c?.email]
+      .filter(Boolean)
+      .join(' / '),
+    local: address,
+    serial: machine.serial || linkedMachine?.serial || '',
+    contador: counter == null ? '' : String(counter),
+    valorBem: price && price > 0 ? String(price) : '',
+    supplies: supplies
+      .map((s) => s.nome)
+      .filter(Boolean)
+      .join('; '),
+    modalidade: 'impressa',
+  }
+}

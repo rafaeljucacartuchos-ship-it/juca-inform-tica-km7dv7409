@@ -1,5 +1,6 @@
 import {
   buildContractSnapshot,
+  inheritRentalContractDetails,
   CONTRACT_DETAIL_FIELDS,
   type ContractDetails,
 } from '@/lib/rental-contract-template'
@@ -192,17 +193,7 @@ export default function LocacaoImpressoras() {
     }
     setContractStartDate(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Cuiaba' }))
     setClausulasAdicionais('')
-    const c = currentQuote?.expand?.cliente_id
-    setContractDetails({
-      nome: c?.name || currentQuote?.cliente_nome_livre || '',
-      documento: currentQuote?.cliente_documento || c?.cpf_cnpj || '',
-      endereco: [currentQuote?.cliente_endereco || c?.endereco, c?.city, c?.state, c?.zip]
-        .filter(Boolean)
-        .join(', '),
-      contato: c?.email || currentQuote?.cliente_telefone || c?.phone || '',
-      serial: machine.serial || '',
-      contador: machine.contador_inicial == null ? '' : String(machine.contador_inicial),
-    })
+    setContractDetails(currentQuote ? inheritRentalContractDetails(currentQuote, machine) : {})
     setContractModalOpen(true)
   }
 
@@ -213,6 +204,12 @@ export default function LocacaoImpressoras() {
       cpf_cnpj: contractDetails.documento?.trim() || '',
       endereco: contractDetails.endereco?.trim() || '',
       telefone: contractDetails.contato?.trim() || '',
+      rg_ie: currentQuote.expand?.cliente_id?.rg_ie || '',
+      bairro: currentQuote.expand?.cliente_id?.bairro || '',
+      cidade: currentQuote.expand?.cliente_id?.city || '',
+      estado: currentQuote.expand?.cliente_id?.state || '',
+      cep: currentQuote.expand?.cliente_id?.zip || '',
+      email: currentQuote.expand?.cliente_id?.email || '',
     }
     const payload: Partial<RentalContract> = {
       proposta: currentQuote.id,
@@ -236,6 +233,8 @@ export default function LocacaoImpressoras() {
           telefone: locatario.telefone,
         },
         equipamento: {
+          scanner: machineForContract.scanner,
+          scannerDados: machineForContract.scannerDados,
           nome: machineForContract.machineName,
           serial: contractDetails.serial || '',
           contadorInicial:
@@ -261,6 +260,18 @@ export default function LocacaoImpressoras() {
       scanner_dados: machineForContract.scannerDados,
       supplies: machineForContract.supplies,
       modelo_contrato: snapshot,
+      origem_proposta: {
+        id: currentQuote.id,
+        cliente_id: currentQuote.cliente_id || '',
+        versao_proposta: currentQuote.updated || currentQuote.created || '',
+        maquina_escolhida: machineForContract,
+        cliente: locatario,
+        aprovacao_informada: {
+          data: contractDetails.aprovacaoData || '',
+          por: contractDetails.aprovacaoNome || '',
+          referencia: contractDetails.aprovacaoReferencia || '',
+        },
+      },
     }
     payload.equipamento_dados = equipment
     return payload
@@ -295,13 +306,43 @@ export default function LocacaoImpressoras() {
       })
       return
     }
+    if (
+      !contractDetails.aprovacaoData ||
+      !contractDetails.aprovacaoNome?.trim() ||
+      !contractDetails.aprovacaoReferencia?.trim()
+    ) {
+      toast({
+        title: 'Registre a aprovação recebida do cliente',
+        description:
+          'Informe data, responsável e referência da mensagem ou documento. Isso não substitui a assinatura do contrato.',
+        variant: 'destructive',
+      })
+      return
+    }
+    const sameContract = contractsList.find(
+      (c) =>
+        c.proposta === currentQuote?.id &&
+        c.status !== 'encerrado' &&
+        c.equipamento_dados?.produto_id === machineForContract?.machineId &&
+        c.equipamento_dados?.nome === machineForContract?.machineName,
+    )
+    if (sameContract) {
+      toast({
+        title: 'Já existe contrato para esta proposta e equipamento',
+        description: 'O contrato existente será aberto para evitar duplicidade.',
+      })
+      setCurrentContract(sameContract)
+      setContractModalOpen(false)
+      setActiveTab('contrato')
+      return
+    }
     setCreatingContract(true)
     try {
       const created = await createRentalContract(draft)
       toast({
         title: 'Rascunho salvo',
         description:
-          'Texto e dados desta versão foram guardados. Assinatura e entrega ainda precisam ser comprovadas.',
+          'Contrato arquivado em Contratos com os dados da proposta. Imprima para colher assinaturas; aprovação e entrega são etapas distintas.',
       })
       setCurrentContract(created)
       setContractModalOpen(false)
@@ -577,13 +618,66 @@ export default function LocacaoImpressoras() {
                 />
               </div>
 
+              <section className="rounded border p-3 space-y-3">
+                <h3 className="font-semibold">Aprovação recebida do cliente</h3>
+                <p>
+                  Registre a aprovação da proposta selecionada. O contrato será arquivado como
+                  rascunho para assinatura.
+                </p>
+                <label className="block">
+                  Data da aprovação
+                  <Input
+                    aria-label="Data da aprovação"
+                    type="date"
+                    value={contractDetails.aprovacaoData || ''}
+                    onChange={(e) =>
+                      setContractDetails((p) => ({ ...p, aprovacaoData: e.target.value }))
+                    }
+                  />
+                </label>
+                <label className="block">
+                  Quem aprovou
+                  <Input
+                    aria-label="Quem aprovou"
+                    value={contractDetails.aprovacaoNome || ''}
+                    onChange={(e) =>
+                      setContractDetails((p) => ({ ...p, aprovacaoNome: e.target.value }))
+                    }
+                  />
+                </label>
+                <label className="block">
+                  Referência da aprovação (mensagem, e-mail ou documento)
+                  <Input
+                    aria-label="Referência da aprovação"
+                    value={contractDetails.aprovacaoReferencia || ''}
+                    onChange={(e) =>
+                      setContractDetails((p) => ({ ...p, aprovacaoReferencia: e.target.value }))
+                    }
+                  />
+                </label>
+                <label className="block">
+                  Forma de assinatura
+                  <select
+                    aria-label="Forma de assinatura"
+                    className="block w-full border rounded p-2 bg-white"
+                    value={contractDetails.modalidade || 'impressa'}
+                    onChange={(e) =>
+                      setContractDetails((p) => ({ ...p, modalidade: e.target.value }))
+                    }
+                  >
+                    <option value="impressa">Impressa — assinatura à mão</option>
+                    <option value="eletronica">Eletrônica — por provedor externo</option>
+                  </select>
+                </label>
+              </section>
               <details className="rounded border p-3" open>
                 <summary className="font-semibold cursor-pointer">
                   Conferir cliente, equipamento e anexos
                 </summary>
                 <p className="my-2 text-slate-600">
-                  Preencha dados reais. Campos vazios ficam destacados no rascunho; fotos e
-                  comprovantes devem acompanhar o PDF no provedor de assinatura.
+                  Dados disponíveis foram herdados da proposta e dos cadastros vinculados. Confira o
+                  local de instalação, suprimentos e valor do bem sugeridos; informação ausente não
+                  é inventada. Fotos e comprovantes devem acompanhar a via impressa ou o PDF.
                 </p>
                 <div className="grid sm:grid-cols-2 gap-3">
                   {CONTRACT_DETAIL_FIELDS.map(([key, label, type]) => (
@@ -628,7 +722,9 @@ export default function LocacaoImpressoras() {
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5"
                 >
                   <FileSignature className="h-3.5 w-3.5" />
-                  <span>{creatingContract ? 'Salvando...' : 'Salvar rascunho'}</span>
+                  <span>
+                    {creatingContract ? 'Salvando...' : 'Arquivar contrato para assinatura'}
+                  </span>
                 </Button>
               </DialogFooter>
             </form>

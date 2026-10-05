@@ -95,7 +95,7 @@ export function RentalContractPrintView({ contract, onBack }: RentalContractPrin
             onClick={() => window.print()}
             className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold gap-1.5"
           >
-            <Printer className="h-4 w-4" /> Imprimir / Salvar PDF
+            <Printer className="h-4 w-4" /> Imprimir para assinatura / Salvar PDF
           </Button>
         </div>
       </div>
@@ -322,7 +322,10 @@ function RevisedRentalContract({
           <div>
             <strong>Contrato {s.data.numeroContrato} — modelo revisado</strong>
             <p className="text-sm text-slate-600">
-              {contract.id ? 'Rascunho/documento armazenado' : 'Prévia não salva'} • {s.version}
+              {contract.id
+                ? 'Arquivado no sistema — acesse pela lista Contratos'
+                : 'Prévia não salva'}{' '}
+              • {s.version}
             </p>
           </div>
           <div className="flex gap-2">
@@ -331,12 +334,22 @@ function RevisedRentalContract({
                 Voltar
               </Button>
             )}
-            <Button onClick={() => window.print()}>Imprimir / Salvar PDF</Button>
+            <Button onClick={() => window.print()}>
+              {s.details.modalidade === 'eletronica'
+                ? 'Salvar PDF para assinatura eletrônica'
+                : 'Imprimir para assinatura / Salvar PDF'}
+            </Button>
           </div>
         </div>
         <p className="text-sm">
-          A emissão e o status administrativo não comprovam assinatura. Confira o PDF, reúna os
-          anexos e encaminhe pelo provedor de assinatura escolhido.
+          Forma escolhida:{' '}
+          {s.details.modalidade === 'eletronica'
+            ? 'assinatura eletrônica'
+            : 'impressa, para assinatura à mão'}
+          . O texto e os dados ficam arquivados ao salvar. A via assinada em papel deve ser
+          conservada; seu digitalizado não é anexado automaticamente. A emissão e o status
+          administrativo não comprovam assinatura. Confira os dados e anexos antes de colher as
+          assinaturas.
         </p>
         {missing.length > 0 && (
           <details className="border border-amber-300 bg-amber-50 p-3 rounded" open>
@@ -407,6 +420,13 @@ function RevisedRentalContract({
             : 'VIA PARA CONFERÊNCIA E ASSINATURA — A GERAÇÃO DESTE DOCUMENTO NÃO COMPROVA ASSINATURA OU ENTREGA.'}
         </div>
         <section className="space-y-3 mb-6">
+          {s.details.aprovacaoData && (
+            <p>
+              <strong>Aprovação da proposta informada:</strong> {s.details.aprovacaoData}, por{' '}
+              {value('aprovacaoNome')}. Referência: {value('aprovacaoReferencia')}. Este registro
+              não substitui a assinatura do contrato.
+            </p>
+          )}
           <p>
             <strong>LOCADORA:</strong> {s.locadora.razaoSocial}, CNPJ {s.locadora.cnpj}, I.E.{' '}
             {s.locadora.ie}, sediada em {s.locadora.endereco}, representada por{' '}
@@ -426,6 +446,14 @@ function RevisedRentalContract({
           <h2 className="font-bold">QUADRO RESUMO</h2>
           <p>
             Equipamento: {s.data.equipamento.nome} • Série: {value('serial')}
+          </p>
+          <p>
+            Scanner/digitalização:{' '}
+            {s.data.equipamento.scanner === true
+              ? s.data.equipamento.scannerDados || 'Incluído conforme proposta'
+              : s.data.equipamento.scanner === false
+                ? 'Não incluído'
+                : 'Conferir na proposta'}
           </p>
           <p>
             Franquia: {s.data.franquiaPaginas.toLocaleString('pt-BR')} páginas/mês • Mensalidade:{' '}
