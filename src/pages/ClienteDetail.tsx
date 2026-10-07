@@ -271,14 +271,12 @@ export default function ClienteDetail() {
     setLoading(true)
     const permissions = JSON.parse(permissionKey)
     const fetchRows = (collection: string, filter: string, expand = '') =>
-      pb
-        .collection(collection)
-        .getFullList({
-          filter: pb.filter(filter, { id }),
-          sort: '-created',
-          expand,
-          requestKey: null,
-        })
+      pb.collection(collection).getFullList({
+        filter: pb.filter(filter, { id }),
+        sort: '-created',
+        expand,
+        requestKey: null,
+      })
     try {
       const customer = await pb.collection('customers').getOne<Customer>(id, { requestKey: null })
       if (token !== request.current) return

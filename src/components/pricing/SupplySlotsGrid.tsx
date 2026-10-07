@@ -183,7 +183,7 @@ export function SupplySlotsGrid({
 
           return (
             <div
-              key={slot.slotNumber}
+              key={`${printerModel}:${slot.slotNumber}:${slot.supplyId}:${slot.valorCompra}:${slot.rendimentoPaginas}`}
               className={`rounded-xl border p-3 flex flex-col justify-between transition-all min-h-[195px] text-xs shadow-sm ${borderBgClass}`}
             >
               {/* Topo do Card */}
@@ -383,7 +383,10 @@ export function SupplySlotsGrid({
                             onBlur={(e) => {
                               const raw = e.target.value.trim().replace(',', '.')
                               const val = raw === '' ? null : parseFloat(raw)
-                              if (val !== slot.valorCompra) {
+                              if (
+                                (val === null || (Number.isFinite(val) && val >= 0)) &&
+                                val !== slot.valorCompra
+                              ) {
                                 onUpdateSlotValues(slot.slotNumber, val, slot.rendimentoPaginas)
                               }
                             }}
@@ -419,7 +422,10 @@ export function SupplySlotsGrid({
                             onBlur={(e) => {
                               const raw = e.target.value.trim()
                               const val = raw === '' ? null : parseInt(raw, 10)
-                              if (val !== slot.rendimentoPaginas) {
+                              if (
+                                (val === null || (Number.isFinite(val) && val > 0)) &&
+                                val !== slot.rendimentoPaginas
+                              ) {
                                 onUpdateSlotValues(slot.slotNumber, slot.valorCompra, val)
                               }
                             }}
