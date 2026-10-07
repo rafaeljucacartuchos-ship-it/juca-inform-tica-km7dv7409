@@ -261,7 +261,7 @@ export default function LocacaoImpressoras() {
       locatario_dados: locatario,
       franquia_paginas: currentQuote.franquia_paginas,
       valor_mensal: Math.round(machineForContract.franquiaSugerida * 100) / 100,
-      excesso_pagina_valor: Math.round(machineForContract.excedenteSugerido * 10000) / 10000,
+      excesso_pagina_valor: Math.round(machineForContract.excedenteSugerido * 1000000) / 1000000,
       contrato_meses: currentQuote.contrato_meses,
       data_inicio: contractStartDate,
       status: 'rascunho',
@@ -628,7 +628,7 @@ export default function LocacaoImpressoras() {
                 </p>
                 <p>
                   <strong>Excedente Homologado (CPP Venda):</strong> R${' '}
-                  {machineForContract.excedenteSugerido.toFixed(4)} / pág
+                  {machineForContract.excedenteSugerido.toFixed(6)} / pág
                 </p>
               </div>
 
