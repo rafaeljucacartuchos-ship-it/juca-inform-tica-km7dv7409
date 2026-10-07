@@ -984,9 +984,10 @@ export function reserveRate(c: ReserveConfig): number {
     c.monthlyPages <= 0
   )
     throw new Error('Preencha valores não negativos e um volume mensal inteiro maior que zero.')
-  return (
-    Math.ceil(((c.purchases * c.unitPrice + c.repairs) / (c.monthlyPages * 12)) * 1000000) / 1000000
-  )
+  const annual = c.purchases * c.unitPrice + c.repairs
+  if (!Number.isSafeInteger(Math.round(annual * 100)))
+    throw new Error('Orçamento fora do limite permitido.')
+  return Math.ceil((annual / (c.monthlyPages * 12)) * 1000000) / 1000000
 }
 export function useRentalReserve() {
   const { isAdmin } = usePermissions()
@@ -1115,15 +1116,20 @@ function RentalReserveAdmin({ fund }: { fund: ReserveState }) {
   let suggested: number | null = null
   try {
     if (Object.values(draft).every((v) => v.trim() !== '')) suggested = reserveRate(proposed)
-  } catch {}
+  } catch {
+    suggested = null
+  }
   const annual = proposed.purchases * proposed.unitPrice + proposed.repairs
   const entries = fund.rows.filter((r) => r.payload.kind === 'entry')
-  const validEntries = entries.every(
-    (r) =>
-      Number.isSafeInteger(r.payload.cents) &&
-      r.payload.cents > 0 &&
-      ['in', 'out'].includes(r.payload.direction),
-  )
+  const validEntries =
+    !fund.loading &&
+    !fund.error &&
+    entries.every(
+      (r) =>
+        Number.isSafeInteger(r.payload.cents) &&
+        r.payload.cents > 0 &&
+        ['in', 'out'].includes(r.payload.direction),
+    )
   const incoming =
     entries.filter((r) => r.payload.direction === 'in').reduce((n, r) => n + r.payload.cents, 0) /
     100
