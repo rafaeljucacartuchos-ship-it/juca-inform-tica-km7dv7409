@@ -45,7 +45,9 @@ import { SuppliesManagementTab } from './SuppliesManagementTab'
 import { PrintersManagementTab } from './PrintersManagementTab'
 import { ParametersAndAuditTab } from './ParametersAndAuditTab'
 import {
-  calculatePricing,
+  calculateSpreadsheetPricing as calculatePricing,
+  calculateRentalBase,
+  formatBRL2,
   calculateBreakEven,
   type PricingEngineResult,
   type BreakEvenResult,
@@ -148,7 +150,7 @@ export function ModernRentalSimulator({
   const [producaoMensal, setProducaoMensal] = useState<number>(
     parametros.producao_mensal_referencia || 1000,
   )
-  const [locacaoMensal, setLocacaoMensal] = useState<number>(87.21)
+  const [paybackMeses, setPaybackMeses] = useState<number>(0)
   const [vidaUtilCustom, setVidaUtilCustom] = useState<number>(48)
   const [markupCustom, setMarkupCustom] = useState<number>(parametros.mark_up_revenda || 1.45)
   const [equipPriceCustom, setEquipPriceCustom] = useState<string>('')
@@ -158,6 +160,13 @@ export function ModernRentalSimulator({
   )
   const [contratoMeses, setContratoMeses] = useState<number>(12)
   const [generatingQuote, setGeneratingQuote] = useState(false)
+  const locacaoMensal =
+    calculateRentalBase(
+      Number(equipPriceCustom.replace(',', '.')),
+      Number(printwayCostCustom.replace(',', '.')),
+      contratoMeses,
+      paybackMeses,
+    ) ?? 0
 
   // Seleciona impressora padrão (DCP-L2540DW ou primeira)
   useEffect(() => {
@@ -241,16 +250,16 @@ export function ModernRentalSimulator({
     if (!selectedPrinter) return []
 
     const slotsRaw = [
-      selectedPrinter.expand?.suprimento_1 ||
-        supplies.find((s) => s.id === selectedPrinter.suprimento_1),
-      selectedPrinter.expand?.suprimento_2 ||
-        supplies.find((s) => s.id === selectedPrinter.suprimento_2),
-      selectedPrinter.expand?.suprimento_3 ||
-        supplies.find((s) => s.id === selectedPrinter.suprimento_3),
-      selectedPrinter.expand?.suprimento_4 ||
-        supplies.find((s) => s.id === selectedPrinter.suprimento_4),
-      selectedPrinter.expand?.suprimento_5 ||
-        supplies.find((s) => s.id === selectedPrinter.suprimento_5),
+      supplies.find((s) => s.id === selectedPrinter.suprimento_1) ||
+        selectedPrinter.expand?.suprimento_1,
+      supplies.find((s) => s.id === selectedPrinter.suprimento_2) ||
+        selectedPrinter.expand?.suprimento_2,
+      supplies.find((s) => s.id === selectedPrinter.suprimento_3) ||
+        selectedPrinter.expand?.suprimento_3,
+      supplies.find((s) => s.id === selectedPrinter.suprimento_4) ||
+        selectedPrinter.expand?.suprimento_4,
+      supplies.find((s) => s.id === selectedPrinter.suprimento_5) ||
+        selectedPrinter.expand?.suprimento_5,
     ]
 
     // Brother compactas: chassi integrado nos slots fusor/película (regra 4.3)
@@ -347,7 +356,8 @@ export function ModernRentalSimulator({
       valorCompra: valorCompraNum,
       vidaUtilMeses: vidaUtilCustom,
       producaoMensalEstimada: producaoMensal,
-      locacaoMensalProposta: locacaoMensal,
+      contratoMeses,
+      paybackMeses,
       markUpRevenda: markupCustom,
       valorSoftwarePrintway,
       supplies: activeSupplySlots,
@@ -362,6 +372,8 @@ export function ModernRentalSimulator({
     vidaUtilCustom,
     producaoMensal,
     locacaoMensal,
+    contratoMeses,
+    paybackMeses,
     markupCustom,
   ])
 
@@ -406,6 +418,9 @@ export function ModernRentalSimulator({
       producaoMensalEstimada: producaoMensal,
       markUpRevenda: markupCustom,
       supplies: slotsBInput,
+      contratoMeses,
+      paybackMeses,
+      valorSoftwarePrintway: printerScenarioB.custo_mensal_software,
     })
 
     return calculateBreakEven(
@@ -427,6 +442,8 @@ export function ModernRentalSimulator({
     locacaoScenarioB,
     locacaoMensal,
     calculation.cppVenda,
+    contratoMeses,
+    paybackMeses,
     producaoMensal,
     markupCustom,
     supplies,
@@ -570,14 +587,14 @@ export function ModernRentalSimulator({
         scanner: true,
         scanner_dados: 'Alimentador ADF Duplex',
         margem_pct: Math.round((markupCustom - 1) * 100),
-        payback_meses: vidaUtilCustom,
+        payback_meses: paybackMeses,
         status: 'proposta_gerada',
         titulo: tituloProposta || 'Proposta de Locação Corporativa',
         maquinas_comparadas: [
           {
             machineName: `${selectedPrinter.modelo} (${selectedPrinter.fabricante})`,
             valorCompra: Number(equipPriceCustom) || 0,
-            paybackMeses: vidaUtilCustom,
+            paybackMeses: paybackMeses,
             cppFornecedor: calculation.cppFornecedorTotal,
             cppRevenda: calculation.cppVenda,
             locacaoMensal: locacaoMensal,
@@ -604,7 +621,7 @@ export function ModernRentalSimulator({
           franquiaPaginas: producaoMensal,
           contratoMeses,
           margemPct: Math.round((markupCustom - 1) * 100),
-          paybackMesesPadrao: vidaUtilCustom,
+          paybackMesesPadrao: paybackMeses,
           breakEvenPaginas: breakEvenResult?.paginasBreakEven || undefined,
           vantagemDescricao: breakEvenResult?.recomendacao || undefined,
           software_printway_mensal: calculation.valorSoftwarePrintway,
@@ -626,6 +643,11 @@ export function ModernRentalSimulator({
             todos_slots: allSlotsSnapshot,
             suprimentos_vinculados: suprimentosPayload,
             memoria_calculo: {
+              regra: 'planilha-payback-v1',
+              contrato_meses: contratoMeses,
+              payback_meses: paybackMeses,
+              vida_util_meses: vidaUtilCustom,
+              locacao_base: locacaoMensal,
               cpp_suprimentos: calculation.cppSuprimentos,
               cpp_equipamento: calculation.cppEquipamento,
               cpp_software_printway: calculation.cppSoftwarePrintway,
@@ -818,7 +840,7 @@ export function ModernRentalSimulator({
                     : ''
                 }`}
               />
-              <p className="text-[10px] text-slate-400">Ativo para depreciação</p>
+              <p className="text-[10px] text-slate-400">Investimento recuperado na locação base</p>
             </div>
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-slate-700">
@@ -828,11 +850,26 @@ export function ModernRentalSimulator({
                 type="number"
                 step="0.01"
                 min="0"
-                value={locacaoMensal || ''}
-                onChange={(e) => setLocacaoMensal(parseFloat(e.target.value) || 0)}
+                value={paybackMeses > 0 ? locacaoMensal.toFixed(2) : ''}
+                readOnly
                 className="h-9 text-xs font-mono font-bold"
               />
-              <p className="text-[10px] text-slate-400">Parcela locatícia fixa</p>
+              <p className="text-[10px] text-slate-400">(Compra + Printway × contrato) ÷ payback</p>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="rental-payback">Payback (meses) *</Label>
+              <Input
+                id="rental-payback"
+                type="number"
+                min="1"
+                step="1"
+                value={paybackMeses || ''}
+                onChange={(e) => setPaybackMeses(Number(e.target.value))}
+                placeholder="Informe o prazo de retorno"
+              />
+              <p className="text-[10px] text-slate-500">
+                Escolha explícita, independente da vida útil e do contrato.
+              </p>
             </div>
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-slate-700">Vida Útil (meses)</Label>
@@ -865,7 +902,9 @@ export function ModernRentalSimulator({
                 className="h-9 text-xs font-mono font-bold text-indigo-950 bg-indigo-50/40 border-indigo-200 focus:border-indigo-500 focus:bg-white"
                 title="Custo mensal do software de gerenciamento Printway para esta máquina (Enter ou desfoque salva)"
               />
-              <p className="text-[10px] text-slate-400">Diluído no volume</p>
+              <p className="text-[10px] text-slate-400">
+                Incluído no investimento pelo prazo do contrato
+              </p>
             </div>
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-slate-700">
@@ -879,9 +918,25 @@ export function ModernRentalSimulator({
                 onChange={(e) => setMarkupCustom(parseFloat(e.target.value) || 1.45)}
                 className="h-9 text-xs font-mono font-bold text-indigo-950"
               />
-              <p className="text-[10px] text-slate-400">Ex: 1.4500 (sobre total)</p>
+              <p className="text-[10px] text-slate-400">Ex: 1.4500 (sobre suprimentos)</p>
             </div>
           </fieldset>
+          <p className="mt-3 text-xs" role="status">
+            {paybackMeses > 0
+              ? '(' +
+                formatBRL2(Number(equipPriceCustom)) +
+                ' + ' +
+                formatBRL2(Number(printwayCostCustom.replace(',', '.'))) +
+                ' × ' +
+                contratoMeses +
+                ' meses) ÷ ' +
+                paybackMeses +
+                ' meses = ' +
+                formatBRL2(locacaoMensal) +
+                '/mês'
+              : 'Informe o payback para calcular a locação base.'}{' '}
+            CPP de venda = suprimentos × mark-up. Equipamento e Printway já compõem a base.
+          </p>
         </details>
 
         {/* ALERTA SE MODELO BLOQUEADO OU FALTANDO PREÇO */}
