@@ -967,6 +967,20 @@ type ReserveConfig = {
   monthlyPages: number
 }
 type ReserveRow = { id: string; created: string; payload: any }
+export function reservePayloadKey(value: any): string {
+  if (Array.isArray(value)) return '[' + value.map(reservePayloadKey).join(',') + ']'
+  if (value !== null && typeof value === 'object')
+    return (
+      '{' +
+      Object.keys(value)
+        .filter((k) => value[k] !== undefined)
+        .sort()
+        .map((k) => JSON.stringify(k) + ':' + reservePayloadKey(value[k]))
+        .join(',') +
+      '}'
+    )
+  return JSON.stringify(value)
+}
 const reserveMoney = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 export function reserveRate(c: ReserveConfig): number {
@@ -1001,26 +1015,22 @@ export function useRentalReserve() {
     setLoading(true)
     setError('')
     try {
-      const rates = await reservePb
-        .collection('rental_reserve')
-        .getList<ReserveRow>(1, 1, {
-          filter: 'payload.kind = "rate"',
-          sort: '-created,-id',
-          requestKey: null,
-        })
+      const rates = await reservePb.collection('rental_reserve').getList<ReserveRow>(1, 1, {
+        filter: 'payload.kind = "rate"',
+        sort: '-created,-id',
+        requestKey: null,
+      })
       const latest = rates.items[0]
       const nextRate = latest ? Number(latest.payload.rate) : null
       if (nextRate !== null && (!Number.isFinite(nextRate) || nextRate < 0))
         throw new Error('Tarifa cadastrada inválida.')
       let privateRows: ReserveRow[] = []
       if (isAdmin)
-        privateRows = await reservePb
-          .collection('rental_reserve')
-          .getFullList<ReserveRow>({
-            filter: 'payload.kind != "rate"',
-            sort: '-created,-id',
-            requestKey: null,
-          })
+        privateRows = await reservePb.collection('rental_reserve').getFullList<ReserveRow>({
+          filter: 'payload.kind != "rate"',
+          sort: '-created,-id',
+          requestKey: null,
+        })
       const matching = privateRows.find((r) => r.id === latest?.payload.configId)
       setRows(privateRows)
       setConfig(matching?.payload.config || null)
@@ -1152,7 +1162,8 @@ function RentalReserveAdmin({ fund }: { fund: ReserveState }) {
         .collection('rental_reserve')
         .getOne<ReserveRow>(id)
         .catch(() => null)
-      if (!existing || JSON.stringify(existing.payload) !== JSON.stringify(payload)) throw error
+      if (!existing || reservePayloadKey(existing.payload) !== reservePayloadKey(payload))
+        throw error
     }
     requestId.current = ''
     return id
