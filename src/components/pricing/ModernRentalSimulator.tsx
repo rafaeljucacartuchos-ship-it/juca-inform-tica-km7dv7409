@@ -803,7 +803,7 @@ export function ModernRentalSimulator({
             />
           </label>
         </div>
-        <details className="rounded-lg border p-3">
+        <details open className="rounded-lg border p-3">
           <summary className="cursor-pointer font-semibold text-sm">
             Abrir custos e parâmetros de cálculo
           </summary>
