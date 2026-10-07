@@ -492,75 +492,71 @@ export function calculateBreakEven(
   cenarioB: BreakEvenScenario,
   volumeAtual = 0,
 ): BreakEvenResult {
-  const diffLocacao = cenarioB.locacaoMensal - cenarioA.locacaoMensal
-  const diffCpp = Math.abs(cenarioA.cppVenda - cenarioB.cppVenda)
-
-  // Matriz de erros: se locações idênticas E CPPs idênticos
-  if (Math.abs(diffLocacao) < 0.000001 && diffCpp < 0.0000001) {
+  const values = [
+    cenarioA.locacaoMensal,
+    cenarioB.locacaoMensal,
+    cenarioA.cppVenda,
+    cenarioB.cppVenda,
+    volumeAtual,
+  ]
+  if (!values.every((v) => Number.isFinite(v) && v >= 0))
     return {
       valid: false,
       diferencaLocacao: 0,
       diferencaCPP: 0,
       paginasBreakEven: null,
-      recomendacao:
-        'Os cenários informados são equivalentes; não há ponto de equilíbrio aplicável.',
-      error: 'ERR_BREAKEVEN_PARALLEL_LINES',
+      recomendacao: 'Informe custos e volume válidos para comparar.',
+      error: 'ERR_INVALID_SCENARIO',
       cenarioMaisEconomicoParaVolume: 'equivalente',
     }
+  const fixo = cenarioB.locacaoMensal - cenarioA.locacaoMensal
+  const cpp = cenarioA.cppVenda - cenarioB.cppVenda
+  const custoA = cenarioA.locacaoMensal + cenarioA.cppVenda * volumeAtual
+  const custoB = cenarioB.locacaoMensal + cenarioB.cppVenda * volumeAtual
+  const melhor = Math.abs(custoA - custoB) < 1e-8 ? 'equivalente' : custoA < custoB ? 'A' : 'B'
+  const common = {
+    diferencaLocacao: roundTo(Math.abs(fixo), 2),
+    diferencaCPP: roundTo(Math.abs(cpp), 6),
+    cenarioMaisEconomicoParaVolume: melhor as 'A' | 'B' | 'equivalente',
   }
-
-  if (diffCpp < 0.00000001) {
+  if (Math.abs(cpp) < 1e-12)
     return {
+      ...common,
       valid: false,
-      diferencaLocacao: roundTo(diffLocacao, 2),
-      diferencaCPP: 0,
       paginasBreakEven: null,
-      recomendacao: 'CPPs de venda idênticos; a opção de menor locação é sempre mais vantajosa.',
       error: 'ERR_IDENTICAL_CPP',
-      cenarioMaisEconomicoParaVolume: diffLocacao > 0 ? 'A' : 'B',
+      recomendacao:
+        Math.abs(fixo) < 1e-8
+          ? 'Os cenários são equivalentes em qualquer volume.'
+          : 'Não há cruzamento: com CPPs iguais, o menor valor fixo é sempre mais econômico.',
     }
-  }
-
-  // paginas_break_even = |locacao_B - locacao_A| / |CPP_A - CPP_B|
-  const paginasBreakEven = Math.abs(diffLocacao) / diffCpp
-
-  // Identifica quem tem menor custo fixo e quem tem menor CPP
-  const menorFixo = cenarioA.locacaoMensal <= cenarioB.locacaoMensal ? cenarioA : cenarioB
-  const menorCpp = cenarioA.cppVenda <= cenarioB.cppVenda ? cenarioA : cenarioB
-
-  let recomendacao = ''
-  let cenarioMaisEconomico: 'A' | 'B' | 'equivalente' = 'equivalente'
-
-  if (menorFixo === menorCpp) {
-    // Uma opção é superior em ambos (locação menor e CPP menor)
-    const melhorNome = menorFixo === cenarioA ? 'Cenário A' : 'Cenário B'
-    recomendacao = `${melhorNome} (${menorFixo.modelo}) apresenta menor locação e menor CPP, sendo mais econômico em qualquer volume.`
-    cenarioMaisEconomico = menorFixo === cenarioA ? 'A' : 'B'
-  } else {
-    const nomeMenorCpp = menorCpp === cenarioA ? 'Cenário A' : 'Cenário B'
-    const nomeMenorFixo = menorFixo === cenarioA ? 'Cenário A' : 'Cenário B'
-    const beArredondado = Math.round(paginasBreakEven).toLocaleString('pt-BR')
-
-    recomendacao = `Para volumes superiores a ${beArredondado} páginas/mês, o ${nomeMenorCpp} (${menorCpp.modelo}) apresenta menor custo total de propriedade (TCO). Para volumes inferiores, o ${nomeMenorFixo} (${menorFixo.modelo}) é mais vantajoso.`
-
-    if (volumeAtual > 0) {
-      if (Math.abs(volumeAtual - paginasBreakEven) < 1) {
-        cenarioMaisEconomico = 'equivalente'
-      } else if (volumeAtual > paginasBreakEven) {
-        cenarioMaisEconomico = menorCpp === cenarioA ? 'A' : 'B'
-      } else {
-        cenarioMaisEconomico = menorFixo === cenarioA ? 'A' : 'B'
-      }
+  const paginas = fixo / cpp
+  if (paginas < 0)
+    return {
+      ...common,
+      valid: false,
+      paginasBreakEven: null,
+      error: 'ERR_NO_POSITIVE_INTERSECTION',
+      recomendacao:
+        'Não há ponto de equilíbrio positivo: o cenário ' +
+        melhor +
+        ' tem menor custo fixo e por página.',
     }
-  }
-
+  const menorCpp = cpp < 0 ? 'A' : 'B'
   return {
+    ...common,
     valid: true,
-    diferencaLocacao: roundTo(Math.abs(diffLocacao), 2),
-    diferencaCPP: roundTo(diffCpp, 6),
-    paginasBreakEven,
-    recomendacao,
-    cenarioMaisEconomicoParaVolume: cenarioMaisEconomico,
+    paginasBreakEven: paginas,
+    recomendacao:
+      paginas === 0
+        ? 'Os valores fixos são iguais. Para qualquer volume positivo, o cenário ' +
+          menorCpp +
+          ' é mais econômico.'
+        : 'Os custos se igualam em ' +
+          paginas.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) +
+          ' páginas/mês. Acima desse volume, o cenário ' +
+          menorCpp +
+          ' é mais econômico.',
   }
 }
 
@@ -588,6 +584,54 @@ export function calculateSpreadsheetPricing(
   input: PricingEngineInput & { contratoMeses: number; paybackMeses: number },
 ): PricingEngineResult {
   const result = calculatePricing(input)
+  // A proposta por página exige o consumível de impressão, além das peças de manutenção.
+  const tipos = input.tecnologia === 'tinta' ? ['tinta', 'cartucho'] : ['toner']
+  const essenciais = input.supplies.filter((s) => s && tipos.includes(s.tipo))
+  if (result.isThermalOrMatrix) {
+    result.errors.push(
+      'Térmica/matricial exige precificação por unidade de bobina, fita ou ribbon. Este simulador por página não pode emitir essa proposta.',
+    )
+  } else if (!essenciais.length || essenciais.some((s) => s?.included === false)) {
+    result.errors.push(
+      'Cadastre e inclua o toner, tinta ou cartucho de impressão antes de gerar a proposta. Fusor e película não substituem esse consumível.',
+    )
+  }
+  for (const s of input.supplies) {
+    if (
+      !s ||
+      (!s.supplyId && !s.modelo) ||
+      s.integratedToChassis ||
+      s.modelo.trim().toUpperCase() === 'INTEGRADO'
+    )
+      continue
+    if (
+      ![s.valorCompra, s.rendimentoPaginas].every(
+        (v) => typeof v === 'number' && Number.isFinite(v) && v > 0,
+      )
+    ) {
+      result.errors.push(
+        'Preço e rendimento devem ser positivos e finitos: ' +
+          (s.modelo || 'suprimento sem identificação') +
+          '.',
+      )
+    }
+  }
+  const modelo = input.modelo.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  const refs = input.supplies.map((s) => (s?.modelo || '').toUpperCase().replace(/[^A-Z0-9]/g, ''))
+  if (
+    ['M130FW', 'M130NW', 'LASERJETPROMFPM130FW', 'LASERJETPROMFPM130NW'].includes(modelo) &&
+    refs.some((r) => r.includes('CF248A'))
+  ) {
+    result.errors.push(
+      'Referência incompatível: HP M130 utiliza CF217A/17A. Corrija o vínculo e confirme o preço do cartucho correto.',
+    )
+  }
+  if (['MFCJ1010DW', 'MFCJ1170DW'].includes(modelo) && refs.some((r) => /LC10[59]/.test(r))) {
+    result.errors.push(
+      'Referência incompatível: este modelo Brother utiliza LC401/LC401XL. Corrija os vínculos e confirme os custos.',
+    )
+  }
+
   const compra = Number(input.valorCompra)
   const printway = Number(input.valorSoftwarePrintway ?? 0)
   const base = calculateRentalBase(compra, printway, input.contratoMeses, input.paybackMeses)
