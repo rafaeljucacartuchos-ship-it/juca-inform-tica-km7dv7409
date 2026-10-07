@@ -479,6 +479,7 @@ function AdminRentalProfit({
   valido: boolean
 }) {
   const { isAdmin } = usePermissions()
+  const [margemDesejada, setMargemDesejada] = useState('')
   const [impostos, setImpostos] = useState('')
   const [despesaMensal, setDespesaMensal] = useState('')
   const [despesaInicial, setDespesaInicial] = useState('')
@@ -490,19 +491,28 @@ function AdminRentalProfit({
   const [viagemVisita, setViagemVisita] = useState('')
   const [viagemInicial, setViagemInicial] = useState('')
   if (!isAdmin) return null
-  const campos = [
-    impostos,
-    despesaMensal,
-    despesaInicial,
-    custoAtendimento,
-    implantacao,
-    ...(origem === 'parque' ? [desgaste] : []),
-    ...(foraCidade ? [viagemVisita, viagemInicial] : []),
+  const entradas = [
+    { nome: 'Impostos sobre receita', valor: impostos, id: 'profit-tax' },
+    { nome: 'Outras despesas mensais', valor: despesaMensal, id: 'profit-monthly' },
+    { nome: 'Outras despesas iniciais', valor: despesaInicial, id: 'profit-initial' },
+    { nome: 'Custo interno por atendimento', valor: custoAtendimento, id: 'profit-service' },
+    { nome: 'Implantação técnica inicial', valor: implantacao, id: 'profit-install' },
+    ...(origem === 'parque'
+      ? [{ nome: 'Desgaste mensal da impressora', valor: desgaste, id: 'profit-wear' }]
+      : []),
+    ...(foraCidade
+      ? [
+          { nome: 'Deslocamento por atendimento', valor: viagemVisita, id: 'profit-trip-service' },
+          { nome: 'Deslocamento da implantação', valor: viagemInicial, id: 'profit-trip-install' },
+        ]
+      : []),
   ]
-  const completos = campos.every((v) => v.trim() !== '')
+  const pendentes = entradas.filter((e) => e.valor.trim() === '')
+  const completos = pendentes.length === 0
   const custosValidos =
-    campos.every((v) => v === '' || (Number.isFinite(Number(v)) && Number(v) >= 0)) &&
-    Number(impostos) <= 100
+    entradas.every(
+      (e) => e.valor === '' || (Number.isFinite(Number(e.valor)) && Number(e.valor) >= 0),
+    ) && Number(impostos) <= 100
   const validoFinal =
     valido &&
     custosValidos &&
@@ -510,12 +520,12 @@ function AdminRentalProfit({
     contratoMeses > 0 &&
     Number.isFinite(valorCompra) &&
     valorCompra > 0
+  const resultadoCompleto = validoFinal && completos
   const receita = calculation.faturamentoTotalMensal * contratoMeses
   const suprimentos = calculation.cppSuprimentos * producaoMensal * contratoMeses
   const printway = calculation.valorSoftwarePrintway * contratoMeses
   const tributos = (receita * Number(impostos)) / 100
   const extras = Number(despesaMensal) * contratoMeses + Number(despesaInicial)
-  // Reserva proporcional: um atendimento por semestre, sem promessa de agenda de visitas.
   const atendimentosEquivalentes = contratoMeses / 6
   const assistencia = atendimentosEquivalentes * Number(custoAtendimento)
   const deslocamento = foraCidade
@@ -523,16 +533,34 @@ function AdminRentalProfit({
     : 0
   const custoImplantacao = Number(implantacao)
   const custoEquipamento = origem === 'parque' ? Number(desgaste) * contratoMeses : valorCompra
-  const resultado =
-    receita -
-    custoEquipamento -
-    suprimentos -
-    printway -
-    tributos -
-    extras -
-    assistencia -
-    deslocamento -
-    custoImplantacao
+  const custosSemImposto =
+    suprimentos +
+    printway +
+    extras +
+    assistencia +
+    deslocamento +
+    custoImplantacao +
+    custoEquipamento
+  const custoTotal = custosSemImposto + tributos
+  const resultado = receita - custoTotal
+  // Desgaste é custo gerencial, mas não um novo pagamento. Compra nova é desembolso único.
+  const sobraCaixa = resultado + (origem === 'parque' ? custoEquipamento : 0)
+  const margemValida =
+    margemDesejada.trim() !== '' &&
+    Number.isFinite(Number(margemDesejada)) &&
+    Number(margemDesejada) >= 0 &&
+    Number(margemDesejada) < 100 &&
+    Number(impostos) + Number(margemDesejada) < 100
+  const podeSugerir = resultadoCompleto && margemValida
+  const divisor = 1 - (Number(impostos) + Number(margemDesejada)) / 100
+  const mensalidadeSugerida = podeSugerir
+    ? Math.ceil((custosSemImposto / contratoMeses / divisor) * 100) / 100
+    : null
+  const receitaSugerida = mensalidadeSugerida === null ? null : mensalidadeSugerida * contratoMeses
+  const lucroSugerido =
+    receitaSugerida === null
+      ? null
+      : receitaSugerida * (1 - Number(impostos) / 100) - custosSemImposto
   const moeda = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   const campo = (
     id: string,
@@ -643,7 +671,7 @@ function AdminRentalProfit({
             </p>
           </div>
         )}
-        {validoFinal && (
+        {resultadoCompleto && (
           <p className="text-sm" role="status">
             Reserva de assistência: {moeda(assistencia / contratoMeses)}/mês. Implantação e
             deslocamentos: {moeda(custoImplantacao + deslocamento)} no contrato.
@@ -666,93 +694,260 @@ function AdminRentalProfit({
         )}
       </div>
       <p className="text-xs text-slate-600">
-        Informe 0 quando não houver custo. Não repita assistência, implantação ou deslocamentos nas
-        outras despesas. Os valores são desta simulação: reduzem o resultado estimado, mas não
-        reajustam automaticamente a mensalidade nem ficam salvos na proposta.
+        Informe 0 apenas quando confirmar que não há custo. Inclua a parcela das despesas
+        administrativas em outras despesas mensais. Não repita peças, assistência, implantação ou
+        deslocamentos já informados.
       </p>
       {!custosValidos && (
         <p role="alert" className="text-red-700">
-          Informe custos não negativos e impostos entre 0% e 100%.
+          Corrija os custos negativos ou inválidos. Impostos devem estar entre 0% e 100%.
         </p>
       )}
       {!completos && (
-        <p className="text-sm text-amber-800">
-          Estimativa parcial: custos em branco ainda não foram descontados.
-        </p>
-      )}
-      <div className="grid gap-4 sm:grid-cols-3 rounded-lg bg-slate-50 p-4" aria-live="polite">
-        <div>
+        <div role="status" className="rounded-lg border border-amber-400 bg-amber-50 p-4">
+          <h4 className="font-bold text-amber-900">
+            Lucro pendente — faltam {pendentes.length} custos
+          </h4>
           <p className="text-sm">
-            {completos
-              ? origem === 'parque'
-                ? 'Lucro gerencial estimado'
-                : 'Resultado após recuperar a compra'
-              : 'Resultado antes dos custos não informados'}
+            Campo vazio não significa custo zero. Preencha ou confirme 0 em cada item:
           </p>
-          <strong className={resultado < 0 ? 'text-2xl text-red-700' : 'text-2xl text-emerald-800'}>
-            {validoFinal ? moeda(resultado) : 'Complete a precificação'}
-          </strong>
-          {validoFinal && resultado < 0 && (
-            <p className="text-red-700 font-semibold">Prejuízo estimado</p>
-          )}
+          <ul className="list-disc pl-5 text-sm mt-2">
+            {pendentes.map((e) => (
+              <li key={e.id}>
+                <a className="underline" href={'#' + e.id}>
+                  {e.nome}
+                </a>
+              </li>
+            ))}
+          </ul>
         </div>
-        <div>
-          <p className="text-sm">Média mensal do resultado</p>
-          <strong className="text-xl">
-            {validoFinal ? moeda(resultado / contratoMeses) : '—'}
-          </strong>
+      )}
+      <section
+        aria-label="Resumo financeiro mensal"
+        className="rounded-lg bg-slate-50 p-4 space-y-3"
+      >
+        <h4 className="font-bold">Com a mensalidade atual</h4>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <p className="text-sm">Cliente paga por mês</p>
+            <strong className="text-xl">
+              {validoFinal ? moeda(calculation.faturamentoTotalMensal) : 'Complete a precificação'}
+            </strong>
+          </div>
+          <div>
+            <p className="text-sm">Custo total médio por mês</p>
+            <strong className="text-xl">
+              {resultadoCompleto ? moeda(custoTotal / contratoMeses) : 'Pendente'}
+            </strong>
+            <p className="text-xs">
+              Inclui impostos e {origem === 'parque' ? 'desgaste' : 'compra distribuída pelo prazo'}
+              .
+            </p>
+          </div>
+          <div>
+            <p className="text-sm">Sobra de caixa média por mês</p>
+            <strong className="text-xl">
+              {resultadoCompleto ? moeda(sobraCaixa / contratoMeses) : 'Pendente'}
+            </strong>
+            <p className="text-xs">Previsão após pagamentos; não é saldo bancário.</p>
+          </div>
+          <div>
+            <p className="text-sm">
+              {origem === 'parque'
+                ? 'Lucro gerencial por mês'
+                : 'Retorno mensal após recuperar compra'}
+            </p>
+            <strong
+              className={resultado < 0 ? 'text-2xl text-red-700' : 'text-2xl text-emerald-800'}
+            >
+              {resultadoCompleto ? moeda(resultado / contratoMeses) : 'Pendente'}
+            </strong>
+          </div>
         </div>
-        <div>
-          <p className="text-sm">Margem sobre a receita</p>
-          <strong className="text-xl">
-            {validoFinal && receita > 0
+        {resultadoCompleto && (
+          <p className={resultado < 0 ? 'text-red-700 font-semibold' : 'text-sm'}>
+            {resultado < 0 ? 'Prejuízo estimado. ' : ''}Margem atual:{' '}
+            {receita > 0
               ? ((resultado / receita) * 100).toLocaleString('pt-BR', {
-                  minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 }) + '%'
-              : '—'}
-          </strong>
+              : 'Não calculável sem receita'}
+            .
+          </p>
+        )}
+      </section>
+      <section aria-label="Resultado total do contrato" className="rounded-lg border p-4">
+        <h4 className="font-bold">No contrato inteiro — {contratoMeses} meses</h4>
+        <div className="grid gap-3 sm:grid-cols-3 mt-3">
+          <div>
+            <p className="text-sm">Receita total</p>
+            <strong>{validoFinal ? moeda(receita) : 'Pendente'}</strong>
+          </div>
+          <div>
+            <p className="text-sm">Sobra de caixa prevista</p>
+            <strong>{resultadoCompleto ? moeda(sobraCaixa) : 'Pendente'}</strong>
+          </div>
+          <div>
+            <p className="text-sm">
+              {origem === 'parque' ? 'Lucro após desgaste' : 'Retorno após recuperar compra'}
+            </p>
+            <strong>{resultadoCompleto ? moeda(resultado) : 'Pendente'}</strong>
+          </div>
         </div>
-      </div>
-      {validoFinal && (
-        <details>
-          <summary className="cursor-pointer font-semibold">
-            Conferir receitas e custos do contrato
-          </summary>
-          <dl className="grid grid-cols-2 gap-2 mt-3 text-sm">
-            <dt>Receita total prevista</dt>
-            <dd className="text-right">{moeda(receita)}</dd>
-            <dt>
-              {origem === 'parque' ? 'Desgaste da impressora no contrato' : 'Compra da impressora'}
-            </dt>
-            <dd className="text-right">− {moeda(custoEquipamento)}</dd>
-            <dt>Suprimentos e peças incluídos no CPP</dt>
-            <dd className="text-right">− {moeda(suprimentos)}</dd>
-            <dt>Printway no contrato</dt>
-            <dd className="text-right">− {moeda(printway)}</dd>
-            <dt>Assistência técnica prevista</dt>
-            <dd className="text-right">− {moeda(assistencia)}</dd>
-            <dt>Implantação técnica inicial</dt>
-            <dd className="text-right">− {moeda(custoImplantacao)}</dd>
-            <dt>Deslocamentos de implantação e visitas</dt>
-            <dd className="text-right">− {moeda(deslocamento)}</dd>
-            <dt>Impostos informados</dt>
-            <dd className="text-right">
-              {impostos === '' ? 'Não informado' : '− ' + moeda(tributos)}
-            </dd>
-            <dt>Outras despesas informadas</dt>
-            <dd className="text-right">
-              − {moeda(extras)}
-              {despesaMensal === '' || despesaInicial === '' ? ' (incompleto)' : ''}
-            </dd>
-          </dl>
-        </details>
-      )}
+        <p className="text-xs mt-3">
+          {origem === 'parque'
+            ? 'A diferença entre sobra de caixa e lucro é o desgaste da máquina. A compra antiga não é descontada novamente.'
+            : 'A compra nova é descontada uma única vez. Isto é retorno do projeto após recuperar o investimento, não lucro contábil.'}{' '}
+          Valores médios: implantação e visitas têm pagamentos em datas diferentes.
+        </p>
+      </section>
+      <section
+        aria-label="Mensalidade para margem desejada"
+        className="rounded-lg border-2 border-indigo-500 bg-indigo-50 p-4 space-y-3"
+      >
+        <h4 className="font-bold">Qual mensalidade entrega a margem desejada?</h4>
+        {campo(
+          'profit-target-margin',
+          'Margem desejada sobre a receita (%)',
+          margemDesejada,
+          setMargemDesejada,
+          99.99,
+        )}
+        {margemDesejada !== '' && !margemValida && (
+          <p role="alert" className="text-red-700">
+            Use uma margem não negativa. A soma de impostos e margem precisa ser menor que 100%.
+          </p>
+        )}
+        {!podeSugerir ? (
+          <p className="text-sm">
+            Complete todos os custos, a precificação e a margem desejada para calcular uma sugestão.
+          </p>
+        ) : (
+          <div className="space-y-2" aria-live="polite">
+            <p>
+              Mensalidade sugerida com a franquia incluída:{' '}
+              <strong className="text-2xl">{moeda(mensalidadeSugerida!)}</strong>
+            </p>
+            <p>
+              Resultado projetado com esse preço:{' '}
+              <strong>{moeda(lucroSugerido! / contratoMeses)}/mês</strong> e{' '}
+              <strong>{moeda(lucroSugerido!)} no contrato</strong>.
+            </p>
+            <p>
+              {mensalidadeSugerida! > calculation.faturamentoTotalMensal
+                ? 'Aumento necessário: ' +
+                  moeda(mensalidadeSugerida! - calculation.faturamentoTotalMensal) +
+                  '/mês.'
+                : 'A mensalidade atual já alcança a margem desejada; não é necessário reduzir o preço.'}
+            </p>
+          </div>
+        )}
+        <p className="text-xs">
+          Custo mensal sem impostos ÷ (1 − impostos − margem desejada). Impostos são recalculados
+          sobre o preço sugerido; arredondamento para cima ao centavo. A sugestão é gerencial e não
+          altera automaticamente a proposta.
+        </p>
+      </section>
+      <details open className="rounded-lg border p-4">
+        <summary className="cursor-pointer font-semibold">
+          Cada custo: média mensal e total do contrato
+        </summary>
+        <div className="overflow-x-auto mt-3">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left p-2">Item</th>
+                <th className="text-right p-2">Por mês</th>
+                <th className="text-right p-2">No contrato</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                {
+                  nome: 'Suprimentos e peças incluídos no CPP',
+                  total: suprimentos,
+                  informado: true,
+                },
+                { nome: 'Printway', total: printway, informado: true },
+                {
+                  nome:
+                    origem === 'parque'
+                      ? 'Desgaste da impressora'
+                      : 'Compra da impressora (uma vez)',
+                  total: custoEquipamento,
+                  informado: origem !== 'parque' || desgaste !== '',
+                },
+                {
+                  nome: 'Assistência: 1 atendimento por semestre',
+                  total: assistencia,
+                  informado: custoAtendimento !== '',
+                },
+                {
+                  nome: 'Implantação técnica (uma vez)',
+                  total: custoImplantacao,
+                  informado: implantacao !== '',
+                },
+                {
+                  nome: 'Deslocamento das visitas',
+                  total: foraCidade ? atendimentosEquivalentes * Number(viagemVisita) : 0,
+                  informado: !foraCidade || viagemVisita !== '',
+                },
+                {
+                  nome: 'Deslocamento da implantação (uma vez)',
+                  total: foraCidade ? Number(viagemInicial) : 0,
+                  informado: !foraCidade || viagemInicial !== '',
+                },
+                {
+                  nome: 'Impostos sobre a receita atual',
+                  total: tributos,
+                  informado: impostos !== '',
+                },
+                {
+                  nome: 'Outras despesas mensais',
+                  total: Number(despesaMensal) * contratoMeses,
+                  informado: despesaMensal !== '',
+                },
+                {
+                  nome: 'Outras despesas iniciais (uma vez)',
+                  total: Number(despesaInicial),
+                  informado: despesaInicial !== '',
+                },
+              ].map((item) => (
+                <tr key={item.nome} className="border-b">
+                  <td className="p-2">{item.nome}</td>
+                  <td className="p-2 text-right">
+                    {!item.informado
+                      ? 'Não informado'
+                      : validoFinal
+                        ? moeda(item.total / contratoMeses)
+                        : 'Pendente'}
+                  </td>
+                  <td className="p-2 text-right">
+                    {!item.informado
+                      ? 'Não informado'
+                      : validoFinal
+                        ? moeda(item.total)
+                        : 'Pendente'}
+                  </td>
+                </tr>
+              ))}
+              <tr className="font-bold">
+                <td className="p-2">Custo total</td>
+                <td className="text-right p-2">
+                  {resultadoCompleto ? moeda(custoTotal / contratoMeses) : 'Pendente'}
+                </td>
+                <td className="text-right p-2">
+                  {resultadoCompleto ? moeda(custoTotal) : 'Pendente'}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
       <p className="text-xs text-slate-600">
-        Projeção com a franquia inteira consumida e todas as mensalidades recebidas. Não inclui
-        excedentes nem valor de revenda. O lucro gerencial inclui desgaste, que não é pagamento
-        mensal. O resultado real depende dos custos e recebimentos. Informação interna, ausente do
-        resumo comercial e da impressão.
+        Estimativa com a franquia inteira consumida e todas as mensalidades recebidas. Não inclui
+        excedentes nem revenda. Valores privados desta simulação, não salvos na proposta e ausentes
+        do resumo comercial e da impressão. O resultado real depende dos custos e recebimentos.
       </p>
     </section>
   )
