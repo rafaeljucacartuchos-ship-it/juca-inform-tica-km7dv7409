@@ -482,8 +482,23 @@ function AdminRentalProfit({
   const [impostos, setImpostos] = useState('')
   const [despesaMensal, setDespesaMensal] = useState('')
   const [despesaInicial, setDespesaInicial] = useState('')
+  const [origem, setOrigem] = useState('parque')
+  const [desgaste, setDesgaste] = useState('')
+  const [custoAtendimento, setCustoAtendimento] = useState('')
+  const [implantacao, setImplantacao] = useState('')
+  const [foraCidade, setForaCidade] = useState(false)
+  const [viagemVisita, setViagemVisita] = useState('')
+  const [viagemInicial, setViagemInicial] = useState('')
   if (!isAdmin) return null
-  const campos = [impostos, despesaMensal, despesaInicial]
+  const campos = [
+    impostos,
+    despesaMensal,
+    despesaInicial,
+    custoAtendimento,
+    implantacao,
+    ...(origem === 'parque' ? [desgaste] : []),
+    ...(foraCidade ? [viagemVisita, viagemInicial] : []),
+  ]
   const completos = campos.every((v) => v.trim() !== '')
   const custosValidos =
     campos.every((v) => v === '' || (Number.isFinite(Number(v)) && Number(v) >= 0)) &&
@@ -500,8 +515,46 @@ function AdminRentalProfit({
   const printway = calculation.valorSoftwarePrintway * contratoMeses
   const tributos = (receita * Number(impostos)) / 100
   const extras = Number(despesaMensal) * contratoMeses + Number(despesaInicial)
-  const resultado = receita - valorCompra - suprimentos - printway - tributos - extras
+  // Reserva proporcional: um atendimento por semestre, sem promessa de agenda de visitas.
+  const atendimentosEquivalentes = contratoMeses / 6
+  const assistencia = atendimentosEquivalentes * Number(custoAtendimento)
+  const deslocamento = foraCidade
+    ? atendimentosEquivalentes * Number(viagemVisita) + Number(viagemInicial)
+    : 0
+  const custoImplantacao = Number(implantacao)
+  const custoEquipamento = origem === 'parque' ? Number(desgaste) * contratoMeses : valorCompra
+  const resultado =
+    receita -
+    custoEquipamento -
+    suprimentos -
+    printway -
+    tributos -
+    extras -
+    assistencia -
+    deslocamento -
+    custoImplantacao
   const moeda = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const campo = (
+    id: string,
+    label: string,
+    value: string,
+    setValue: (v: string) => void,
+    max?: number,
+  ) => (
+    <div>
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type="number"
+        min="0"
+        max={max}
+        step="0.01"
+        placeholder="Não informado"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+      />
+    </div>
+  )
   return (
     <section
       aria-label="Resultado exclusivo do administrador"
@@ -511,52 +564,111 @@ function AdminRentalProfit({
         <Badge>Exclusivo do administrador</Badge>
         <h3 className="text-lg font-bold mt-2">Resultado ao final do contrato</h3>
         <p className="text-sm text-slate-600">
-          {contratoMeses} meses • {producaoMensal.toLocaleString('pt-BR')} páginas por mês • compra
-          da máquina descontada uma única vez.
+          {contratoMeses} meses • {producaoMensal.toLocaleString('pt-BR')} páginas por mês.
         </p>
       </div>
+      <div className="rounded-lg border p-3 space-y-3">
+        <Label htmlFor="profit-origin">Equipamento do projeto</Label>
+        <select
+          id="profit-origin"
+          className="w-full rounded-md border p-2 bg-white"
+          value={origem}
+          onChange={(e) => setOrigem(e.target.value)}
+        >
+          <option value="parque">Impressora do nosso parque</option>
+          <option value="compra">Compra para este projeto</option>
+        </select>
+        {origem === 'parque' ? (
+          <>
+            {campo(
+              'profit-wear',
+              'Desgaste mensal estimado da impressora (R$)',
+              desgaste,
+              setDesgaste,
+            )}
+            <p className="text-xs">
+              A compra antiga não é descontada novamente. Informe o custo gerencial de uso da
+              máquina. Não some uma segunda reserva de reposição nas outras despesas.
+            </p>
+          </>
+        ) : (
+          <p className="text-xs">
+            A compra de {moeda(valorCompra)} será descontada uma única vez. Este cenário mostra o
+            retorno após recuperar a compra integral, sem considerar revenda.
+          </p>
+        )}
+      </div>
+      <fieldset className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 space-y-3">
+        <legend className="font-semibold px-1">Assistência técnica e implantação</legend>
+        <p className="text-sm font-medium">Previsão: 1 atendimento a cada 6 meses</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {campo(
+            'profit-service',
+            'Custo interno por atendimento (R$)',
+            custoAtendimento,
+            setCustoAtendimento,
+          )}
+          {campo('profit-install', 'Implantação técnica inicial (R$)', implantacao, setImplantacao)}
+        </div>
+        <p className="text-xs">
+          Use o custo interno da mão de obra, sem lucro e sem deslocamento. Os R$ 150 do atendimento
+          avulso não são utilizados. A implantação é coberta uma única vez. Não repita peças já
+          incluídas no CPP.
+        </p>
+        <label className="flex gap-2 items-center text-sm font-medium">
+          <input
+            type="checkbox"
+            checked={foraCidade}
+            onChange={(e) => setForaCidade(e.target.checked)}
+          />
+          Atendimento fora da cidade
+        </label>
+        {foraCidade && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {campo(
+              'profit-trip-service',
+              'Deslocamento por atendimento — ida e volta (R$)',
+              viagemVisita,
+              setViagemVisita,
+            )}
+            {campo(
+              'profit-trip-install',
+              'Deslocamento da implantação — ida e volta (R$)',
+              viagemInicial,
+              setViagemInicial,
+            )}
+            <p className="text-xs sm:col-span-2">
+              Inclua combustível, pedágios, tempo de viagem e, quando necessário, alimentação e
+              hospedagem, sem repetir custos já informados.
+            </p>
+          </div>
+        )}
+        {validoFinal && (
+          <p className="text-sm" role="status">
+            Reserva de assistência: {moeda(assistencia / contratoMeses)}/mês. Implantação e
+            deslocamentos: {moeda(custoImplantacao + deslocamento)} no contrato.
+          </p>
+        )}
+        <p className="text-xs">
+          Reserva proporcional ao prazo: meses ÷ 6 × custo por atendimento. Exemplo: 12 meses = 2
+          atendimentos; 36 meses = 6. Frações de semestre geram reserva proporcional. Esta previsão
+          não agenda visitas.
+        </p>
+      </fieldset>
       <div className="grid gap-3 sm:grid-cols-3">
-        <div>
-          <Label htmlFor="profit-tax">Impostos sobre receita (%)</Label>
-          <Input
-            id="profit-tax"
-            type="number"
-            min="0"
-            max="100"
-            step="0.01"
-            placeholder="Não informado"
-            value={impostos}
-            onChange={(e) => setImpostos(e.target.value)}
-          />
-        </div>
-        <div>
-          <Label htmlFor="profit-monthly">Outras despesas mensais (R$)</Label>
-          <Input
-            id="profit-monthly"
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="Não informado"
-            value={despesaMensal}
-            onChange={(e) => setDespesaMensal(e.target.value)}
-          />
-        </div>
-        <div>
-          <Label htmlFor="profit-initial">Outras despesas iniciais (R$)</Label>
-          <Input
-            id="profit-initial"
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="Não informado"
-            value={despesaInicial}
-            onChange={(e) => setDespesaInicial(e.target.value)}
-          />
-        </div>
+        {campo('profit-tax', 'Impostos sobre receita (%)', impostos, setImpostos, 100)}
+        {campo('profit-monthly', 'Outras despesas mensais (R$)', despesaMensal, setDespesaMensal)}
+        {campo(
+          'profit-initial',
+          'Outras despesas iniciais (R$)',
+          despesaInicial,
+          setDespesaInicial,
+        )}
       </div>
       <p className="text-xs text-slate-600">
-        Inclua mão de obra, deslocamentos, manutenção adicional e demais despesas. Informe 0 quando
-        não houver custo. Estes campos são apenas desta simulação e não alteram o preço da proposta.
+        Informe 0 quando não houver custo. Não repita assistência, implantação ou deslocamentos nas
+        outras despesas. Os valores são desta simulação: reduzem o resultado estimado, mas não
+        reajustam automaticamente a mensalidade nem ficam salvos na proposta.
       </p>
       {!custosValidos && (
         <p role="alert" className="text-red-700">
@@ -572,7 +684,9 @@ function AdminRentalProfit({
         <div>
           <p className="text-sm">
             {completos
-              ? 'Lucro estimado com os custos informados'
+              ? origem === 'parque'
+                ? 'Lucro gerencial estimado'
+                : 'Resultado após recuperar a compra'
               : 'Resultado antes dos custos não informados'}
           </p>
           <strong className={resultado < 0 ? 'text-2xl text-red-700' : 'text-2xl text-emerald-800'}>
@@ -591,7 +705,12 @@ function AdminRentalProfit({
         <div>
           <p className="text-sm">Margem sobre a receita</p>
           <strong className="text-xl">
-            {validoFinal && receita > 0 ? ((resultado / receita) * 100).toFixed(2) + '%' : '—'}
+            {validoFinal && receita > 0
+              ? ((resultado / receita) * 100).toLocaleString('pt-BR', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                }) + '%'
+              : '—'}
           </strong>
         </div>
       </div>
@@ -603,12 +722,20 @@ function AdminRentalProfit({
           <dl className="grid grid-cols-2 gap-2 mt-3 text-sm">
             <dt>Receita total prevista</dt>
             <dd className="text-right">{moeda(receita)}</dd>
-            <dt>Compra da impressora</dt>
-            <dd className="text-right">− {moeda(valorCompra)}</dd>
+            <dt>
+              {origem === 'parque' ? 'Desgaste da impressora no contrato' : 'Compra da impressora'}
+            </dt>
+            <dd className="text-right">− {moeda(custoEquipamento)}</dd>
             <dt>Suprimentos e peças incluídos no CPP</dt>
             <dd className="text-right">− {moeda(suprimentos)}</dd>
             <dt>Printway no contrato</dt>
             <dd className="text-right">− {moeda(printway)}</dd>
+            <dt>Assistência técnica prevista</dt>
+            <dd className="text-right">− {moeda(assistencia)}</dd>
+            <dt>Implantação técnica inicial</dt>
+            <dd className="text-right">− {moeda(custoImplantacao)}</dd>
+            <dt>Deslocamentos de implantação e visitas</dt>
+            <dd className="text-right">− {moeda(deslocamento)}</dd>
             <dt>Impostos informados</dt>
             <dd className="text-right">
               {impostos === '' ? 'Não informado' : '− ' + moeda(tributos)}
@@ -623,8 +750,9 @@ function AdminRentalProfit({
       )}
       <p className="text-xs text-slate-600">
         Projeção com a franquia inteira consumida e todas as mensalidades recebidas. Não inclui
-        excedentes nem valor de revenda da máquina. O resultado real depende dos custos e
-        recebimentos. Informação interna, ausente do resumo comercial e da impressão.
+        excedentes nem valor de revenda. O lucro gerencial inclui desgaste, que não é pagamento
+        mensal. O resultado real depende dos custos e recebimentos. Informação interna, ausente do
+        resumo comercial e da impressão.
       </p>
     </section>
   )
