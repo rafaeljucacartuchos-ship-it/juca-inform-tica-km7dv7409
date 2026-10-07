@@ -53,8 +53,8 @@ export function formatCPP(val: number): string {
   return (val || 0).toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 4,
+    minimumFractionDigits: 6,
+    maximumFractionDigits: 6,
   })
 }
 

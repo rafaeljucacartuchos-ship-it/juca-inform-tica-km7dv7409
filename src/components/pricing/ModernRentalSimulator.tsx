@@ -113,6 +113,7 @@ export function ModernRentalSimulator({
   })
 
   // Equipamento Selecionado
+  const [scannerConfirmado, setScannerConfirmado] = useState('')
   const [selectedPrinter, setSelectedPrinter] = useState<ImpressoraRecord | null>(null)
 
   // Estado de inclusão por slot: todos os slots com suprimento vinculado iniciam marcados por padrão (true)
@@ -184,6 +185,7 @@ export function ModernRentalSimulator({
 
   const selectPrinter = (printer: ImpressoraRecord) => {
     setSelectedPrinter(printer)
+    setScannerConfirmado('')
     // Ao selecionar nova impressora, reseta todos os slots como marcados por padrão
     setIncludedSlots({
       1: true,
@@ -549,6 +551,16 @@ export function ModernRentalSimulator({
   // Executa a persistência da proposta comercial
   const proceedGenerateProposal = async () => {
     if (!selectedPrinter) return
+    if (!calculation.valid || !scannerConfirmado) {
+      toast({
+        title: 'Proposta pendente',
+        description: !calculation.valid
+          ? calculation.errors.join(' ')
+          : 'Confirme o tipo de scanner do equipamento.',
+        variant: 'destructive',
+      })
+      return
+    }
 
     setGeneratingQuote(true)
     try {
@@ -594,8 +606,8 @@ export function ModernRentalSimulator({
         contrato_meses: contratoMeses,
         excesso_pagina_valor: calculation.cppVenda,
         software_printway_mensal: calculation.valorSoftwarePrintway,
-        scanner: true,
-        scanner_dados: 'Alimentador ADF Duplex',
+        scanner: scannerConfirmado !== 'Sem scanner',
+        scanner_dados: scannerConfirmado,
         margem_pct: Math.round((markupCustom - 1) * 100),
         payback_meses: paybackMeses,
         status: 'proposta_gerada',
@@ -611,8 +623,8 @@ export function ModernRentalSimulator({
             franquiaSugerida: calculation.faturamentoTotalMensal,
             excedenteSugerido: calculation.cppVenda,
             tco: calculation.faturamentoTotalMensal * contratoMeses,
-            scanner: true,
-            scannerDados: 'ADF Duplex',
+            scanner: scannerConfirmado !== 'Sem scanner',
+            scannerDados: scannerConfirmado,
             supplies: suprimentosPayload.map((s) => ({
               product: s.modelo_suprimento,
               nome: s.modelo_suprimento,
@@ -784,6 +796,22 @@ export function ModernRentalSimulator({
             onSelectPrinter={selectPrinter}
           />
         </div>
+
+        <label className="block text-xs font-semibold text-slate-700">
+          Scanner do equipamento — confirmar para a proposta
+          <select
+            aria-label="Scanner do equipamento"
+            value={scannerConfirmado}
+            onChange={(e) => setScannerConfirmado(e.target.value)}
+            className="mt-1 block w-full rounded border border-slate-300 bg-white p-2"
+          >
+            <option value="">Selecione conforme o equipamento</option>
+            <option value="Sem scanner">Sem scanner</option>
+            <option value="Scanner de mesa, sem ADF">Scanner de mesa, sem ADF</option>
+            <option value="Scanner com ADF simples">Scanner com ADF simples</option>
+            <option value="Scanner com ADF duplex">Scanner com ADF duplex</option>
+          </select>
+        </label>
 
         {/* INPUTS DE PARÂMETROS */}
         <div className="grid sm:grid-cols-2 gap-4">
