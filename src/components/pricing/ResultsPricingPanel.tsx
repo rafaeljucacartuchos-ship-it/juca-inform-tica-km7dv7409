@@ -12,6 +12,8 @@ import type { ImpressoraRecord } from '@/services/pricing-module'
 interface ResultsPricingPanelProps {
   calculation: PricingEngineResult
   producaoMensal: number
+  contratoMeses?: number
+  valorCompra?: number
   vidaUtil: number
   markup: number
   locacaoMensal: number
@@ -28,6 +30,8 @@ interface ResultsPricingPanelProps {
 export function ResultsPricingPanel({
   calculation,
   producaoMensal,
+  contratoMeses = 0,
+  valorCompra = 0,
   vidaUtil,
   markup,
   locacaoMensal,
@@ -95,72 +99,16 @@ Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarif
 
   return (
     <div className="space-y-4">
-      <details className="rounded-xl border border-slate-200 bg-white p-4">
-        <summary className="cursor-pointer font-semibold">
-          Abrir análise de custos e resultado
-        </summary>
-        <section className="space-y-3">
-          <h3 className="font-bold text-slate-900">Resumo para decisão — estimativa mensal</h3>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div>
-              <p className="text-xs text-slate-500">Custo calculado</p>
-              <strong>{dadosValidos ? moeda(custoMensalEstimado) : 'Dados incompletos'}</strong>
-              <p className="text-xs">Suprimentos consumidos nas páginas</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">Receita prevista</p>
-              <strong>{dadosValidos ? moeda(receitaPrevista) : 'Não calculada'}</strong>
-              <p className="text-xs">Mensalidade com páginas incluídas</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">Receita menos suprimentos</p>
-              <strong>{dadosValidos ? moeda(resultadoParcial) : 'Não calculado'}</strong>
-              <p className="text-xs">
-                {dadosValidos
-                  ? margemParcial.toFixed(1) + '% da receita prevista'
-                  : 'Complete o cadastro'}
-              </p>
-            </div>
-          </div>
-          <p className="text-xs text-amber-800">
-            Inclui a recuperação do investimento e do Printway na parcela base. Não é lucro líquido
-            nem valor recebido. Impostos, deslocamentos, mão de obra, inadimplência e outros custos
-            não informados precisam ser considerados antes de fechar a proposta.
-          </p>
-          <details className="border-t pt-2">
-            <summary className="cursor-pointer text-sm font-semibold">
-              Entenda o cálculo e as pendências
-            </summary>
-            <ul className="mt-2 list-disc pl-5 text-xs space-y-1">
-              <li>
-                CPP dos insumos = soma do custo dividido pelo rendimento de cada item incluído.
-                Rendimentos são estimativas e variam com cobertura e uso.
-              </li>
-              <li>
-                Locação base = (compra + Printway mensal × prazo do contrato) ÷ payback informado.
-              </li>
-              <li>
-                O fator {markup.toFixed(2)} representa acréscimo de{' '}
-                {((markup - 1) * 100).toFixed(1)}% sobre o custo; não é a mesma porcentagem de
-                margem sobre a venda.
-              </li>
-              <li>
-                O cálculo atual soma uma parcela base ao valor das páginas. Confirme a modalidade
-                comercial antes de emitir; franquia incluída e cobrança por todas as páginas são
-                diferentes.
-              </li>
-              <li>
-                CPP de venda = suprimentos × mark-up. Equipamento e Printway são recuperados na
-                locação base e não entram novamente no CPP.
-              </li>
-              <li>
-                Esta tela não registra leitura de contador nem comprova faturamento ou recebimento.
-                Utilize os dados reais do contrato e das leituras para cobrança.
-              </li>
-            </ul>
-          </details>
-        </section>
-      </details>
+      {isAdmin && (
+        <AdminRentalProfit
+          key={selectedPrinter?.id}
+          calculation={calculation}
+          producaoMensal={producaoMensal}
+          contratoMeses={contratoMeses}
+          valorCompra={valorCompra}
+          valido={dadosValidos}
+        />
+      )}
       <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 space-y-3">
         <h3 className="font-bold">Franquia contratada + excedente</h3>
         <p className="text-sm">
@@ -514,5 +462,170 @@ Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarif
         </Button>
       </div>
     </div>
+  )
+}
+
+function AdminRentalProfit({
+  calculation,
+  producaoMensal,
+  contratoMeses,
+  valorCompra,
+  valido,
+}: {
+  calculation: PricingEngineResult
+  producaoMensal: number
+  contratoMeses: number
+  valorCompra: number
+  valido: boolean
+}) {
+  const { isAdmin } = usePermissions()
+  const [impostos, setImpostos] = useState('')
+  const [despesaMensal, setDespesaMensal] = useState('')
+  const [despesaInicial, setDespesaInicial] = useState('')
+  if (!isAdmin) return null
+  const campos = [impostos, despesaMensal, despesaInicial]
+  const completos = campos.every((v) => v.trim() !== '')
+  const custosValidos =
+    campos.every((v) => v === '' || (Number.isFinite(Number(v)) && Number(v) >= 0)) &&
+    Number(impostos) <= 100
+  const validoFinal =
+    valido &&
+    custosValidos &&
+    Number.isInteger(contratoMeses) &&
+    contratoMeses > 0 &&
+    Number.isFinite(valorCompra) &&
+    valorCompra > 0
+  const receita = calculation.faturamentoTotalMensal * contratoMeses
+  const suprimentos = calculation.cppSuprimentos * producaoMensal * contratoMeses
+  const printway = calculation.valorSoftwarePrintway * contratoMeses
+  const tributos = (receita * Number(impostos)) / 100
+  const extras = Number(despesaMensal) * contratoMeses + Number(despesaInicial)
+  const resultado = receita - valorCompra - suprimentos - printway - tributos - extras
+  const moeda = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  return (
+    <section
+      aria-label="Resultado exclusivo do administrador"
+      className="rounded-xl border-2 border-emerald-600 bg-white p-5 space-y-4 print:hidden"
+    >
+      <div>
+        <Badge>Exclusivo do administrador</Badge>
+        <h3 className="text-lg font-bold mt-2">Resultado ao final do contrato</h3>
+        <p className="text-sm text-slate-600">
+          {contratoMeses} meses • {producaoMensal.toLocaleString('pt-BR')} páginas por mês • compra
+          da máquina descontada uma única vez.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div>
+          <Label htmlFor="profit-tax">Impostos sobre receita (%)</Label>
+          <Input
+            id="profit-tax"
+            type="number"
+            min="0"
+            max="100"
+            step="0.01"
+            placeholder="Não informado"
+            value={impostos}
+            onChange={(e) => setImpostos(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label htmlFor="profit-monthly">Outras despesas mensais (R$)</Label>
+          <Input
+            id="profit-monthly"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Não informado"
+            value={despesaMensal}
+            onChange={(e) => setDespesaMensal(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label htmlFor="profit-initial">Outras despesas iniciais (R$)</Label>
+          <Input
+            id="profit-initial"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Não informado"
+            value={despesaInicial}
+            onChange={(e) => setDespesaInicial(e.target.value)}
+          />
+        </div>
+      </div>
+      <p className="text-xs text-slate-600">
+        Inclua mão de obra, deslocamentos, manutenção adicional e demais despesas. Informe 0 quando
+        não houver custo. Estes campos são apenas desta simulação e não alteram o preço da proposta.
+      </p>
+      {!custosValidos && (
+        <p role="alert" className="text-red-700">
+          Informe custos não negativos e impostos entre 0% e 100%.
+        </p>
+      )}
+      {!completos && (
+        <p className="text-sm text-amber-800">
+          Estimativa parcial: custos em branco ainda não foram descontados.
+        </p>
+      )}
+      <div className="grid gap-4 sm:grid-cols-3 rounded-lg bg-slate-50 p-4" aria-live="polite">
+        <div>
+          <p className="text-sm">
+            {completos
+              ? 'Lucro estimado com os custos informados'
+              : 'Resultado antes dos custos não informados'}
+          </p>
+          <strong className={resultado < 0 ? 'text-2xl text-red-700' : 'text-2xl text-emerald-800'}>
+            {validoFinal ? moeda(resultado) : 'Complete a precificação'}
+          </strong>
+          {validoFinal && resultado < 0 && (
+            <p className="text-red-700 font-semibold">Prejuízo estimado</p>
+          )}
+        </div>
+        <div>
+          <p className="text-sm">Média mensal do resultado</p>
+          <strong className="text-xl">
+            {validoFinal ? moeda(resultado / contratoMeses) : '—'}
+          </strong>
+        </div>
+        <div>
+          <p className="text-sm">Margem sobre a receita</p>
+          <strong className="text-xl">
+            {validoFinal && receita > 0 ? ((resultado / receita) * 100).toFixed(2) + '%' : '—'}
+          </strong>
+        </div>
+      </div>
+      {validoFinal && (
+        <details>
+          <summary className="cursor-pointer font-semibold">
+            Conferir receitas e custos do contrato
+          </summary>
+          <dl className="grid grid-cols-2 gap-2 mt-3 text-sm">
+            <dt>Receita total prevista</dt>
+            <dd className="text-right">{moeda(receita)}</dd>
+            <dt>Compra da impressora</dt>
+            <dd className="text-right">− {moeda(valorCompra)}</dd>
+            <dt>Suprimentos e peças incluídos no CPP</dt>
+            <dd className="text-right">− {moeda(suprimentos)}</dd>
+            <dt>Printway no contrato</dt>
+            <dd className="text-right">− {moeda(printway)}</dd>
+            <dt>Impostos informados</dt>
+            <dd className="text-right">
+              {impostos === '' ? 'Não informado' : '− ' + moeda(tributos)}
+            </dd>
+            <dt>Outras despesas informadas</dt>
+            <dd className="text-right">
+              − {moeda(extras)}
+              {despesaMensal === '' || despesaInicial === '' ? ' (incompleto)' : ''}
+            </dd>
+          </dl>
+        </details>
+      )}
+      <p className="text-xs text-slate-600">
+        Projeção com a franquia inteira consumida e todas as mensalidades recebidas. Não inclui
+        excedentes nem valor de revenda da máquina. O resultado real depende dos custos e
+        recebimentos. Informação interna, ausente do resumo comercial e da impressão.
+      </p>
+    </section>
   )
 }

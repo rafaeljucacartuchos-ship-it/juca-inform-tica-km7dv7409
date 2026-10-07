@@ -974,6 +974,8 @@ export function ModernRentalSimulator({
 
       {/* BLOCO 3: RESULTADOS DA PRECIFICAÇÃO & BREAK-EVEN */}
       <ResultsPricingPanel
+        contratoMeses={contratoMeses}
+        valorCompra={Number(equipPriceCustom.replace(',', '.'))}
         calculation={calculation}
         selectedPrinter={selectedPrinter}
         producaoMensal={producaoMensal}
