@@ -175,6 +175,33 @@ export function ModernRentalSimulator({
     if (!selectedPrinter && printers.length > 0) {
       const preferred = printers.find((p) => p.modelo === 'DCP-L2540DW') || printers[0]
       selectPrinter(preferred)
+    } else if (selectedPrinter) {
+      const latest = printers.find((p) => p.id === selectedPrinter.id)
+      if (!latest || latest.ativo === false) {
+        setSelectedPrinter(null)
+        setScannerConfirmado('')
+      } else {
+        // Atualiza valores salvos sem apagar ajustes locais quando o cadastro não mudou.
+        if (latest.valor_compra !== selectedPrinter.valor_compra) {
+          setEquipPriceCustom(latest.valor_compra == null ? '' : String(latest.valor_compra))
+        }
+        if (latest.custo_mensal_software !== selectedPrinter.custo_mensal_software) {
+          setPrintwayCostCustom(String(latest.custo_mensal_software ?? 0))
+        }
+        if (latest.vida_util_meses !== selectedPrinter.vida_util_meses) {
+          setVidaUtilCustom(latest.vida_util_meses || parametros.vida_util_padrao_meses || 48)
+        }
+        const slotChanged = [1, 2, 3, 4, 5].some((slot) => {
+          const key = ('suprimento_' + slot) as keyof ImpressoraRecord
+          return latest[key] !== selectedPrinter[key]
+        })
+        if (slotChanged) setIncludedSlots({ 1: true, 2: true, 3: true, 4: true, 5: true })
+        setSelectedPrinter(latest)
+      }
+    }
+    if (printerScenarioB) {
+      const latestB = printers.find((p) => p.id === printerScenarioB.id)
+      setPrinterScenarioB(latestB && latestB.ativo !== false ? latestB : null)
     }
   }, [printers])
 
