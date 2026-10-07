@@ -563,3 +563,65 @@ export function calculateBreakEven(
     cenarioMaisEconomicoParaVolume: cenarioMaisEconomico,
   }
 }
+
+/** Regra aprovada da planilha; mantém o motor legado para outros consumidores. */
+export function calculateRentalBase(
+  compra: number,
+  printway: number,
+  contrato: number,
+  payback: number,
+): number | null {
+  if (
+    ![compra, printway, contrato, payback].every(Number.isFinite) ||
+    compra <= 0 ||
+    printway < 0 ||
+    contrato <= 0 ||
+    payback <= 0 ||
+    !Number.isInteger(contrato) ||
+    !Number.isInteger(payback)
+  )
+    return null
+  return (compra + printway * contrato) / payback
+}
+
+export function calculateSpreadsheetPricing(
+  input: PricingEngineInput & { contratoMeses: number; paybackMeses: number },
+): PricingEngineResult {
+  const result = calculatePricing(input)
+  const compra = Number(input.valorCompra)
+  const printway = Number(input.valorSoftwarePrintway ?? 0)
+  const base = calculateRentalBase(compra, printway, input.contratoMeses, input.paybackMeses)
+  if (base === null)
+    result.errors.push(
+      'Informe compra, Printway, prazo contratual e payback válidos. Payback é separado da vida útil.',
+    )
+  if (
+    !Number.isFinite(input.producaoMensalEstimada) ||
+    !Number.isInteger(input.producaoMensalEstimada)
+  )
+    result.errors.push('Informe um volume inteiro de páginas válido.')
+  if (!Number.isFinite(result.markUpAplicado))
+    result.errors.push('Informe um fator de mark-up válido.')
+  const cppVenda = result.cppSuprimentos * result.markUpAplicado
+  const paginas = input.producaoMensalEstimada * cppVenda
+  const total = (base ?? 0) + paginas
+  return {
+    ...result,
+    valid: result.errors.length === 0,
+    cppEquipamento: 0,
+    cppSoftwarePrintway: 0,
+    cppFornecedorTotal: result.cppSuprimentos,
+    cppVenda,
+    custoMensalProducao: paginas,
+    faturamentoTotalMensal: total,
+    formatted: {
+      ...result.formatted,
+      cppEquipamento: formatCPP6(0),
+      cppSoftwarePrintway: formatCPP6(0),
+      cppFornecedorTotal: formatCPP6(result.cppSuprimentos),
+      cppVenda: formatCPP6(cppVenda),
+      custoMensalProducao: formatBRL2(paginas),
+      faturamentoTotalMensal: formatBRL2(total),
+    },
+  }
+}
