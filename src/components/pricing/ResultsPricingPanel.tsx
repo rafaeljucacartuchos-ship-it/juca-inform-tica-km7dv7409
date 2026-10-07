@@ -65,7 +65,7 @@ JUCA CARTUCHOS — RESUMO DE PRECIFICAÇÃO DE LOCAÇÃO
 =========================================
 Equipamento: ${selectedPrinter.modelo} (${selectedPrinter.fabricante} - ${selectedPrinter.tecnologia})
 Franquia incluída na mensalidade: ${producaoMensal.toLocaleString('pt-BR')} páginas/mês
-Prazo de depreciação usado no cálculo: ${vidaUtil} meses (não é a vigência do contrato)
+Vida útil de referência: ${vidaUtil} meses (separada do payback e do contrato)
 -----------------------------------------
 CPP DE VENDA SIMULADO: ${calculation.formatted.cppVenda} / página
 COMPONENTE DE FORMAÇÃO DA FRANQUIA (não somar novamente): ${calculation.formatted.custoMensalProducao}
@@ -105,7 +105,7 @@ Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarif
             <div>
               <p className="text-xs text-slate-500">Custo calculado</p>
               <strong>{dadosValidos ? moeda(custoMensalEstimado) : 'Dados incompletos'}</strong>
-              <p className="text-xs">Insumos + depreciação + software</p>
+              <p className="text-xs">Suprimentos consumidos nas páginas</p>
             </div>
             <div>
               <p className="text-xs text-slate-500">Receita prevista</p>
@@ -113,7 +113,7 @@ Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarif
               <p className="text-xs">Mensalidade com páginas incluídas</p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">Resultado antes dos custos não cadastrados</p>
+              <p className="text-xs text-slate-500">Receita menos suprimentos</p>
               <strong>{dadosValidos ? moeda(resultadoParcial) : 'Não calculado'}</strong>
               <p className="text-xs">
                 {dadosValidos
@@ -123,9 +123,9 @@ Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarif
             </div>
           </div>
           <p className="text-xs text-amber-800">
-            Não é lucro líquido nem valor recebido. Impostos, deslocamentos, mão de obra,
-            inadimplência e outros custos não informados precisam ser considerados antes de fechar a
-            proposta.
+            Inclui a recuperação do investimento e do Printway na parcela base. Não é lucro líquido
+            nem valor recebido. Impostos, deslocamentos, mão de obra, inadimplência e outros custos
+            não informados precisam ser considerados antes de fechar a proposta.
           </p>
           <details className="border-t pt-2">
             <summary className="cursor-pointer text-sm font-semibold">
@@ -137,8 +137,7 @@ Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarif
                 Rendimentos são estimativas e variam com cobertura e uso.
               </li>
               <li>
-                Equipamento = compra dividida pela vida útil e pelo volume mensal. Software mensal
-                também é dividido pelo volume.
+                Locação base = (compra + Printway mensal × prazo do contrato) ÷ payback informado.
               </li>
               <li>
                 O fator {markup.toFixed(2)} representa acréscimo de{' '}
@@ -151,8 +150,8 @@ Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarif
                 diferentes.
               </li>
               <li>
-                A depreciação já integra o CPP. Confira a finalidade da parcela base para não
-                recuperar o mesmo custo duas vezes inadvertidamente.
+                CPP de venda = suprimentos × mark-up. Equipamento e Printway são recuperados na
+                locação base e não entram novamente no CPP.
               </li>
               <li>
                 Esta tela não registra leitura de contador nem comprova faturamento ou recebimento.
@@ -280,7 +279,7 @@ Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarif
 
             <div className="bg-black/30 p-2.5 rounded-lg border border-white/5">
               <span className="text-[10px] text-slate-400 block uppercase font-medium">
-                2. CPP Equipamento ({vidaUtil}m):
+                2. Equipamento no CPP:
               </span>
               <span className="font-mono font-bold text-indigo-200 text-xs">
                 {calculation.formatted.cppEquipamento}
@@ -289,7 +288,7 @@ Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarif
 
             <div className="bg-black/30 p-2.5 rounded-lg border border-white/5">
               <span className="text-[10px] text-slate-400 block uppercase font-medium">
-                3. Software Printway:
+                3. Printway no CPP:
               </span>
               <span
                 className="font-mono font-bold text-indigo-200 text-xs"
@@ -298,7 +297,7 @@ Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarif
                 {calculation.formatted.cppSoftwarePrintway}
               </span>
               <span className="text-[9px] text-slate-400 block font-mono">
-                {calculation.formatted.valorSoftwarePrintway}/mês
+                {calculation.formatted.valorSoftwarePrintway}/mês incluído na base
               </span>
             </div>
 
