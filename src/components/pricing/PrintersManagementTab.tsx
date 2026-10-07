@@ -232,7 +232,8 @@ export function PrintersManagementTab({
       if (!autoBloqueada) {
         autoBloqueada = true
         autoMotivo =
-          autoMotivo || 'Valor de aquisição pendente (preencher nota fiscal para desbloquear)'
+          autoMotivo ||
+          'Valor de referência pendente (informar custo comprovado ou estimativa identificada)'
       }
     }
 
@@ -473,7 +474,17 @@ export function PrintersManagementTab({
 
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-2 px-3 font-bold text-slate-900">{p.modelo}</td>
+                      <td className="py-2 px-3 font-bold text-slate-900">
+                        {p.modelo}
+                        {/estimativa/i.test(p.fonte_preco_equipamento || '') && (
+                          <span
+                            className="block text-[10px] font-normal text-amber-800"
+                            title={p.fonte_preco_equipamento}
+                          >
+                            Preço estimado — conferir fonte na edição
+                          </span>
+                        )}
+                      </td>
                       <td className="py-2 px-3 text-slate-600">{p.fabricante}</td>
                       <td className="py-2 px-3">
                         <Badge variant="outline" className="text-[10px] bg-slate-50">
@@ -500,7 +511,10 @@ export function PrintersManagementTab({
                                 ? 'border-amber-400 bg-amber-50 text-amber-900 font-semibold'
                                 : 'border-slate-300 bg-white'
                             }`}
-                            title={!hasPrice ? 'Preencher manualmente' : ''}
+                            title={
+                              p.fonte_preco_equipamento ||
+                              (!hasPrice ? 'Preencher referência e fonte' : 'Fonte não informada')
+                            }
                           />
                         )}
                       </td>
@@ -572,7 +586,7 @@ export function PrintersManagementTab({
                           </Badge>
                         ) : (
                           <Badge className="bg-emerald-100 text-emerald-800 text-[9px] px-1.5 py-0">
-                            Pronta
+                            Conferir no simulador
                           </Badge>
                         )}
                       </td>
@@ -727,13 +741,13 @@ export function PrintersManagementTab({
             {/* Bloco 2: Custos de Aquisição, Depreciação & Software */}
             <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
               <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wide block">
-                2. Custos de Aquisição (NF), Depreciação & Software Printway
+                2. Valor de referência, vida útil & Printway
               </span>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
-                    <span>Preço Aquisição NF (R$) *</span>
+                    <span>Valor de referência (R$) *</span>
                     <span className="text-[10px] text-amber-600 font-medium">vírgula ou ponto</span>
                   </Label>
                   <Input
@@ -748,7 +762,8 @@ export function PrintersManagementTab({
                     }`}
                   />
                   <p className="text-[10px] text-slate-400">
-                    Sem NF a impressora nasce bloqueada para precificação
+                    Informe custo comprovado ou estimativa identificada com condição, fonte e data.
+                    Valor ausente bloqueia a precificação.
                   </p>
                 </div>
 
@@ -802,7 +817,8 @@ export function PrintersManagementTab({
                     className="h-8 text-xs"
                   />
                   <p className="text-[10px] text-slate-400">
-                    Registro comprobatório do custo de aquisição
+                    Diferencie NF de compra e ESTIMATIVA DE REPOSIÇÃO. Estimativa não comprova
+                    desembolso nem avaliação individual.
                   </p>
                 </div>
 

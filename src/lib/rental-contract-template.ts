@@ -211,7 +211,7 @@ export function buildContractSnapshot(
     ],
     [
       '2. FRANQUIA E EXCEDENTES',
-      `A mensalidade é ${monthly} para a franquia de ${pages} páginas por mês civil. O valor por página excedente é ${excess}. A cobrança corresponde à mensalidade acrescida de máximo entre zero e (páginas apuradas menos franquia aplicável), multiplicado pela tarifa excedente. A franquia não utilizada não se acumula. A contagem adotada consta do Anexo III; a digitalização sem impressão não gera página faturável. Tarifas distintas por cor ou formato exigem tabela expressamente aceita antes do uso. A tarifa unitária é preservada com quatro casas decimais e o total monetário é arredondado para centavos apenas ao final.`,
+      `A mensalidade é ${monthly} para a franquia de ${pages} páginas por mês civil. O valor por página excedente é ${excess}. A cobrança corresponde à mensalidade acrescida de máximo entre zero e (páginas apuradas menos franquia aplicável), multiplicado pela tarifa excedente. A franquia não utilizada não se acumula. A contagem adotada consta do Anexo III; a digitalização sem impressão não gera página faturável. Tarifas distintas por cor ou formato exigem tabela expressamente aceita antes do uso. A tarifa unitária é preservada com seis casas decimais e o total monetário é arredondado para centavos apenas ao final.`,
     ],
     [
       '3. LEITURAS E CONFERÊNCIA',
