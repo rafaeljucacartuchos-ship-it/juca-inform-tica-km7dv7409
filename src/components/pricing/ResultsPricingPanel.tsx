@@ -1,5 +1,6 @@
 import { usePermissions } from '@/hooks/use-permissions'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import reservePb from '@/lib/pocketbase/client'
 import { FileText, Sparkles, AlertCircle, Copy, Check, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,6 +11,7 @@ import type { PricingEngineResult, BreakEvenResult } from '@/lib/pricing-engine'
 import type { ImpressoraRecord } from '@/services/pricing-module'
 
 interface ResultsPricingPanelProps {
+  fund: ReserveState
   calculation: PricingEngineResult
   producaoMensal: number
   contratoMeses?: number
@@ -28,6 +30,7 @@ interface ResultsPricingPanelProps {
 }
 
 export function ResultsPricingPanel({
+  fund,
   calculation,
   producaoMensal,
   contratoMeses = 0,
@@ -99,6 +102,7 @@ Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarif
 
   return (
     <div className="space-y-4">
+      {isAdmin && <RentalReserveAdmin fund={fund} />}
       {isAdmin && (
         <AdminRentalProfit
           key={selectedPrinter?.id}
@@ -107,6 +111,7 @@ Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarif
           contratoMeses={contratoMeses}
           valorCompra={valorCompra}
           valido={dadosValidos}
+          reservaPagina={fund.rate ?? 0}
         />
       )}
       <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 space-y-3">
@@ -466,6 +471,7 @@ Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarif
 }
 
 function AdminRentalProfit({
+  reservaPagina,
   calculation,
   producaoMensal,
   contratoMeses,
@@ -477,6 +483,7 @@ function AdminRentalProfit({
   contratoMeses: number
   valorCompra: number
   valido: boolean
+  reservaPagina: number
 }) {
   const { isAdmin } = usePermissions()
   const [margemDesejada, setMargemDesejada] = useState('')
@@ -484,7 +491,6 @@ function AdminRentalProfit({
   const [despesaMensal, setDespesaMensal] = useState('')
   const [despesaInicial, setDespesaInicial] = useState('')
   const [origem, setOrigem] = useState('parque')
-  const [desgaste, setDesgaste] = useState('')
   const [custoAtendimento, setCustoAtendimento] = useState('')
   const [implantacao, setImplantacao] = useState('')
   const [foraCidade, setForaCidade] = useState(false)
@@ -497,9 +503,6 @@ function AdminRentalProfit({
     { nome: 'Outras despesas iniciais', valor: despesaInicial, id: 'profit-initial' },
     { nome: 'Custo interno por atendimento', valor: custoAtendimento, id: 'profit-service' },
     { nome: 'Implantação técnica inicial', valor: implantacao, id: 'profit-install' },
-    ...(origem === 'parque'
-      ? [{ nome: 'Desgaste mensal da impressora', valor: desgaste, id: 'profit-wear' }]
-      : []),
     ...(foraCidade
       ? [
           { nome: 'Deslocamento por atendimento', valor: viagemVisita, id: 'profit-trip-service' },
@@ -532,7 +535,8 @@ function AdminRentalProfit({
     ? atendimentosEquivalentes * Number(viagemVisita) + Number(viagemInicial)
     : 0
   const custoImplantacao = Number(implantacao)
-  const custoEquipamento = origem === 'parque' ? Number(desgaste) * contratoMeses : valorCompra
+  const reservaContrato = reservaPagina * producaoMensal * contratoMeses
+  const custoEquipamento = origem === 'parque' ? 0 : valorCompra
   const custosSemImposto =
     suprimentos +
     printway +
@@ -540,11 +544,12 @@ function AdminRentalProfit({
     assistencia +
     deslocamento +
     custoImplantacao +
-    custoEquipamento
+    custoEquipamento +
+    reservaContrato
   const custoTotal = custosSemImposto + tributos
   const resultado = receita - custoTotal
-  // Desgaste é custo gerencial, mas não um novo pagamento. Compra nova é desembolso único.
-  const sobraCaixa = resultado + (origem === 'parque' ? custoEquipamento : 0)
+  // Reserva é destinação prevista, não depósito realizado nem despesa contábil.
+  const sobraCaixa = resultado + reservaContrato
   const margemValida =
     margemDesejada.trim() !== '' &&
     Number.isFinite(Number(margemDesejada)) &&
@@ -606,25 +611,25 @@ function AdminRentalProfit({
           <option value="parque">Impressora do nosso parque</option>
           <option value="compra">Compra para este projeto</option>
         </select>
-        {origem === 'parque' ? (
-          <>
-            {campo(
-              'profit-wear',
-              'Desgaste mensal estimado da impressora (R$)',
-              desgaste,
-              setDesgaste,
-            )}
-            <p className="text-xs">
-              A compra antiga não é descontada novamente. Informe o custo gerencial de uso da
-              máquina. Não some uma segunda reserva de reposição nas outras despesas.
-            </p>
-          </>
-        ) : (
-          <p className="text-xs">
-            A compra de {moeda(valorCompra)} será descontada uma única vez. Este cenário mostra o
-            retorno após recuperar a compra integral, sem considerar revenda.
-          </p>
-        )}
+        <p className="text-xs">
+          {origem === 'parque'
+            ? 'A compra antiga não é descontada novamente.'
+            : 'A compra de ' +
+              moeda(valorCompra) +
+              ' é considerada uma vez para avaliar a recuperação do investimento. Se foi paga pelo fundo coletivo, use a opção impressora do nosso parque para não descontar novamente.'}
+        </p>
+        <p className="font-semibold">
+          Reserva prevista: {moeda(reservaPagina * producaoMensal)}/mês · {moeda(reservaContrato)}{' '}
+          no contrato
+        </p>
+        <p className="text-xs">
+          {producaoMensal.toLocaleString('pt-BR')} páginas/mês × R${' '}
+          {reservaPagina.toLocaleString('pt-BR', {
+            minimumFractionDigits: 6,
+            maximumFractionDigits: 6,
+          })}
+          /página. Já incluída na mensalidade e no excedente. Não repita nas outras despesas.
+        </p>
       </div>
       <fieldset className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 space-y-3">
         <legend className="font-semibold px-1">Assistência técnica e implantação</legend>
@@ -735,17 +740,17 @@ function AdminRentalProfit({
             </strong>
           </div>
           <div>
-            <p className="text-sm">Custo total médio por mês</p>
+            <p className="text-sm">Custos e reserva por mês</p>
             <strong className="text-xl">
               {resultadoCompleto ? moeda(custoTotal / contratoMeses) : 'Pendente'}
             </strong>
             <p className="text-xs">
-              Inclui impostos e {origem === 'parque' ? 'desgaste' : 'compra distribuída pelo prazo'}
-              .
+              Inclui impostos e{' '}
+              {origem === 'parque' ? 'reserva por página' : 'compra e reserva por página'}.
             </p>
           </div>
           <div>
-            <p className="text-sm">Sobra de caixa média por mês</p>
+            <p className="text-sm">Resultado antes da reserva por mês</p>
             <strong className="text-xl">
               {resultadoCompleto ? moeda(sobraCaixa / contratoMeses) : 'Pendente'}
             </strong>
@@ -754,8 +759,8 @@ function AdminRentalProfit({
           <div>
             <p className="text-sm">
               {origem === 'parque'
-                ? 'Lucro gerencial por mês'
-                : 'Retorno mensal após recuperar compra'}
+                ? 'Resultado após reserva por mês'
+                : 'Retorno após compra e reserva por mês'}
             </p>
             <strong
               className={resultado < 0 ? 'text-2xl text-red-700' : 'text-2xl text-emerald-800'}
@@ -784,19 +789,19 @@ function AdminRentalProfit({
             <strong>{validoFinal ? moeda(receita) : 'Pendente'}</strong>
           </div>
           <div>
-            <p className="text-sm">Sobra de caixa prevista</p>
+            <p className="text-sm">Resultado antes da reserva</p>
             <strong>{resultadoCompleto ? moeda(sobraCaixa) : 'Pendente'}</strong>
           </div>
           <div>
             <p className="text-sm">
-              {origem === 'parque' ? 'Lucro após desgaste' : 'Retorno após recuperar compra'}
+              {origem === 'parque' ? 'Resultado após reserva' : 'Retorno após compra e reserva'}
             </p>
             <strong>{resultadoCompleto ? moeda(resultado) : 'Pendente'}</strong>
           </div>
         </div>
         <p className="text-xs mt-3">
           {origem === 'parque'
-            ? 'A diferença entre sobra de caixa e lucro é o desgaste da máquina. A compra antiga não é descontada novamente.'
+            ? 'A diferença entre os resultados é a reserva prevista por página. Ela não é depreciação contábil nem dinheiro já depositado. A compra antiga não é descontada novamente.'
             : 'A compra nova é descontada uma única vez. Isto é retorno do projeto após recuperar o investimento, não lucro contábil.'}{' '}
           Valores médios: implantação e visitas têm pagamentos em datas diferentes.
         </p>
@@ -869,13 +874,14 @@ function AdminRentalProfit({
                   informado: true,
                 },
                 { nome: 'Printway', total: printway, informado: true },
+                { nome: 'Reserva prevista por página', total: reservaContrato, informado: true },
                 {
                   nome:
                     origem === 'parque'
-                      ? 'Desgaste da impressora'
-                      : 'Compra da impressora (uma vez)',
+                      ? 'Compra antiga (não descontada novamente)'
+                      : 'Compra para o projeto (uma vez)',
                   total: custoEquipamento,
-                  informado: origem !== 'parque' || desgaste !== '',
+                  informado: true,
                 },
                 {
                   nome: 'Assistência: 1 atendimento por semestre',
@@ -932,7 +938,7 @@ function AdminRentalProfit({
                 </tr>
               ))}
               <tr className="font-bold">
-                <td className="p-2">Custo total</td>
+                <td className="p-2">Custos e reserva</td>
                 <td className="text-right p-2">
                   {resultadoCompleto ? moeda(custoTotal / contratoMeses) : 'Pendente'}
                 </td>
@@ -949,6 +955,530 @@ function AdminRentalProfit({
         excedentes nem revenda. Valores privados desta simulação, não salvos na proposta e ausentes
         do resumo comercial e da impressão. O resultado real depende dos custos e recebimentos.
       </p>
+    </section>
+  )
+}
+
+type ReserveConfig = {
+  year: number
+  purchases: number
+  unitPrice: number
+  repairs: number
+  monthlyPages: number
+}
+type ReserveRow = { id: string; created: string; payload: any }
+const reserveMoney = (v: number) =>
+  v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+export function reserveRate(c: ReserveConfig): number {
+  if (
+    !Number.isInteger(c.year) ||
+    c.year < 2020 ||
+    c.year > 2100 ||
+    !Number.isInteger(c.purchases) ||
+    c.purchases < 0 ||
+    !Number.isFinite(c.unitPrice) ||
+    c.unitPrice < 0 ||
+    !Number.isFinite(c.repairs) ||
+    c.repairs < 0 ||
+    !Number.isSafeInteger(c.monthlyPages) ||
+    c.monthlyPages <= 0
+  )
+    throw new Error('Preencha valores não negativos e um volume mensal inteiro maior que zero.')
+  return (
+    Math.ceil(((c.purchases * c.unitPrice + c.repairs) / (c.monthlyPages * 12)) * 1000000) / 1000000
+  )
+}
+export function useRentalReserve() {
+  const { isAdmin } = usePermissions()
+  const [rate, setRate] = useState<number | null>(null)
+  const [rateId, setRateId] = useState('')
+  const [rows, setRows] = useState<ReserveRow[]>([])
+  const [config, setConfig] = useState<ReserveConfig | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const refresh = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const rates = await reservePb
+        .collection('rental_reserve')
+        .getList<ReserveRow>(1, 1, {
+          filter: 'payload.kind = "rate"',
+          sort: '-created,-id',
+          requestKey: null,
+        })
+      const latest = rates.items[0]
+      const nextRate = latest ? Number(latest.payload.rate) : null
+      if (nextRate !== null && (!Number.isFinite(nextRate) || nextRate < 0))
+        throw new Error('Tarifa cadastrada inválida.')
+      let privateRows: ReserveRow[] = []
+      if (isAdmin)
+        privateRows = await reservePb
+          .collection('rental_reserve')
+          .getFullList<ReserveRow>({
+            filter: 'payload.kind != "rate"',
+            sort: '-created,-id',
+            requestKey: null,
+          })
+      const matching = privateRows.find((r) => r.id === latest?.payload.configId)
+      setRows(privateRows)
+      setConfig(matching?.payload.config || null)
+      setRate(nextRate)
+      setRateId(latest?.id || '')
+    } catch {
+      setRate(null)
+      setError('Não foi possível carregar a reserva. Atualize antes de gerar propostas.')
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => {
+    void refresh()
+  }, [isAdmin])
+  return { rate, rateId, rows, config, loading, error, refresh }
+}
+type ReserveState = ReturnType<typeof useRentalReserve>
+export function applyRentalReserve(
+  base: PricingEngineResult,
+  rate: number | null,
+  pages: number,
+  loading: boolean,
+  error: string,
+): PricingEngineResult {
+  if (loading || error || rate === null)
+    return {
+      ...base,
+      valid: false,
+      errors: [
+        ...base.errors,
+        error ||
+          (loading
+            ? 'Carregando reserva do parque.'
+            : 'Administrador: salve o planejamento da reserva antes de gerar novas propostas.'),
+      ],
+    }
+  const cppVenda = base.cppVenda + rate
+  const custoMensalProducao = cppVenda * pages
+  const faturamentoTotalMensal = base.faturamentoTotalMensal + rate * pages
+  return {
+    ...base,
+    cppVenda,
+    custoMensalProducao,
+    faturamentoTotalMensal,
+    formatted: {
+      ...base.formatted,
+      cppVenda: cppVenda.toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 6,
+        maximumFractionDigits: 6,
+      }),
+      custoMensalProducao: reserveMoney(custoMensalProducao),
+      faturamentoTotalMensal: reserveMoney(faturamentoTotalMensal),
+    },
+  }
+}
+
+function RentalReserveAdmin({ fund }: { fund: ReserveState }) {
+  const { isAdmin } = usePermissions()
+  const [draft, setDraft] = useState({
+    year: '2026',
+    purchases: '2',
+    unitPrice: '2000',
+    repairs: '1000',
+    monthlyPages: '200000',
+  })
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [entry, setEntry] = useState({
+    date: new Date().toLocaleDateString('en-CA'),
+    direction: 'out',
+    category: 'compra',
+    amount: '',
+    equipment: '',
+    note: '',
+  })
+  const requestId = useRef('')
+  const saveLock = useRef(false)
+  useEffect(() => {
+    if (fund.config)
+      setDraft(
+        Object.fromEntries(
+          Object.entries(fund.config).map(([k, v]) => [k, String(v)]),
+        ) as typeof draft,
+      )
+  }, [fund.config])
+  if (!isAdmin) return null
+  const proposed = Object.fromEntries(
+    Object.entries(draft).map(([k, v]) => [k, Number(v)]),
+  ) as ReserveConfig
+  let suggested: number | null = null
+  try {
+    if (Object.values(draft).every((v) => v.trim() !== '')) suggested = reserveRate(proposed)
+  } catch {}
+  const annual = proposed.purchases * proposed.unitPrice + proposed.repairs
+  const entries = fund.rows.filter((r) => r.payload.kind === 'entry')
+  const validEntries = entries.every(
+    (r) =>
+      Number.isSafeInteger(r.payload.cents) &&
+      r.payload.cents > 0 &&
+      ['in', 'out'].includes(r.payload.direction),
+  )
+  const incoming =
+    entries.filter((r) => r.payload.direction === 'in').reduce((n, r) => n + r.payload.cents, 0) /
+    100
+  const outgoing =
+    entries.filter((r) => r.payload.direction === 'out').reduce((n, r) => n + r.payload.cents, 0) /
+    100
+  const yearOut =
+    entries
+      .filter(
+        (r) => r.payload.direction === 'out' && String(r.payload.date).startsWith(draft.year + '-'),
+      )
+      .reduce((n, r) => n + r.payload.cents, 0) / 100
+  const commit = async (payload: any) => {
+    if (!requestId.current) requestId.current = crypto.randomUUID().replaceAll('-', '').slice(0, 15)
+    const id = requestId.current
+    try {
+      await reservePb.collection('rental_reserve').create({ id, payload })
+    } catch (error) {
+      const existing = await reservePb
+        .collection('rental_reserve')
+        .getOne<ReserveRow>(id)
+        .catch(() => null)
+      if (!existing || JSON.stringify(existing.payload) !== JSON.stringify(payload)) throw error
+    }
+    requestId.current = ''
+    return id
+  }
+  const savePlan = async () => {
+    if (saveLock.current || suggested === null || fund.loading) return
+    saveLock.current = true
+    setBusy(true)
+    setMessage('')
+    try {
+      const configId = await commit({ kind: 'config', config: proposed, version: 1 })
+      await commit({ kind: 'rate', rate: suggested, configId, version: 1 })
+      await fund.refresh()
+      setMessage(
+        'Planejamento salvo. A taxa passa a valer nesta simulação e nas novas propostas. Propostas e contratos salvos permanecem congelados.',
+      )
+    } catch {
+      requestId.current = ''
+      setMessage(
+        'Não foi possível confirmar a ativação. Atualize para conferir a tarifa vigente antes de tentar novamente.',
+      )
+    } finally {
+      saveLock.current = false
+      setBusy(false)
+    }
+  }
+  const saveEntry = async () => {
+    const cents = Math.round(Number(entry.amount) * 100)
+    if (
+      saveLock.current ||
+      !Number.isSafeInteger(cents) ||
+      cents <= 0 ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(entry.date) ||
+      !entry.note.trim() ||
+      (entry.direction === 'out' && !entry.equipment.trim())
+    ) {
+      setMessage('Informe data, valor positivo, descrição e equipamento nas saídas.')
+      return
+    }
+    saveLock.current = true
+    setBusy(true)
+    setMessage('')
+    try {
+      await commit({ kind: 'entry', ...entry, amount: undefined, cents, version: 1 })
+      await fund.refresh()
+      setEntry({ ...entry, amount: '', equipment: '', note: '' })
+      setMessage(
+        'Movimentação registrada. O saldo foi atualizado; a tarifa não foi aumentada automaticamente.',
+      )
+    } catch {
+      setMessage(
+        'Não foi possível confirmar o lançamento. Mantenha os dados e tente novamente para verificar o mesmo registro, sem duplicá-lo.',
+      )
+    } finally {
+      saveLock.current = false
+      setBusy(false)
+    }
+  }
+  const field = (key: keyof typeof draft, label: string, step = '1') => (
+    <label className="text-sm space-y-1">
+      {label}
+      <Input
+        type="number"
+        min="0"
+        step={step}
+        value={draft[key]}
+        onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
+        disabled={busy}
+      />
+    </label>
+  )
+  return (
+    <section
+      aria-label="Fundo de renovação do parque"
+      className="rounded-xl border-2 border-indigo-500 bg-white p-5 space-y-4 print:hidden"
+    >
+      <Badge>Exclusivo do administrador</Badge>
+      <h3 className="text-lg font-bold">Reserva do parque — orçamento e movimentações</h3>
+      <p className="text-sm">
+        Reserva coletiva para renovação parcial e reparos eventuais. Tinta, toner, cabeçote, fusor e
+        película já incluídos no CPP não entram novamente aqui.
+      </p>
+      {fund.error && (
+        <p role="alert" className="text-red-700">
+          {fund.error}
+        </p>
+      )}
+      {!fund.config && (
+        <p className="bg-amber-50 p-3 text-sm">
+          Cenário inicial estimado: 2 impressoras de R$ 2.000, R$ 1.000 de reparos e 200.000
+          páginas/mês (200 locadas × 1.000). Não é histórico real nem garantia de reposição em 48
+          meses. Salve para ativar.
+        </p>
+      )}
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {field('year', 'Ano do orçamento')}
+        {field('purchases', 'Impressoras novas previstas no ano')}
+        {field('unitPrice', 'Preço médio por impressora nova (R$)', '0.01')}
+        {field('repairs', 'Reparos eventuais previstos no ano (R$)', '0.01')}
+        {field('monthlyPages', 'Páginas mensais previstas das máquinas locadas')}
+      </div>
+      <p className="text-xs">
+        Máquinas em estoque não entram no volume. Atualize a previsão com relatórios do Printway;
+        não há integração automática de contadores. Alterar o volume não muda a taxa até salvar uma
+        nova referência.
+      </p>
+      <div className="grid sm:grid-cols-3 gap-3 bg-indigo-50 p-3 rounded-lg">
+        <div>
+          Orçamento anual
+          <strong className="block text-xl">
+            {suggested === null ? 'Dados inválidos' : reserveMoney(annual)}
+          </strong>
+        </div>
+        <div>
+          Taxa calculada por página
+          <strong className="block text-xl">
+            {suggested === null
+              ? 'Pendente'
+              : 'R$ ' +
+                suggested.toLocaleString('pt-BR', {
+                  minimumFractionDigits: 6,
+                  maximumFractionDigits: 6,
+                })}
+          </strong>
+        </div>
+        <div>
+          Taxa vigente
+          <strong className="block text-xl">
+            {fund.loading
+              ? 'Carregando'
+              : fund.rate === null
+                ? 'Não ativada'
+                : 'R$ ' +
+                  fund.rate.toLocaleString('pt-BR', {
+                    minimumFractionDigits: 6,
+                    maximumFractionDigits: 6,
+                  })}
+          </strong>
+        </div>
+      </div>
+      <p className="text-xs">
+        (Compras previstas × preço médio + reparos) ÷ (páginas mensais × 12). Arredondamento para
+        cima em 6 casas decimais. A taxa entra uma vez na franquia e no excedente, sem mark-up
+        adicional. Impostos e margem continuam visíveis na análise do administrador.
+      </p>
+      <div className="flex gap-3">
+        <Button
+          type="button"
+          disabled={busy || fund.loading || suggested === null}
+          onClick={savePlan}
+        >
+          Salvar planejamento e atualizar taxa
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={busy || fund.loading}
+          onClick={() => void fund.refresh()}
+        >
+          Atualizar fundo
+        </Button>
+      </div>
+      {message && (
+        <p role="status" className="rounded border p-3 text-sm">
+          {message}
+        </p>
+      )}
+      <div className="grid sm:grid-cols-3 gap-3 rounded-lg bg-emerald-50 p-3">
+        <div>
+          Entradas registradas
+          <strong className="block">
+            {validEntries ? reserveMoney(incoming) : 'Revisar registros'}
+          </strong>
+        </div>
+        <div>
+          Saídas registradas
+          <strong className="block">
+            {validEntries ? reserveMoney(outgoing) : 'Revisar registros'}
+          </strong>
+        </div>
+        <div>
+          Saldo registrado do fundo
+          <strong className="block text-xl">
+            {validEntries ? reserveMoney(incoming - outgoing) : 'Revisar registros'}
+          </strong>
+        </div>
+      </div>
+      <p className="text-sm">
+        Saídas registradas em {draft.year}:{' '}
+        {validEntries ? reserveMoney(yearOut) : 'Revisar registros'}. Orçamento restante do ano:{' '}
+        {suggested !== null && validEntries ? reserveMoney(annual - yearOut) : 'Pendente'}.
+      </p>
+      <p className="text-xs">
+        Previsão não é dinheiro disponível. O saldo reúne somente lançamentos registrados, não
+        consulta conta bancária. Uma compra ou reparo reduz o fundo e não é descontado novamente do
+        resultado dos contratos. Gastos maiores sinalizam revisão do orçamento, sem reajuste
+        automático de contratos.
+      </p>
+      <details className="border rounded-lg p-3">
+        <summary className="font-semibold cursor-pointer">
+          Registrar entrada, compra ou reparo realizado
+        </summary>
+        <div className="grid sm:grid-cols-2 gap-3 mt-3">
+          <label>
+            Data
+            <Input
+              type="date"
+              value={entry.date}
+              onChange={(e) => {
+                requestId.current = ''
+                setEntry({ ...entry, date: e.target.value })
+              }}
+            />
+          </label>
+          <label>
+            Movimentação
+            <select
+              className="w-full border rounded p-2"
+              value={entry.direction}
+              onChange={(e) => {
+                requestId.current = ''
+                setEntry({
+                  ...entry,
+                  direction: e.target.value,
+                  category: e.target.value === 'in' ? 'aporte' : 'compra',
+                })
+              }}
+            >
+              <option value="in">Entrada efetivamente reservada</option>
+              <option value="out">Saída paga pelo fundo</option>
+            </select>
+          </label>
+          <label>
+            Categoria
+            <select
+              className="w-full border rounded p-2"
+              value={entry.category}
+              onChange={(e) => {
+                requestId.current = ''
+                setEntry({ ...entry, category: e.target.value })
+              }}
+            >
+              {(entry.direction === 'in'
+                ? ['aporte', 'saldo inicial', 'ajuste de entrada']
+                : ['compra', 'placa', 'mecanismo', 'outro reparo', 'ajuste de saída']
+              ).map((v) => (
+                <option key={v}>{v}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Valor realizado (R$)
+            <Input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={entry.amount}
+              onChange={(e) => {
+                requestId.current = ''
+                setEntry({ ...entry, amount: e.target.value })
+              }}
+            />
+          </label>
+          <label>
+            Equipamento / patrimônio / série
+            <Input
+              value={entry.equipment}
+              onChange={(e) => {
+                requestId.current = ''
+                setEntry({ ...entry, equipment: e.target.value })
+              }}
+            />
+          </label>
+          <label>
+            Descrição / comprovante / referência
+            <Input
+              value={entry.note}
+              onChange={(e) => {
+                requestId.current = ''
+                setEntry({ ...entry, note: e.target.value })
+              }}
+            />
+          </label>
+        </div>
+        <Button
+          type="button"
+          className="mt-3"
+          disabled={busy || fund.loading || !!fund.error}
+          onClick={saveEntry}
+        >
+          Registrar movimentação realizada
+        </Button>
+        <p className="text-xs mt-2">
+          Histórico preservado. Para corrigir um lançamento, registre um ajuste no sentido contrário
+          e cite o registro original. Nenhuma transferência bancária é feita por este botão.
+        </p>
+      </details>
+      <details className="border rounded-lg p-3">
+        <summary className="font-semibold cursor-pointer">
+          Histórico de movimentações ({entries.length})
+        </summary>
+        <div className="overflow-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Tipo</th>
+                <th>Categoria / equipamento</th>
+                <th>Descrição</th>
+                <th>Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((r) => (
+                <tr key={r.id} className="border-t">
+                  <td className="p-2">{r.payload.date}</td>
+                  <td>{r.payload.direction === 'in' ? 'Entrada' : 'Saída'}</td>
+                  <td>
+                    {r.payload.category} · {r.payload.equipment || '—'}
+                  </td>
+                  <td>
+                    {r.payload.note}
+                    <small className="block">Registro: {r.id}</small>
+                  </td>
+                  <td>{reserveMoney(r.payload.cents / 100)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {entries.length === 0 && <p className="p-3">Nenhuma movimentação real registrada.</p>}
+        </div>
+      </details>
     </section>
   )
 }

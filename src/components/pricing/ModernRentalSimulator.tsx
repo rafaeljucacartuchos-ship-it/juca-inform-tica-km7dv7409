@@ -40,7 +40,7 @@ import { RentalCustomerSelect } from '@/components/RentalCustomerSelect'
 import type { RentalCustomerSelection } from '@/components/RentalCustomerSelect'
 import { PrinterSelectCombo } from './PrinterSelectCombo'
 import { SupplySlotsGrid } from './SupplySlotsGrid'
-import { ResultsPricingPanel } from './ResultsPricingPanel'
+import { ResultsPricingPanel, useRentalReserve, applyRentalReserve } from './ResultsPricingPanel'
 import { SuppliesManagementTab } from './SuppliesManagementTab'
 import { PrintersManagementTab } from './PrintersManagementTab'
 import { ParametersAndAuditTab } from './ParametersAndAuditTab'
@@ -91,6 +91,7 @@ export function ModernRentalSimulator({
 }: ModernRentalSimulatorProps) {
   const { toast } = useToast()
   const { isAdmin, hasPermission } = usePermissions()
+  const reserveFund = useRentalReserve()
   const canEditValues = isAdmin || hasPermission('locacao_precos_rendimentos')
   // Controle de cascata aberta (accordion expansível sob demanda)
   const [cascadeOpen, setCascadeOpen] = useState<string>(initialCascadeSection || '')
@@ -312,7 +313,7 @@ export function ModernRentalSimulator({
   }, [selectedPrinter, supplies, includedSlots])
 
   // CÁLCULO REATIVO EM TEMPO REAL (< 100ms)
-  const calculation = useMemo<PricingEngineResult>(() => {
+  const baseCalculation = useMemo<PricingEngineResult>(() => {
     if (!selectedPrinter) {
       return {
         valid: false,
@@ -377,6 +378,14 @@ export function ModernRentalSimulator({
     markupCustom,
   ])
 
+  const calculation = applyRentalReserve(
+    baseCalculation,
+    reserveFund.rate,
+    producaoMensal,
+    reserveFund.loading,
+    reserveFund.error,
+  )
+
   // CÁLCULO DE BREAK-EVEN SE HOUVER CENÁRIO B
   const breakEvenResult = useMemo<BreakEvenResult | null>(() => {
     if (!selectedPrinter || !printerScenarioB || selectedPrinter.id === printerScenarioB.id) {
@@ -432,7 +441,7 @@ export function ModernRentalSimulator({
       {
         modelo: printerScenarioB.modelo,
         locacaoMensal: locacaoScenarioB,
-        cppVenda: calcB.cppVenda,
+        cppVenda: calcB.cppVenda + (reserveFund.rate ?? 0),
       },
       producaoMensal,
     )
@@ -442,6 +451,7 @@ export function ModernRentalSimulator({
     locacaoScenarioB,
     locacaoMensal,
     calculation.cppVenda,
+    reserveFund.rate,
     contratoMeses,
     paybackMeses,
     producaoMensal,
@@ -643,7 +653,9 @@ export function ModernRentalSimulator({
             todos_slots: allSlotsSnapshot,
             suprimentos_vinculados: suprimentosPayload,
             memoria_calculo: {
-              regra: 'planilha-payback-v1',
+              regra: 'planilha-payback-reserva-v2',
+              reserva_por_pagina: reserveFund.rate,
+              reserva_referencia: reserveFund.rateId,
               contrato_meses: contratoMeses,
               payback_meses: paybackMeses,
               vida_util_meses: vidaUtilCustom,
@@ -935,7 +947,8 @@ export function ModernRentalSimulator({
                 formatBRL2(locacaoMensal) +
                 '/mês'
               : 'Informe o payback para calcular a locação base.'}{' '}
-            CPP de venda = suprimentos × mark-up. Equipamento e Printway já compõem a base.
+            CPP de venda = suprimentos × mark-up + reserva por página. Equipamento e Printway já
+            compõem a base.
           </p>
         </details>
 
@@ -974,6 +987,7 @@ export function ModernRentalSimulator({
 
       {/* BLOCO 3: RESULTADOS DA PRECIFICAÇÃO & BREAK-EVEN */}
       <ResultsPricingPanel
+        fund={reserveFund}
         contratoMeses={contratoMeses}
         valorCompra={Number(equipPriceCustom.replace(',', '.'))}
         calculation={calculation}
