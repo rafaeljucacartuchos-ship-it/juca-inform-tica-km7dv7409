@@ -308,74 +308,6 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
    * 3.6 Análise de Ponto de Equilíbrio (Break-Even) entre Cenários
    * paginas_break_even = (locacao_B - locacao_A) / |CPP_venda_A - CPP_venda_B|
    */
-  function calculateBreakEven(cenarioA, cenarioB, volumeAtual = 0) {
-    const values = [
-      cenarioA.locacaoMensal,
-      cenarioB.locacaoMensal,
-      cenarioA.cppVenda,
-      cenarioB.cppVenda,
-      volumeAtual,
-    ]
-    if (!values.every((v) => Number.isFinite(v) && v >= 0))
-      return {
-        valid: false,
-        diferencaLocacao: 0,
-        diferencaCPP: 0,
-        paginasBreakEven: null,
-        recomendacao: 'Informe custos e volume válidos para comparar.',
-        error: 'ERR_INVALID_SCENARIO',
-        cenarioMaisEconomicoParaVolume: 'equivalente',
-      }
-    const fixo = cenarioB.locacaoMensal - cenarioA.locacaoMensal
-    const cpp = cenarioA.cppVenda - cenarioB.cppVenda
-    const custoA = cenarioA.locacaoMensal + cenarioA.cppVenda * volumeAtual
-    const custoB = cenarioB.locacaoMensal + cenarioB.cppVenda * volumeAtual
-    const melhor = Math.abs(custoA - custoB) < 1e-8 ? 'equivalente' : custoA < custoB ? 'A' : 'B'
-    const common = {
-      diferencaLocacao: roundTo(Math.abs(fixo), 2),
-      diferencaCPP: roundTo(Math.abs(cpp), 6),
-      cenarioMaisEconomicoParaVolume: melhor,
-    }
-    if (Math.abs(cpp) < 1e-12)
-      return {
-        ...common,
-        valid: false,
-        paginasBreakEven: null,
-        error: 'ERR_IDENTICAL_CPP',
-        recomendacao:
-          Math.abs(fixo) < 1e-8
-            ? 'Os cenários são equivalentes em qualquer volume.'
-            : 'Não há cruzamento: com CPPs iguais, o menor valor fixo é sempre mais econômico.',
-      }
-    const paginas = fixo / cpp
-    if (paginas < 0)
-      return {
-        ...common,
-        valid: false,
-        paginasBreakEven: null,
-        error: 'ERR_NO_POSITIVE_INTERSECTION',
-        recomendacao:
-          'Não há ponto de equilíbrio positivo: o cenário ' +
-          melhor +
-          ' tem menor custo fixo e por página.',
-      }
-    const menorCpp = cpp < 0 ? 'A' : 'B'
-    return {
-      ...common,
-      valid: true,
-      paginasBreakEven: paginas,
-      recomendacao:
-        paginas === 0
-          ? 'Os valores fixos são iguais. Para qualquer volume positivo, o cenário ' +
-            menorCpp +
-            ' é mais econômico.'
-          : 'Os custos se igualam em ' +
-            formatDecimal(paginas, 2) +
-            ' páginas/mês. Acima desse volume, o cenário ' +
-            menorCpp +
-            ' é mais econômico.',
-    }
-  }
   /** Regra aprovada da planilha; mantém o motor legado para outros consumidores. */
   function calculateRentalBase(compra, printway, contrato, payback) {
     if (
@@ -514,8 +446,7 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
     const cppVenda = result.cppSuprimentos * result.markUpAplicado
     const paginas = input.producaoMensalEstimada * cppVenda
     const total = (base ?? 0) + paginas
-    return {
-      ...result,
+    return Object.assign({}, result, {
       valid: result.errors.length === 0,
       cppEquipamento: 0,
       cppSoftwarePrintway: 0,
@@ -523,16 +454,15 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
       cppVenda,
       custoMensalProducao: paginas,
       faturamentoTotalMensal: total,
-      formatted: {
-        ...result.formatted,
+      formatted: Object.assign({}, result.formatted, {
         cppEquipamento: formatCPP6(0),
         cppSoftwarePrintway: formatCPP6(0),
         cppFornecedorTotal: formatCPP6(result.cppSuprimentos),
         cppVenda: formatCPP6(cppVenda),
         custoMensalProducao: formatBRL2(paginas),
         faturamentoTotalMensal: formatBRL2(total),
-      },
-    }
+      }),
+    })
   }
 
   e.response.header().set('Cache-Control', 'no-store')
@@ -692,7 +622,7 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
       const calc = calculateSpreadsheetPricing(input)
       if (!calc.valid) {
 
-        throw new Error('VALIDACAO: ' + calc.errors.join(' | '))
+        throw new Error('CADASTRO')
       }
       const excess = Math.round((calc.cppVenda + rate) * 1000000) / 1000000
       const monthly = Math.round((calc.faturamentoTotalMensal + rate * pages) * 100) / 100
@@ -794,7 +724,7 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
     }
     return e.json(400, {
       error:
-        messages[err.message] || (body.action === 'simulate' ? 'Diagnóstico: ' + String(err).slice(0,500) : '') ||
+        messages[err.message] ||
         'Equipamento pendente de revisão administrativa. Escolha outro ou solicite a revisão do cadastro.',
     })
   }
