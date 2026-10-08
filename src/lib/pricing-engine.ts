@@ -628,10 +628,16 @@ export function calculateSpreadsheetPricing(
   // continuam dependendo do bloqueio do cadastro; isto não é um catálogo completo.
   // HP M130: manual c05208327; Brother: folhetos DCP-L5652DN/L5662DN/HL-L6412DW.
   const cilindrosObrigatorios: Record<string, string> = {
-    M130FW: 'CF219A', M130NW: 'CF219A',
-    LASERJETPROMFPM130FW: 'CF219A', LASERJETPROMFPM130NW: 'CF219A',
-    DCPL5652DN: 'DR3440', DCPL5662DN: 'DR3602', HLL6412DW: 'DR3602',
-    COLORLASERJETM177FW: 'CE314A', M177FW: 'CE314A', CP1025NW: 'CE314A',
+    M130FW: 'CF219A',
+    M130NW: 'CF219A',
+    LASERJETPROMFPM130FW: 'CF219A',
+    LASERJETPROMFPM130NW: 'CF219A',
+    DCPL5652DN: 'DR3440',
+    DCPL5662DN: 'DR3602',
+    HLL6412DW: 'DR3602',
+    COLORLASERJETM177FW: 'CE314A',
+    M177FW: 'CE314A',
+    CP1025NW: 'CE314A',
     SLM3375FD: 'MLTR204',
   }
   const coresObrigatorias: Record<string, string[]> = {
@@ -640,29 +646,42 @@ export function calculateSpreadsheetPricing(
     CP1025NW: ['CE310A', 'CE311A', 'CE312A', 'CE313A'],
   }
   for (const codigo of coresObrigatorias[modelo] || []) {
-    const incluido = input.supplies.some(s => s && s.included !== false &&
-      s.tipo === 'toner' && new RegExp(codigo + '(?![0-9])').test(
-        s.modelo.toUpperCase().replace(/[^A-Z0-9]/g, '')
-      ))
-    if (!incluido) result.errors.push('Inclua o toner obrigatório ' + codigo + ' com custo e rendimento confirmados.')
+    const incluido = input.supplies.some(
+      (s) =>
+        s &&
+        s.included !== false &&
+        s.tipo === 'toner' &&
+        new RegExp(codigo + '(?![0-9])').test(s.modelo.toUpperCase().replace(/[^A-Z0-9]/g, '')),
+    )
+    if (!incluido)
+      result.errors.push(
+        'Inclua o toner obrigatório ' + codigo + ' com custo e rendimento confirmados.',
+      )
   }
   const cilindroObrigatorio = cilindrosObrigatorios[modelo]
   if (cilindroObrigatorio) {
-    const cilindroIncluido = input.supplies.some(s => {
+    const cilindroIncluido = input.supplies.some((s) => {
       if (!s || s.included === false || s.tipo !== 'fotocondutor') return false
       const ref = s.modelo.toUpperCase().replace(/[^A-Z0-9]/g, '')
       return new RegExp(cilindroObrigatorio + '(?![0-9])').test(ref)
     })
-    if (!cilindroIncluido) result.errors.push(
-      'Inclua o cilindro obrigatório ' + cilindroObrigatorio +
-      ' com identificação, preço e rendimento confirmados antes de gerar a proposta.'
-    )
+    if (!cilindroIncluido)
+      result.errors.push(
+        'Inclua o cilindro obrigatório ' +
+          cilindroObrigatorio +
+          ' com identificação, preço e rendimento confirmados antes de gerar a proposta.',
+      )
   }
 
   const compra = Number(input.valorCompra)
-  const printwayInformado = typeof input.valorSoftwarePrintway === 'number' &&
-    Number.isFinite(input.valorSoftwarePrintway) && input.valorSoftwarePrintway >= 0
-  if (!printwayInformado) result.errors.push('Informe o custo do Printway; use zero somente quando não houver cobrança confirmada.')
+  const printwayInformado =
+    typeof input.valorSoftwarePrintway === 'number' &&
+    Number.isFinite(input.valorSoftwarePrintway) &&
+    input.valorSoftwarePrintway >= 0
+  if (!printwayInformado)
+    result.errors.push(
+      'Informe o custo do Printway; use zero somente quando não houver cobrança confirmada.',
+    )
   const printway = printwayInformado ? input.valorSoftwarePrintway! : Number.NaN
   const base = calculateRentalBase(compra, printway, input.contratoMeses, input.paybackMeses)
   if (base === null)

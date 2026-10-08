@@ -31,11 +31,7 @@ interface SupplySlotsGridProps {
   readOnly?: boolean
   onToggleSlotInclusion?: (slotNumber: number, included: boolean) => void
   onUpdateSlotSupply?: (slotNumber: number, supplyId: string | null) => void
-  onUpdateSlotValues?: (
-    slotNumber: number,
-    price: number | null,
-    yieldPages: number | null,
-  ) => void
+  onUpdateSlotValues?: (slotNumber: number, price: number | null, yieldPages: number | null) => void
   onOpenSupplyEditModal?: (supplyModel: string) => void
 }
 
@@ -153,8 +149,16 @@ export function SupplySlotsGrid({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         {slots.map((rawSlot) => {
-          if (!Number.isInteger(rawSlot.slotNumber) || rawSlot.slotNumber < 1 || rawSlot.slotNumber > 1000) {
-            return <p key={'unsupported-' + rawSlot.slotNumber} role="alert">Este suprimento exige o cadastro ampliado. A edição nesta grade está indisponível.</p>
+          if (
+            !Number.isInteger(rawSlot.slotNumber) ||
+            rawSlot.slotNumber < 1 ||
+            rawSlot.slotNumber > 1000
+          ) {
+            return (
+              <p key={'unsupported-' + rawSlot.slotNumber} role="alert">
+                Este suprimento exige o cadastro ampliado. A edição nesta grade está indisponível.
+              </p>
+            )
           }
           const slot = { ...rawSlot, slotNumber: rawSlot.slotNumber as number }
           const { visualStatus } = slot

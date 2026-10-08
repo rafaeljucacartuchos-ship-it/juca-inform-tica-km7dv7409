@@ -21,23 +21,26 @@ import { sanitizePhone } from '@/lib/phones'
 import { ensureRentalQuoteToken } from '@/services/rental'
 import type { RentalQuote, RentalMachineCalculation } from '@/types'
 
-type RentalProposalPrintViewProps = {
-  quote: RentalQuote
-  onGenerateContract?: (machine: RentalMachineCalculation) => void
-  onBack?: () => void
-  isPublicView?: false
-} | {
-  quote: RentalCommercialQuote
-  isPublicView: true
-  onGenerateContract?: never
-  onBack?: never
-}
+type RentalProposalPrintViewProps =
+  | {
+      quote: RentalQuote
+      onGenerateContract?: (machine: RentalMachineCalculation) => void
+      onBack?: () => void
+      isPublicView?: false
+    }
+  | {
+      quote: RentalCommercialQuote
+      isPublicView: true
+      onGenerateContract?: never
+      onBack?: never
+    }
 
 export function RentalProposalPrintView(props: RentalProposalPrintViewProps) {
   const { quote, isPublicView = false, onGenerateContract, onBack } = props
   const internalQuote = props.isPublicView === true ? undefined : props.quote
   const machines = quote.maquinas_comparadas || internalQuote?.resultados?.machines || []
-  const clienteNome = quote.cliente_nome_livre || internalQuote?.expand?.cliente_id?.name || 'Cliente'
+  const clienteNome =
+    quote.cliente_nome_livre || internalQuote?.expand?.cliente_id?.name || 'Cliente'
   const clienteDoc = quote.cliente_documento || internalQuote?.expand?.cliente_id?.cpf_cnpj || '—'
   const clienteTel = quote.cliente_telefone || internalQuote?.expand?.cliente_id?.phone || '—'
   const clienteEnd = quote.cliente_endereco || '—'
@@ -57,7 +60,8 @@ export function RentalProposalPrintView(props: RentalProposalPrintViewProps) {
 
   // Obtém o link público da proposta ({origin}/proposta-locacao/{id}?token={token})
   const getProposalPublicUrl = async (): Promise<string> => {
-    if (isPublicView || !internalQuote) throw new Error('Compartilhamento interno indisponível nesta visualização.')
+    if (isPublicView || !internalQuote)
+      throw new Error('Compartilhamento interno indisponível nesta visualização.')
     const origin =
       typeof window !== 'undefined' && window.location.origin ? window.location.origin : ''
     const token = await ensureRentalQuoteToken(internalQuote)
@@ -233,37 +237,38 @@ export function RentalProposalPrintView(props: RentalProposalPrintViewProps) {
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {!isPublicView && <>
-          {/* BOTÃO COMPARTILHAR PROPOSTA */}
-          <Button
-            type="button"
-            onClick={handleShare}
-            disabled={sharing}
-            className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold gap-1.5 border border-slate-700 shadow-sm"
-            title="Compartilhar proposta com link do documento e mensagem de fechamento"
-          >
-            {copied ? (
-              <Check className="h-4 w-4 text-emerald-400" />
-            ) : (
-              <Share2 className="h-4 w-4 text-indigo-400" />
-            )}
-            <span>{copied ? 'Copiado!' : 'Compartilhar Proposta'}</span>
-          </Button>
+          {!isPublicView && (
+            <>
+              {/* BOTÃO COMPARTILHAR PROPOSTA */}
+              <Button
+                type="button"
+                onClick={handleShare}
+                disabled={sharing}
+                className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold gap-1.5 border border-slate-700 shadow-sm"
+                title="Compartilhar proposta com link do documento e mensagem de fechamento"
+              >
+                {copied ? (
+                  <Check className="h-4 w-4 text-emerald-400" />
+                ) : (
+                  <Share2 className="h-4 w-4 text-indigo-400" />
+                )}
+                <span>{copied ? 'Copiado!' : 'Compartilhar Proposta'}</span>
+              </Button>
 
-          {/* BOTÃO WHATSAPP SE CLIENTE TIVER TELEFONE */}
-          {sanitizedPhone && (
-            <Button
-              type="button"
-              onClick={handleWhatsApp}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1.5 shadow-sm"
-              title={`Enviar proposta diretamente no WhatsApp (${clienteTel})`}
-            >
-              <MessageCircle className="h-4 w-4" />
-              <span>WhatsApp</span>
-            </Button>
+              {/* BOTÃO WHATSAPP SE CLIENTE TIVER TELEFONE */}
+              {sanitizedPhone && (
+                <Button
+                  type="button"
+                  onClick={handleWhatsApp}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1.5 shadow-sm"
+                  title={`Enviar proposta diretamente no WhatsApp (${clienteTel})`}
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  <span>WhatsApp</span>
+                </Button>
+              )}
+            </>
           )}
-
-          </>}
           {/* BOTÃO IMPRIMIR / PDF */}
           <Button
             type="button"
@@ -436,7 +441,9 @@ export function RentalProposalPrintView(props: RentalProposalPrintViewProps) {
                       <Button
                         type="button"
                         onClick={() => {
-                          const original = (internalQuote?.maquinas_comparadas || internalQuote?.resultados?.machines || [])[idx]
+                          const original = (internalQuote?.maquinas_comparadas ||
+                            internalQuote?.resultados?.machines ||
+                            [])[idx]
                           if (original) onGenerateContract(original)
                         }}
                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow"
@@ -468,7 +475,9 @@ export function RentalProposalPrintView(props: RentalProposalPrintViewProps) {
                 </p>
               ) : null}
               {internalQuote?.resultados.vantagemDescricao && (
-                <p className="text-slate-800 font-semibold">{internalQuote?.resultados.vantagemDescricao}</p>
+                <p className="text-slate-800 font-semibold">
+                  {internalQuote?.resultados.vantagemDescricao}
+                </p>
               )}
             </div>
           )}

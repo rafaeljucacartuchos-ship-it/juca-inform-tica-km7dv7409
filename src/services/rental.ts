@@ -175,7 +175,10 @@ export async function getRentalQuote(id: string): Promise<RentalQuote | null> {
 /**
  * Busca proposta pública por ID e token_acesso (sem exigir login)
  */
-export async function getPublicRentalQuote(id: string, token: string): Promise<RentalCommercialQuote | null> {
+export async function getPublicRentalQuote(
+  id: string,
+  token: string,
+): Promise<RentalCommercialQuote | null> {
   if (!id || !token || token.length > 256) return null
   try {
     // Implantar junto da rota e das permissões; nunca retornar ao getOne privado como fallback.
@@ -194,11 +197,16 @@ export async function getPublicRentalQuote(id: string, token: string): Promise<R
  * Se já tiver, retorna o existente; se não, gera e salva no PocketBase.
  */
 export async function ensureRentalQuoteToken(quote: RentalQuote): Promise<string> {
-  const response = await pb.send<{id:string;token:string}>(
+  const response = await pb.send<{ id: string; token: string }>(
     '/backend/v1/rental-proposal/' + encodeURIComponent(quote.id) + '/share',
-    {method:'POST'},
+    { method: 'POST' },
   )
-  if (response.id !== quote.id || typeof response.token !== 'string' || !response.token || response.token.length > 256)
+  if (
+    response.id !== quote.id ||
+    typeof response.token !== 'string' ||
+    !response.token ||
+    response.token.length > 256
+  )
     throw new Error('O servidor não confirmou um link válido. Nenhum link foi gerado.')
   quote.token_acesso = response.token
   return response.token

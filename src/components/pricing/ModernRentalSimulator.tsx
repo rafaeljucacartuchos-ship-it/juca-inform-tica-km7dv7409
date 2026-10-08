@@ -145,7 +145,6 @@ export function ModernRentalSimulator({
   // Cenário B para Comparação / Break-Even
   const [printerScenarioB, setPrinterScenarioB] = useState<ImpressoraRecord | null>(null)
 
-
   // Atualiza seção de cascata se informada externamente
   useEffect(() => {
     if (initialCascadeSection !== undefined) {
@@ -167,10 +166,14 @@ export function ModernRentalSimulator({
   )
   const [contratoMeses, setContratoMeses] = useState<number>(12)
   const [generatingQuote, setGeneratingQuote] = useState(false)
-  const activePrinters = useMemo(() => printers.filter(p => p.ativo !== false), [printers])
+  const activePrinters = useMemo(() => printers.filter((p) => p.ativo !== false), [printers])
   const locacaoScenarioB = printerScenarioB
-    ? calculateRentalBase(printerScenarioB.valor_compra, printerScenarioB.custo_mensal_software,
-        contratoMeses, paybackMeses) ?? 0
+    ? (calculateRentalBase(
+        printerScenarioB.valor_compra,
+        printerScenarioB.custo_mensal_software,
+        contratoMeses,
+        paybackMeses,
+      ) ?? 0)
     : 0
   const equipmentValue = parseNonNegativeMoney(equipPriceCustom)
   const locacaoMensal =
@@ -197,7 +200,9 @@ export function ModernRentalSimulator({
           setEquipPriceCustom(latest.valor_compra == null ? '' : String(latest.valor_compra))
         }
         if (latest.custo_mensal_software !== selectedPrinter.custo_mensal_software) {
-          setPrintwayCostCustom(latest.custo_mensal_software == null ? '' : String(latest.custo_mensal_software))
+          setPrintwayCostCustom(
+            latest.custo_mensal_software == null ? '' : String(latest.custo_mensal_software),
+          )
         }
         if (latest.vida_util_meses !== selectedPrinter.vida_util_meses) {
           setVidaUtilCustom(latest.vida_util_meses || parametros.vida_util_padrao_meses || 48)
@@ -206,8 +211,11 @@ export function ModernRentalSimulator({
           const key = ('suprimento_' + slot) as keyof ImpressoraRecord
           return latest[key] !== selectedPrinter[key]
         })
-        const expandedChanged = JSON.stringify(latest.vinculos_suprimentos) !== JSON.stringify(selectedPrinter.vinculos_suprimentos)
-        if (slotChanged || expandedChanged) setIncludedSlots({ 1: true, 2: true, 3: true, 4: true, 5: true })
+        const expandedChanged =
+          JSON.stringify(latest.vinculos_suprimentos) !==
+          JSON.stringify(selectedPrinter.vinculos_suprimentos)
+        if (slotChanged || expandedChanged)
+          setIncludedSlots({ 1: true, 2: true, 3: true, 4: true, 5: true })
         setSelectedPrinter(latest)
       }
     }
@@ -254,7 +262,12 @@ export function ModernRentalSimulator({
     if (!selectedPrinter) return
     const validValue = parsePrintwayInput(rawValue)
     if (validValue === null) {
-      toast({ title: 'Informe o custo do Printway', description: 'Use um valor válido ou digite 0 quando não houver cobrança. O cadastro não foi alterado.', variant: 'destructive' })
+      toast({
+        title: 'Informe o custo do Printway',
+        description:
+          'Use um valor válido ou digite 0 quando não houver cobrança. O cadastro não foi alterado.',
+        variant: 'destructive',
+      })
       return
     }
 
@@ -291,9 +304,10 @@ export function ModernRentalSimulator({
     }))
   }
 
-  const supplyResolution = useMemo(() => readPrinterSupplies(
-    selectedPrinter, supplies, selectedPrinter?.expand,
-  ), [selectedPrinter, supplies])
+  const supplyResolution = useMemo(
+    () => readPrinterSupplies(selectedPrinter, supplies, selectedPrinter?.expand),
+    [selectedPrinter, supplies],
+  )
 
   // Preserva posições e lê todos os vínculos quando a migração estiver ativa.
   const activeSupplySlots = useMemo<SupplySlotInput[]>(() => {
@@ -311,44 +325,51 @@ export function ModernRentalSimulator({
       'DCP-1617NW',
     ].includes(selectedPrinter.modelo)
 
-    return Array.from({length: Math.min(1000, slotsRaw.length + extraSupplySlots)}, (_, index) => {
-      const slotNum = index + 1
-      const sup = slotsRaw[slotNum - 1]
+    return Array.from(
+      { length: Math.min(1000, slotsRaw.length + extraSupplySlots) },
+      (_, index) => {
+        const slotNum = index + 1
+        const sup = slotsRaw[slotNum - 1]
 
-      if (!selectedPrinter.vinculos_variaveis_ativos && isBrotherCompacta && (slotNum === 3 || slotNum === 4)) {
+        if (
+          !selectedPrinter.vinculos_variaveis_ativos &&
+          isBrotherCompacta &&
+          (slotNum === 3 || slotNum === 4)
+        ) {
+          return {
+            slotNumber: slotNum as any,
+            modelo: 'INTEGRADO',
+            tipo: slotNum === 3 ? 'unidade_fusora' : 'pelicula',
+            fabricante: 'Brother',
+            valorCompra: 0,
+            rendimentoPaginas: 50000,
+            integratedToChassis: true,
+          }
+        }
+
+        if (!sup) {
+          return {
+            slotNumber: slotNum as any,
+            modelo: '',
+            tipo: 'insumo',
+            fabricante: '',
+            valorCompra: null,
+            rendimentoPaginas: null,
+          }
+        }
+
         return {
           slotNumber: slotNum as any,
-          modelo: 'INTEGRADO',
-          tipo: slotNum === 3 ? 'unidade_fusora' : 'pelicula',
-          fabricante: 'Brother',
-          valorCompra: 0,
-          rendimentoPaginas: 50000,
-          integratedToChassis: true,
+          supplyId: sup.id,
+          modelo: sup.modelo_suprimento,
+          tipo: sup.tipo,
+          fabricante: sup.fabricante,
+          valorCompra: sup.valor_compra ?? null,
+          rendimentoPaginas: sup.rendimento_paginas ?? null,
+          included: includedSlots[slotNum] !== false,
         }
-      }
-
-      if (!sup) {
-        return {
-          slotNumber: slotNum as any,
-          modelo: '',
-          tipo: 'insumo',
-          fabricante: '',
-          valorCompra: null,
-          rendimentoPaginas: null,
-        }
-      }
-
-      return {
-        slotNumber: slotNum as any,
-        supplyId: sup.id,
-        modelo: sup.modelo_suprimento,
-        tipo: sup.tipo,
-        fabricante: sup.fabricante,
-        valorCompra: sup.valor_compra ?? null,
-        rendimentoPaginas: sup.rendimento_paginas ?? null,
-        included: includedSlots[slotNum] !== false,
-      }
-    })
+      },
+    )
   }, [selectedPrinter, supplyResolution, includedSlots, extraSupplySlots])
 
   // CÁLCULO REATIVO EM TEMPO REAL (< 100ms)
@@ -382,8 +403,7 @@ export function ModernRentalSimulator({
       }
     }
 
-    const valorCompraNum =
-      equipmentValue
+    const valorCompraNum = equipmentValue
     const valorSoftwarePrintway = parsePrintwayInput(printwayCostCustom)
 
     const result = calculatePricing({
@@ -402,7 +422,9 @@ export function ModernRentalSimulator({
       bloqueada: selectedPrinter.bloqueada,
       motivoBloqueio: selectedPrinter.motivo_bloqueio,
     })
-    return supplyResolution.error ? {...result, valid: false, errors: [...result.errors, supplyResolution.error]} : result
+    return supplyResolution.error
+      ? { ...result, valid: false, errors: [...result.errors, supplyResolution.error] }
+      : result
   }, [
     selectedPrinter,
     activeSupplySlots,
@@ -464,8 +486,14 @@ export function ModernRentalSimulator({
     })
 
     if (resolvedB.error || !calculation.valid || !calcB.valid || printerScenarioB.ativo === false) {
-      return { valid: false, diferencaLocacao: 0, diferencaCPP: 0, paginasBreakEven: null,
-        recomendacao: 'Comparação indisponível: complete os dados e resolva os bloqueios dos dois equipamentos.' }
+      return {
+        valid: false,
+        diferencaLocacao: 0,
+        diferencaCPP: 0,
+        paginasBreakEven: null,
+        recomendacao:
+          'Comparação indisponível: complete os dados e resolva os bloqueios dos dois equipamentos.',
+      }
     }
     return calculateBreakEven(
       {
@@ -499,8 +527,13 @@ export function ModernRentalSimulator({
   const handleUpdateSlotSupply = async (slotNumber: number, supplyId: string | null) => {
     if (!isAdmin) return
     if (!selectedPrinter) return
-    if (!Number.isSafeInteger(slotNumber) || slotNumber < 1 || slotNumber > 1000 ||
-        (!selectedPrinter.vinculos_variaveis_ativos && slotNumber > 5)) return
+    if (
+      !Number.isSafeInteger(slotNumber) ||
+      slotNumber < 1 ||
+      slotNumber > 1000 ||
+      (!selectedPrinter.vinculos_variaveis_ativos && slotNumber > 5)
+    )
+      return
     const field = `suprimento_${slotNumber}` as keyof ImpressoraRecord
 
     try {
@@ -587,17 +620,27 @@ export function ModernRentalSimulator({
   const proceedGenerateProposal = async () => {
     if (!selectedPrinter) return
     if (selectedPrinter.ativo === false) {
-      toast({ title: 'Equipamento inativo', description: 'Selecione um equipamento ativo para uma nova proposta.', variant: 'destructive' })
+      toast({
+        title: 'Equipamento inativo',
+        description: 'Selecione um equipamento ativo para uma nova proposta.',
+        variant: 'destructive',
+      })
       return
     }
-    if (!calculation.valid || equipmentValue === null || equipmentValue <= 0 || !scannerConfirmado) {
+    if (
+      !calculation.valid ||
+      equipmentValue === null ||
+      equipmentValue <= 0 ||
+      !scannerConfirmado
+    ) {
       toast({
         title: 'Proposta pendente',
-        description: equipmentValue === null || equipmentValue <= 0
-          ? 'Informe um valor válido do equipamento.'
-          : !calculation.valid
-          ? calculation.errors.join(' ')
-          : 'Confirme o tipo de scanner do equipamento.',
+        description:
+          equipmentValue === null || equipmentValue <= 0
+            ? 'Informe um valor válido do equipamento.'
+            : !calculation.valid
+              ? calculation.errors.join(' ')
+              : 'Confirme o tipo de scanner do equipamento.',
         variant: 'destructive',
       })
       return
@@ -685,7 +728,9 @@ export function ModernRentalSimulator({
           contratoMeses,
           margemPct: Math.round((markupCustom - 1) * 100),
           paybackMesesPadrao: paybackMeses,
-          breakEvenPaginas: breakEvenResult?.valid ? breakEvenResult.paginasBreakEven ?? undefined : undefined,
+          breakEvenPaginas: breakEvenResult?.valid
+            ? (breakEvenResult.paginasBreakEven ?? undefined)
+            : undefined,
           vantagemDescricao: breakEvenResult?.valid ? breakEvenResult.recomendacao : undefined,
           software_printway_mensal: calculation.valorSoftwarePrintway,
           // Campo especificado: slots_incluidos com os códigos dos suprimentos efetivamente no cálculo
@@ -1006,18 +1051,18 @@ export function ModernRentalSimulator({
             {parsePrintwayInput(printwayCostCustom) === null
               ? 'Informe o custo do Printway; zero somente quando não houver cobrança.'
               : paybackMeses > 0
-              ? '(' +
-                formatBRL2(equipmentValue ?? 0) +
-                ' + ' +
-                formatBRL2(Number(printwayCostCustom.replace(',', '.'))) +
-                ' × ' +
-                contratoMeses +
-                ' meses) ÷ ' +
-                paybackMeses +
-                ' meses = ' +
-                formatBRL2(locacaoMensal) +
-                '/mês'
-              : 'Informe o payback para calcular a locação base.'}{' '}
+                ? '(' +
+                  formatBRL2(equipmentValue ?? 0) +
+                  ' + ' +
+                  formatBRL2(Number(printwayCostCustom.replace(',', '.'))) +
+                  ' × ' +
+                  contratoMeses +
+                  ' meses) ÷ ' +
+                  paybackMeses +
+                  ' meses = ' +
+                  formatBRL2(locacaoMensal) +
+                  '/mês'
+                : 'Informe o payback para calcular a locação base.'}{' '}
             CPP de venda = suprimentos × mark-up + reserva por página. Equipamento e Printway já
             compõem a base.
           </p>
@@ -1054,8 +1099,12 @@ export function ModernRentalSimulator({
             onOpenSupplyEditModal={handleOpenSupplyEditInternal}
           />
           {isAdmin && selectedPrinter?.vinculos_variaveis_ativos && (
-            <Button type="button" variant="outline" disabled={activeSupplySlots.length >= 1000}
-              onClick={() => setExtraSupplySlots(count => count + 1)}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={activeSupplySlots.length >= 1000}
+              onClick={() => setExtraSupplySlots((count) => count + 1)}
+            >
               Adicionar suprimento
             </Button>
           )}
@@ -1081,7 +1130,6 @@ export function ModernRentalSimulator({
         onUpdateScenarioB={(p, loc) => {
           if (p?.ativo === false) return
           setPrinterScenarioB(p)
-
         }}
         availablePrinters={activePrinters}
       />

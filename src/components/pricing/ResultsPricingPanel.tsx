@@ -1068,7 +1068,12 @@ export function applyRentalReserve(
             : 'Administrador: salve o planejamento da reserva antes de gerar novas propostas.'),
       ],
     }
-  if (!validRentalReserveInput(rate, pages)) return {...base, valid:false, errors:[...base.errors, 'Taxa de reserva ou quantidade de páginas inválida.']}
+  if (!validRentalReserveInput(rate, pages))
+    return {
+      ...base,
+      valid: false,
+      errors: [...base.errors, 'Taxa de reserva ou quantidade de páginas inválida.'],
+    }
   const cppVenda = base.cppVenda + rate
   const custoMensalProducao = cppVenda * pages
   const faturamentoTotalMensal = base.faturamentoTotalMensal + rate * pages
