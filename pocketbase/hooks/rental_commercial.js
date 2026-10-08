@@ -525,7 +525,7 @@ function calculateSpreadsheetPricing(input) {
       }
       const input={printerId:p.id,modelo:p.getString('modelo'),fabricante:p.getString('fabricante'),tecnologia:p.getString('tecnologia'),valorCompra:p.get('valor_compra'),valorSoftwarePrintway:p.get('custo_mensal_software'),vidaUtilMeses:p.get('vida_util_meses'),producaoMensalEstimada:pages,contratoMeses:months,paybackMeses:payback,markUpRevenda:params.get('mark_up_revenda'),supplies:slots};
       const calc=calculateSpreadsheetPricing(input);
-      if (!calc.valid) throw new Error('CADASTRO');
+      if (!calc.valid) { e.app.logger().error('Rental commercial validation', 'reason', calc.errors.join(' | ')); throw new Error('CADASTRO') };
       const excess=Math.round((calc.cppVenda+rate)*1000000)/1000000;
       const monthly=Math.round((calc.faturamentoTotalMensal+rate*pages)*100)/100;
       if (!Number.isFinite(excess) || !Number.isFinite(monthly) || monthly <= 0) throw new Error('CADASTRO');
@@ -558,6 +558,7 @@ function calculateSpreadsheetPricing(input) {
     });
     return e.json(200,response);
   } catch (err) {
+    e.app.logger().error('Rental commercial calculation failed', 'reason', String(err));
     const messages={PAYBACK:'Administrador: confira o payback padrão de locação.',RESERVA:'Administrador: confira o planejamento da reserva.',SCANNER:'Confirme o scanner do equipamento.',CLIENTE:'Confira os dados e o acesso ao cliente.',ALTERADO:'Os preços mudaram. Calcule novamente antes de salvar.',ACESSO:'Sem autorização para gerar proposta.'};
     return e.json(400,{error:messages[err.message] || 'Equipamento pendente de revisão administrativa. Escolha outro ou solicite a revisão do cadastro.'});
   }
