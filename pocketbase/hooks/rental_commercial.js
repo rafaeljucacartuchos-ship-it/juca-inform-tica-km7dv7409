@@ -15,23 +15,13 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
     const factor = Math.pow(10, decimals)
     return Math.round((val + Number.EPSILON) * factor) / factor
   }
-  /** Formata CPP com 6 casas decimais */
-  function formatCPP6(val) {
-    const num = Number(val) || 0
-    return (
-      'R$ ' + num.toLocaleString('pt-BR', { minimumFractionDigits: 6, maximumFractionDigits: 6 })
-    )
+  // PocketBase's JS runtime has no Intl locale formatting.
+  function formatDecimal(value, decimals) {
+    const parts = (Number(value) || 0).toFixed(decimals).split('.')
+    return parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (decimals ? ',' + parts[1] : '')
   }
-  /** Formata BRL moeda (2 casas decimais) */
-  function formatBRL2(val) {
-    const num = Number(val) || 0
-    return num.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })
-  }
+  function formatCPP6(val) { return 'R$ ' + formatDecimal(val, 6) }
+  function formatBRL2(val) { return 'R$ ' + formatDecimal(val, 2) }
   /**
    * 3.1 Custo por Página Individual do Suprimento
    * CPP_suprimento = valor_compra / rendimento_paginas
@@ -380,7 +370,7 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
             menorCpp +
             ' é mais econômico.'
           : 'Os custos se igualam em ' +
-            paginas.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) +
+            formatDecimal(paginas, 2) +
             ' páginas/mês. Acima desse volume, o cenário ' +
             menorCpp +
             ' é mais econômico.',
@@ -701,8 +691,8 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
       }
       const calc = calculateSpreadsheetPricing(input)
       if (!calc.valid) {
-        e.app.logger().error('Rental commercial validation', 'reason', calc.errors.join(' | '))
-        throw new Error('VALIDACAO: ' + calc.errors.join(' | '))
+
+        throw new Error('CADASTRO')
       }
       const excess = Math.round((calc.cppVenda + rate) * 1000000) / 1000000
       const monthly = Math.round((calc.faturamentoTotalMensal + rate * pages) * 100) / 100
@@ -793,7 +783,7 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
     })
     return e.json(200, response)
   } catch (err) {
-    e.app.logger().error('Rental commercial calculation failed', 'reason', String(err))
+
     const messages = {
       PAYBACK: 'Administrador: confira o payback padrão de locação.',
       RESERVA: 'Administrador: confira o planejamento da reserva.',
@@ -805,9 +795,6 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
     return e.json(400, {
       error:
         messages[err.message] ||
-        (body.action === 'simulate' && err.message !== 'CADASTRO'
-          ? 'Diagnóstico da simulação: ' + String(err).slice(0, 300)
-          : '') ||
         'Equipamento pendente de revisão administrativa. Escolha outro ou solicite a revisão do cadastro.',
     })
   }
