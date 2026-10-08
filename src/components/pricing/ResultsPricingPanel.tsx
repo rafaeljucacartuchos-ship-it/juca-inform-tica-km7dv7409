@@ -1,3 +1,4 @@
+import { readRentalReserveRate, validRentalReserveInput } from './rental-reserve-validation'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useState, useEffect, useRef } from 'react'
 import reservePb from '@/lib/pocketbase/client'
@@ -365,17 +366,16 @@ Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarif
 
                 <div className="space-y-1">
                   <Label className="text-[11px] font-semibold text-slate-700">
-                    Locação Mensal Base (Cenário B - R$)
+                    Locação Base Automática (Cenário B - R$)
                   </Label>
                   <Input
                     type="number"
                     step="0.01"
                     min="0"
                     value={locacaoScenarioB || ''}
-                    onChange={(e) =>
-                      onUpdateScenarioB(printerScenarioB || null, parseFloat(e.target.value) || 0)
-                    }
-                    placeholder="Ex: 490.14"
+                    readOnly
+                    aria-label="Locação base do cenário B calculada pela regra da planilha"
+                    placeholder="Complete os parâmetros"
                     className="h-8 text-xs font-mono"
                   ></Input>
                 </div>
@@ -1021,7 +1021,7 @@ export function useRentalReserve() {
         requestKey: null,
       })
       const latest = rates.items[0]
-      const nextRate = latest ? Number(latest.payload.rate) : null
+      const nextRate = latest ? readRentalReserveRate(latest.payload?.rate) : null
       if (nextRate !== null && (!Number.isFinite(nextRate) || nextRate < 0))
         throw new Error('Tarifa cadastrada inválida.')
       let privateRows: ReserveRow[] = []
@@ -1068,6 +1068,7 @@ export function applyRentalReserve(
             : 'Administrador: salve o planejamento da reserva antes de gerar novas propostas.'),
       ],
     }
+  if (!validRentalReserveInput(rate, pages)) return {...base, valid:false, errors:[...base.errors, 'Taxa de reserva ou quantidade de páginas inválida.']}
   const cppVenda = base.cppVenda + rate
   const custoMensalProducao = cppVenda * pages
   const faturamentoTotalMensal = base.faturamentoTotalMensal + rate * pages

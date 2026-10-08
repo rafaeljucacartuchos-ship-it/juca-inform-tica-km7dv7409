@@ -29,10 +29,10 @@ interface SupplySlotsGridProps {
   printerModel?: string
   printerManufacturer?: string
   readOnly?: boolean
-  onToggleSlotInclusion?: (slotNumber: 1 | 2 | 3 | 4 | 5, included: boolean) => void
-  onUpdateSlotSupply?: (slotNumber: 1 | 2 | 3 | 4 | 5, supplyId: string | null) => void
+  onToggleSlotInclusion?: (slotNumber: number, included: boolean) => void
+  onUpdateSlotSupply?: (slotNumber: number, supplyId: string | null) => void
   onUpdateSlotValues?: (
-    slotNumber: 1 | 2 | 3 | 4 | 5,
+    slotNumber: number,
     price: number | null,
     yieldPages: number | null,
   ) => void
@@ -51,9 +51,9 @@ export function SupplySlotsGrid({
   onOpenSupplyEditModal,
 }: SupplySlotsGridProps) {
   const { isAdmin, hasPermission } = usePermissions()
-  const readOnly = !(isAdmin || hasPermission('locacao_precos_rendimentos'))
+  const readOnly = requestedReadOnly || !isAdmin
   // Modal de seleção / troca de suprimento para um slot (modal completo de busca)
-  const [activeSlotToChange, setActiveSlotToChange] = useState<1 | 2 | 3 | 4 | 5 | null>(null)
+  const [activeSlotToChange, setActiveSlotToChange] = useState<number | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
 
   // Modal com detalhes / histórico do suprimento
@@ -142,7 +142,7 @@ export function SupplySlotsGrid({
         <div className="flex items-center gap-2">
           <Layers className="h-4 w-4 text-indigo-600" />
           <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wide">
-            Árvore de Suprimentos & Manutenção Vinculados (5 Slots)
+            Suprimentos e manutenção vinculados
           </h3>
         </div>
         <span className="text-[10px] text-slate-500 font-medium">
@@ -152,7 +152,11 @@ export function SupplySlotsGrid({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        {slots.map((slot) => {
+        {slots.map((rawSlot) => {
+          if (!Number.isInteger(rawSlot.slotNumber) || rawSlot.slotNumber < 1 || rawSlot.slotNumber > 1000) {
+            return <p key={'unsupported-' + rawSlot.slotNumber} role="alert">Este suprimento exige o cadastro ampliado. A edição nesta grade está indisponível.</p>
+          }
+          const slot = { ...rawSlot, slotNumber: rawSlot.slotNumber as number }
           const { visualStatus } = slot
 
           // ESTILOS VISUAIS CONFORME SEÇÃO 15.3
@@ -215,9 +219,9 @@ export function SupplySlotsGrid({
                     id={`include-slot-${slot.slotNumber}`}
                     type="checkbox"
                     checked={visualStatus === 'empty' ? false : slot.included}
-                    disabled={!isAdmin || visualStatus === 'empty'}
+                    disabled={readOnly || visualStatus === 'empty'}
                     onChange={(e) => {
-                      if (isAdmin && onToggleSlotInclusion && visualStatus !== 'empty') {
+                      if (!readOnly && onToggleSlotInclusion && visualStatus !== 'empty') {
                         onToggleSlotInclusion(slot.slotNumber, e.target.checked)
                       }
                     }}
@@ -233,7 +237,7 @@ export function SupplySlotsGrid({
                 </div>
 
                 {/* Seletor de suprimento em destaque: rótulo visível, altura h-8, chevron e borda nítida */}
-                {isAdmin && onUpdateSlotSupply && visualStatus !== 'integrated' && (
+                {!readOnly && onUpdateSlotSupply && visualStatus !== 'integrated' && (
                   <div className="space-y-1">
                     <label
                       htmlFor={`slot-select-${slot.slotNumber}`}
@@ -291,7 +295,7 @@ export function SupplySlotsGrid({
                       Não Aplicável / Vazio
                     </p>
                     <p className="text-[10px] text-slate-400 font-mono">CPP = R$ 0,000000</p>
-                    {isAdmin && onUpdateSlotSupply && (
+                    {!readOnly && onUpdateSlotSupply && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -455,7 +459,7 @@ export function SupplySlotsGrid({
                       <p className="text-[10px] text-rose-700 font-bold">
                         Preço ou rendimento pendente!
                       </p>
-                      {isAdmin && onOpenSupplyEditModal && (
+                      {!readOnly && onOpenSupplyEditModal && (
                         <Button
                           type="button"
                           variant="destructive"
@@ -493,7 +497,7 @@ export function SupplySlotsGrid({
                     </div>
                   )}
 
-                  {isAdmin && onUpdateSlotSupply && (
+                  {!readOnly && onUpdateSlotSupply && (
                     <div className="mt-1 flex justify-end">
                       <button
                         type="button"
