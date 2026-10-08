@@ -152,7 +152,12 @@ export default function LocacaoImpressoras() {
 
   // Carrega dados de precificação (parâmetros, suprimentos, impressoras e auditoria)
   const loadPricingData = useCallback(async () => {
-    if (!isAdmin) { setSuppliesList([]); setPrintersList([]); setAuditList([]); return }
+    if (!isAdmin) {
+      setSuppliesList([])
+      setPrintersList([])
+      setAuditList([])
+      return
+    }
     setLoadingPricingData(true)
     try {
       const [params, sups, imps, audits] = await Promise.all([
@@ -521,19 +526,23 @@ export default function LocacaoImpressoras() {
 
         {/* 1. SIMULADOR COM MOTOR PRECISO E OPÇÕES DE CONSULTA EM CASCATA */}
         <TabsContent value="simulador">
-          {!isAdmin ? <CommercialRentalSimulator onQuoteGenerated={handleQuoteGenerated} /> : <ModernRentalSimulator
-            printers={printersList}
-            supplies={suppliesList}
-            parametros={parametros}
-            auditHistory={auditList}
-            onQuoteGenerated={handleQuoteGenerated}
-            onReloadData={loadPricingData}
-            initialCascadeSection={simulatorCascadeSection}
-            onOpenSupplyEdit={(supModel) => {
-              setSimulatorCascadeSection('suprimentos')
-            }}
-            readOnly={!canEditPricing}
-          />}
+          {!isAdmin ? (
+            <CommercialRentalSimulator onQuoteGenerated={handleQuoteGenerated} />
+          ) : (
+            <ModernRentalSimulator
+              printers={printersList}
+              supplies={suppliesList}
+              parametros={parametros}
+              auditHistory={auditList}
+              onQuoteGenerated={handleQuoteGenerated}
+              onReloadData={loadPricingData}
+              initialCascadeSection={simulatorCascadeSection}
+              onOpenSupplyEdit={(supModel) => {
+                setSimulatorCascadeSection('suprimentos')
+              }}
+              readOnly={!canEditPricing}
+            />
+          )}
         </TabsContent>
 
         {/* 5. PROPOSTA COMERCIAL VISUALIZAÇÃO */}
