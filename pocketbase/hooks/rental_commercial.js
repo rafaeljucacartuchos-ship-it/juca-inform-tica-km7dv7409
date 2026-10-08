@@ -804,7 +804,10 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
     }
     return e.json(400, {
       error:
-        messages[err.message] || (body.action === 'simulate' && err.message !== 'CADASTRO' ? 'Diagnóstico da simulação: ' + String(err).slice(0,300) : '') ||
+        messages[err.message] ||
+        (body.action === 'simulate' && err.message !== 'CADASTRO'
+          ? 'Diagnóstico da simulação: ' + String(err).slice(0, 300)
+          : '') ||
         'Equipamento pendente de revisão administrativa. Escolha outro ou solicite a revisão do cadastro.',
     })
   }
