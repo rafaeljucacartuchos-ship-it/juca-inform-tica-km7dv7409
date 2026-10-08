@@ -701,7 +701,7 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
       }
       const calc = calculateSpreadsheetPricing(input)
       if (!calc.valid) {
-        e.app.logger().error('Rental commercial validation', 'reason', calc.errors.join(' | '))
+
         throw new Error('VALIDACAO: ' + calc.errors.join(' | '))
       }
       const excess = Math.round((calc.cppVenda + rate) * 1000000) / 1000000
@@ -793,7 +793,7 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
     })
     return e.json(200, response)
   } catch (err) {
-    e.app.logger().error('Rental commercial calculation failed', 'reason', String(err))
+
     const messages = {
       PAYBACK: 'Administrador: confira o payback padrão de locação.',
       RESERVA: 'Administrador: confira o planejamento da reserva.',
