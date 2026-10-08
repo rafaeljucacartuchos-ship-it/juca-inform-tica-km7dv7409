@@ -1,3 +1,4 @@
+import { getRentalSettings, updateRentalSettings } from '@/services/rental'
 import { readPrinterSupplies } from '@/lib/printer-supply-links'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useState, useEffect, useMemo } from 'react'
@@ -158,6 +159,11 @@ export function ModernRentalSimulator({
     parametros.producao_mensal_referencia || 1000,
   )
   const [paybackMeses, setPaybackMeses] = useState<number>(0)
+  useEffect(() => {
+    let alive = true
+    getRentalSettings().then(s => { if (alive) setPaybackMeses(s.defaultPaybackMonths) })
+    return () => { alive = false }
+  }, [])
   const [vidaUtilCustom, setVidaUtilCustom] = useState<number>(48)
   const [markupCustom, setMarkupCustom] = useState<number>(parametros.mark_up_revenda || 1.45)
   const [equipPriceCustom, setEquipPriceCustom] = useState<string>('')
@@ -951,6 +957,13 @@ export function ModernRentalSimulator({
               <p className="text-[10px] text-slate-500">
                 Escolha explícita, independente da vida útil e do contrato.
               </p>
+              {isAdmin && <Button type="button" size="sm" variant="outline" onClick={async () => {
+                if (!Number.isSafeInteger(paybackMeses) || paybackMeses < 1) return
+                try {
+                  await updateRentalSettings({defaultPaybackMonths:paybackMeses})
+                  toast({title:'Payback padrão salvo',description:'Será usado nas novas simulações comerciais. Propostas existentes permanecem iguais.'})
+                } catch { toast({title:'Não foi possível salvar o payback padrão',variant:'destructive'}) }
+              }}>Salvar payback padrão</Button>}
             </div>
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-slate-700">Vida Útil (meses)</Label>

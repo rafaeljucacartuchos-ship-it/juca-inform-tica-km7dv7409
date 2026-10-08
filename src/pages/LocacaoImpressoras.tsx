@@ -1,3 +1,4 @@
+import { CommercialRentalSimulator } from '@/components/pricing/CommercialRentalSimulator'
 import { useSearchParams } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
 import {
@@ -151,6 +152,7 @@ export default function LocacaoImpressoras() {
 
   // Carrega dados de precificação (parâmetros, suprimentos, impressoras e auditoria)
   const loadPricingData = useCallback(async () => {
+    if (!isAdmin) { setSuppliesList([]); setPrintersList([]); setAuditList([]); return }
     setLoadingPricingData(true)
     try {
       const [params, sups, imps, audits] = await Promise.all([
@@ -168,7 +170,7 @@ export default function LocacaoImpressoras() {
     } finally {
       setLoadingPricingData(false)
     }
-  }, [])
+  }, [isAdmin])
 
   // Carrega propostas existentes
   const loadQuotes = useCallback(async () => {
@@ -519,7 +521,7 @@ export default function LocacaoImpressoras() {
 
         {/* 1. SIMULADOR COM MOTOR PRECISO E OPÇÕES DE CONSULTA EM CASCATA */}
         <TabsContent value="simulador">
-          <ModernRentalSimulator
+          {!isAdmin ? <CommercialRentalSimulator onQuoteGenerated={handleQuoteGenerated} /> : <ModernRentalSimulator
             printers={printersList}
             supplies={suppliesList}
             parametros={parametros}
@@ -531,7 +533,7 @@ export default function LocacaoImpressoras() {
               setSimulatorCascadeSection('suprimentos')
             }}
             readOnly={!canEditPricing}
-          />
+          />}
         </TabsContent>
 
         {/* 5. PROPOSTA COMERCIAL VISUALIZAÇÃO */}
