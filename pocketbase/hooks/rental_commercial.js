@@ -709,7 +709,8 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
         // canAccessRecord queries stored records; a new quote has no database row yet.
         // This endpoint supports the verified authenticated-create policy only;
         // any custom or locked policy remains blocked for administrative review.
-        if (collection.createRule !== "@request.auth.id != ''") throw new Error('ACESSO')
+        const createPolicy = JSON.parse(JSON.stringify(collection)).createRule
+        if (createPolicy !== "@request.auth.id != ''") throw new Error('ACESSO')
         app.save(record)
         response = { id: record.id }
       }
