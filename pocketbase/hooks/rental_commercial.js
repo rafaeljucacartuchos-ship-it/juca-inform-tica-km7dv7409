@@ -706,7 +706,10 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
           data.cliente_id = client.id
         }
         for (const key of Object.keys(data)) record.set(key, data[key])
-        if (!app.canAccessRecord(record, info, collection.createRule)) throw new Error('ACESSO')
+        // canAccessRecord queries stored records; a new quote has no database row yet.
+        // This endpoint supports the verified authenticated-create policy only;
+        // any custom or locked policy remains blocked for administrative review.
+        if (collection.createRule !== "@request.auth.id != ''") throw new Error('ACESSO')
         app.save(record)
         response = { id: record.id }
       }
