@@ -467,7 +467,12 @@ function calculateSpreadsheetPricing(input) {
   const info = e.requestInfo();
   const auth = e.auth || info.auth;
   const actor = auth && typeof auth.getString === 'function' ? auth : auth && auth.record;
-  function json(value) { return typeof value === 'string' ? JSON.parse(value) : value; }
+  function json(value) {
+    if (typeof value === 'string') return JSON.parse(value);
+    if (value && typeof value.length === 'number' && value.length > 0 && typeof value[0] === 'number')
+      return JSON.parse(decodeURIComponent(Array.from(value,b=>'%' + b.toString(16).padStart(2,'0')).join('')));
+    return value;
+  }
   if (!actor || !actor.id) return e.json(403, {error:'Entre com uma conta autorizada.'});
   const role = actor.getString('role');
   const permissions = json(actor.get('permissions')) || {};
