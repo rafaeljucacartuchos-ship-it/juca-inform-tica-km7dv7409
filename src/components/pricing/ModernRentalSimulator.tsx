@@ -1,3 +1,5 @@
+import { readPrinterSupplies } from '@/lib/printer-supply-links'
+import { usePermissions } from '@/hooks/use-permissions'
 import { useState, useEffect, useMemo } from 'react'
 import {
   Calculator,
@@ -35,16 +37,19 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
+import { parsePrintwayInput, parseNonNegativeMoney } from '@/lib/printway-input'
 import { RentalCustomerSelect } from '@/components/RentalCustomerSelect'
 import type { RentalCustomerSelection } from '@/components/RentalCustomerSelect'
 import { PrinterSelectCombo } from './PrinterSelectCombo'
 import { SupplySlotsGrid } from './SupplySlotsGrid'
-import { ResultsPricingPanel } from './ResultsPricingPanel'
+import { ResultsPricingPanel, useRentalReserve, applyRentalReserve } from './ResultsPricingPanel'
 import { SuppliesManagementTab } from './SuppliesManagementTab'
 import { PrintersManagementTab } from './PrintersManagementTab'
 import { ParametersAndAuditTab } from './ParametersAndAuditTab'
 import {
-  calculatePricing,
+  calculateSpreadsheetPricing as calculatePricing,
+  calculateRentalBase,
+  formatBRL2,
   calculateBreakEven,
   type PricingEngineResult,
   type BreakEvenResult,
@@ -57,6 +62,7 @@ import type {
 } from '@/services/pricing-module'
 import {
   updateImpressora,
+  updatePrinterSupplyLink,
   updateSuprimento,
   recalculateLinkedPrintersForSupply,
 } from '@/services/pricing-module'
@@ -87,6 +93,9 @@ export function ModernRentalSimulator({
   initialCascadeSection,
 }: ModernRentalSimulatorProps) {
   const { toast } = useToast()
+  const { isAdmin, hasPermission } = usePermissions()
+  const reserveFund = useRentalReserve()
+  const canEditValues = isAdmin || hasPermission('locacao_precos_rendimentos')
   // Controle de cascata aberta (accordion expansível sob demanda)
   const [cascadeOpen, setCascadeOpen] = useState<string>(initialCascadeSection || '')
 
@@ -107,6 +116,7 @@ export function ModernRentalSimulator({
   })
 
   // Equipamento Selecionado
+  const [scannerConfirmado, setScannerConfirmado] = useState('')
   const [selectedPrinter, setSelectedPrinter] = useState<ImpressoraRecord | null>(null)
 
   // Estado de inclusão por slot: todos os slots com suprimento vinculado iniciam marcados por padrão (true)
@@ -126,13 +136,15 @@ export function ModernRentalSimulator({
 
   // Modal para resolver ambiguidade se houver múltiplos suprimentos compatíveis
   const [ambiguousSlotModal, setAmbigousSlotModal] = useState<{
-    slotNumber: 1 | 2 | 3 | 4 | 5
+    slotNumber: number
     supplies: SuprimentoRecord[]
   } | null>(null)
 
+  const [extraSupplySlots, setExtraSupplySlots] = useState(0)
+
   // Cenário B para Comparação / Break-Even
   const [printerScenarioB, setPrinterScenarioB] = useState<ImpressoraRecord | null>(null)
-  const [locacaoScenarioB, setLocacaoScenarioB] = useState<number>(490.14)
+
 
   // Atualiza seção de cascata se informada externamente
   useEffect(() => {
@@ -145,22 +157,63 @@ export function ModernRentalSimulator({
   const [producaoMensal, setProducaoMensal] = useState<number>(
     parametros.producao_mensal_referencia || 1000,
   )
-  const [locacaoMensal, setLocacaoMensal] = useState<number>(87.21)
+  const [paybackMeses, setPaybackMeses] = useState<number>(0)
   const [vidaUtilCustom, setVidaUtilCustom] = useState<number>(48)
   const [markupCustom, setMarkupCustom] = useState<number>(parametros.mark_up_revenda || 1.45)
   const [equipPriceCustom, setEquipPriceCustom] = useState<string>('')
-  const [printwayCostCustom, setPrintwayCostCustom] = useState<string>('0')
+  const [printwayCostCustom, setPrintwayCostCustom] = useState<string>('')
   const [tituloProposta, setTituloProposta] = useState<string>(
     'Locação de Impressoras — Proposta Comercial',
   )
   const [contratoMeses, setContratoMeses] = useState<number>(12)
   const [generatingQuote, setGeneratingQuote] = useState(false)
+  const activePrinters = useMemo(() => printers.filter(p => p.ativo !== false), [printers])
+  const locacaoScenarioB = printerScenarioB
+    ? calculateRentalBase(printerScenarioB.valor_compra, printerScenarioB.custo_mensal_software,
+        contratoMeses, paybackMeses) ?? 0
+    : 0
+  const equipmentValue = parseNonNegativeMoney(equipPriceCustom)
+  const locacaoMensal =
+    calculateRentalBase(
+      equipmentValue ?? Number.NaN,
+      parsePrintwayInput(printwayCostCustom) ?? Number.NaN,
+      contratoMeses,
+      paybackMeses,
+    ) ?? 0
 
   // Seleciona impressora padrão (DCP-L2540DW ou primeira)
   useEffect(() => {
-    if (!selectedPrinter && printers.length > 0) {
-      const preferred = printers.find((p) => p.modelo === 'DCP-L2540DW') || printers[0]
+    if (!selectedPrinter && activePrinters.length > 0) {
+      const preferred = activePrinters.find((p) => p.modelo === 'DCP-L2540DW') || activePrinters[0]
       selectPrinter(preferred)
+    } else if (selectedPrinter) {
+      const latest = printers.find((p) => p.id === selectedPrinter.id)
+      if (!latest || latest.ativo === false) {
+        setSelectedPrinter(null)
+        setScannerConfirmado('')
+      } else {
+        // Atualiza valores salvos sem apagar ajustes locais quando o cadastro não mudou.
+        if (latest.valor_compra !== selectedPrinter.valor_compra) {
+          setEquipPriceCustom(latest.valor_compra == null ? '' : String(latest.valor_compra))
+        }
+        if (latest.custo_mensal_software !== selectedPrinter.custo_mensal_software) {
+          setPrintwayCostCustom(latest.custo_mensal_software == null ? '' : String(latest.custo_mensal_software))
+        }
+        if (latest.vida_util_meses !== selectedPrinter.vida_util_meses) {
+          setVidaUtilCustom(latest.vida_util_meses || parametros.vida_util_padrao_meses || 48)
+        }
+        const slotChanged = [1, 2, 3, 4, 5].some((slot) => {
+          const key = ('suprimento_' + slot) as keyof ImpressoraRecord
+          return latest[key] !== selectedPrinter[key]
+        })
+        const expandedChanged = JSON.stringify(latest.vinculos_suprimentos) !== JSON.stringify(selectedPrinter.vinculos_suprimentos)
+        if (slotChanged || expandedChanged) setIncludedSlots({ 1: true, 2: true, 3: true, 4: true, 5: true })
+        setSelectedPrinter(latest)
+      }
+    }
+    if (printerScenarioB) {
+      const latestB = printers.find((p) => p.id === printerScenarioB.id)
+      setPrinterScenarioB(latestB && latestB.ativo !== false ? latestB : null)
     }
   }, [printers])
 
@@ -170,7 +223,10 @@ export function ModernRentalSimulator({
   }, [parametros])
 
   const selectPrinter = (printer: ImpressoraRecord) => {
+    if (printer.ativo === false) return
     setSelectedPrinter(printer)
+    setExtraSupplySlots(0)
+    setScannerConfirmado('')
     // Ao selecionar nova impressora, reseta todos os slots como marcados por padrão
     setIncludedSlots({
       1: true,
@@ -187,17 +243,20 @@ export function ModernRentalSimulator({
     setPrintwayCostCustom(
       printer.custo_mensal_software !== null && printer.custo_mensal_software !== undefined
         ? String(printer.custo_mensal_software)
-        : '0',
+        : '',
     )
     setVidaUtilCustom(printer.vida_util_meses || parametros.vida_util_padrao_meses || 48)
   }
 
   // Persiste inline a alteração do custo Printway na impressora
   const handleSavePrintwayCost = async (rawValue: string) => {
+    if (!isAdmin) return
     if (!selectedPrinter) return
-    const sanitized = rawValue.trim().replace(',', '.')
-    const parsed = sanitized === '' ? 0 : parseFloat(sanitized)
-    const validValue = isNaN(parsed) || parsed < 0 ? 0 : parsed
+    const validValue = parsePrintwayInput(rawValue)
+    if (validValue === null) {
+      toast({ title: 'Informe o custo do Printway', description: 'Use um valor válido ou digite 0 quando não houver cobrança. O cadastro não foi alterado.', variant: 'destructive' })
+      return
+    }
 
     setPrintwayCostCustom(String(validValue))
     if (selectedPrinter.custo_mensal_software !== validValue) {
@@ -224,29 +283,23 @@ export function ModernRentalSimulator({
     }
   }
 
-  const handleToggleSlotInclusion = (slotNumber: 1 | 2 | 3 | 4 | 5, included: boolean) => {
+  const handleToggleSlotInclusion = (slotNumber: number, included: boolean) => {
+    if (!isAdmin) return
     setIncludedSlots((prev) => ({
       ...prev,
       [slotNumber]: included,
     }))
   }
 
-  // Prepara os 5 slots de suprimento vinculados à impressora selecionada
+  const supplyResolution = useMemo(() => readPrinterSupplies(
+    selectedPrinter, supplies, selectedPrinter?.expand,
+  ), [selectedPrinter, supplies])
+
+  // Preserva posições e lê todos os vínculos quando a migração estiver ativa.
   const activeSupplySlots = useMemo<SupplySlotInput[]>(() => {
     if (!selectedPrinter) return []
 
-    const slotsRaw = [
-      selectedPrinter.expand?.suprimento_1 ||
-        supplies.find((s) => s.id === selectedPrinter.suprimento_1),
-      selectedPrinter.expand?.suprimento_2 ||
-        supplies.find((s) => s.id === selectedPrinter.suprimento_2),
-      selectedPrinter.expand?.suprimento_3 ||
-        supplies.find((s) => s.id === selectedPrinter.suprimento_3),
-      selectedPrinter.expand?.suprimento_4 ||
-        supplies.find((s) => s.id === selectedPrinter.suprimento_4),
-      selectedPrinter.expand?.suprimento_5 ||
-        supplies.find((s) => s.id === selectedPrinter.suprimento_5),
-    ]
+    const slotsRaw = supplyResolution.slots
 
     // Brother compactas: chassi integrado nos slots fusor/película (regra 4.3)
     const isBrotherCompacta = [
@@ -258,10 +311,11 @@ export function ModernRentalSimulator({
       'DCP-1617NW',
     ].includes(selectedPrinter.modelo)
 
-    return [1, 2, 3, 4, 5].map((slotNum) => {
+    return Array.from({length: Math.min(1000, slotsRaw.length + extraSupplySlots)}, (_, index) => {
+      const slotNum = index + 1
       const sup = slotsRaw[slotNum - 1]
 
-      if (isBrotherCompacta && (slotNum === 3 || slotNum === 4)) {
+      if (!selectedPrinter.vinculos_variaveis_ativos && isBrotherCompacta && (slotNum === 3 || slotNum === 4)) {
         return {
           slotNumber: slotNum as any,
           modelo: 'INTEGRADO',
@@ -295,10 +349,10 @@ export function ModernRentalSimulator({
         included: includedSlots[slotNum] !== false,
       }
     })
-  }, [selectedPrinter, supplies, includedSlots])
+  }, [selectedPrinter, supplyResolution, includedSlots, extraSupplySlots])
 
   // CÁLCULO REATIVO EM TEMPO REAL (< 100ms)
-  const calculation = useMemo<PricingEngineResult>(() => {
+  const baseCalculation = useMemo<PricingEngineResult>(() => {
     if (!selectedPrinter) {
       return {
         valid: false,
@@ -329,12 +383,10 @@ export function ModernRentalSimulator({
     }
 
     const valorCompraNum =
-      equipPriceCustom.trim() === '' ? null : parseFloat(equipPriceCustom.replace(',', '.'))
-    const printwayNum =
-      printwayCostCustom.trim() === '' ? 0 : parseFloat(printwayCostCustom.replace(',', '.'))
-    const valorSoftwarePrintway = isNaN(printwayNum) || printwayNum < 0 ? 0 : printwayNum
+      equipmentValue
+    const valorSoftwarePrintway = parsePrintwayInput(printwayCostCustom)
 
-    return calculatePricing({
+    const result = calculatePricing({
       printerId: selectedPrinter.id,
       modelo: selectedPrinter.modelo,
       fabricante: selectedPrinter.fabricante,
@@ -342,23 +394,36 @@ export function ModernRentalSimulator({
       valorCompra: valorCompraNum,
       vidaUtilMeses: vidaUtilCustom,
       producaoMensalEstimada: producaoMensal,
-      locacaoMensalProposta: locacaoMensal,
+      contratoMeses,
+      paybackMeses,
       markUpRevenda: markupCustom,
       valorSoftwarePrintway,
       supplies: activeSupplySlots,
       bloqueada: selectedPrinter.bloqueada,
       motivoBloqueio: selectedPrinter.motivo_bloqueio,
     })
+    return supplyResolution.error ? {...result, valid: false, errors: [...result.errors, supplyResolution.error]} : result
   }, [
     selectedPrinter,
     activeSupplySlots,
+    supplyResolution,
     equipPriceCustom,
     printwayCostCustom,
     vidaUtilCustom,
     producaoMensal,
     locacaoMensal,
+    contratoMeses,
+    paybackMeses,
     markupCustom,
   ])
+
+  const calculation = applyRentalReserve(
+    baseCalculation,
+    reserveFund.rate,
+    producaoMensal,
+    reserveFund.loading,
+    reserveFund.error,
+  )
 
   // CÁLCULO DE BREAK-EVEN SE HOUVER CENÁRIO B
   const breakEvenResult = useMemo<BreakEvenResult | null>(() => {
@@ -367,20 +432,10 @@ export function ModernRentalSimulator({
     }
 
     // Calcula cenário B
-    const slotsBRaw = [
-      printerScenarioB.expand?.suprimento_1 ||
-        supplies.find((s) => s.id === printerScenarioB.suprimento_1),
-      printerScenarioB.expand?.suprimento_2 ||
-        supplies.find((s) => s.id === printerScenarioB.suprimento_2),
-      printerScenarioB.expand?.suprimento_3 ||
-        supplies.find((s) => s.id === printerScenarioB.suprimento_3),
-      printerScenarioB.expand?.suprimento_4 ||
-        supplies.find((s) => s.id === printerScenarioB.suprimento_4),
-      printerScenarioB.expand?.suprimento_5 ||
-        supplies.find((s) => s.id === printerScenarioB.suprimento_5),
-    ]
-
-    const slotsBInput: SupplySlotInput[] = [1, 2, 3, 4, 5].map((sNum) => {
+    const resolvedB = readPrinterSupplies(printerScenarioB, supplies, printerScenarioB.expand)
+    const slotsBRaw = resolvedB.slots
+    const slotsBInput: SupplySlotInput[] = slotsBRaw.map((_, index) => {
+      const sNum = index + 1
       const sup = slotsBRaw[sNum - 1]
       return {
         slotNumber: sNum as any,
@@ -401,8 +456,17 @@ export function ModernRentalSimulator({
       producaoMensalEstimada: producaoMensal,
       markUpRevenda: markupCustom,
       supplies: slotsBInput,
+      contratoMeses,
+      paybackMeses,
+      valorSoftwarePrintway: printerScenarioB.custo_mensal_software,
+      bloqueada: printerScenarioB.bloqueada,
+      motivoBloqueio: printerScenarioB.motivo_bloqueio,
     })
 
+    if (resolvedB.error || !calculation.valid || !calcB.valid || printerScenarioB.ativo === false) {
+      return { valid: false, diferencaLocacao: 0, diferencaCPP: 0, paginasBreakEven: null,
+        recomendacao: 'Comparação indisponível: complete os dados e resolva os bloqueios dos dois equipamentos.' }
+    }
     return calculateBreakEven(
       {
         modelo: selectedPrinter.modelo,
@@ -412,7 +476,7 @@ export function ModernRentalSimulator({
       {
         modelo: printerScenarioB.modelo,
         locacaoMensal: locacaoScenarioB,
-        cppVenda: calcB.cppVenda,
+        cppVenda: calcB.cppVenda + (reserveFund.rate ?? 0),
       },
       producaoMensal,
     )
@@ -422,26 +486,31 @@ export function ModernRentalSimulator({
     locacaoScenarioB,
     locacaoMensal,
     calculation.cppVenda,
+    calculation.valid,
+    reserveFund.rate,
+    contratoMeses,
+    paybackMeses,
     producaoMensal,
     markupCustom,
     supplies,
   ])
 
   // Atualização de insumo ou slot na impressora selecionada
-  const handleUpdateSlotSupply = async (slotNumber: 1 | 2 | 3 | 4 | 5, supplyId: string | null) => {
+  const handleUpdateSlotSupply = async (slotNumber: number, supplyId: string | null) => {
+    if (!isAdmin) return
     if (!selectedPrinter) return
+    if (!Number.isSafeInteger(slotNumber) || slotNumber < 1 || slotNumber > 1000 ||
+        (!selectedPrinter.vinculos_variaveis_ativos && slotNumber > 5)) return
     const field = `suprimento_${slotNumber}` as keyof ImpressoraRecord
 
     try {
-      const updated = await updateImpressora(
-        selectedPrinter.id,
-        { [field]: supplyId },
-        selectedPrinter,
-      )
+      const updated = selectedPrinter.vinculos_variaveis_ativos
+        ? await updatePrinterSupplyLink(selectedPrinter, slotNumber, supplyId)
+        : await updateImpressora(selectedPrinter.id, { [field]: supplyId }, selectedPrinter)
       // Dispara recálculo automático em cascata para garantir que os CPPs da impressora fiquem salvos
-      if (supplyId) {
+      if (!selectedPrinter.vinculos_variaveis_ativos && supplyId) {
         await recalculateLinkedPrintersForSupply(supplyId)
-      } else if (selectedPrinter[field]) {
+      } else if (!selectedPrinter.vinculos_variaveis_ativos && selectedPrinter[field]) {
         // Se desvinculou, recalcula pelo suprimento anterior
         await recalculateLinkedPrintersForSupply(selectedPrinter[field] as string)
       }
@@ -450,8 +519,9 @@ export function ModernRentalSimulator({
       setSelectedPrinter({
         ...selectedPrinter,
         ...updated,
-        [field]: supplyId,
+        ...(selectedPrinter.vinculos_variaveis_ativos ? {} : { [field]: supplyId }),
       })
+      setExtraSupplySlots(0)
       onReloadData()
 
       const newSup = supplyId ? supplies.find((s) => s.id === supplyId) : null
@@ -469,10 +539,11 @@ export function ModernRentalSimulator({
 
   // Edição inline direta dos valores do suprimento pelo card de slots
   const handleUpdateSlotValues = async (
-    slotNumber: 1 | 2 | 3 | 4 | 5,
+    slotNumber: number,
     valorCompra: number | null,
     rendimentoPaginas: number | null,
   ) => {
+    if (!canEditValues) return
     const slot = activeSupplySlots[slotNumber - 1]
     if (!slot || !slot.supplyId) return
 
@@ -515,6 +586,22 @@ export function ModernRentalSimulator({
   // Executa a persistência da proposta comercial
   const proceedGenerateProposal = async () => {
     if (!selectedPrinter) return
+    if (selectedPrinter.ativo === false) {
+      toast({ title: 'Equipamento inativo', description: 'Selecione um equipamento ativo para uma nova proposta.', variant: 'destructive' })
+      return
+    }
+    if (!calculation.valid || equipmentValue === null || equipmentValue <= 0 || !scannerConfirmado) {
+      toast({
+        title: 'Proposta pendente',
+        description: equipmentValue === null || equipmentValue <= 0
+          ? 'Informe um valor válido do equipamento.'
+          : !calculation.valid
+          ? calculation.errors.join(' ')
+          : 'Confirme o tipo de scanner do equipamento.',
+        variant: 'destructive',
+      })
+      return
+    }
 
     setGeneratingQuote(true)
     try {
@@ -560,25 +647,25 @@ export function ModernRentalSimulator({
         contrato_meses: contratoMeses,
         excesso_pagina_valor: calculation.cppVenda,
         software_printway_mensal: calculation.valorSoftwarePrintway,
-        scanner: true,
-        scanner_dados: 'Alimentador ADF Duplex',
+        scanner: scannerConfirmado !== 'Sem scanner',
+        scanner_dados: scannerConfirmado,
         margem_pct: Math.round((markupCustom - 1) * 100),
-        payback_meses: vidaUtilCustom,
+        payback_meses: paybackMeses,
         status: 'proposta_gerada',
         titulo: tituloProposta || 'Proposta de Locação Corporativa',
         maquinas_comparadas: [
           {
             machineName: `${selectedPrinter.modelo} (${selectedPrinter.fabricante})`,
-            valorCompra: Number(equipPriceCustom) || 0,
-            paybackMeses: vidaUtilCustom,
+            valorCompra: equipmentValue,
+            paybackMeses: paybackMeses,
             cppFornecedor: calculation.cppFornecedorTotal,
             cppRevenda: calculation.cppVenda,
             locacaoMensal: locacaoMensal,
             franquiaSugerida: calculation.faturamentoTotalMensal,
             excedenteSugerido: calculation.cppVenda,
             tco: calculation.faturamentoTotalMensal * contratoMeses,
-            scanner: true,
-            scannerDados: 'ADF Duplex',
+            scanner: scannerConfirmado !== 'Sem scanner',
+            scannerDados: scannerConfirmado,
             supplies: suprimentosPayload.map((s) => ({
               product: s.modelo_suprimento,
               nome: s.modelo_suprimento,
@@ -597,9 +684,9 @@ export function ModernRentalSimulator({
           franquiaPaginas: producaoMensal,
           contratoMeses,
           margemPct: Math.round((markupCustom - 1) * 100),
-          paybackMesesPadrao: vidaUtilCustom,
-          breakEvenPaginas: breakEvenResult?.paginasBreakEven || undefined,
-          vantagemDescricao: breakEvenResult?.recomendacao || undefined,
+          paybackMesesPadrao: paybackMeses,
+          breakEvenPaginas: breakEvenResult?.valid ? breakEvenResult.paginasBreakEven ?? undefined : undefined,
+          vantagemDescricao: breakEvenResult?.valid ? breakEvenResult.recomendacao : undefined,
           software_printway_mensal: calculation.valorSoftwarePrintway,
           // Campo especificado: slots_incluidos com os códigos dos suprimentos efetivamente no cálculo
           slots_incluidos: slotsIncluidosCodigos,
@@ -610,7 +697,7 @@ export function ModernRentalSimulator({
               modelo: selectedPrinter.modelo,
               fabricante: selectedPrinter.fabricante,
               tecnologia: selectedPrinter.tecnologia,
-              valor_compra: Number(equipPriceCustom) || 0,
+              valor_compra: equipmentValue,
               custo_mensal_software: calculation.valorSoftwarePrintway,
             },
             software_printway_mensal: calculation.valorSoftwarePrintway,
@@ -619,6 +706,13 @@ export function ModernRentalSimulator({
             todos_slots: allSlotsSnapshot,
             suprimentos_vinculados: suprimentosPayload,
             memoria_calculo: {
+              regra: 'planilha-payback-reserva-v2',
+              reserva_por_pagina: reserveFund.rate,
+              reserva_referencia: reserveFund.rateId,
+              contrato_meses: contratoMeses,
+              payback_meses: paybackMeses,
+              vida_util_meses: vidaUtilCustom,
+              locacao_base: locacaoMensal,
               cpp_suprimentos: calculation.cppSuprimentos,
               cpp_equipamento: calculation.cppEquipamento,
               cpp_software_printway: calculation.cppSoftwarePrintway,
@@ -716,7 +810,7 @@ export function ModernRentalSimulator({
             <Calculator className="h-5 w-5 text-indigo-600" />
             <div>
               <h3 className="font-extrabold text-slate-900 text-sm">
-                1. Seleção do Equipamento & Parâmetros Comerciais
+                Equipamento, franquia e prazo
               </h3>
               <p className="text-xs text-slate-500">
                 Escolha a impressora do parque; seus insumos e taxas de depreciação serão carregados
@@ -738,32 +832,30 @@ export function ModernRentalSimulator({
             Impressora / Multifuncional do Parque *
           </Label>
           <PrinterSelectCombo
-            printers={printers}
+            printers={activePrinters}
             selectedPrinter={selectedPrinter}
             onSelectPrinter={selectPrinter}
           />
         </div>
 
-        {/* INPUTS DE PARÂMETROS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 pt-1 text-xs">
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold text-slate-700">Valor de Compra (R$) *</Label>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={equipPriceCustom}
-              onChange={(e) => setEquipPriceCustom(e.target.value)}
-              placeholder="Ex: 2094.33"
-              className={`h-9 text-xs font-mono font-bold ${
-                !equipPriceCustom || parseFloat(equipPriceCustom) <= 0
-                  ? 'border-amber-400 bg-amber-50 text-amber-900'
-                  : ''
-              }`}
-            />
-            <p className="text-[10px] text-slate-400">Ativo para depreciação</p>
-          </div>
+        <label className="block text-xs font-semibold text-slate-700">
+          Scanner do equipamento — confirmar para a proposta
+          <select
+            aria-label="Scanner do equipamento"
+            value={scannerConfirmado}
+            onChange={(e) => setScannerConfirmado(e.target.value)}
+            className="mt-1 block w-full rounded border border-slate-300 bg-white p-2"
+          >
+            <option value="">Selecione conforme o equipamento</option>
+            <option value="Sem scanner">Sem scanner</option>
+            <option value="Scanner de mesa, sem ADF">Scanner de mesa, sem ADF</option>
+            <option value="Scanner com ADF simples">Scanner com ADF simples</option>
+            <option value="Scanner com ADF duplex">Scanner com ADF duplex</option>
+          </select>
+        </label>
 
+        {/* INPUTS DE PARÂMETROS */}
+        <div className="grid sm:grid-cols-2 gap-4">
           <div className="space-y-1">
             <Label className="text-xs font-semibold text-slate-700">
               Franquia / Produção (pág/mês) *
@@ -778,70 +870,158 @@ export function ModernRentalSimulator({
             />
             <p className="text-[10px] text-slate-400">Volume estimado</p>
           </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold text-slate-700">Locação Mensal Base (R$)</Label>
+          <label className="text-xs font-semibold">
+            Prazo do contrato (meses)
             <Input
               type="number"
-              step="0.01"
-              min="0"
-              value={locacaoMensal || ''}
-              onChange={(e) => setLocacaoMensal(parseFloat(e.target.value) || 0)}
-              className="h-9 text-xs font-mono font-bold"
+              min="1"
+              max="120"
+              step="1"
+              value={contratoMeses}
+              onChange={(e) =>
+                setContratoMeses(Math.max(1, Math.min(120, parseInt(e.target.value, 10) || 1)))
+              }
             />
-            <p className="text-[10px] text-slate-400">Parcela locatícia fixa</p>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold text-slate-700">Vida Útil (meses)</Label>
-            <Input
-              type="number"
-              step="12"
-              min="12"
-              max="96"
-              value={vidaUtilCustom || ''}
-              onChange={(e) => setVidaUtilCustom(parseInt(e.target.value, 10) || 48)}
-              className="h-9 text-xs font-mono"
-            />
-            <p className="text-[10px] text-slate-400">Padrão: 48m (usados: 24m)</p>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold text-slate-700">
-              Software Printway (R$/mês)
-            </Label>
-            <Input
-              type="text"
-              value={printwayCostCustom}
-              onChange={(e) => setPrintwayCostCustom(e.target.value)}
-              onBlur={(e) => handleSavePrintwayCost(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.currentTarget.blur()
-                }
-              }}
-              placeholder="0,00"
-              className="h-9 text-xs font-mono font-bold text-indigo-950 bg-indigo-50/40 border-indigo-200 focus:border-indigo-500 focus:bg-white"
-              title="Custo mensal do software de gerenciamento Printway para esta máquina (Enter ou desfoque salva)"
-            />
-            <p className="text-[10px] text-slate-400">Diluído no volume</p>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs font-semibold text-slate-700">
-              Mark-up Revenda (Fator) *
-            </Label>
-            <Input
-              type="number"
-              step="0.01"
-              min="1.0"
-              value={markupCustom || ''}
-              onChange={(e) => setMarkupCustom(parseFloat(e.target.value) || 1.45)}
-              className="h-9 text-xs font-mono font-bold text-indigo-950"
-            />
-            <p className="text-[10px] text-slate-400">Ex: 1.4500 (sobre total)</p>
-          </div>
+          </label>
         </div>
+        <details open className="rounded-lg border p-3">
+          <summary className="cursor-pointer font-semibold text-sm">
+            Abrir custos e parâmetros de cálculo
+          </summary>
+          <p className="text-xs my-2">
+            Alteração dos parâmetros de cálculo reservada ao administrador.
+          </p>
+          {!isAdmin && canEditValues && (
+            <div className="mb-3">
+              <Label htmlFor="authorized-equipment-price">Preço de compra da impressora (R$)</Label>
+              <Input
+                id="authorized-equipment-price"
+                type="number"
+                min="0"
+                step="0.01"
+                value={equipPriceCustom}
+                onChange={(e) => setEquipPriceCustom(e.target.value)}
+              />
+              <p className="text-xs text-slate-500">Alteração autorizada para esta simulação.</p>
+            </div>
+          )}
+          <fieldset disabled={!isAdmin} className="grid sm:grid-cols-3 gap-3 text-xs">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">Valor de Compra (R$) *</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={equipPriceCustom}
+                onChange={(e) => setEquipPriceCustom(e.target.value)}
+                placeholder="Ex: 2094.33"
+                className={`h-9 text-xs font-mono font-bold ${
+                  !equipPriceCustom || parseFloat(equipPriceCustom) <= 0
+                    ? 'border-amber-400 bg-amber-50 text-amber-900'
+                    : ''
+                }`}
+              />
+              <p className="text-[10px] text-slate-400">Investimento recuperado na locação base</p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">
+                Locação Mensal Base (R$)
+              </Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={paybackMeses > 0 ? locacaoMensal.toFixed(2) : ''}
+                readOnly
+                className="h-9 text-xs font-mono font-bold"
+              />
+              <p className="text-[10px] text-slate-400">(Compra + Printway × contrato) ÷ payback</p>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="rental-payback">Payback (meses) *</Label>
+              <Input
+                id="rental-payback"
+                type="number"
+                min="1"
+                step="1"
+                value={paybackMeses || ''}
+                onChange={(e) => setPaybackMeses(Number(e.target.value))}
+                placeholder="Informe o prazo de retorno"
+              />
+              <p className="text-[10px] text-slate-500">
+                Escolha explícita, independente da vida útil e do contrato.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">Vida Útil (meses)</Label>
+              <Input
+                type="number"
+                step="12"
+                min="12"
+                max="96"
+                value={vidaUtilCustom || ''}
+                onChange={(e) => setVidaUtilCustom(parseInt(e.target.value, 10) || 48)}
+                className="h-9 text-xs font-mono"
+              />
+              <p className="text-[10px] text-slate-400">Padrão: 48m (usados: 24m)</p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">
+                Software Printway (R$/mês)
+              </Label>
+              <Input
+                type="text"
+                value={printwayCostCustom}
+                onChange={(e) => setPrintwayCostCustom(e.target.value)}
+                onBlur={(e) => handleSavePrintwayCost(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.currentTarget.blur()
+                  }
+                }}
+                placeholder="0,00"
+                className="h-9 text-xs font-mono font-bold text-indigo-950 bg-indigo-50/40 border-indigo-200 focus:border-indigo-500 focus:bg-white"
+                title="Custo mensal do software de gerenciamento Printway para esta máquina (Enter ou desfoque salva)"
+              />
+              <p className="text-[10px] text-slate-400">
+                Incluído no investimento pelo prazo do contrato
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">
+                Mark-up Revenda (Fator) *
+              </Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="1.0"
+                value={markupCustom || ''}
+                onChange={(e) => setMarkupCustom(parseFloat(e.target.value) || 1.45)}
+                className="h-9 text-xs font-mono font-bold text-indigo-950"
+              />
+              <p className="text-[10px] text-slate-400">Ex: 1.4500 (sobre suprimentos)</p>
+            </div>
+          </fieldset>
+          <p className="mt-3 text-xs" role="status">
+            {parsePrintwayInput(printwayCostCustom) === null
+              ? 'Informe o custo do Printway; zero somente quando não houver cobrança.'
+              : paybackMeses > 0
+              ? '(' +
+                formatBRL2(equipmentValue ?? 0) +
+                ' + ' +
+                formatBRL2(Number(printwayCostCustom.replace(',', '.'))) +
+                ' × ' +
+                contratoMeses +
+                ' meses) ÷ ' +
+                paybackMeses +
+                ' meses = ' +
+                formatBRL2(locacaoMensal) +
+                '/mês'
+              : 'Informe o payback para calcular a locação base.'}{' '}
+            CPP de venda = suprimentos × mark-up + reserva por página. Equipamento e Printway já
+            compõem a base.
+          </p>
+        </details>
 
         {/* ALERTA SE MODELO BLOQUEADO OU FALTANDO PREÇO */}
         {selectedPrinter?.bloqueada && (
@@ -857,22 +1037,36 @@ export function ModernRentalSimulator({
       </div>
 
       {/* BLOCO 2: SUPRIMENTOS VINCULADOS (5 SLOTS COLORIDOS) */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3">
-        <SupplySlotsGrid
-          slots={calculation.slotsEnriquecidos}
-          allSupplies={supplies}
-          printerModel={selectedPrinter?.modelo}
-          printerManufacturer={selectedPrinter?.fabricante}
-          readOnly={readOnly}
-          onToggleSlotInclusion={handleToggleSlotInclusion}
-          onUpdateSlotSupply={handleUpdateSlotSupply}
-          onUpdateSlotValues={handleUpdateSlotValues}
-          onOpenSupplyEditModal={handleOpenSupplyEditInternal}
-        />{' '}
-      </div>
+      <details className="rounded-lg border p-3">
+        <summary className="cursor-pointer font-semibold text-sm">
+          Abrir suprimentos, preços e rendimentos
+        </summary>
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3">
+          <SupplySlotsGrid
+            slots={calculation.slotsEnriquecidos}
+            allSupplies={supplies}
+            printerModel={selectedPrinter?.modelo}
+            printerManufacturer={selectedPrinter?.fabricante}
+            readOnly={!isAdmin}
+            onToggleSlotInclusion={handleToggleSlotInclusion}
+            onUpdateSlotSupply={handleUpdateSlotSupply}
+            onUpdateSlotValues={handleUpdateSlotValues}
+            onOpenSupplyEditModal={handleOpenSupplyEditInternal}
+          />
+          {isAdmin && selectedPrinter?.vinculos_variaveis_ativos && (
+            <Button type="button" variant="outline" disabled={activeSupplySlots.length >= 1000}
+              onClick={() => setExtraSupplySlots(count => count + 1)}>
+              Adicionar suprimento
+            </Button>
+          )}
+        </div>
+      </details>
 
       {/* BLOCO 3: RESULTADOS DA PRECIFICAÇÃO & BREAK-EVEN */}
       <ResultsPricingPanel
+        fund={reserveFund}
+        contratoMeses={contratoMeses}
+        valorCompra={equipmentValue ?? Number.NaN}
         calculation={calculation}
         selectedPrinter={selectedPrinter}
         producaoMensal={producaoMensal}
@@ -885,215 +1079,223 @@ export function ModernRentalSimulator({
         printerScenarioB={printerScenarioB}
         locacaoScenarioB={locacaoScenarioB}
         onUpdateScenarioB={(p, loc) => {
+          if (p?.ativo === false) return
           setPrinterScenarioB(p)
-          setLocacaoScenarioB(loc)
+
         }}
-        availablePrinters={printers}
+        availablePrinters={activePrinters}
       />
 
       {/* BLOCO EM CASCATA: CONSULTAS & GESTÃO (SUPRIMENTOS, IMPRESSORAS E PARÂMETROS/AUDITORIA) */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all">
-        <div className="bg-gradient-to-r from-slate-50 via-indigo-50/30 to-slate-50 p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-indigo-600/10 text-indigo-700 flex items-center justify-center font-bold">
-              <Layers className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-slate-900 text-sm">
-                  Consultas e Parâmetros em Cascata
-                </h3>
-                <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                  Expansível sob demanda
-                </span>
+      <details className="rounded-lg border p-3">
+        <summary className="cursor-pointer font-semibold text-sm">
+          Abrir cadastros e configurações
+        </summary>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all">
+          <div className="bg-gradient-to-r from-slate-50 via-indigo-50/30 to-slate-50 p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-lg bg-indigo-600/10 text-indigo-700 flex items-center justify-center font-bold">
+                <Layers className="h-4 w-4" />
               </div>
-              <p className="text-xs text-slate-500">
-                Consulte ou ajuste insumos, máquinas do parque e parâmetros globais sem sair do
-                simulador.
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-slate-900 text-sm">
+                    Consultas e Parâmetros em Cascata
+                  </h3>
+                  <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                    Expansível sob demanda
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Consulte ou ajuste insumos, máquinas do parque e parâmetros globais sem sair do
+                  simulador.
+                </p>
+              </div>
             </div>
-          </div>
 
-          {/* Atalhos rápidos para abrir/fechar direto */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <Button
-              type="button"
-              variant={cascadeOpen === 'suprimentos' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() =>
-                setCascadeOpen((prev) => (prev === 'suprimentos' ? '' : 'suprimentos'))
-              }
-              className={`h-8 text-xs font-semibold gap-1.5 ${
-                cascadeOpen === 'suprimentos'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-700 border-slate-300 hover:border-indigo-400'
-              }`}
-            >
-              <Package className="h-3.5 w-3.5" />
-              <span>Suprimentos ({supplies.length})</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant={cascadeOpen === 'impressoras' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() =>
-                setCascadeOpen((prev) => (prev === 'impressoras' ? '' : 'impressoras'))
-              }
-              className={`h-8 text-xs font-semibold gap-1.5 ${
-                cascadeOpen === 'impressoras'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-700 border-slate-300 hover:border-indigo-400'
-              }`}
-            >
-              <Printer className="h-3.5 w-3.5" />
-              <span>Impressoras ({printers.length})</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant={cascadeOpen === 'parametros' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setCascadeOpen((prev) => (prev === 'parametros' ? '' : 'parametros'))}
-              className={`h-8 text-xs font-semibold gap-1.5 ${
-                cascadeOpen === 'parametros'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-700 border-slate-300 hover:border-indigo-400'
-              }`}
-            >
-              <SettingsIcon className="h-3.5 w-3.5" />
-              <span>Parâmetros & Auditoria</span>
-            </Button>
-
-            {cascadeOpen && (
+            {/* Atalhos rápidos para abrir/fechar direto */}
+            <div className="flex items-center gap-1.5 flex-wrap">
               <Button
                 type="button"
-                variant="ghost"
+                variant={cascadeOpen === 'suprimentos' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setCascadeOpen('')}
-                className="h-8 text-xs text-slate-500 hover:text-slate-900"
+                onClick={() =>
+                  setCascadeOpen((prev) => (prev === 'suprimentos' ? '' : 'suprimentos'))
+                }
+                className={`h-8 text-xs font-semibold gap-1.5 ${
+                  cascadeOpen === 'suprimentos'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-700 border-slate-300 hover:border-indigo-400'
+                }`}
               >
-                Recolher
+                <Package className="h-3.5 w-3.5" />
+                <span>Suprimentos ({supplies.length})</span>
               </Button>
-            )}
+
+              <Button
+                type="button"
+                variant={cascadeOpen === 'impressoras' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() =>
+                  setCascadeOpen((prev) => (prev === 'impressoras' ? '' : 'impressoras'))
+                }
+                className={`h-8 text-xs font-semibold gap-1.5 ${
+                  cascadeOpen === 'impressoras'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-700 border-slate-300 hover:border-indigo-400'
+                }`}
+              >
+                <Printer className="h-3.5 w-3.5" />
+                <span>Impressoras ({printers.length})</span>
+              </Button>
+
+              <Button
+                type="button"
+                variant={cascadeOpen === 'parametros' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() =>
+                  setCascadeOpen((prev) => (prev === 'parametros' ? '' : 'parametros'))
+                }
+                className={`h-8 text-xs font-semibold gap-1.5 ${
+                  cascadeOpen === 'parametros'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-700 border-slate-300 hover:border-indigo-400'
+                }`}
+              >
+                <SettingsIcon className="h-3.5 w-3.5" />
+                <span>Parâmetros & Auditoria</span>
+              </Button>
+
+              {cascadeOpen && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCascadeOpen('')}
+                  className="h-8 text-xs text-slate-500 hover:text-slate-900"
+                >
+                  Recolher
+                </Button>
+              )}
+            </div>
           </div>
+
+          {/* Accordion das 3 seções */}
+          <Accordion
+            type="single"
+            collapsible
+            value={cascadeOpen}
+            onValueChange={setCascadeOpen}
+            className="w-full divide-y divide-slate-100"
+          >
+            {/* 1. SEÇÃO EM CASCATA: SUPRIMENTOS */}
+            <AccordionItem value="suprimentos" className="border-b-0 px-4">
+              <AccordionTrigger className="py-3.5 hover:no-underline group">
+                <div className="flex items-center gap-2.5 text-left">
+                  <div className="h-7 w-7 rounded-md bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                    <Package className="h-3.5 w-3.5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                        Consulta & Edição de Suprimentos
+                      </span>
+                      <Badge variant="outline" className="text-[10px] bg-slate-50 font-mono">
+                        {supplies.length} cadastrados
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-normal">
+                      Edição inline de valor de compra, rendimento em páginas, recálculo de CPP e
+                      reajuste em lote.
+                    </p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-2 pb-5">
+                <div className="bg-slate-50/60 p-3 sm:p-4 rounded-xl border border-slate-200">
+                  <SuppliesManagementTab
+                    supplies={supplies}
+                    onReload={onReloadData}
+                    readOnly={!isAdmin}
+                  />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* 2. SEÇÃO EM CASCATA: IMPRESSORAS */}
+            <AccordionItem value="impressoras" className="border-b-0 px-4">
+              <AccordionTrigger className="py-3.5 hover:no-underline group">
+                <div className="flex items-center gap-2.5 text-left">
+                  <div className="h-7 w-7 rounded-md bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+                    <Printer className="h-3.5 w-3.5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                        Consulta & Cadastro de Impressoras do Parque
+                      </span>
+                      <Badge variant="outline" className="text-[10px] bg-slate-50 font-mono">
+                        {printers.length} modelos
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-normal">
+                      Parque de máquinas, mapeamento dos 5 slots de suprimentos, custos de aquisição
+                      e vida útil.
+                    </p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-2 pb-5">
+                <div className="bg-slate-50/60 p-3 sm:p-4 rounded-xl border border-slate-200">
+                  <PrintersManagementTab
+                    printers={printers}
+                    supplies={supplies}
+                    onReload={onReloadData}
+                    readOnly={!isAdmin}
+                  />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* 3. SEÇÃO EM CASCATA: PARÂMETROS & AUDITORIA */}
+            <AccordionItem value="parametros" className="border-b-0 px-4">
+              <AccordionTrigger className="py-3.5 hover:no-underline group">
+                <div className="flex items-center gap-2.5 text-left">
+                  <div className="h-7 w-7 rounded-md bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+                    <SettingsIcon className="h-3.5 w-3.5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                        Parâmetros Globais, Trilha de Auditoria & Exportação
+                      </span>
+                      <Badge variant="outline" className="text-[10px] bg-slate-50 font-mono">
+                        {auditHistory.length} logs de auditoria
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-normal">
+                      Mark-up padrão, vida útil padrão de 48m, histórico imutável de alterações e
+                      backup JSON.
+                    </p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-2 pb-5">
+                <div className="bg-slate-50/60 p-3 sm:p-4 rounded-xl border border-slate-200">
+                  <ParametersAndAuditTab
+                    parametros={parametros}
+                    auditHistory={auditHistory}
+                    supplies={supplies}
+                    printers={printers}
+                    onReload={onReloadData}
+                    readOnly={!isAdmin}
+                  />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
-
-        {/* Accordion das 3 seções */}
-        <Accordion
-          type="single"
-          collapsible
-          value={cascadeOpen}
-          onValueChange={setCascadeOpen}
-          className="w-full divide-y divide-slate-100"
-        >
-          {/* 1. SEÇÃO EM CASCATA: SUPRIMENTOS */}
-          <AccordionItem value="suprimentos" className="border-b-0 px-4">
-            <AccordionTrigger className="py-3.5 hover:no-underline group">
-              <div className="flex items-center gap-2.5 text-left">
-                <div className="h-7 w-7 rounded-md bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-                  <Package className="h-3.5 w-3.5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
-                      Consulta & Edição de Suprimentos
-                    </span>
-                    <Badge variant="outline" className="text-[10px] bg-slate-50 font-mono">
-                      {supplies.length} cadastrados
-                    </Badge>
-                  </div>
-                  <p className="text-[11px] text-slate-500 font-normal">
-                    Edição inline de valor de compra, rendimento em páginas, recálculo de CPP e
-                    reajuste em lote.
-                  </p>
-                </div>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="pt-2 pb-5">
-              <div className="bg-slate-50/60 p-3 sm:p-4 rounded-xl border border-slate-200">
-                <SuppliesManagementTab
-                  supplies={supplies}
-                  onReload={onReloadData}
-                  readOnly={readOnly}
-                />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-
-          {/* 2. SEÇÃO EM CASCATA: IMPRESSORAS */}
-          <AccordionItem value="impressoras" className="border-b-0 px-4">
-            <AccordionTrigger className="py-3.5 hover:no-underline group">
-              <div className="flex items-center gap-2.5 text-left">
-                <div className="h-7 w-7 rounded-md bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
-                  <Printer className="h-3.5 w-3.5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
-                      Consulta & Cadastro de Impressoras do Parque
-                    </span>
-                    <Badge variant="outline" className="text-[10px] bg-slate-50 font-mono">
-                      {printers.length} modelos
-                    </Badge>
-                  </div>
-                  <p className="text-[11px] text-slate-500 font-normal">
-                    Parque de máquinas, mapeamento dos 5 slots de suprimentos, custos de aquisição e
-                    vida útil.
-                  </p>
-                </div>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="pt-2 pb-5">
-              <div className="bg-slate-50/60 p-3 sm:p-4 rounded-xl border border-slate-200">
-                <PrintersManagementTab
-                  printers={printers}
-                  supplies={supplies}
-                  onReload={onReloadData}
-                  readOnly={readOnly}
-                />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-
-          {/* 3. SEÇÃO EM CASCATA: PARÂMETROS & AUDITORIA */}
-          <AccordionItem value="parametros" className="border-b-0 px-4">
-            <AccordionTrigger className="py-3.5 hover:no-underline group">
-              <div className="flex items-center gap-2.5 text-left">
-                <div className="h-7 w-7 rounded-md bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
-                  <SettingsIcon className="h-3.5 w-3.5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
-                      Parâmetros Globais, Trilha de Auditoria & Exportação
-                    </span>
-                    <Badge variant="outline" className="text-[10px] bg-slate-50 font-mono">
-                      {auditHistory.length} logs de auditoria
-                    </Badge>
-                  </div>
-                  <p className="text-[11px] text-slate-500 font-normal">
-                    Mark-up padrão, vida útil padrão de 48m, histórico imutável de alterações e
-                    backup JSON.
-                  </p>
-                </div>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="pt-2 pb-5">
-              <div className="bg-slate-50/60 p-3 sm:p-4 rounded-xl border border-slate-200">
-                <ParametersAndAuditTab
-                  parametros={parametros}
-                  auditHistory={auditHistory}
-                  supplies={supplies}
-                  printers={printers}
-                  onReload={onReloadData}
-                  readOnly={readOnly}
-                />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      </div>
+      </details>
 
       {/* MODAL DE CONFIRMAÇÃO SE HOUVER SLOTS ESTRUTURAIS/ESSENCIAIS DESMARCADOS */}
       <Dialog

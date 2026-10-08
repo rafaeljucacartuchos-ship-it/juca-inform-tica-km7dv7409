@@ -214,27 +214,17 @@ export async function generateNextOrcamentoNumber(osIdOrNumber?: string): Promis
     }
   }
 
-  // Sem vínculo com OS: gera numeração própria ORC-0001, ORC-0002...
-  try {
-    const records = await pb.collection('orcamentos').getFullList<Orcamento>({
-      sort: '-created',
-    })
-
-    let maxNum = 0
-    // Considera apenas números no formato ORC-XXXX
-    const regex = /ORC-(\d+)/
-    for (const r of records) {
-      const match = r.numero_orcamento?.match(regex)
-      if (match && match[1]) {
-        const val = parseInt(match[1], 10)
-        if (val > maxNum) maxNum = val
-      }
-    }
-    const nextSeq = String(maxNum + 1).padStart(4, '0')
-    return `ORC-${nextSeq}`
-  } catch {
-    return `ORC-0001`
+  // Série exclusiva dos novos avulsos; números históricos permanecem intactos.
+  const records = await pb.collection('orcamentos').getFullList<Orcamento>({
+    filter: 'numero_orcamento ~ "ORC-AV-"',
+    fields: 'id,numero_orcamento',
+  })
+  let maxNum = 0
+  for (const record of records) {
+    const match = record.numero_orcamento?.match(/^ORC-AV-(\d+)$/)
+    if (match) maxNum = Math.max(maxNum, Number(match[1]))
   }
+  return `ORC-AV-${String(maxNum + 1).padStart(4, '0')}`
 }
 
 /**
@@ -311,13 +301,29 @@ export async function createOrcamento(params: {
       numero_orcamento = await generateNextOrcamentoNumber(id_os)
     }
 
+    // Um número histórico ocupado por outro orçamento não autoriza alterá-lo.
+    const originalNumber = numero_orcamento
+    let alternateIndex = 0
+    while (true) {
+      const occupied = await pb.collection('orcamentos').getFullList<Orcamento>({
+        filter: `numero_orcamento = "${numero_orcamento}"`,
+        fields: 'id,id_os',
+      })
+      if (!occupied.some((record) => record.id_os !== id_os)) break
+      alternateIndex++
+      const osBase = originalNumber.replace(/^ORC-/, 'ORC-OS-')
+      numero_orcamento = alternateIndex === 1 ? osBase : `${osBase}-REV${alternateIndex - 1}`
+      if (alternateIndex > 100)
+        throw new Error('Não foi possível reservar uma numeração exclusiva para esta OS.')
+    }
+
     // Se houver orçamentos anteriores (ativos ou anteriores) ocupando o mesmo numero_orcamento
     // ou se qualquer registro na coleção já possuir esse numero_orcamento, renomeia com sufixo
     // de revisão (ex: ORC-0056-REV1, ORC-0056-REV2) para liberar o número principal e satisfazer
     // o índice único CREATE UNIQUE INDEX idx_orcamentos_numero.
     try {
       const conflicting = await pb.collection('orcamentos').getFullList<Orcamento>({
-        filter: `numero_orcamento = "${numero_orcamento}"`,
+        filter: `id_os = "${id_os}" && numero_orcamento = "${numero_orcamento}"`,
       })
 
       let revIndex = 1
@@ -391,9 +397,7 @@ export async function createOrcamento(params: {
           .replace(/-REV\d+/i, '')
           .trim()
         const familyList = await pb.collection('orcamentos').getFullList<Orcamento>({
-          filter: id_os
-            ? `id_os = "${id_os}" || numero_orcamento ~ "${baseNum}"`
-            : `numero_orcamento ~ "${baseNum}"`,
+          filter: id_os ? `id_os = "${id_os}"` : `numero_orcamento ~ "${baseNum}"`,
           sort: '-created',
         })
         for (const fam of familyList) {
@@ -436,6 +440,7 @@ export async function createOrcamento(params: {
   const token_acesso = await generateRandomToken(32)
   const createPayload: Record<string, any> = {
     numero_orcamento,
+    tipo_origem: id_os ? 'OS' : 'AVULSO',
     status: 'aguardando_aprovacao',
     validade: Number(validade) || predecessorData.validade || 15,
     observacoes: observacoes || predecessorData.observacoes || '',
@@ -469,7 +474,19 @@ export async function createOrcamento(params: {
     if (defeito_independente) createPayload.defeito_independente = defeito_independente
   }
 
-  const novo = await pb.collection('orcamentos').create<Orcamento>(createPayload)
+  // A restrição de unicidade do banco decide a disputa entre criações simultâneas.
+  let novo: Orcamento | undefined
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      novo = await pb.collection('orcamentos').create<Orcamento>(createPayload)
+      break
+    } catch (error: any) {
+      const numberError = error?.response?.data?.numero_orcamento?.code
+      if (id_os || numberError !== 'validation_not_unique' || attempt === 4) throw error
+      createPayload.numero_orcamento = await generateNextOrcamentoNumber()
+    }
+  }
+  if (!novo) throw new Error('Não foi possível reservar o número do orçamento.')
 
   // 3.1. Se clonamos itens do predecessor, copia os itens para o novo orçamento
   if (predecessorItemsToClone.length > 0) {

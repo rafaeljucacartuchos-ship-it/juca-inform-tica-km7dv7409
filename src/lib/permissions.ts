@@ -1,6 +1,10 @@
 import type { UserRole } from '@/types'
 
 export type PermissionModule =
+  | 'locacao_precos_rendimentos'
+  | 'financeiro_consultar'
+  | 'financeiro_receber'
+  | 'financeiro_cancelar'
   | 'dashboard'
   | 'clientes'
   | 'os_create'
@@ -26,6 +30,10 @@ export type PermissionModule =
 export type UserPermissions = Record<PermissionModule, boolean>
 
 export const PERMISSION_LABELS: Record<PermissionModule, string> = {
+  locacao_precos_rendimentos: 'Locação — Alterar preços e rendimentos',
+  financeiro_consultar: 'Financeiro — Consultar contas a receber',
+  financeiro_receber: 'Financeiro — Confirmar recebimentos',
+  financeiro_cancelar: 'Financeiro — Cancelar cobranças',
   dashboard: 'Dashboard (Painel Inicial)',
   clientes: 'Cadastro de Clientes',
   os_create: 'Cadastro de Ordens de Serviço (criar OS)',
@@ -50,6 +58,10 @@ export const PERMISSION_LABELS: Record<PermissionModule, string> = {
 }
 
 export const ALL_PERMISSION_MODULES: PermissionModule[] = [
+  'locacao_precos_rendimentos',
+  'financeiro_consultar',
+  'financeiro_receber',
+  'financeiro_cancelar',
   'dashboard',
   'clientes',
   'os_create',
@@ -77,6 +89,10 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
   switch (role) {
     case 'admin':
       return {
+        locacao_precos_rendimentos: true,
+        financeiro_consultar: true,
+        financeiro_receber: true,
+        financeiro_cancelar: true,
         dashboard: true,
         clientes: true,
         os_create: true,
@@ -101,6 +117,10 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
       }
     case 'attendant':
       return {
+        locacao_precos_rendimentos: false,
+        financeiro_consultar: false,
+        financeiro_receber: false,
+        financeiro_cancelar: false,
         dashboard: true,
         clientes: true,
         os_create: true,
@@ -125,6 +145,10 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
       }
     case 'technician':
       return {
+        locacao_precos_rendimentos: false,
+        financeiro_consultar: false,
+        financeiro_receber: false,
+        financeiro_cancelar: false,
         dashboard: true,
         clientes: true,
         os_create: true,
@@ -149,6 +173,10 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
       }
     default:
       return {
+        locacao_precos_rendimentos: false,
+        financeiro_consultar: false,
+        financeiro_receber: false,
+        financeiro_cancelar: false,
         dashboard: false,
         clientes: false,
         os_create: false,

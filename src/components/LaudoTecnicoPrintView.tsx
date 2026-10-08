@@ -63,7 +63,8 @@ export function LaudoTecnicoPrintView({ laudo, onBack }: LaudoTecnicoPrintViewPr
 
   const handleCopyText = () => {
     const text = [
-      `*LAUDO TÉCNICO - ${laudo.numero_laudo}*`,
+      `*RELATÓRIO DE DIAGNÓSTICO - ${laudo.numero_laudo}*`,
+      `Situação: ${laudo.status === 'finalizado' ? 'Finalizado no sistema' : 'RASCUNHO'}`,
       `JUCA INFORMÁTICA - Solução e Tecnologia`,
       `Data: ${dataFormatada}`,
       osNumero ? `Ordem de Serviço: ${osNumero}` : null,
@@ -89,7 +90,9 @@ export function LaudoTecnicoPrintView({ laudo, onBack }: LaudoTecnicoPrintViewPr
       laudo.conclusao_parecer ? `*PARECER / CONCLUSÃO:*\n${laudo.conclusao_parecer}\n` : null,
       laudo.recomendacoes ? `*RECOMENDAÇÕES:*\n${laudo.recomendacoes}\n` : null,
       `----------------------------------------`,
-      `Técnico: ${tecnicoNome}`,
+      `Responsável pelo atendimento: ${tecnicoNome}`,
+      laudo.observacoes ? `Limitações e observações: ${laudo.observacoes}` : null,
+      `Documento descritivo; não constitui perícia ou ART/TRT. Não autoriza reparos nem exclui direitos legais. A aceitação por terceiros depende de seus requisitos.`,
     ]
       .filter(Boolean)
       .join('\n')
@@ -112,7 +115,7 @@ export function LaudoTecnicoPrintView({ laudo, onBack }: LaudoTecnicoPrintViewPr
       return
     }
 
-    const msg = `Olá *${clienteNome}*, segue o resumo do Laudo Técnico *${laudo.numero_laudo}* referente ao equipamento *${equipNome}* (${equipModelo}) realizado pela JUCA Informática.\n\n*Diagnóstico Técnico:*\n${laudo.diagnostico_tecnico || 'Conforme análise em bancada.'}\n\nQualquer dúvida estamos à disposição!`
+    const msg = `Olá *${clienteNome}*, segue o resumo do Laudo Técnico *${laudo.numero_laudo}* referente ao equipamento *${equipNome}* (${equipModelo}) realizado pela JUCA Informática.\n\n*Diagnóstico Técnico:*\n${laudo.diagnostico_tecnico || 'Diagnóstico não registrado.'}\n\nQualquer dúvida estamos à disposição!`
     openWhatsApp(rawPhone, msg)
   }
 
@@ -205,13 +208,25 @@ export function LaudoTecnicoPrintView({ laudo, onBack }: LaudoTecnicoPrintViewPr
           </div>
           <div className="text-right">
             <div className="inline-block bg-indigo-950 text-white px-3 py-1 rounded text-xs font-bold uppercase tracking-wider">
-              LAUDO TÉCNICO PERICIAL
+              RELATÓRIO DE DIAGNÓSTICO E ATENDIMENTO TÉCNICO
             </div>
             <p className="text-sm font-black text-slate-900 mt-1 font-mono">{laudo.numero_laudo}</p>
             <p className="text-[10px] text-slate-600 font-semibold">Data: {dataFormatada}</p>
           </div>
         </div>
 
+        <div className="border border-slate-300 rounded p-3 mb-4 text-xs break-inside-avoid">
+          <strong>
+            {laudo.status === 'finalizado'
+              ? 'REGISTRO FINALIZADO NO SISTEMA'
+              : 'RASCUNHO — NÃO FINALIZADO'}
+          </strong>
+          <p>
+            Documento descritivo do atendimento. Não constitui perícia, certificação de conformidade
+            ou documento de responsabilidade técnica ART/TRT. A indicação de finalizado não equivale
+            a assinatura.
+          </p>
+        </div>
         {/* FAIXA DE VÍNCULOS (OS E ORÇAMENTO) */}
         {(osNumero || orcNumero) && (
           <div className="flex flex-wrap items-center gap-4 bg-indigo-50 border border-indigo-200 rounded p-2.5 mb-4 text-xs">
@@ -360,7 +375,7 @@ export function LaudoTecnicoPrintView({ laudo, onBack }: LaudoTecnicoPrintViewPr
             </h3>
             <p className="text-slate-800 whitespace-pre-wrap leading-relaxed">
               {laudo.conclusao_parecer ||
-                'Equipamento inspecionado segundo os padrões e normas técnicas aplicáveis.'}
+                'Conclusão não registrada. Este documento não comprova realização de testes ou conformidade com normas.'}
             </p>
           </div>
 
@@ -380,7 +395,7 @@ export function LaudoTecnicoPrintView({ laudo, onBack }: LaudoTecnicoPrintViewPr
               {laudo.observacoes && (
                 <div className="border border-slate-200 rounded p-3">
                   <h3 className="text-[11px] font-bold uppercase text-slate-800 border-b border-slate-100 pb-1 mb-1.5">
-                    Observações Gerais
+                    Limitações, evidências e observações
                   </h3>
                   <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">
                     {laudo.observacoes}
@@ -391,6 +406,31 @@ export function LaudoTecnicoPrintView({ laudo, onBack }: LaudoTecnicoPrintViewPr
           )}
         </div>
 
+        <section className="border border-slate-300 rounded p-3 mb-4 space-y-2 break-inside-avoid">
+          <h3 className="font-bold">Escopo, limites e ciência</h3>
+          <p>
+            As conclusões se restringem ao equipamento identificado, às condições e aos testes
+            registrados na data da avaliação. Relatos do cliente não constituem, por si só,
+            constatações. Causas não demonstradas permanecem indeterminadas; itens não examinados
+            não são certificados.
+          </p>
+          <p>
+            Este relatório não autoriza reparos, substituições ou descarte. Serviços adicionais
+            dependem de orçamento e autorização. Os direitos e garantias legais do consumidor
+            permanecem preservados; este documento não exclui responsabilidade por falha na
+            prestação do serviço.
+          </p>
+          <p>
+            Para apresentação a seguradora ou em processo, a aceitação depende dos requisitos do
+            destinatário. Quando exigido laudo de profissional habilitado e ART/TRT, deve ser obtido
+            documento próprio com esse profissional.
+          </p>
+          <p>
+            A ciência do cliente confirma o recebimento do documento, sem representar renúncia a
+            direitos ou concordância obrigatória com o diagnóstico. Dados e anexos devem ser
+            utilizados apenas para a finalidade do atendimento.
+          </p>
+        </section>
         {/* ASSINATURAS */}
         <div className="mt-8 pt-6 border-t-2 border-slate-300">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 text-center">
@@ -408,7 +448,9 @@ export function LaudoTecnicoPrintView({ laudo, onBack }: LaudoTecnicoPrintViewPr
                 )}
               </div>
               <p className="font-bold text-slate-900 text-xs mt-2">{tecnicoNome}</p>
-              <p className="text-[10px] text-slate-500">Técnico Responsável - JUCA Informática</p>
+              <p className="text-[10px] text-slate-500">
+                Responsável pelo atendimento - JUCA Informática
+              </p>
             </div>
 
             {/* Assinatura do Cliente */}
@@ -425,7 +467,7 @@ export function LaudoTecnicoPrintView({ laudo, onBack }: LaudoTecnicoPrintViewPr
                 )}
               </div>
               <p className="font-bold text-slate-900 text-xs mt-2">{clienteNome}</p>
-              <p className="text-[10px] text-slate-500">Assinatura do Cliente / Ciente do Laudo</p>
+              <p className="text-[10px] text-slate-500">Cliente / Ciência de recebimento</p>
             </div>
           </div>
 

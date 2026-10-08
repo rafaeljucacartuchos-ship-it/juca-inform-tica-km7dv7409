@@ -1,3 +1,4 @@
+import { contractMissingDetails, type RentalContractSnapshot } from '@/lib/rental-contract-template'
 import { Button } from '@/components/ui/button'
 import { Printer, Download, ArrowLeft } from 'lucide-react'
 import { JUCA_LOGO_URL } from '@/lib/company'
@@ -15,6 +16,13 @@ interface RentalContractPrintViewProps {
 }
 
 export function RentalContractPrintView({ contract, onBack }: RentalContractPrintViewProps) {
+  const snapshot = (
+    contract.equipamento_dados as typeof contract.equipamento_dados & {
+      modelo_contrato?: RentalContractSnapshot
+    }
+  )?.modelo_contrato
+  if (snapshot?.version)
+    return <RevisedRentalContract contract={contract} snapshot={snapshot} onBack={onBack} />
   const locatario = contract.locatario_dados || {
     nome: 'Locatário',
     cpf_cnpj: '',
@@ -87,7 +95,7 @@ export function RentalContractPrintView({ contract, onBack }: RentalContractPrin
             onClick={() => window.print()}
             className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold gap-1.5"
           >
-            <Printer className="h-4 w-4" /> Imprimir / Salvar PDF
+            <Printer className="h-4 w-4" /> Imprimir para assinatura / Salvar PDF
           </Button>
         </div>
       </div>
@@ -293,6 +301,250 @@ export function RentalContractPrintView({ contract, onBack }: RentalContractPrin
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function RevisedRentalContract({
+  contract,
+  snapshot: s,
+  onBack,
+}: RentalContractPrintViewProps & { snapshot: RentalContractSnapshot }) {
+  const missing = contractMissingDetails(s.details)
+  if (!s.data.prazoMeses || s.data.prazoMeses < 1) missing.push('Prazo do contrato')
+  if (!s.data.dataInicio) missing.push('Data prevista de início')
+  const value = (key: string) => s.details[key]?.trim() || '[PREENCHER ANTES DE ASSINAR]'
+  return (
+    <div className="space-y-4">
+      <style>{`@media print { .rental-v2, .rental-v2 p, .rental-v2 span, .rental-v2 td { font-size:12pt!important; } .rental-v2 h3 { break-after:avoid; } .rental-v2 .annex { break-before:page; } .rental-v2 { box-shadow:none!important; border:0!important; padding:0!important; } }`}</style>
+      <div className="print:hidden rounded-xl border bg-white p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <strong>Contrato {s.data.numeroContrato} — modelo revisado</strong>
+            <p className="text-sm text-slate-600">
+              {contract.id
+                ? 'Arquivado no sistema — acesse pela lista Contratos'
+                : 'Prévia não salva'}{' '}
+              • {s.version}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {onBack && (
+              <Button variant="outline" onClick={onBack}>
+                Voltar
+              </Button>
+            )}
+            <Button onClick={() => window.print()}>
+              {s.details.modalidade === 'eletronica'
+                ? 'Salvar PDF para assinatura eletrônica'
+                : 'Imprimir para assinatura / Salvar PDF'}
+            </Button>
+          </div>
+        </div>
+        <p className="text-sm">
+          Forma escolhida:{' '}
+          {s.details.modalidade === 'eletronica'
+            ? 'assinatura eletrônica'
+            : 'impressa, para assinatura à mão'}
+          . O texto e os dados ficam arquivados ao salvar. A via assinada em papel deve ser
+          conservada; seu digitalizado não é anexado automaticamente. A emissão e o status
+          administrativo não comprovam assinatura. Confira os dados e anexos antes de colher as
+          assinaturas.
+        </p>
+        {missing.length > 0 && (
+          <details className="border border-amber-300 bg-amber-50 p-3 rounded" open>
+            <summary className="font-semibold">
+              Rascunho com {missing.length} pendências — não encaminhar para assinatura
+            </summary>
+            <ul className="list-disc pl-5 text-sm">
+              {missing.map((m, i) => (
+                <li key={i}>{m}</li>
+              ))}
+            </ul>
+          </details>
+        )}
+        <details className="border rounded p-3">
+          <summary className="font-semibold cursor-pointer">
+            Como assinar por link e guardar
+          </summary>
+          <ol className="list-decimal pl-5 text-sm space-y-1 mt-2">
+            <li>
+              Confira os dados e anexe fotos, identificação do equipamento e condições comerciais à
+              versão final.
+            </li>
+            <li>
+              Envie o PDF por um provedor que autentique os signatários e comprove a integridade.
+              Cadastre o representante da JUCA e o cliente ou representante com poderes.
+            </li>
+            <li>
+              O provedor gera o link individual. A assinatura deve ser feita pessoalmente pelo
+              signatário.
+            </li>
+            <li>
+              Baixe e guarde o PDF eletrônico original assinado, os anexos e o relatório de
+              evidências; disponibilize cópia ao cliente.
+            </li>
+            <li>
+              Não edite nem imprima novamente para PDF o arquivo já assinado. Qualquer alteração
+              exige aditivo.
+            </li>
+          </ol>
+          <p className="mt-2 text-sm font-semibold">
+            Envio de links e guarda do arquivo assinado ainda não estão integrados ao sistema.
+          </p>
+        </details>
+      </div>
+      <article className="rental-v2 bg-white text-slate-900 p-8 sm:p-12 max-w-4xl mx-auto shadow border rounded font-serif text-[12pt] leading-relaxed">
+        <header className="border-b-2 border-slate-900 pb-4 mb-6">
+          <h1 className="font-bold text-xl">{s.locadora.nomeFantasia}</h1>
+          <p>
+            {s.locadora.razaoSocial} • CNPJ {s.locadora.cnpj}
+          </p>
+          <p>
+            {s.locadora.endereco} • {s.locadora.telefone}
+          </p>
+          <p className="mt-3 font-bold">
+            CONTRATO DE LOCAÇÃO DE EQUIPAMENTO DE IMPRESSÃO E ASSISTÊNCIA TÉCNICA
+          </p>
+          <p>
+            Nº {s.data.numeroContrato} • Modelo {s.version}
+          </p>
+          <p>
+            Documento preparado em {new Date(s.generatedAt).toLocaleDateString('pt-BR')}.
+            Assinatura: conforme evidências do provedor ou campos de assinatura abaixo.
+          </p>
+        </header>
+        <div className="border-2 border-slate-800 p-3 mb-6 font-bold">
+          {missing.length
+            ? 'RASCUNHO INCOMPLETO — PREENCHER PENDÊNCIAS E REUNIR ANEXOS ANTES DA ASSINATURA.'
+            : 'VIA PARA CONFERÊNCIA E ASSINATURA — A GERAÇÃO DESTE DOCUMENTO NÃO COMPROVA ASSINATURA OU ENTREGA.'}
+        </div>
+        <section className="space-y-3 mb-6">
+          {s.details.aprovacaoData && (
+            <p>
+              <strong>Aprovação da proposta informada:</strong> {s.details.aprovacaoData}, por{' '}
+              {value('aprovacaoNome')}. Referência: {value('aprovacaoReferencia')}. Este registro
+              não substitui a assinatura do contrato.
+            </p>
+          )}
+          <p>
+            <strong>LOCADORA:</strong> {s.locadora.razaoSocial}, CNPJ {s.locadora.cnpj}, I.E.{' '}
+            {s.locadora.ie}, sediada em {s.locadora.endereco}, representada por{' '}
+            {value('representanteLocadora')}.
+          </p>
+          <p>
+            <strong>LOCATÁRIA:</strong> {value('nome')}, CPF/CNPJ {value('documento')}, endereço{' '}
+            {value('endereco')}, contato {value('contato')}. Signatário: {value('representante')};
+            qualidade e poderes: {value('poderes')}.
+          </p>
+          <p>
+            As partes ajustam as condições abaixo e seus anexos, cuja leitura e concordância deverão
+            preceder a assinatura.
+          </p>
+        </section>
+        <section className="border-2 border-slate-700 p-4 mb-6 space-y-2">
+          <h2 className="font-bold">QUADRO RESUMO</h2>
+          <p>
+            Equipamento: {s.data.equipamento.nome} • Série: {value('serial')}
+          </p>
+          <p>
+            Scanner/digitalização:{' '}
+            {s.data.equipamento.scanner === true
+              ? s.data.equipamento.scannerDados || 'Incluído conforme proposta'
+              : s.data.equipamento.scanner === false
+                ? 'Não incluído'
+                : 'Conferir na proposta'}
+          </p>
+          <p>
+            Franquia: {s.data.franquiaPaginas.toLocaleString('pt-BR')} páginas/mês • Mensalidade:{' '}
+            {formatBRL(s.data.valorMensal)}
+          </p>
+          <p>
+            Excedente: {formatCPP(s.data.valorExcedentePagina)}/página • Prazo: {s.data.prazoMeses}{' '}
+            meses
+          </p>
+          <p>
+            Início previsto: {s.data.dataInicio || '[PREENCHER]'}; início efetivo conforme entrega
+            confirmada.
+          </p>
+          <p>Vencimento: dia 10 do mês seguinte • Pagamento: {value('pagamento')}</p>
+          <p>
+            Valor de referência do bem:{' '}
+            {s.details.valorBem ? formatBRL(Number(s.details.valorBem)) : '[PREENCHER]'} • Data da
+            avaliação: {value('dataValor')}
+          </p>
+        </section>
+        <div className="space-y-5">
+          {s.clauses.map((c, i) => (
+            <section
+              key={i}
+              className={
+                [1, 7, 9, 10, 11, 13].includes(i) ? 'border-l-4 border-slate-600 pl-3' : ''
+              }
+            >
+              <h3 className="font-bold mb-1">CLÁUSULA {c.titulo}</h3>
+              <p className="whitespace-pre-wrap">{c.conteudo}</p>
+            </section>
+          ))}
+        </div>
+        {s.adicionais && (
+          <section className="mt-6 border p-4">
+            <h3 className="font-bold">CONDIÇÕES ADICIONAIS EXPRESSAMENTE AJUSTADAS</h3>
+            <p className="whitespace-pre-wrap">{s.adicionais}</p>
+          </section>
+        )}
+        {s.annexes.map((a, i) => (
+          <section key={i} className="annex mt-8 border-t-2 pt-5">
+            <h3 className="font-bold mb-3">{a.titulo}</h3>
+            <p className="whitespace-pre-wrap">{a.conteudo}</p>
+          </section>
+        ))}
+        <section className="annex mt-8 border-t-2 pt-5">
+          <h3 className="font-bold">ASSINATURAS — CONTRATO E ANEXOS</h3>
+          <p>
+            As partes assinam o presente contrato e os anexos identificados, eletronicamente com
+            evidências vinculadas à versão final ou em duas vias físicas de igual teor. Cada
+            signatário receberá acesso à sua via. A data da contratação será comprovada pelas
+            assinaturas, distinta da entrega do equipamento.
+          </p>
+          <p className="mt-5">
+            Local e data (assinatura física): ____________________________________
+          </p>
+          <div className="grid grid-cols-2 gap-8 mt-12">
+            <div className="border-t pt-2">
+              LOCADORA
+              <br />
+              {s.locadora.razaoSocial}
+              <br />
+              {value('representanteLocadora')}
+            </div>
+            <div className="border-t pt-2">
+              LOCATÁRIA
+              <br />
+              {value('nome')}
+              <br />
+              {value('representante')}
+            </div>
+          </div>
+          <p className="mt-8">Testemunhas, quando utilizadas (inclusive eletronicamente):</p>
+          <div className="grid grid-cols-2 gap-8 mt-10">
+            <p className="border-t pt-2">
+              1. Nome: __________________
+              <br />
+              CPF: __________________
+              <br />
+              Assinatura: ______________
+            </p>
+            <p className="border-t pt-2">
+              2. Nome: __________________
+              <br />
+              CPF: __________________
+              <br />
+              Assinatura: ______________
+            </p>
+          </div>
+        </section>
+      </article>
     </div>
   )
 }

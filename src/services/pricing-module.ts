@@ -1,5 +1,23 @@
+import { getPrinterSupplyIds, type PrinterSupplyLink } from '@/lib/printer-supply-links'
 import pb from '@/lib/pocketbase/client'
 import { calculateSupplyCPP } from '@/lib/pricing-engine'
+
+
+// Custo incompleto nunca pode ser gravado como zero por falha de leitura.
+export function calculateCatalogCPP(ids: Array<string | null | undefined>, supplies: SuprimentoRecord[]): number {
+  const map = new Map(supplies.map(s => [s.id, s]))
+  let total = 0
+  for (const id of ids) {
+    if (!id) continue
+    const supply = map.get(id)
+    if (!supply) throw new Error('Suprimento não encontrado: ' + id + '. CPP não atualizado.')
+    if (![supply.valor_compra, supply.rendimento_paginas].every(v => typeof v === 'number' && Number.isFinite(v) && v > 0))
+      throw new Error('Preço/rendimento incompleto: ' + (supply.modelo_suprimento || id) + '. CPP não atualizado.')
+    total += supply.valor_compra! / supply.rendimento_paginas!
+  }
+  if (!Number.isFinite(total)) throw new Error('CPP fora do intervalo válido.')
+  return total
+}
 
 // ============================================================================
 // TIPAGENS DO MÓDULO DE PRECIFICAÇÃO
@@ -49,6 +67,8 @@ export type TecnologiaImpressora =
   | 'matricial'
 
 export interface ImpressoraRecord {
+  vinculos_variaveis_ativos?: boolean
+  vinculos_suprimentos?: PrinterSupplyLink[] // virtual: não gravar na coleção impressoras
   id: string
   modelo: string
   fabricante: string
@@ -344,7 +364,7 @@ export async function updateSuprimento(
   try {
     await recalculateLinkedPrintersForSupply(id, updatedSuprimento)
   } catch (cascadeErr) {
-    console.warn('Erro ao propagar recálculo em cascata para impressoras:', cascadeErr)
+    throw new Error('O suprimento foi salvo, mas o recálculo das impressoras não foi concluído. Recarregue os dados e revise os custos pendentes antes de emitir proposta.')
   }
 
   return updatedSuprimento
@@ -359,12 +379,8 @@ export async function recalculateLinkedPrintersForSupply(
   updatedSupply?: SuprimentoRecord,
 ): Promise<{ updatedCount: number; printers: string[] }> {
   try {
-    // Busca todas as impressoras que têm esse suprimento em suprimento_1 .. suprimento_5
-    const filter = `suprimento_1 = '${supplyId}' || suprimento_2 = '${supplyId}' || suprimento_3 = '${supplyId}' || suprimento_4 = '${supplyId}' || suprimento_5 = '${supplyId}'`
-    const linkedPrinters = await pb.collection('impressoras').getFullList<ImpressoraRecord>({
-      filter,
-      expand: 'suprimento_1,suprimento_2,suprimento_3,suprimento_4,suprimento_5',
-    })
+    const linkedPrinters = (await getImpressoras(true)).filter(printer =>
+      getPrinterSupplyIds(printer).includes(supplyId))
 
     if (linkedPrinters.length === 0) {
       return { updatedCount: 0, printers: [] }
@@ -380,43 +396,13 @@ export async function recalculateLinkedPrintersForSupply(
 
     const updatedPrinterModels: string[] = []
 
-    for (const printer of linkedPrinters) {
-      const slotIds = [
-        printer.suprimento_1,
-        printer.suprimento_2,
-        printer.suprimento_3,
-        printer.suprimento_4,
-        printer.suprimento_5,
-      ]
+    const totals = linkedPrinters.map(printer => calculateCatalogCPP(getPrinterSupplyIds(printer), Array.from(suppliesMap.values())))
+    for (const [index, printer] of linkedPrinters.entries()) {
+      const totalCppSuprimentos = totals[index]
 
-      let totalCppSuprimentos = 0.0
-
-      for (let i = 0; i < 5; i++) {
-        const sId = slotIds[i]
-        if (!sId) continue
-
-        const sup = suppliesMap.get(sId)
-        if (sup) {
-          const slotCpp = calculateSupplyCPP(sup.valor_compra, sup.rendimento_paginas)
-          totalCppSuprimentos += slotCpp
-        }
-      }
-
-      // CPP do equipamento (depreciação diluída caso tenha valor e vida útil)
-      const producaoRef = 1000 // volume de referência padrão
-      const vidaUtil =
-        printer.vida_util_meses && printer.vida_util_meses > 0 ? printer.vida_util_meses : 48
-      const valorCompraPrinter =
-        printer.valor_compra && printer.valor_compra > 0 ? printer.valor_compra : 0
-      const totalPaginas = vidaUtil * producaoRef
-      const cppEquipamento =
-        totalPaginas > 0 && valorCompraPrinter > 0 ? valorCompraPrinter / totalPaginas : 0
-      const custoSoftware =
-        printer.custo_mensal_software && printer.custo_mensal_software > 0
-          ? printer.custo_mensal_software
-          : 0
-      const cppSoftwarePrintway = producaoRef > 0 ? custoSoftware / producaoRef : 0
-      const cppFornecedorTotal = totalCppSuprimentos + cppEquipamento + cppSoftwarePrintway
+      // Equipamento e Printway são recuperados na locação-base, não no CPP.
+      const cppEquipamento = 0
+      const cppFornecedorTotal = totalCppSuprimentos
 
       await pb.collection('impressoras').update(printer.id, {
         cpp_suprimentos: totalCppSuprimentos,
@@ -429,8 +415,7 @@ export async function recalculateLinkedPrintersForSupply(
 
     return { updatedCount: linkedPrinters.length, printers: updatedPrinterModels }
   } catch (err) {
-    console.error('Falha ao recalcular impressoras vinculadas ao suprimento:', err)
-    return { updatedCount: 0, printers: [] }
+    throw err
   }
 }
 
@@ -469,6 +454,8 @@ export async function batchUpdateSupplyPrices(params: {
   itens: { id: string; modelo: string; valorAntigo: number; valorNovo: number }[]
 }> {
   const { fabricante, tipo, percentualReajuste, usuarioNome } = params
+  if (!Number.isFinite(percentualReajuste) || percentualReajuste <= -100)
+    throw new Error('Informe um percentual finito maior que -100%.')
   const multiplier = 1 + percentualReajuste / 100
 
   let filter = 'ativo = true'
@@ -482,10 +469,19 @@ export async function batchUpdateSupplyPrices(params: {
   const supplies = await pb.collection('suprimentos').getFullList<SuprimentoRecord>({ filter })
   const updatedItens: { id: string; modelo: string; valorAntigo: number; valorNovo: number }[] = []
 
+  // Conferir o lote inteiro antes da primeira gravação.
+  for (const supply of supplies) {
+    if (supply.valor_compra == null || supply.valor_compra === 0) continue
+    const next = Math.round(supply.valor_compra * multiplier * 10000) / 10000
+    if (!Number.isFinite(supply.valor_compra) || supply.valor_compra < 0 || !Number.isFinite(next) || next <= 0 ||
+        !Number.isFinite(supply.rendimento_paginas) || !(supply.rendimento_paginas! > 0))
+      throw new Error('Lote não aplicado: preço ou rendimento inválido em ' + supply.modelo_suprimento)
+  }
   for (const s of supplies) {
     if (s.valor_compra !== null && s.valor_compra !== undefined && s.valor_compra > 0) {
       const valorAntigo = s.valor_compra
       const valorNovo = Math.round(valorAntigo * multiplier * 10000) / 10000
+      if (!Number.isFinite(valorNovo) || valorNovo <= 0) throw new Error('Preço reajustado inválido.')
       const cppNovo = calculateSupplyCPP(valorNovo, s.rendimento_paginas)
 
       await pb.collection('suprimentos').update(s.id, {
@@ -511,6 +507,10 @@ export async function batchUpdateSupplyPrices(params: {
     }
   }
 
+  for (const item of updatedItens) {
+    try { await recalculateLinkedPrintersForSupply(item.id) }
+    catch { throw new Error('Os preços do lote foram salvos, mas o recálculo não foi concluído. Não reaplique o percentual: recarregue e revise as impressoras pendentes.') }
+  }
   return { totalAfetados: updatedItens.length, itens: updatedItens }
 }
 
@@ -518,27 +518,40 @@ export async function batchUpdateSupplyPrices(params: {
 // IMPRESSORAS
 // ============================================================================
 
+
+async function attachPrinterSupplyLinks(printers: ImpressoraRecord[]): Promise<ImpressoraRecord[]> {
+  if (!printers.some(p => p.vinculos_variaveis_ativos)) return printers
+  const links = await pb.collection('impressora_suprimentos').getFullList<PrinterSupplyLink>({sort: 'posicao,id'})
+  return printers.map(printer => {
+    if (!printer.vinculos_variaveis_ativos) return printer
+    const result = {...printer, vinculos_suprimentos: links.filter(l => l.impressora === printer.id)}
+    getPrinterSupplyIds(result) // Falha fechada: não recuar silenciosamente aos cinco campos.
+    return result
+  })
+}
+
 export async function getImpressoras(incluirInativas = false): Promise<ImpressoraRecord[]> {
   try {
     const filter = incluirInativas ? '' : 'ativo = true'
-    return await pb.collection('impressoras').getFullList<ImpressoraRecord>({
-      sort: 'fabricante,modelo',
-      filter,
+    const records = await pb.collection('impressoras').getFullList<ImpressoraRecord>({
+      sort: 'fabricante,modelo', filter,
       expand: 'suprimento_1,suprimento_2,suprimento_3,suprimento_4,suprimento_5',
     })
+    return attachPrinterSupplyLinks(records)
   } catch (err) {
-    console.error('Erro ao buscar impressoras:', err)
-    return []
+    throw err
   }
 }
 
 export async function getImpressoraById(id: string): Promise<ImpressoraRecord | null> {
   try {
-    return await pb.collection('impressoras').getOne<ImpressoraRecord>(id, {
+    const record = await pb.collection('impressoras').getOne<ImpressoraRecord>(id, {
       expand: 'suprimento_1,suprimento_2,suprimento_3,suprimento_4,suprimento_5',
     })
-  } catch {
-    return null
+    return (await attachPrinterSupplyLinks([record]))[0]
+  } catch (error) {
+    if ((error as { status?: number }).status === 404) return null
+    throw error
   }
 }
 
@@ -546,42 +559,25 @@ export async function createImpressora(
   data: Partial<ImpressoraRecord>,
   usuarioNome?: string,
 ): Promise<ImpressoraRecord> {
-  // Calcula CPPs iniciais se houver suprimentos e/ou valor de compra
-  const vidaUtil = data.vida_util_meses && data.vida_util_meses > 0 ? data.vida_util_meses : 48
-  const producaoRef = 1000
-  const valorCompra = data.valor_compra && data.valor_compra > 0 ? data.valor_compra : 0
-  const totalPaginas = vidaUtil * producaoRef
-  const cppEquipamento = totalPaginas > 0 && valorCompra > 0 ? valorCompra / totalPaginas : 0
-  const custoSoftware =
-    data.custo_mensal_software && data.custo_mensal_software > 0 ? data.custo_mensal_software : 0
-  const cppSoftwarePrintway = producaoRef > 0 ? custoSoftware / producaoRef : 0
+  if (data.vinculos_variaveis_ativos || data.vinculos_suprimentos !== undefined)
+    throw new Error('Crie o cadastro básico antes de ativar os vínculos ampliados pelo procedimento de migração.')
+  // CPP persistido segue a mesma regra do simulador: apenas suprimentos.
+  const cppEquipamento = 0
 
   let totalCppSuprimentos = 0
-  const slotIds = [
-    data.suprimento_1,
-    data.suprimento_2,
-    data.suprimento_3,
-    data.suprimento_4,
-    data.suprimento_5,
-  ].filter(Boolean) as string[]
+  const slotIds = getPrinterSupplyIds(data)
+
 
   if (slotIds.length > 0) {
     try {
       const suppliesList = await getSuprimentos(true)
-      const map = new Map<string, SuprimentoRecord>()
-      suppliesList.forEach((s) => map.set(s.id, s))
-      for (const sId of slotIds) {
-        const s = map.get(sId)
-        if (s) {
-          totalCppSuprimentos += calculateSupplyCPP(s.valor_compra, s.rendimento_paginas)
-        }
-      }
+      totalCppSuprimentos = calculateCatalogCPP(slotIds, suppliesList)
     } catch (e) {
-      console.warn('Erro ao calcular CPP inicial de suprimentos da impressora:', e)
+      throw e
     }
   }
 
-  const cppFornecedorTotal = totalCppSuprimentos + cppEquipamento + cppSoftwarePrintway
+  const cppFornecedorTotal = totalCppSuprimentos
 
   const created = await pb.collection('impressoras').create<ImpressoraRecord>({
     ...data,
@@ -610,6 +606,15 @@ export async function updateImpressora(
   usuarioNome?: string,
 ): Promise<ImpressoraRecord> {
   const current = oldRecord || (await getImpressoraById(id))
+
+  if (data.vinculos_variaveis_ativos !== undefined || data.vinculos_suprimentos !== undefined)
+    throw new Error('Use o serviço próprio para alterar vínculos ampliados.')
+  if (current?.vinculos_variaveis_ativos) {
+    for (const field of ['suprimento_1','suprimento_2','suprimento_3','suprimento_4','suprimento_5'] as const) {
+      if (data[field] !== undefined && data[field] !== current[field])
+        throw new Error('Este equipamento utiliza vínculos ampliados. Edite pela grade de suprimentos.')
+    }
+  }
 
   // Auditoria
   if (current) {
@@ -679,44 +684,22 @@ export async function updateImpressora(
 
   // Recalcula CPPs consolidados da impressora ao atualizar
   const merged = { ...current, ...data }
-  const vidaUtil =
-    merged.vida_util_meses && merged.vida_util_meses > 0 ? merged.vida_util_meses : 48
-  const producaoRef = 1000
-  const valorCompra = merged.valor_compra && merged.valor_compra > 0 ? merged.valor_compra : 0
-  const totalPaginas = vidaUtil * producaoRef
-  const cppEquipamento = totalPaginas > 0 && valorCompra > 0 ? valorCompra / totalPaginas : 0
-  const custoSoftware =
-    merged.custo_mensal_software && merged.custo_mensal_software > 0
-      ? merged.custo_mensal_software
-      : 0
-  const cppSoftwarePrintway = producaoRef > 0 ? custoSoftware / producaoRef : 0
+  const cppEquipamento = 0
 
   let totalCppSuprimentos = 0
-  const slotIds = [
-    merged.suprimento_1,
-    merged.suprimento_2,
-    merged.suprimento_3,
-    merged.suprimento_4,
-    merged.suprimento_5,
-  ].filter(Boolean) as string[]
+  const slotIds = getPrinterSupplyIds(merged)
+
 
   if (slotIds.length > 0) {
     try {
       const suppliesList = await getSuprimentos(true)
-      const map = new Map<string, SuprimentoRecord>()
-      suppliesList.forEach((s) => map.set(s.id, s))
-      for (const sId of slotIds) {
-        const s = map.get(sId)
-        if (s) {
-          totalCppSuprimentos += calculateSupplyCPP(s.valor_compra, s.rendimento_paginas)
-        }
-      }
+      totalCppSuprimentos = calculateCatalogCPP(slotIds, suppliesList)
     } catch (e) {
-      console.warn('Erro ao calcular CPP de suprimentos na atualização da impressora:', e)
+      throw e
     }
   }
 
-  const cppFornecedorTotal = totalCppSuprimentos + cppEquipamento + cppSoftwarePrintway
+  const cppFornecedorTotal = totalCppSuprimentos
 
   return await pb.collection('impressoras').update<ImpressoraRecord>(id, {
     ...data,
@@ -770,4 +753,19 @@ export async function createContratoPrecificacao(
     ...data,
     status: data.status || 'ativo',
   })
+}
+
+/** Escrita atômica de vínculo, CPP e auditoria. Exige migração e rota instaladas. */
+export async function updatePrinterSupplyLink(
+  printer: ImpressoraRecord, position: number, supplyId: string | null,
+): Promise<ImpressoraRecord> {
+  if (!printer.vinculos_variaveis_ativos || !Number.isSafeInteger(position) || position < 1 || position > 1000)
+    throw new Error('Cadastro ampliado ou posição inválida.')
+  const expected = getPrinterSupplyIds(printer).flatMap((id,index) => id ? [{posicao:index+1,suprimento:id}] : [])
+  await pb.send('/backend/v1/rental-printers/' + encodeURIComponent(printer.id) + '/supply-link', {
+    method: 'POST', body: {posicao:position,suprimento:supplyId,vinculos_esperados:expected},
+  })
+  const updated = await getImpressoraById(printer.id)
+  if (!updated) throw new Error('Vínculo salvo, mas o cadastro não pôde ser recarregado. Recarregue a página antes de continuar.')
+  return updated
 }

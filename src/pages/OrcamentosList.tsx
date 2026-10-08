@@ -133,7 +133,7 @@ const STATUS_CONFIG: Record<
     border: 'border-emerald-300',
   },
   rejeitado: {
-    label: 'Rejeitado',
+    label: 'Cancelado',
     color: 'text-rose-700',
     bg: 'bg-rose-100',
     border: 'border-rose-300',
@@ -827,7 +827,7 @@ export default function OrcamentosList() {
               : 'bg-white border-slate-200 hover:bg-slate-50'
           }`}
         >
-          <span className="text-[11px] font-semibold text-rose-700 block">Rejeitados</span>
+          <span className="text-[11px] font-semibold text-rose-700 block">Cancelados</span>
           <span className="text-base font-bold text-rose-800 font-mono">
             {counts.rejeitado || 0}
           </span>
@@ -923,7 +923,7 @@ export default function OrcamentosList() {
                 <SelectItem value="enviado">Enviado</SelectItem>
                 <SelectItem value="aprovado">Aprovado</SelectItem>
                 <SelectItem value="faturado">Faturado</SelectItem>
-                <SelectItem value="rejeitado">Rejeitado</SelectItem>
+                <SelectItem value="rejeitado">Cancelado</SelectItem>
                 <SelectItem value="substituido">Substituído</SelectItem>
               </SelectContent>
             </Select>

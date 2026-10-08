@@ -151,7 +151,7 @@ const STATUS_CONFIG: Record<
     border: 'border-emerald-300',
   },
   rejeitado: {
-    label: 'Rejeitado',
+    label: 'Cancelado',
     color: 'text-rose-700',
     bg: 'bg-rose-100',
     border: 'border-rose-300',
@@ -223,13 +223,21 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
   const [items, setItems] = useState<OrcamentoItem[]>([])
   const [anexos, setAnexos] = useState<OrcamentoAnexo[]>([])
   const [loading, setLoading] = useState(true)
+  const [createOsOpen, setCreateOsOpen] = useState(false)
+  const [creatingOs, setCreatingOs] = useState(false)
+  const [osReviewQuote, setOsReviewQuote] = useState<Orcamento | null>(null)
+  const createOsLockRef = useRef(false)
 
   // Hook de rascunho para criação de novos orçamentos
   const {
     draft: draftOrcamentoNovo,
     saveDraft: saveDraftOrcamentoNovo,
     clearDraft: clearDraftOrcamentoNovo,
-  } = useDraftState<any>('juca:draft:orcamento-novo', '/orcamentos/novo', 'Novo Orçamento')
+  } = useDraftState<any>(
+    `juca:draft:orcamento-novo:${navState?.id_os || navState?.fromOs || 'avulso'}`,
+    '/orcamentos/novo',
+    'Novo Orçamento',
+  )
 
   const [loadError, setLoadError] = useState<string | null>(null)
   const [parcelasInput, setParcelasInput] = useState<string>('1')
@@ -312,7 +320,10 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
       // Se houver rascunho gravado no localStorage e não veio de transição explícita com novo pricingItem
       const savedDraftData = draftOrcamentoNovo?.formData
       const shouldUseSavedDraft =
-        !pricingItem && savedDraftData && Array.isArray(savedDraftData.items)
+        !pricingItem &&
+        savedDraftData &&
+        Array.isArray(savedDraftData.items) &&
+        (savedDraftData.orcamento?.id_os || '') === (navState?.id_os || navState?.fromOs || '')
 
       if (shouldUseSavedDraft) {
         setOrcamento(savedDraftData.orcamento)
@@ -408,27 +419,8 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
     }
 
     try {
-      // 1. Tenta buscar o orçamento diretamente pelo ID
-      let o: Orcamento | null = null
-      try {
-        o = await getOrcamento(id)
-      } catch (errFirst) {
-        console.warn('getOrcamento direto falhou, tentando fallback:', errFirst)
-        // Fallback: se 'id' for na verdade um id_os ou número de OS, tenta buscar o orçamento da OS
-        try {
-          const list = await pb.collection('orcamentos').getFullList<Orcamento>({
-            filter: `id_os = "${id}" || numero_orcamento = "${id}"`,
-            sort: '-created',
-            expand:
-              'id_os,id_usuario_criador,cliente_id,responsavel_id,id_os.customer,id_os.technician,id_os.equipment_ref',
-          })
-          if (list.length > 0) {
-            o = list[0]
-          }
-        } catch {
-          /* intentionally ignored */
-        }
-      }
+      // O endereço identifica exclusivamente o orçamento pelo seu ID interno.
+      const o = await getOrcamento(id)
 
       if (!o) {
         toast({ title: 'Orçamento não encontrado', variant: 'destructive' })
@@ -1459,6 +1451,12 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
       await updateOrcamento(orcamento.id, {
         status: 'rejeitado',
         motivo_rejeicao: motivoRejeicao.trim(),
+        observacoes: [
+          orcamento.observacoes,
+          `[Cancelado em ${new Date().toISOString()} por ${user?.id || 'usuário'}; motivo: ${motivoRejeicao.trim()}]`,
+        ]
+          .filter(Boolean)
+          .join('\n'),
       })
       if (orcamento.id_os) {
         await updateOsStatus(
@@ -1473,7 +1471,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
           /* best effort */
         }
       }
-      toast({ title: 'Orçamento marcado como rejeitado.' })
+      toast({ title: 'Orçamento cancelado; histórico preservado.' })
       setRejeicaoModalOpen(false)
       loadAll()
     } catch {
@@ -1488,11 +1486,17 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
 
     try {
       const motivoAnterior = orcamento.motivo_rejeicao
-        ? ` (Motivo anterior da rejeição: ${orcamento.motivo_rejeicao})`
+        ? ` (Motivo anterior do cancelamento: ${orcamento.motivo_rejeicao})`
         : ''
 
       await updateOrcamento(orcamento.id, {
         status: 'aguardando_aprovacao',
+        observacoes: [
+          orcamento.observacoes,
+          `[Resgatado para renegociação em ${new Date().toISOString()} por ${user?.id || 'usuário'}; estado anterior: Cancelado; motivo anterior: ${orcamento.motivo_rejeicao || 'não informado'}; valor anterior: ${orcamento.total_geral}. Nova aprovação necessária.]`,
+        ]
+          .filter(Boolean)
+          .join('\n'),
       })
 
       if (orcamento.id_os) {
@@ -2203,35 +2207,16 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
             </div>
           )}
 
-          {orcamento.status === 'rejeitado' &&
-            canEdit &&
-            (orcamento.proposta_apresentada_em ? (
-              <Button
-                size="sm"
-                onClick={() => setRetomarModalOpen(true)}
-                className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1.5 font-bold shadow-xs"
-                title="Retomar a negociação deste orçamento e retorná-lo para Aguardando Aprovação"
-              >
-                <RotateCcw className="h-3.5 w-3.5" /> Retomar Negociação
-              </Button>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span tabIndex={0} className="inline-block cursor-not-allowed">
-                    <Button
-                      size="sm"
-                      disabled
-                      className="h-8 text-xs bg-amber-600 text-white gap-1.5 font-bold shadow-xs opacity-50 cursor-not-allowed"
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" /> Retomar Negociação
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Envie a proposta ao cliente primeiro</p>
-                </TooltipContent>
-              </Tooltip>
-            ))}
+          {orcamento.status === 'rejeitado' && canEdit && (
+            <Button
+              size="sm"
+              onClick={() => setRetomarModalOpen(true)}
+              className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1.5 font-bold shadow-xs"
+              title="Resgatar este orçamento para uma nova negociação, preservando o histórico"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Resgatar para renegociação
+            </Button>
+          )}
 
           {orcamento.status !== 'rejeitado' && orcamento.status !== 'faturado' && (
             <Button
@@ -2240,13 +2225,13 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
               onClick={() => setRejeicaoModalOpen(true)}
               className="h-8 text-xs border-rose-300 text-rose-700 hover:bg-rose-50 gap-1"
             >
-              <XCircle className="h-3.5 w-3.5" /> Rejeitar Orçamento
+              <XCircle className="h-3.5 w-3.5" /> Cancelar Orçamento
             </Button>
           )}
 
           {orcamento.motivo_rejeicao && (
             <div className="w-full mt-1 p-2 bg-rose-50 border border-rose-200 rounded text-rose-800 text-[11px]">
-              <strong>Motivo da rejeição:</strong> {orcamento.motivo_rejeicao}
+              <strong>Motivo do cancelamento:</strong> {orcamento.motivo_rejeicao}
             </div>
           )}
         </div>
@@ -2278,6 +2263,147 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
             </CardHeader>
             <CardContent className="space-y-4 text-xs">
               {/* Controle de Vinculação à Ordem de Serviço com busca e filtros (v0.0.216 / v0.0.236 / v0.0.238) */}
+
+              {orcamento.id_os ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mb-3"
+                  onClick={() => navigate('/ordens/' + orcamento.id_os)}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" /> Abrir OS vinculada
+                </Button>
+              ) : !isNew && orcamento.status === 'aprovado' && canEditOsLink ? (
+                <Button
+                  type="button"
+                  className="mb-3"
+                  disabled={creatingOs}
+                  onClick={async () => {
+                    if (createOsLockRef.current) return
+                    if (autoSaveTimerRef.current) {
+                      toast({ title: 'Aguarde o salvamento do orçamento e tente novamente.' })
+                      return
+                    }
+                    createOsLockRef.current = true
+                    setCreatingOs(true)
+                    try {
+                      const saved = await pb
+                        .collection('orcamentos')
+                        .getOne<Orcamento>(orcamento.id, { expand: 'cliente_id' })
+                      if (saved.id_os) {
+                        await loadAll()
+                        return
+                      }
+                      if (saved.status !== 'aprovado')
+                        throw new Error('O orçamento precisa estar aprovado.')
+                      setOsReviewQuote(saved)
+                      setCreateOsOpen(true)
+                    } catch (error: any) {
+                      toast({
+                        title: 'Não foi possível preparar a OS',
+                        description: error?.message,
+                        variant: 'destructive',
+                      })
+                    } finally {
+                      createOsLockRef.current = false
+                      setCreatingOs(false)
+                    }
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-2" /> Criar ordem de serviço
+                </Button>
+              ) : null}
+              <Dialog
+                open={createOsOpen}
+                onOpenChange={(open) => {
+                  if (!creatingOs) setCreateOsOpen(open)
+                }}
+              >
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Criar OS a partir deste orçamento</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-2 text-sm">
+                    <p>
+                      <strong>Orçamento:</strong> {osReviewQuote?.numero_orcamento}
+                    </p>
+                    <p>
+                      <strong>Cliente:</strong>{' '}
+                      {osReviewQuote?.expand?.cliente_id
+                        ? getCustomerDisplayName(osReviewQuote.expand.cliente_id)
+                        : osReviewQuote?.nome_cliente_livre || 'Não selecionado'}
+                    </p>
+                    <p>
+                      <strong>Equipamento:</strong>{' '}
+                      {osReviewQuote?.equipamento_independente || 'Não informado'}
+                    </p>
+                    <p>
+                      <strong>Total:</strong>{' '}
+                      {(Number(osReviewQuote?.total_geral) || 0).toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      })}
+                    </p>
+                    <p>
+                      A nova OS terá número próprio e ficará vinculada somente a este orçamento. Os
+                      itens serão copiados e o orçamento será preservado.
+                    </p>
+                    {!osReviewQuote?.cliente_id && (
+                      <p className="text-amber-700">
+                        Selecione e salve um cliente no orçamento antes de criar a OS.
+                      </p>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={creatingOs}
+                      onClick={() => setCreateOsOpen(false)}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={creatingOs || !osReviewQuote?.cliente_id}
+                      onClick={async () => {
+                        if (!osReviewQuote || createOsLockRef.current) return
+                        createOsLockRef.current = true
+                        setCreatingOs(true)
+                        try {
+                          const result = await pb.send<{
+                            id: string
+                            number: string
+                            alreadyLinked: boolean
+                          }>('/api/juca/orcamentos/' + osReviewQuote.id + '/criar-os', {
+                            method: 'POST',
+                            body: {},
+                          })
+                          setCreateOsOpen(false)
+                          await loadAll()
+                          toast({
+                            title: result.alreadyLinked
+                              ? 'Este orçamento já possui OS'
+                              : 'OS criada e vinculada',
+                            description: result.number,
+                          })
+                        } catch (error: any) {
+                          toast({
+                            title: 'Não foi possível criar a OS',
+                            description: error?.response?.message || error?.message,
+                            variant: 'destructive',
+                          })
+                        } finally {
+                          createOsLockRef.current = false
+                          setCreatingOs(false)
+                        }
+                      }}
+                    >
+                      {creatingOs ? 'Criando…' : 'Confirmar criação da OS'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
               <ServiceOrderLinkSection
                 linkedOs={os || null}
                 idOs={orcamento.id_os || null}
@@ -2322,12 +2448,6 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                       // atualiza o número do orçamento para espelhar a O.S. (ex: ORC-0074),
                       // garantindo que fique 100% como se tivesse sido criado de dentro da O.S.!
                       const updates: Partial<Orcamento> = { id_os: selectedOs.id }
-                      if (selectedOs.number) {
-                        const derivedNum = deriveOrcamentoNumberFromOs(selectedOs.number)
-                        if (derivedNum && derivedNum !== orcamento.numero_orcamento) {
-                          updates.numero_orcamento = derivedNum
-                        }
-                      }
                       await updateOrcamento(id, updates)
                       if (previousOsId && previousOsId !== selectedOs.id) {
                         try {
@@ -4055,7 +4175,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <XCircle className="h-5 w-5 text-rose-600" /> Motivo da Rejeição do Orçamento
+              <XCircle className="h-5 w-5 text-rose-600" /> Motivo do Cancelamento do Orçamento
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2 text-xs">
@@ -4084,23 +4204,24 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
               onClick={handleRejeitar}
               className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
             >
-              Confirmar Rejeição
+              Confirmar Cancelamento
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Retomar Negociação */}
+      {/* Modal de Resgatar para renegociação */}
       <Dialog open={retomarModalOpen} onOpenChange={setRetomarModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <RotateCcw className="h-5 w-5 text-amber-600" /> Retomar Negociação do Orçamento
+              <RotateCcw className="h-5 w-5 text-amber-600" /> Resgatar para renegociação do
+              Orçamento
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2 text-xs">
             <p className="text-slate-600">
-              Ao retomar a negociação, o orçamento sairá do status <strong>Rejeitado</strong> e
+              Ao retomar a negociação, o orçamento sairá do status <strong>Cancelado</strong> e
               voltará para <strong>Aguardando Aprovação</strong>. Você poderá alterar itens,
               reenviar a proposta ao cliente e registrar uma nova aprovação ou recusa.
             </p>
@@ -4108,8 +4229,8 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
             {orcamento.motivo_rejeicao && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-900 space-y-1">
                 <span className="font-bold block flex items-center gap-1.5 text-amber-800">
-                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" /> Motivo da Rejeição
-                  Anterior:
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" /> Motivo do
+                  Cancelamento Anterior:
                 </span>
                 <p className="text-slate-800 italic bg-white/70 p-2 rounded border border-amber-100">
                   "{orcamento.motivo_rejeicao}"
@@ -4145,7 +4266,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
               ) : (
                 <>
                   <RotateCcw className="h-3.5 w-3.5" />
-                  Confirmar e Retomar
+                  Confirmar resgate
                 </>
               )}
             </Button>

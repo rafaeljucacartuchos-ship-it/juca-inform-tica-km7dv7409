@@ -1,5 +1,5 @@
 // Cabeçalho padrão padronizado exibido no topo das mensagens WhatsApp (v0.0.274)
-export const WHATSAPP_HEADER = '🛠️ *JUCA INFORMÁTICA*\n\n'
+export const WHATSAPP_HEADER = ' *JUCA INFORMÁTICA*\n\n'
 // Rodapé padrão com a assinatura humanizada do Juquinha
 export const WHATSAPP_FOOTER =
   '\n\n— *Juquinha — JUCA Informática*\n📞 (67) 3441-4981 | (67) 99654-4981'

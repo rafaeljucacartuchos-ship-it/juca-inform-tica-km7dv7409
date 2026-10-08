@@ -76,7 +76,7 @@ export default function Precificacao() {
   const initialMode = (searchParams.get('tab') as string) || 'produto'
 
   const [activeTab, setActiveTab] = useState<string>(
-    ['produto', 'avulsa', 'rapida', 'historico'].includes(initialMode) ? initialMode : 'produto',
+    ['produto', 'historico'].includes(initialMode) ? initialMode : 'produto',
   )
 
   // Cliente para envio ao orçamento (compartilhado ou específico)
@@ -134,6 +134,7 @@ export default function Precificacao() {
   const [impostoSaidaPct1, setImpostoSaidaPct1] = useState('4.0')
   const [commissionPct1, setCommissionPct1] = useState('2.5')
   const [ipiPct1, setIpiPct1] = useState('0')
+  const [stIncluded1, setStIncluded1] = useState(false)
   const [substTributariaPct1, setSubstTributariaPct1] = useState('0')
   const [variableExpensesTotal1, setVariableExpensesTotal1] = useState('14.0')
   const [marginInput1, setMarginInput1] = useState('25')
@@ -156,6 +157,7 @@ export default function Precificacao() {
   const [impostoSaidaPct2, setImpostoSaidaPct2] = useState('4.0')
   const [commissionPct2, setCommissionPct2] = useState('2.5')
   const [ipiPct2, setIpiPct2] = useState('0')
+  const [stIncluded2, setStIncluded2] = useState(false)
   const [substTributariaPct2, setSubstTributariaPct2] = useState('0')
   const [variableExpensesTotal2, setVariableExpensesTotal2] = useState('14.0')
   const [marginInput2, setMarginInput2] = useState('25')
@@ -176,6 +178,7 @@ export default function Precificacao() {
   const [impostoSaidaPct3, setImpostoSaidaPct3] = useState('4.0')
   const [commissionPct3, setCommissionPct3] = useState('2.5')
   const [ipiPct3, setIpiPct3] = useState('0')
+  const [stIncluded3, setStIncluded3] = useState(false)
   const [substTributariaPct3, setSubstTributariaPct3] = useState('0')
   const [variableExpensesTotal3, setVariableExpensesTotal3] = useState('14.0')
   const [marginInput3, setMarginInput3] = useState('25')
@@ -196,7 +199,8 @@ export default function Precificacao() {
     // Restaura rascunho de formulário da Precificação se houver
     if (draftPrecificacao && draftPrecificacao.formData) {
       const d = draftPrecificacao.formData
-      if (d.activeTab && !searchParams.get('tab')) setActiveTab(d.activeTab)
+      if (d.activeTab && !searchParams.get('tab'))
+        setActiveTab(d.activeTab === 'historico' ? 'historico' : 'produto')
       if (d.customerSearchQuery) setCustomerSearchQuery(d.customerSearchQuery)
       if (d.customerManualPhone) setCustomerManualPhone(d.customerManualPhone)
       if (d.selectedCustomer) setSelectedCustomer(d.selectedCustomer)
@@ -205,6 +209,7 @@ export default function Precificacao() {
       if (d.costInput1 !== undefined) setCostInput1(d.costInput1)
       if (d.marginInput1 !== undefined) setMarginInput1(d.marginInput1)
       if (d.freightInput1 !== undefined) setFreightInput1(d.freightInput1)
+      if (typeof d.stIncluded1 === 'boolean') setStIncluded1(d.stIncluded1)
       if (d.substTributariaPct1 !== undefined) setSubstTributariaPct1(d.substTributariaPct1)
 
       // Modo 2
@@ -213,12 +218,14 @@ export default function Precificacao() {
       if (d.freightInput2 !== undefined) setFreightInput2(d.freightInput2)
       if (d.extraCost2A !== undefined) setExtraCost2A(d.extraCost2A)
       if (d.extraCost2B !== undefined) setExtraCost2B(d.extraCost2B)
+      if (typeof d.stIncluded2 === 'boolean') setStIncluded2(d.stIncluded2)
       if (d.substTributariaPct2 !== undefined) setSubstTributariaPct2(d.substTributariaPct2)
 
       // Modo 3
       if (d.costInput3 !== undefined) setCostInput3(d.costInput3)
       if (d.marginInput3 !== undefined) setMarginInput3(d.marginInput3)
       if (d.freightInput3 !== undefined) setFreightInput3(d.freightInput3)
+      if (typeof d.stIncluded3 === 'boolean') setStIncluded3(d.stIncluded3)
       if (d.substTributariaPct3 !== undefined) setSubstTributariaPct3(d.substTributariaPct3)
       if (d.newProductName !== undefined) setNewProductName(d.newProductName)
     }
@@ -236,6 +243,7 @@ export default function Precificacao() {
       marginInput1,
       freightInput1,
       substTributariaPct1,
+      stIncluded1,
       // Modo 2
       costInput2,
       marginInput2,
@@ -243,11 +251,13 @@ export default function Precificacao() {
       extraCost2A,
       extraCost2B,
       substTributariaPct2,
+      stIncluded2,
       // Modo 3
       costInput3,
       marginInput3,
       freightInput3,
       substTributariaPct3,
+      stIncluded3,
       newProductName,
     })
   }, [
@@ -259,16 +269,19 @@ export default function Precificacao() {
     marginInput1,
     freightInput1,
     substTributariaPct1,
+    stIncluded1,
     costInput2,
     marginInput2,
     freightInput2,
     extraCost2A,
     extraCost2B,
     substTributariaPct2,
+    stIncluded2,
     costInput3,
     marginInput3,
     freightInput3,
     substTributariaPct3,
+    stIncluded3,
     newProductName,
     saveDraftPrecificacao,
   ])
@@ -605,7 +618,7 @@ export default function Precificacao() {
     const impSaida = parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
     const com = parseFloat(commissionPct1.replace(',', '.')) || 0
     const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
-    const stPct = parseFloat(substTributariaPct1.replace(',', '.')) || 0
+    const stPct = stIncluded1 ? 0 : parseFloat(substTributariaPct1.replace(',', '.')) || 0
     const marg = parseFloat(marginInput1.replace(',', '.')) || 0
     const overrideVar = parseFloat(variableExpensesTotal1.replace(',', '.'))
 
@@ -617,15 +630,15 @@ export default function Precificacao() {
       custoAdicional1: add1,
       custoAdicional2: add2,
       substTributariaPct: stPct,
-      custoFixoRateado: companyParams.custo_fixo_rateado_unitario || 0,
+      custoFixoRateado: 0,
       custoFixoPct: cfPct,
-      despesaFixaPct: fExp,
+      despesaFixaPct: 0,
       taxaCartaoPct: cTax,
       icmsPct: icms,
       impostoSaidaPct: impSaida,
       comissaoPct: com,
       ipiPct: ipi,
-      custosVariaveisPctOverride: isNaN(overrideVar) ? undefined : overrideVar,
+      // Variable costs always follow the component rates.
       lucratividadePct: marg,
     })
     setCalcResult1(res)
@@ -643,6 +656,7 @@ export default function Precificacao() {
     commissionPct1,
     ipiPct1,
     substTributariaPct1,
+    stIncluded1,
     variableExpensesTotal1,
     marginInput1,
     cotacaoDolarAtiva,
@@ -664,7 +678,7 @@ export default function Precificacao() {
     const impSaida = parseFloat(impostoSaidaPct2.replace(',', '.')) || 0
     const com = parseFloat(commissionPct2.replace(',', '.')) || 0
     const ipi = parseFloat(ipiPct2.replace(',', '.')) || 0
-    const stPct = parseFloat(substTributariaPct2.replace(',', '.')) || 0
+    const stPct = stIncluded2 ? 0 : parseFloat(substTributariaPct2.replace(',', '.')) || 0
     const marg = parseFloat(marginInput2.replace(',', '.')) || 0
     const overrideVar = parseFloat(variableExpensesTotal2.replace(',', '.'))
 
@@ -676,15 +690,15 @@ export default function Precificacao() {
       custoAdicional1: add1,
       custoAdicional2: add2,
       substTributariaPct: stPct,
-      custoFixoRateado: companyParams.custo_fixo_rateado_unitario || 0,
+      custoFixoRateado: 0,
       custoFixoPct: cfPct,
-      despesaFixaPct: fExp,
+      despesaFixaPct: 0,
       taxaCartaoPct: cTax,
       icmsPct: icms,
       impostoSaidaPct: impSaida,
       comissaoPct: com,
       ipiPct: ipi,
-      custosVariaveisPctOverride: isNaN(overrideVar) ? undefined : overrideVar,
+      // Variable costs always follow the component rates.
       lucratividadePct: marg,
     })
     setCalcResult2(res)
@@ -702,6 +716,7 @@ export default function Precificacao() {
     commissionPct2,
     ipiPct2,
     substTributariaPct2,
+    stIncluded2,
     variableExpensesTotal2,
     marginInput2,
     cotacaoDolarAtiva,
@@ -723,7 +738,7 @@ export default function Precificacao() {
     const impSaida = parseFloat(impostoSaidaPct3.replace(',', '.')) || 0
     const com = parseFloat(commissionPct3.replace(',', '.')) || 0
     const ipi = parseFloat(ipiPct3.replace(',', '.')) || 0
-    const stPct = parseFloat(substTributariaPct3.replace(',', '.')) || 0
+    const stPct = stIncluded3 ? 0 : parseFloat(substTributariaPct3.replace(',', '.')) || 0
     const marg = parseFloat(marginInput3.replace(',', '.')) || 0
     const overrideVar = parseFloat(variableExpensesTotal3.replace(',', '.'))
 
@@ -735,15 +750,15 @@ export default function Precificacao() {
       custoAdicional1: add1,
       custoAdicional2: add2,
       substTributariaPct: stPct,
-      custoFixoRateado: companyParams.custo_fixo_rateado_unitario || 0,
+      custoFixoRateado: 0,
       custoFixoPct: cfPct,
-      despesaFixaPct: fExp,
+      despesaFixaPct: 0,
       taxaCartaoPct: cTax,
       icmsPct: icms,
       impostoSaidaPct: impSaida,
       comissaoPct: com,
       ipiPct: ipi,
-      custosVariaveisPctOverride: isNaN(overrideVar) ? undefined : overrideVar,
+      // Variable costs always follow the component rates.
       lucratividadePct: marg,
     })
     setCalcResult3(res)
@@ -761,6 +776,7 @@ export default function Precificacao() {
     commissionPct3,
     ipiPct3,
     substTributariaPct3,
+    stIncluded3,
     variableExpensesTotal3,
     marginInput3,
     cotacaoDolarAtiva,
@@ -1060,15 +1076,27 @@ export default function Precificacao() {
       </div>
 
       {/* REQUISITO 1: CARD PARÂMETROS DA EMPRESA NA PRÓPRIA TELA */}
-      <CompanyParamsCard
-        parameters={companyParams}
-        onSave={handleSaveCompanyParams}
-        saving={savingCompanyParams}
-      />
+      <details className="rounded-xl border border-slate-200 bg-white p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+          Configurar padrões da empresa
+        </summary>
+        <div className="pt-4">
+          <p className="mb-3 text-xs text-slate-600">
+            Nesta tela, as despesas da loja entram somente em Custo Fixo (%). Os campos legados de
+            despesa mensal e rateio unitário não são somados novamente. ST é uma estimativa sobre o
+            custo de aquisição informado; confira a nota de compra.
+          </p>
+          <CompanyParamsCard
+            parameters={companyParams}
+            onSave={handleSaveCompanyParams}
+            saving={savingCompanyParams}
+          />
+        </div>
+      </details>
 
       {/* Tabs Principais */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full sm:w-auto h-auto p-1 bg-slate-100/90 border border-slate-200 rounded-lg">
+        <TabsList className="grid grid-cols-2 w-full sm:w-auto h-auto p-1 bg-slate-100/90 border border-slate-200 rounded-lg">
           <TabsTrigger
             value="produto"
             className="text-xs py-2 gap-1.5 font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-700"
@@ -1076,20 +1104,7 @@ export default function Precificacao() {
             <Package className="h-3.5 w-3.5" />
             <span>Produto Cadastrado</span>
           </TabsTrigger>
-          <TabsTrigger
-            value="avulsa"
-            className="text-xs py-2 gap-1.5 font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-700"
-          >
-            <Calculator className="h-3.5 w-3.5" />
-            <span>Precificação Avulsa</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="rapida"
-            className="text-xs py-2 gap-1.5 font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-700"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>Precificação Rápida</span>
-          </TabsTrigger>
+
           <TabsTrigger
             value="historico"
             className="text-xs py-2 gap-1.5 font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-700"
@@ -1381,265 +1396,294 @@ export default function Precificacao() {
                         </span>
                       </div>
 
-                      <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
-                        {/* Destaque dos Componentes Principais da Fórmula */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-2.5 bg-white rounded-lg border border-indigo-100 shadow-2xs">
-                          <div className="space-y-1">
-                            <Label className="text-[11px] font-bold text-sky-900 flex items-center justify-between">
-                              <span>CUSTO FIXO %</span>
-                              <span className="text-[10px] text-sky-600 font-mono font-normal">
-                                % Preço
-                              </span>
-                            </Label>
-                            <Input
-                              type="number"
-                              step="0.1"
-                              value={custoFixoPct1}
-                              onChange={(e) => setCustoFixoPct1(e.target.value)}
-                              className="h-8 font-mono text-xs font-bold text-sky-800 bg-sky-50/50 border-sky-200"
-                            />
-                          </div>
-
-                          <div className="space-y-1">
-                            <Label className="text-[11px] font-bold text-indigo-900 flex items-center justify-between">
-                              <span>CUSTO VARIÁVEL %</span>
-                              <span className="text-[10px] text-indigo-600 font-mono font-normal">
-                                Soma variáveis
-                              </span>
-                            </Label>
-                            <Input
-                              type="number"
-                              step="0.1"
-                              value={variableExpensesTotal1}
-                              onChange={(e) => setVariableExpensesTotal1(e.target.value)}
-                              className="h-8 font-mono text-xs font-bold text-indigo-800 bg-indigo-50/50 border-indigo-200"
-                            />
-                          </div>
-
-                          <div className="space-y-1">
-                            <Label className="text-[11px] font-bold text-emerald-900 flex items-center justify-between">
-                              <span>LUCRATIVIDADE %</span>
-                              <span className="text-[10px] text-emerald-600 font-mono font-normal">
-                                Alvo
-                              </span>
-                            </Label>
-                            <Input
-                              type="number"
-                              step="0.5"
-                              value={marginInput1}
-                              onChange={(e) => setMarginInput1(e.target.value)}
-                              className="h-8 font-mono text-xs font-bold text-emerald-800 bg-emerald-50/60 border-emerald-300"
-                            />
-                          </div>
+                      <div className="space-y-3">
+                        <div className="rounded-lg border border-slate-200 p-3 space-y-2">
+                          <Label htmlFor="st-mode-1">ST no custo de compra</Label>
+                          <select
+                            id="st-mode-1"
+                            className="w-full rounded-md border p-2 text-sm"
+                            value={stIncluded1 ? 'included' : 'add'}
+                            onChange={(e) => setStIncluded1(e.target.value === 'included')}
+                          >
+                            <option value="add">Acrescentar ST informada ao custo</option>
+                            <option value="included">Custo já inclui ST / sem acréscimo</option>
+                          </select>
+                          <p className="text-xs text-slate-500">
+                            {stIncluded1
+                              ? 'Nenhuma ST será somada novamente.'
+                              : 'Acréscimo estimado de ' +
+                                substTributariaPct1 +
+                                '% sobre compra, frete e extras. Confira conforme a nota.'}
+                          </p>
                         </div>
+                        <details className="rounded-xl border border-slate-200 bg-white p-3">
+                          <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+                            Alterar custos, taxas e margem deste cálculo
+                          </summary>
+                          <div className="pt-4">
+                            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
+                              {/* Destaque dos Componentes Principais da Fórmula */}
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-2.5 bg-white rounded-lg border border-indigo-100 shadow-2xs">
+                                <div className="space-y-1">
+                                  <Label className="text-[11px] font-bold text-sky-900 flex items-center justify-between">
+                                    <span>CUSTO FIXO %</span>
+                                    <span className="text-[10px] text-sky-600 font-mono font-normal">
+                                      % Preço
+                                    </span>
+                                  </Label>
+                                  <Input
+                                    type="number"
+                                    step="0.1"
+                                    value={custoFixoPct1}
+                                    onChange={(e) => setCustoFixoPct1(e.target.value)}
+                                    className="h-8 font-mono text-xs font-bold text-sky-800 bg-sky-50/50 border-sky-200"
+                                  />
+                                </div>
 
-                        {/* Detalhamento das taxas componentes dos Custos Variáveis */}
-                        <div className="space-y-1.5 pt-1">
-                          <div className="flex items-center justify-between text-[11px] text-slate-600 font-semibold">
-                            <span>Composição dos Custos Variáveis:</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const cTax = parseFloat(cardTaxPct1.replace(',', '.')) || 0
-                                const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
-                                const impSaida = parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
-                                const com = parseFloat(commissionPct1.replace(',', '.')) || 0
-                                const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
-                                const soma =
-                                  Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10
-                                setVariableExpensesTotal1(String(soma))
-                              }}
-                              className="text-[10px] text-indigo-600 hover:underline font-normal"
-                            >
-                              Sincronizar soma com Custo Variável %
-                            </button>
-                          </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[11px] font-bold text-indigo-900 flex items-center justify-between">
+                                    <span>CUSTO VARIÁVEL %</span>
+                                    <span className="text-[10px] text-indigo-600 font-mono font-normal">
+                                      Soma variáveis
+                                    </span>
+                                  </Label>
+                                  <Input
+                                    type="number"
+                                    step="0.1"
+                                    value={calcResult1?.custosVariaveisPct ?? 0}
+                                    readOnly
+                                    onChange={(e) => setVariableExpensesTotal1(e.target.value)}
+                                    className="h-8 font-mono text-xs font-bold text-indigo-800 bg-indigo-50/50 border-indigo-200"
+                                  />
+                                </div>
 
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-2">
-                            {' '}
-                            <div className="space-y-1">
-                              <Label className="text-[10px] font-semibold text-slate-600">
-                                Despesa Fixa %
-                              </Label>
-                              <Input
-                                type="number"
-                                step="0.1"
-                                value={fixedExpensesPct1}
-                                onChange={(e) => setFixedExpensesPct1(e.target.value)}
-                                className="h-8 font-mono text-xs"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[10px] font-semibold text-slate-600 flex items-center justify-between">
-                                <span>Taxa Cartão %</span>
-                                {selectedMethod1 && (
-                                  <span className="text-[9px] text-emerald-600 font-bold">tab</span>
-                                )}
-                              </Label>
-                              <Input
-                                type="number"
-                                step="0.1"
-                                value={cardTaxPct1}
-                                onChange={(e) => {
-                                  const val = e.target.value
-                                  setCardTaxPct1(val)
-                                  const cTax = parseFloat(val.replace(',', '.')) || 0
-                                  const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
-                                  const impSaida =
-                                    parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
-                                  const com = parseFloat(commissionPct1.replace(',', '.')) || 0
-                                  const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
-                                  setVariableExpensesTotal1(
-                                    String(
-                                      Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10,
-                                    ),
-                                  )
-                                }}
-                                className="h-8 font-mono text-xs"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[10px] font-semibold text-slate-600">
-                                ICMS/Simples %
-                              </Label>
-                              <Input
-                                type="number"
-                                step="0.1"
-                                value={icmsPct1}
-                                onChange={(e) => {
-                                  const val = e.target.value
-                                  setIcmsPct1(val)
-                                  const cTax = parseFloat(cardTaxPct1.replace(',', '.')) || 0
-                                  const icms = parseFloat(val.replace(',', '.')) || 0
-                                  const impSaida =
-                                    parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
-                                  const com = parseFloat(commissionPct1.replace(',', '.')) || 0
-                                  const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
-                                  setVariableExpensesTotal1(
-                                    String(
-                                      Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10,
-                                    ),
-                                  )
-                                }}
-                                className="h-8 font-mono text-xs"
-                              />
-                            </div>
-                            {/* REQUISITO 2: CAMPO IMPOSTO DE SAÍDA % SEPARADO */}
-                            <div className="space-y-1">
-                              <Label className="text-[10px] font-bold text-indigo-900">
-                                Imposto Saída % *
-                              </Label>
-                              <Input
-                                type="number"
-                                step="0.1"
-                                value={impostoSaidaPct1}
-                                onChange={(e) => {
-                                  const val = e.target.value
-                                  setImpostoSaidaPct1(val)
-                                  const cTax = parseFloat(cardTaxPct1.replace(',', '.')) || 0
-                                  const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
-                                  const impSaida = parseFloat(val.replace(',', '.')) || 0
-                                  const com = parseFloat(commissionPct1.replace(',', '.')) || 0
-                                  const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
-                                  setVariableExpensesTotal1(
-                                    String(
-                                      Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10,
-                                    ),
-                                  )
-                                }}
-                                className="h-8 font-mono text-xs font-bold text-indigo-700 bg-indigo-50/50 border-indigo-200"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[10px] font-semibold text-slate-600">
-                                Comissão %
-                              </Label>
-                              <Input
-                                type="number"
-                                step="0.1"
-                                value={commissionPct1}
-                                onChange={(e) => {
-                                  const val = e.target.value
-                                  setCommissionPct1(val)
-                                  const cTax = parseFloat(cardTaxPct1.replace(',', '.')) || 0
-                                  const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
-                                  const impSaida =
-                                    parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
-                                  const com = parseFloat(val.replace(',', '.')) || 0
-                                  const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
-                                  setVariableExpensesTotal1(
-                                    String(
-                                      Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10,
-                                    ),
-                                  )
-                                }}
-                                className="h-8 font-mono text-xs"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[10px] font-semibold text-slate-600">
-                                IPI / Outros %
-                              </Label>
-                              <Input
-                                type="number"
-                                step="0.1"
-                                value={ipiPct1}
-                                onChange={(e) => {
-                                  const val = e.target.value
-                                  setIpiPct1(val)
-                                  const cTax = parseFloat(cardTaxPct1.replace(',', '.')) || 0
-                                  const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
-                                  const impSaida =
-                                    parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
-                                  const com = parseFloat(commissionPct1.replace(',', '.')) || 0
-                                  const ipi = parseFloat(val.replace(',', '.')) || 0
-                                  setVariableExpensesTotal1(
-                                    String(
-                                      Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10,
-                                    ),
-                                  )
-                                }}
-                                className="h-8 font-mono text-xs"
-                              />
-                            </div>
-                            {/* REQUISITO 1: CAMPO SUBST. TRIBUTÁRIA % AO LADO DOS OUTROS IMPOSTOS */}
-                            <div className="space-y-1">
-                              <Label className="text-[10px] font-bold text-violet-900 flex items-center justify-between">
-                                <span>Subst. Trib. %</span>
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <HelpCircle className="h-3 w-3 text-violet-500 cursor-pointer" />
-                                    </TooltipTrigger>
-                                    <TooltipContent className="text-xs max-w-xs">
-                                      Substituição Tributária incidente no custo de aquisição do
-                                      produto. Entra no Custo Total do Produto e no Markup.
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </Label>
-                              <Input
-                                type="number"
-                                step="0.1"
-                                value={substTributariaPct1}
-                                onChange={(e) => setSubstTributariaPct1(e.target.value)}
-                                className="h-8 font-mono text-xs font-bold text-violet-900 bg-violet-50/60 border-violet-300"
-                                placeholder="0.0"
-                              />
+                                <div className="space-y-1">
+                                  <Label className="text-[11px] font-bold text-emerald-900 flex items-center justify-between">
+                                    <span>LUCRATIVIDADE %</span>
+                                    <span className="text-[10px] text-emerald-600 font-mono font-normal">
+                                      Alvo
+                                    </span>
+                                  </Label>
+                                  <Input
+                                    type="number"
+                                    step="0.5"
+                                    value={marginInput1}
+                                    onChange={(e) => setMarginInput1(e.target.value)}
+                                    className="h-8 font-mono text-xs font-bold text-emerald-800 bg-emerald-50/60 border-emerald-300"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Detalhamento das taxas componentes dos Custos Variáveis */}
+                              <div className="space-y-1.5 pt-1">
+                                <div className="flex items-center justify-between text-[11px] text-slate-600 font-semibold">
+                                  <span>Composição dos Custos Variáveis:</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const cTax = parseFloat(cardTaxPct1.replace(',', '.')) || 0
+                                      const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
+                                      const impSaida =
+                                        parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
+                                      const com = parseFloat(commissionPct1.replace(',', '.')) || 0
+                                      const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
+                                      const soma =
+                                        Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10
+                                      setVariableExpensesTotal1(String(soma))
+                                    }}
+                                    className="text-[10px] text-indigo-600 hover:underline font-normal"
+                                  >
+                                    Sincronizar soma com Custo Variável %
+                                  </button>
+                                </div>
+
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-2">
+                                  {' '}
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] font-semibold text-slate-600 flex items-center justify-between">
+                                      <span>Taxa Cartão %</span>
+                                      {selectedMethod1 && (
+                                        <span className="text-[9px] text-emerald-600 font-bold">
+                                          tab
+                                        </span>
+                                      )}
+                                    </Label>
+                                    <Input
+                                      type="number"
+                                      step="0.1"
+                                      value={cardTaxPct1}
+                                      onChange={(e) => {
+                                        const val = e.target.value
+                                        setCardTaxPct1(val)
+                                        const cTax = parseFloat(val.replace(',', '.')) || 0
+                                        const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
+                                        const impSaida =
+                                          parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
+                                        const com =
+                                          parseFloat(commissionPct1.replace(',', '.')) || 0
+                                        const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
+                                        setVariableExpensesTotal1(
+                                          String(
+                                            Math.round((cTax + icms + impSaida + com + ipi) * 10) /
+                                              10,
+                                          ),
+                                        )
+                                      }}
+                                      className="h-8 font-mono text-xs"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] font-semibold text-slate-600">
+                                      ICMS/Simples %
+                                    </Label>
+                                    <Input
+                                      type="number"
+                                      step="0.1"
+                                      value={icmsPct1}
+                                      onChange={(e) => {
+                                        const val = e.target.value
+                                        setIcmsPct1(val)
+                                        const cTax = parseFloat(cardTaxPct1.replace(',', '.')) || 0
+                                        const icms = parseFloat(val.replace(',', '.')) || 0
+                                        const impSaida =
+                                          parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
+                                        const com =
+                                          parseFloat(commissionPct1.replace(',', '.')) || 0
+                                        const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
+                                        setVariableExpensesTotal1(
+                                          String(
+                                            Math.round((cTax + icms + impSaida + com + ipi) * 10) /
+                                              10,
+                                          ),
+                                        )
+                                      }}
+                                      className="h-8 font-mono text-xs"
+                                    />
+                                  </div>
+                                  {/* REQUISITO 2: CAMPO IMPOSTO DE SAÍDA % SEPARADO */}
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] font-bold text-indigo-900">
+                                      Imposto Saída % *
+                                    </Label>
+                                    <Input
+                                      type="number"
+                                      step="0.1"
+                                      value={impostoSaidaPct1}
+                                      onChange={(e) => {
+                                        const val = e.target.value
+                                        setImpostoSaidaPct1(val)
+                                        const cTax = parseFloat(cardTaxPct1.replace(',', '.')) || 0
+                                        const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
+                                        const impSaida = parseFloat(val.replace(',', '.')) || 0
+                                        const com =
+                                          parseFloat(commissionPct1.replace(',', '.')) || 0
+                                        const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
+                                        setVariableExpensesTotal1(
+                                          String(
+                                            Math.round((cTax + icms + impSaida + com + ipi) * 10) /
+                                              10,
+                                          ),
+                                        )
+                                      }}
+                                      className="h-8 font-mono text-xs font-bold text-indigo-700 bg-indigo-50/50 border-indigo-200"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] font-semibold text-slate-600">
+                                      Comissão %
+                                    </Label>
+                                    <Input
+                                      type="number"
+                                      step="0.1"
+                                      value={commissionPct1}
+                                      onChange={(e) => {
+                                        const val = e.target.value
+                                        setCommissionPct1(val)
+                                        const cTax = parseFloat(cardTaxPct1.replace(',', '.')) || 0
+                                        const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
+                                        const impSaida =
+                                          parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
+                                        const com = parseFloat(val.replace(',', '.')) || 0
+                                        const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
+                                        setVariableExpensesTotal1(
+                                          String(
+                                            Math.round((cTax + icms + impSaida + com + ipi) * 10) /
+                                              10,
+                                          ),
+                                        )
+                                      }}
+                                      className="h-8 font-mono text-xs"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] font-semibold text-slate-600">
+                                      IPI / Outros %
+                                    </Label>
+                                    <Input
+                                      type="number"
+                                      step="0.1"
+                                      value={ipiPct1}
+                                      onChange={(e) => {
+                                        const val = e.target.value
+                                        setIpiPct1(val)
+                                        const cTax = parseFloat(cardTaxPct1.replace(',', '.')) || 0
+                                        const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
+                                        const impSaida =
+                                          parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
+                                        const com =
+                                          parseFloat(commissionPct1.replace(',', '.')) || 0
+                                        const ipi = parseFloat(val.replace(',', '.')) || 0
+                                        setVariableExpensesTotal1(
+                                          String(
+                                            Math.round((cTax + icms + impSaida + com + ipi) * 10) /
+                                              10,
+                                          ),
+                                        )
+                                      }}
+                                      className="h-8 font-mono text-xs"
+                                    />
+                                  </div>
+                                  {/* REQUISITO 1: CAMPO SUBST. TRIBUTÁRIA % AO LADO DOS OUTROS IMPOSTOS */}
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] font-bold text-violet-900 flex items-center justify-between">
+                                      <span>Subst. Trib. %</span>
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <HelpCircle className="h-3 w-3 text-violet-500 cursor-pointer" />
+                                          </TooltipTrigger>
+                                          <TooltipContent className="text-xs max-w-xs">
+                                            Substituição Tributária incidente no custo de aquisição
+                                            do produto. Entra no Custo Total do Produto e no Markup.
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    </Label>
+                                    <Input
+                                      type="number"
+                                      step="0.1"
+                                      value={substTributariaPct1}
+                                      onChange={(e) => setSubstTributariaPct1(e.target.value)}
+                                      className="h-8 font-mono text-xs font-bold text-violet-900 bg-violet-50/60 border-violet-300"
+                                      placeholder="0.0"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                              {/* Resumo do Markup Divisor */}
+                              <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
+                                <span className="text-slate-600 font-medium">
+                                  Markup Divisor / Multiplicador:
+                                </span>
+                                <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                                  {calcResult1?.isPossible
+                                    ? `${calcResult1.markupMultiplicador}×`
+                                    : 'Indefinido'}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        {/* Resumo do Markup Divisor */}
-                        <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
-                          <span className="text-slate-600 font-medium">
-                            Markup Divisor / Multiplicador:
-                          </span>
-                          <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
-                            {calcResult1?.isPossible
-                              ? `${calcResult1.markupMultiplicador}×`
-                              : 'Indefinido'}
-                          </span>
-                        </div>
+                        </details>
                       </div>
                     </div>
                   </div>
@@ -1685,31 +1729,38 @@ export default function Precificacao() {
                       </div>
 
                       {/* REQUISITO 2: GRÁFICO CASCATA 100% COM SUBST. TRIBUTÁRIA SE > 0 */}
-                      <PricingWaterfallCard
-                        salePrice={calcResult1.salePrice}
-                        custoDiretoTotal={calcResult1.custoDiretoTotal}
-                        custoDiretoPct={calcResult1.fatias.custoDireto.pct}
-                        custoTotalCompleto={calcResult1.custoTotalCompleto}
-                        custoTotalCompletoPct={calcResult1.custoTotalCompletoPct}
-                        custoAquisicao={calcResult1.fatias.custoAquisicao?.valor}
-                        custoAquisicaoPct={calcResult1.fatias.custoAquisicao?.pct}
-                        substTributariaValor={calcResult1.fatias.substTributaria?.valor}
-                        substTributariaPct={calcResult1.fatias.substTributaria?.pct}
-                        substTributariaPctInput={calcResult1.substTributariaPct}
-                        custoFixoRateado={calcResult1.custoFixoRateado}
-                        custoFixoRateadoPct={calcResult1.fatias.custoFixoRateado?.pct}
-                        custoFixoPct={calcResult1.custoFixoPct}
-                        custoFixoValor={calcResult1.fatias.custoFixo?.valor}
-                        custoFixoPctDoPreco={calcResult1.fatias.custoFixo?.pct}
-                        despesaFixaValor={calcResult1.fatias.despesaFixa.valor}
-                        despesaFixaPct={calcResult1.fatias.despesaFixa.pct}
-                        custosVariaveisValor={calcResult1.fatias.custosVariaveis.valor}
-                        custosVariaveisPct={calcResult1.fatias.custosVariaveis.pct}
-                        lucroUnitario={calcResult1.lucroUnitario}
-                        lucroPct={calcResult1.fatias.lucro.pct}
-                        totalPct={calcResult1.fatias.totalPct}
-                        detalheVariaveis={calcResult1.fatias.custosVariaveis.detalhe}
-                      />
+                      <details className="rounded-xl border border-slate-200 bg-white p-3">
+                        <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+                          Ver composição detalhada do preço
+                        </summary>
+                        <div className="pt-4">
+                          <PricingWaterfallCard
+                            salePrice={calcResult1.salePrice}
+                            custoDiretoTotal={calcResult1.custoDiretoTotal}
+                            custoDiretoPct={calcResult1.fatias.custoDireto.pct}
+                            custoTotalCompleto={calcResult1.custoTotalCompleto}
+                            custoTotalCompletoPct={calcResult1.custoTotalCompletoPct}
+                            custoAquisicao={calcResult1.fatias.custoAquisicao?.valor}
+                            custoAquisicaoPct={calcResult1.fatias.custoAquisicao?.pct}
+                            substTributariaValor={calcResult1.fatias.substTributaria?.valor}
+                            substTributariaPct={calcResult1.fatias.substTributaria?.pct}
+                            substTributariaPctInput={calcResult1.substTributariaPct}
+                            custoFixoRateado={calcResult1.custoFixoRateado}
+                            custoFixoRateadoPct={calcResult1.fatias.custoFixoRateado?.pct}
+                            custoFixoPct={calcResult1.custoFixoPct}
+                            custoFixoValor={calcResult1.fatias.custoFixo?.valor}
+                            custoFixoPctDoPreco={calcResult1.fatias.custoFixo?.pct}
+                            despesaFixaValor={calcResult1.fatias.despesaFixa.valor}
+                            despesaFixaPct={calcResult1.fatias.despesaFixa.pct}
+                            custosVariaveisValor={calcResult1.fatias.custosVariaveis.valor}
+                            custosVariaveisPct={calcResult1.fatias.custosVariaveis.pct}
+                            lucroUnitario={calcResult1.lucroUnitario}
+                            lucroPct={calcResult1.fatias.lucro.pct}
+                            totalPct={calcResult1.fatias.totalPct}
+                            detalheVariaveis={calcResult1.fatias.custosVariaveis.detalhe}
+                          />
+                        </div>
+                      </details>
 
                       {/* REQUISITO 4: COMPARAÇÃO COM O PREÇO ATUAL (SE HOUVER) */}
                       {existingPriceDecomp && (
@@ -1884,27 +1935,34 @@ export default function Precificacao() {
               </Card>
 
               {/* REQUISITO 1: TABELA EDITÁVEL DE FORMAS DE PAGAMENTO COM TAXAS E PARCELAS */}
-              <PaymentMethodsTableCard
-                methods={companyParams.payment_methods_tax || DEFAULT_PAYMENT_METHODS_TAX}
-                onSaveMethods={handleSavePaymentMethods}
-                saving={savingPaymentMethods}
-                currentSalePrice={calcResult1?.salePrice || 0}
-                selectedMethodId={selectedMethod1?.id}
-                onSelectMethod={(method) => {
-                  setSelectedMethod1(method)
-                  if (method) {
-                    setCardTaxPct1(String(method.taxa_pct))
-                    const cTax = method.taxa_pct
-                    const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
-                    const impSaida = parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
-                    const com = parseFloat(commissionPct1.replace(',', '.')) || 0
-                    const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
-                    setVariableExpensesTotal1(
-                      String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
-                    )
-                  }
-                }}
-              />
+              <details className="rounded-xl border border-slate-200 bg-white p-3">
+                <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+                  Alterar forma de pagamento e configurar taxas
+                </summary>
+                <div className="pt-4">
+                  <PaymentMethodsTableCard
+                    methods={companyParams.payment_methods_tax || DEFAULT_PAYMENT_METHODS_TAX}
+                    onSaveMethods={handleSavePaymentMethods}
+                    saving={savingPaymentMethods}
+                    currentSalePrice={calcResult1?.salePrice || 0}
+                    selectedMethodId={selectedMethod1?.id}
+                    onSelectMethod={(method) => {
+                      setSelectedMethod1(method)
+                      if (method) {
+                        setCardTaxPct1(String(method.taxa_pct))
+                        const cTax = method.taxa_pct
+                        const icms = parseFloat(icmsPct1.replace(',', '.')) || 0
+                        const impSaida = parseFloat(impostoSaidaPct1.replace(',', '.')) || 0
+                        const com = parseFloat(commissionPct1.replace(',', '.')) || 0
+                        const ipi = parseFloat(ipiPct1.replace(',', '.')) || 0
+                        setVariableExpensesTotal1(
+                          String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
+                        )
+                      }
+                    }}
+                  />
+                </div>
+              </details>
             </div>
           </div>
         </TabsContent>
@@ -1912,1200 +1970,10 @@ export default function Precificacao() {
         {/* ==================================================================== */}
         {/* ABA 2: PRECIFICAÇÃO AVULSA (Calculadora Livre)                       */}
         {/* ==================================================================== */}
-        <TabsContent value="avulsa" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-7 space-y-4">
-              <Card className="border-slate-200 shadow-2xs">
-                <CardHeader className="pb-3 border-b border-slate-100">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-indigo-600">
-                      <Calculator className="h-5 w-5" />
-                      <div>
-                        <CardTitle className="text-sm font-bold text-slate-900">
-                          Calculadora Livre de Precificação
-                        </CardTitle>
-                        <CardDescription className="text-xs text-slate-500">
-                          Calcule preços e simule cotações sem vincular a nenhum produto
-                        </CardDescription>
-                      </div>
-                    </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                        <button
-                          type="button"
-                          onClick={() => setCurrency2('BRL')}
-                          className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
-                            currency2 === 'BRL'
-                              ? 'bg-white text-indigo-700 shadow-xs'
-                              : 'text-slate-600'
-                          }`}
-                        >
-                          R$
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setCurrency2('USD')}
-                          className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
-                            currency2 === 'USD'
-                              ? 'bg-white text-emerald-700 shadow-xs'
-                              : 'text-slate-600'
-                          }`}
-                        >
-                          US$
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-0.5">
-                        <span className="text-[11px] font-semibold text-emerald-800">
-                          Cotação US$:
-                        </span>
-                        <span className="text-[11px] font-mono text-emerald-700 font-bold">R$</span>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={dolarInputLive}
-                          onChange={(e) => setDolarInputLive(e.target.value)}
-                          className="h-6 w-16 text-xs font-mono font-bold text-emerald-900 bg-white border-emerald-300 px-1 py-0"
-                          title="Cotação do Dólar do dia (converte automaticamente)"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="pt-4 space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
-                        <span>Custo Base ({currency2}) *</span>
-                        {currency2 === 'USD' && (
-                          <span className="text-[10px] text-emerald-700 font-mono font-bold">
-                            = R${' '}
-                            {(
-                              (parseFloat(costInput2.replace(',', '.')) || 0) * cotacaoDolarAtiva
-                            ).toFixed(2)}
-                          </span>
-                        )}
-                      </Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={costInput2}
-                        onChange={(e) => setCostInput2(e.target.value)}
-                        className="h-9 font-mono text-xs font-bold"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold text-slate-700">
-                        Frete Estimado (R$)
-                      </Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={freightInput2}
-                        onChange={(e) => setFreightInput2(e.target.value)}
-                        className="h-9 font-mono text-xs"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold text-slate-700">
-                        Custo Adicional 1 (R$)
-                      </Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={extraCost2A}
-                        onChange={(e) => setExtraCost2A(e.target.value)}
-                        className="h-9 font-mono text-xs"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold text-slate-700">
-                        Custo Adicional 2 (R$)
-                      </Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={extraCost2B}
-                        onChange={(e) => setExtraCost2B(e.target.value)}
-                        className="h-9 font-mono text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  {/* CARD / LINHA DESTAQUE: CUSTO TOTAL DO PRODUTO (TODOS OS CUSTOS SOMADOS) */}
-                  <div className="p-3 bg-gradient-to-r from-amber-50/90 via-violet-50/80 to-indigo-50/80 rounded-xl border border-amber-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
-                        R$
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-amber-950">
-                            Custo Total do Produto:
-                          </span>
-                          <span className="text-base font-extrabold font-mono text-amber-950">
-                            {formatCurrencyBRL(calcResult2?.custoTotalCompleto || 0)}
-                          </span>
-                          {(calcResult2?.custoTotalCompletoPct || 0) > 0 && (
-                            <span className="text-[11px] font-mono text-amber-800 font-bold">
-                              ({calcResult2?.custoTotalCompletoPct}%)
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-slate-600">
-                          Todos os custos somados (Direto + Frete + Extras
-                          {(calcResult2?.substTributariaValor || 0) > 0 && (
-                            <span className="text-violet-800 font-semibold"> + ST</span>
-                          )}
-                          {(calcResult2?.fatias.custoFixo.valor || 0) > 0 && (
-                            <span className="text-teal-800 font-semibold"> + C. Fixo</span>
-                          )}
-                          {' + Desp. Fixa + Var.'}) — separa <strong>apenas o Lucro Líquido</strong>{' '}
-                          (
-                          <strong className="text-emerald-700">
-                            {formatCurrencyBRL(calcResult2?.lucroUnitario || 0)}
-                          </strong>
-                          )
-                        </p>
-                      </div>
-                    </div>
-                    <Badge className="self-start sm:self-auto bg-amber-600/90 text-white text-[10px] font-mono">
-                      Custo Completo
-                    </Badge>
-                  </div>
-                  {/* Alíquotas e Margem com Custo Fixo % e Custo Variável % editáveis */}
-                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
-                    {/* Componentes Principais da Fórmula */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-2.5 bg-white rounded-lg border border-indigo-100 shadow-2xs">
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-bold text-sky-900 flex items-center justify-between">
-                          <span>CUSTO FIXO %</span>
-                          <span className="text-[10px] text-sky-600 font-mono font-normal">
-                            % Preço
-                          </span>
-                        </Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={custoFixoPct2}
-                          onChange={(e) => setCustoFixoPct2(e.target.value)}
-                          className="h-8 font-mono text-xs font-bold text-sky-800 bg-sky-50/50 border-sky-200"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-bold text-indigo-900 flex items-center justify-between">
-                          <span>CUSTO VARIÁVEL %</span>
-                          <span className="text-[10px] text-indigo-600 font-mono font-normal">
-                            Soma variáveis
-                          </span>
-                        </Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={variableExpensesTotal2}
-                          onChange={(e) => setVariableExpensesTotal2(e.target.value)}
-                          className="h-8 font-mono text-xs font-bold text-indigo-800 bg-indigo-50/50 border-indigo-200"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-bold text-emerald-900 flex items-center justify-between">
-                          <span>LUCRATIVIDADE %</span>
-                          <span className="text-[10px] text-emerald-600 font-mono font-normal">
-                            Alvo
-                          </span>
-                        </Label>
-                        <Input
-                          type="number"
-                          step="0.5"
-                          value={marginInput2}
-                          onChange={(e) => setMarginInput2(e.target.value)}
-                          className="h-8 font-mono text-xs font-bold text-emerald-800 bg-emerald-50/60 border-emerald-300"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Detalhamento das taxas componentes */}
-                    <div className="space-y-1.5 pt-1">
-                      <div className="flex items-center justify-between text-[11px] text-slate-600 font-semibold">
-                        <span>Composição dos Custos Variáveis:</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const cTax = parseFloat(cardTaxPct2.replace(',', '.')) || 0
-                            const icms = parseFloat(icmsPct2.replace(',', '.')) || 0
-                            const impSaida = parseFloat(impostoSaidaPct2.replace(',', '.')) || 0
-                            const com = parseFloat(commissionPct2.replace(',', '.')) || 0
-                            const ipi = parseFloat(ipiPct2.replace(',', '.')) || 0
-                            const soma = Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10
-                            setVariableExpensesTotal2(String(soma))
-                          }}
-                          className="text-[10px] text-indigo-600 hover:underline font-normal"
-                        >
-                          Sincronizar soma com Custo Variável %
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-2">
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-semibold text-slate-600">
-                            Despesa Fixa %
-                          </Label>{' '}
-                          <Input
-                            type="number"
-                            step="0.1"
-                            value={fixedExpensesPct2}
-                            onChange={(e) => setFixedExpensesPct2(e.target.value)}
-                            className="h-8 font-mono text-xs"
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-semibold text-slate-600 flex items-center justify-between">
-                            <span>Taxa Cartão %</span>
-                            {selectedMethod2 && (
-                              <span className="text-[9px] text-emerald-600 font-bold">tab</span>
-                            )}
-                          </Label>
-                          <Input
-                            type="number"
-                            step="0.1"
-                            value={cardTaxPct2}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              setCardTaxPct2(val)
-                              const cTax = parseFloat(val.replace(',', '.')) || 0
-                              const icms = parseFloat(icmsPct2.replace(',', '.')) || 0
-                              const impSaida = parseFloat(impostoSaidaPct2.replace(',', '.')) || 0
-                              const com = parseFloat(commissionPct2.replace(',', '.')) || 0
-                              const ipi = parseFloat(ipiPct2.replace(',', '.')) || 0
-                              setVariableExpensesTotal2(
-                                String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
-                              )
-                            }}
-                            className="h-8 font-mono text-xs"
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-semibold text-slate-600">
-                            ICMS/Simples %
-                          </Label>
-                          <Input
-                            type="number"
-                            step="0.1"
-                            value={icmsPct2}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              setIcmsPct2(val)
-                              const cTax = parseFloat(cardTaxPct2.replace(',', '.')) || 0
-                              const icms = parseFloat(val.replace(',', '.')) || 0
-                              const impSaida = parseFloat(impostoSaidaPct2.replace(',', '.')) || 0
-                              const com = parseFloat(commissionPct2.replace(',', '.')) || 0
-                              const ipi = parseFloat(ipiPct2.replace(',', '.')) || 0
-                              setVariableExpensesTotal2(
-                                String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
-                              )
-                            }}
-                            className="h-8 font-mono text-xs"
-                          />
-                        </div>
-
-                        {/* REQUISITO 2: CAMPO IMPOSTO DE SAÍDA % */}
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-bold text-indigo-900">
-                            Imposto Saída % *
-                          </Label>
-                          <Input
-                            type="number"
-                            step="0.1"
-                            value={impostoSaidaPct2}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              setImpostoSaidaPct2(val)
-                              const cTax = parseFloat(cardTaxPct2.replace(',', '.')) || 0
-                              const icms = parseFloat(icmsPct2.replace(',', '.')) || 0
-                              const impSaida = parseFloat(val.replace(',', '.')) || 0
-                              const com = parseFloat(commissionPct2.replace(',', '.')) || 0
-                              const ipi = parseFloat(ipiPct2.replace(',', '.')) || 0
-                              setVariableExpensesTotal2(
-                                String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
-                              )
-                            }}
-                            className="h-8 font-mono text-xs font-bold text-indigo-700 bg-indigo-50/50 border-indigo-200"
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-semibold text-slate-600">
-                            Comissão %
-                          </Label>
-                          <Input
-                            type="number"
-                            step="0.1"
-                            value={commissionPct2}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              setCommissionPct2(val)
-                              const cTax = parseFloat(cardTaxPct2.replace(',', '.')) || 0
-                              const icms = parseFloat(icmsPct2.replace(',', '.')) || 0
-                              const impSaida = parseFloat(impostoSaidaPct2.replace(',', '.')) || 0
-                              const com = parseFloat(val.replace(',', '.')) || 0
-                              const ipi = parseFloat(ipiPct2.replace(',', '.')) || 0
-                              setVariableExpensesTotal2(
-                                String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
-                              )
-                            }}
-                            className="h-8 font-mono text-xs"
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-semibold text-slate-600">
-                            IPI / Outros %
-                          </Label>
-                          <Input
-                            type="number"
-                            step="0.1"
-                            value={ipiPct2}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              setIpiPct2(val)
-                              const cTax = parseFloat(cardTaxPct2.replace(',', '.')) || 0
-                              const icms = parseFloat(icmsPct2.replace(',', '.')) || 0
-                              const impSaida = parseFloat(impostoSaidaPct2.replace(',', '.')) || 0
-                              const com = parseFloat(commissionPct2.replace(',', '.')) || 0
-                              const ipi = parseFloat(val.replace(',', '.')) || 0
-                              setVariableExpensesTotal2(
-                                String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
-                              )
-                            }}
-                            className="h-8 font-mono text-xs"
-                          />
-                        </div>
-
-                        {/* REQUISITO 1: CAMPO SUBST. TRIBUTÁRIA % NA ABA AVULSA */}
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-bold text-violet-900 flex items-center justify-between">
-                            <span>Subst. Trib. %</span>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <HelpCircle className="h-3 w-3 text-violet-500 cursor-pointer" />
-                                </TooltipTrigger>
-                                <TooltipContent className="text-xs max-w-xs">
-                                  Substituição Tributária incidente no custo do item. Entra no Custo
-                                  Total do Produto e no Markup.
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </Label>
-                          <Input
-                            type="number"
-                            step="0.1"
-                            value={substTributariaPct2}
-                            onChange={(e) => setSubstTributariaPct2(e.target.value)}
-                            className="h-8 font-mono text-xs font-bold text-violet-900 bg-violet-50/60 border-violet-300"
-                            placeholder="0.0"
-                          />
-                        </div>
-                      </div>{' '}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Resultado Modo 2 */}
-            <div className="lg:col-span-5 space-y-4">
-              <Card className="border-slate-200 shadow-sm overflow-hidden">
-                <CardHeader className="bg-slate-900 text-white pb-3 pt-4">
-                  <CardTitle className="text-sm font-bold flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <TrendingUp className="h-4 w-4 text-emerald-400" />
-                      Resultado da Calculadora
-                    </span>
-                    {calcResult2?.isPossible && (
-                      <Badge className="bg-emerald-500 text-white font-mono text-[10px]">
-                        Markup: {calcResult2.markupMultiplicador}×
-                      </Badge>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-
-                <CardContent className="pt-4 space-y-4">
-                  {calcResult2?.isPossible ? (
-                    <>
-                      <div className="text-center py-3 bg-emerald-50/60 rounded-xl border border-emerald-100">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 block mb-1">
-                          Preço Final Sugerido
-                        </span>
-                        <div className="text-3xl font-extrabold text-emerald-700 font-mono tabular-nums">
-                          {formatCurrencyBRL(calcResult2.salePrice)}
-                        </div>
-                        <p className="text-[11px] text-emerald-800 font-medium mt-1">
-                          Lucro líquido:{' '}
-                          <strong className="font-mono">
-                            {formatCurrencyBRL(calcResult2.lucroUnitario)}
-                          </strong>
-                        </p>
-                      </div>
-
-                      <PricingWaterfallCard
-                        salePrice={calcResult2.salePrice}
-                        custoDiretoTotal={calcResult2.custoDiretoTotal}
-                        custoDiretoPct={calcResult2.fatias.custoDireto.pct}
-                        custoTotalCompleto={calcResult2.custoTotalCompleto}
-                        custoTotalCompletoPct={calcResult2.custoTotalCompletoPct}
-                        custoAquisicao={calcResult2.fatias.custoAquisicao?.valor}
-                        custoAquisicaoPct={calcResult2.fatias.custoAquisicao?.pct}
-                        substTributariaValor={calcResult2.fatias.substTributaria?.valor}
-                        substTributariaPct={calcResult2.fatias.substTributaria?.pct}
-                        substTributariaPctInput={calcResult2.substTributariaPct}
-                        custoFixoRateado={calcResult2.custoFixoRateado}
-                        custoFixoRateadoPct={calcResult2.fatias.custoFixoRateado?.pct}
-                        custoFixoPct={calcResult2.custoFixoPct}
-                        custoFixoValor={calcResult2.fatias.custoFixo?.valor}
-                        custoFixoPctDoPreco={calcResult2.fatias.custoFixo?.pct}
-                        despesaFixaValor={calcResult2.fatias.despesaFixa.valor}
-                        despesaFixaPct={calcResult2.fatias.despesaFixa.pct}
-                        custosVariaveisValor={calcResult2.fatias.custosVariaveis.valor}
-                        custosVariaveisPct={calcResult2.fatias.custosVariaveis.pct}
-                        lucroUnitario={calcResult2.lucroUnitario}
-                        lucroPct={calcResult2.fatias.lucro.pct}
-                        totalPct={calcResult2.fatias.totalPct}
-                        detalheVariaveis={calcResult2.fatias.custosVariaveis.detalhe}
-                      />
-
-                      {/* Seletor de Cliente no Modo 2 (Avulsa) */}
-                      {renderCustomerSelector()}
-
-                      <div className="pt-2 space-y-2">
-                        <Button
-                          type="button"
-                          disabled={!calcResult2?.isPossible || !calcResult2?.salePrice}
-                          onClick={async () => {
-                            const resolvedCust = await resolveCustomerForOrcamento()
-                            const item = {
-                              tipo: 'produto',
-                              id_produto: null,
-                              descricao: 'Item Avulso Precificado',
-                              quantidade: 1,
-                              valor_unitario: calcResult2?.salePrice || 0,
-                              valor_total_item: calcResult2?.salePrice || 0,
-                            }
-                            navigate('/orcamentos/novo', {
-                              state: {
-                                fromPricing: true,
-                                item,
-                                pricingItem: item,
-                                customer_id: resolvedCust.customer_id,
-                                customer_name: resolvedCust.customer_name,
-                                customer_phone: resolvedCust.customer_phone,
-                                responsavel_id: user?.id,
-                                cliente: resolvedCust.customer_id
-                                  ? {
-                                      id: resolvedCust.customer_id,
-                                      name: resolvedCust.customer_name,
-                                      phone: resolvedCust.customer_phone,
-                                    }
-                                  : resolvedCust.customer_name
-                                    ? {
-                                        id: '',
-                                        name: resolvedCust.customer_name,
-                                        phone: resolvedCust.customer_phone,
-                                      }
-                                    : null,
-                              },
-                            })
-                          }}
-                          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 gap-1.5"
-                        >
-                          <FileText className="h-4 w-4" />
-                          <span>Enviar para Orçamento</span>
-                        </Button>
-
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => handleCopySummary(calcResult2, 'Precificação Avulsa')}
-                          className="w-full text-slate-700 font-bold h-9 gap-1.5 border-slate-200"
-                        >
-                          <Copy className="h-4 w-4" />
-                          <span>Copiar Resultado</span>
-                        </Button>
-
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={async () => {
-                            try {
-                              await createPricingHistory({
-                                cost: calcResult2.custoDiretoTotal,
-                                despesas_pct: calcResult2.despesasPct,
-                                markup_pct: calcResult2.markupSobreCustoPct,
-                                margem_pct: calcResult2.lucratividadePct,
-                                sale_price: calcResult2.salePrice,
-                                lucro_unitario: calcResult2.lucroUnitario,
-                                mode: 'avulsa',
-                                frete: calcResult2.frete,
-                                custos_adicionais:
-                                  calcResult2.custoAdicional1 + calcResult2.custoAdicional2,
-                                custos_variaveis_pct: calcResult2.custosVariaveisPct,
-                                despesa_fixa_pct: calcResult2.despesaFixaPct,
-                                custo_moeda: calcResult2.moeda,
-                                cost_usd: calcResult2.custoProdutoUSD,
-                                cotacao_dolar: calcResult2.cotacaoDolar,
-                                taxa_cartao_pct: calcResult2.taxaCartaoPct,
-                                icms_pct: calcResult2.icmsPct,
-                                imposto_saida_pct: calcResult2.impostoSaidaPct,
-                                payment_method_nome: selectedMethod2?.nome,
-                                comissao_pct: calcResult2.comissaoPct,
-                                ipi_pct: calcResult2.ipiPct,
-                                subst_tributaria_pct: calcResult2.substTributariaPct,
-                                custo_fixo_pct: calcResult2.custoFixoPct,
-                                custo_fixo_rateado_unitario: calcResult2.custoFixoRateado,
-                                custo_fixo_mensal: companyParams.custo_fixo_mensal,
-                                volume_estimado_servicos_mes:
-                                  companyParams.volume_estimado_servicos_mes,
-                              })
-                              toast({ title: 'Cálculo salvo no histórico!' })
-                              loadHistory()
-                            } catch {
-                              toast({
-                                title: 'Erro ao salvar no histórico',
-                                variant: 'destructive',
-                              })
-                            }
-                          }}
-                          className="w-full text-xs font-semibold text-slate-700 hover:bg-slate-50 h-9"
-                        >
-                          <span>Salvar no Histórico de Precificações</span>
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-center py-8 text-rose-600 text-xs space-y-1">
-                      <AlertCircle className="h-6 w-6 mx-auto text-rose-500" />
-                      <p className="font-bold">Valores fora dos parâmetros</p>
-                      <p className="text-slate-500">{calcResult2?.errorMessage}</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* TABELA DE FORMAS DE PAGAMENTO NO MODO AVULSA */}
-              <PaymentMethodsTableCard
-                methods={companyParams.payment_methods_tax || DEFAULT_PAYMENT_METHODS_TAX}
-                onSaveMethods={handleSavePaymentMethods}
-                saving={savingPaymentMethods}
-                currentSalePrice={calcResult2?.salePrice || 0}
-                selectedMethodId={selectedMethod2?.id}
-                onSelectMethod={(method) => {
-                  setSelectedMethod2(method)
-                  if (method) {
-                    setCardTaxPct2(String(method.taxa_pct))
-                    const cTax = method.taxa_pct
-                    const icms = parseFloat(icmsPct2.replace(',', '.')) || 0
-                    const impSaida = parseFloat(impostoSaidaPct2.replace(',', '.')) || 0
-                    const com = parseFloat(commissionPct2.replace(',', '.')) || 0
-                    const ipi = parseFloat(ipiPct2.replace(',', '.')) || 0
-                    setVariableExpensesTotal2(
-                      String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
-                    )
-                  }
-                }}
-              />
-            </div>
-          </div>
-        </TabsContent>
         {/* ==================================================================== */}
         {/* ABA 3: PRECIFICAÇÃO RÁPIDA (Com Vínculo ou Novo Produto)            */}
         {/* ==================================================================== */}
-        <TabsContent value="rapida" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-7 space-y-4">
-              <Card className="border-slate-200 shadow-2xs">
-                <CardHeader className="pb-3 border-b border-slate-100">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-sm font-bold text-slate-900">
-                        Precificação Rápida
-                      </CardTitle>
-                      <CardDescription className="text-xs text-slate-500">
-                        Calcule primeiro e vincule a um produto existente ou cadastre um novo na
-                        hora
-                      </CardDescription>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      {linkedProduct3 && (
-                        <Badge className="bg-indigo-600 text-white text-[11px] font-bold">
-                          {linkedProduct3.name}
-                        </Badge>
-                      )}
-                      <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                        <button
-                          type="button"
-                          onClick={() => setCurrency3('BRL')}
-                          className={`text-xs px-2 py-0.5 rounded-md font-bold ${
-                            currency3 === 'BRL'
-                              ? 'bg-white text-indigo-700 shadow-xs'
-                              : 'text-slate-600'
-                          }`}
-                        >
-                          R$
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setCurrency3('USD')}
-                          className={`text-xs px-2 py-0.5 rounded-md font-bold ${
-                            currency3 === 'USD'
-                              ? 'bg-white text-emerald-700 shadow-xs'
-                              : 'text-slate-600'
-                          }`}
-                        >
-                          US$
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-0.5">
-                        <span className="text-[11px] font-semibold text-emerald-800">
-                          Cotação US$:
-                        </span>
-                        <span className="text-[11px] font-mono text-emerald-700 font-bold">R$</span>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={dolarInputLive}
-                          onChange={(e) => setDolarInputLive(e.target.value)}
-                          className="h-6 w-16 text-xs font-mono font-bold text-emerald-900 bg-white border-emerald-300 px-1 py-0"
-                          title="Cotação do Dólar do dia (converte automaticamente)"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="pt-4 space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
-                        <span>Custo Estimado ({currency3}) *</span>
-                        {currency3 === 'USD' && (
-                          <span className="text-[10px] text-emerald-700 font-mono font-bold">
-                            = R${' '}
-                            {(
-                              (parseFloat(costInput3.replace(',', '.')) || 0) * cotacaoDolarAtiva
-                            ).toFixed(2)}
-                          </span>
-                        )}
-                      </Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={costInput3}
-                        onChange={(e) => setCostInput3(e.target.value)}
-                        className="h-9 font-mono text-xs font-bold"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold text-slate-700">Frete (R$)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={freightInput3}
-                        onChange={(e) => setFreightInput3(e.target.value)}
-                        className="h-9 font-mono text-xs"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold text-slate-700">
-                        Custos Extras (R$)
-                      </Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={extraCost3A}
-                        onChange={(e) => setExtraCost3A(e.target.value)}
-                        className="h-9 font-mono text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  {/* CARD / LINHA DESTAQUE: CUSTO TOTAL DO PRODUTO NA ABA RÁPIDA (TODOS OS CUSTOS SOMADOS) */}
-                  <div className="p-3 bg-gradient-to-r from-amber-50/90 via-violet-50/80 to-indigo-50/80 rounded-xl border border-amber-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
-                        R$
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-amber-950">
-                            Custo Total do Produto:
-                          </span>
-                          <span className="text-base font-extrabold font-mono text-amber-950">
-                            {formatCurrencyBRL(calcResult3?.custoTotalCompleto || 0)}
-                          </span>
-                          {(calcResult3?.custoTotalCompletoPct || 0) > 0 && (
-                            <span className="text-[11px] font-mono text-amber-800 font-bold">
-                              ({calcResult3?.custoTotalCompletoPct}%)
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-slate-600">
-                          Todos os custos somados (Direto + Frete + Extras
-                          {(calcResult3?.substTributariaValor || 0) > 0 && (
-                            <span className="text-violet-800 font-semibold"> + ST</span>
-                          )}
-                          {(calcResult3?.fatias.custoFixo.valor || 0) > 0 && (
-                            <span className="text-teal-800 font-semibold"> + C. Fixo</span>
-                          )}
-                          {' + Desp. Fixa + Var.'}) — separa <strong>apenas o Lucro Líquido</strong>{' '}
-                          (
-                          <strong className="text-emerald-700">
-                            {formatCurrencyBRL(calcResult3?.lucroUnitario || 0)}
-                          </strong>
-                          )
-                        </p>
-                      </div>
-                    </div>
-                    <Badge className="self-start sm:self-auto bg-amber-600/90 text-white text-[10px] font-mono">
-                      Custo Completo
-                    </Badge>
-                  </div>
-
-                  {/* Parâmetros de Markup Modo 3: Custo Fixo %, Custo Variável %, Lucratividade % */}
-                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-2.5 bg-white rounded-lg border border-indigo-100 shadow-2xs">
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-bold text-sky-900 flex items-center justify-between">
-                          <span>CUSTO FIXO %</span>
-                          <span className="text-[10px] text-sky-600 font-mono font-normal">
-                            % Preço
-                          </span>
-                        </Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={custoFixoPct3}
-                          onChange={(e) => setCustoFixoPct3(e.target.value)}
-                          className="h-8 font-mono text-xs font-bold text-sky-800 bg-sky-50/50 border-sky-200"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-bold text-indigo-900 flex items-center justify-between">
-                          <span>CUSTO VARIÁVEL %</span>
-                        </Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={variableExpensesTotal3}
-                          onChange={(e) => setVariableExpensesTotal3(e.target.value)}
-                          className="h-8 font-mono text-xs font-bold text-indigo-800 bg-indigo-50/50 border-indigo-200"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-bold text-emerald-900 flex items-center justify-between">
-                          <span>LUCRATIVIDADE %</span>
-                        </Label>
-                        <Input
-                          type="number"
-                          step="0.5"
-                          value={marginInput3}
-                          onChange={(e) => setMarginInput3(e.target.value)}
-                          className="h-8 font-mono text-xs font-bold text-emerald-800 bg-emerald-50/60 border-emerald-300"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-2 pt-1">
-                      <div className="space-y-1">
-                        <Label className="text-[10px] font-semibold text-slate-600">
-                          Despesa Fixa %
-                        </Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={fixedExpensesPct3}
-                          onChange={(e) => setFixedExpensesPct3(e.target.value)}
-                          className="h-8 font-mono text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px] font-semibold text-slate-600">
-                          Taxa Cartão %
-                        </Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={cardTaxPct3}
-                          onChange={(e) => {
-                            const val = e.target.value
-                            setCardTaxPct3(val)
-                            const cTax = parseFloat(val.replace(',', '.')) || 0
-                            const icms = parseFloat(icmsPct3.replace(',', '.')) || 0
-                            const impSaida = parseFloat(impostoSaidaPct3.replace(',', '.')) || 0
-                            const com = parseFloat(commissionPct3.replace(',', '.')) || 0
-                            const ipi = parseFloat(ipiPct3.replace(',', '.')) || 0
-                            setVariableExpensesTotal3(
-                              String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
-                            )
-                          }}
-                          className="h-8 font-mono text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px] font-semibold text-slate-600">
-                          ICMS/Simples %
-                        </Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={icmsPct3}
-                          onChange={(e) => {
-                            const val = e.target.value
-                            setIcmsPct3(val)
-                            const cTax = parseFloat(cardTaxPct3.replace(',', '.')) || 0
-                            const icms = parseFloat(val.replace(',', '.')) || 0
-                            const impSaida = parseFloat(impostoSaidaPct3.replace(',', '.')) || 0
-                            const com = parseFloat(commissionPct3.replace(',', '.')) || 0
-                            const ipi = parseFloat(ipiPct3.replace(',', '.')) || 0
-                            setVariableExpensesTotal3(
-                              String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
-                            )
-                          }}
-                          className="h-8 font-mono text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px] font-bold text-indigo-900">
-                          Imp. Saída % *
-                        </Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={impostoSaidaPct3}
-                          onChange={(e) => {
-                            const val = e.target.value
-                            setImpostoSaidaPct3(val)
-                            const cTax = parseFloat(cardTaxPct3.replace(',', '.')) || 0
-                            const icms = parseFloat(icmsPct3.replace(',', '.')) || 0
-                            const impSaida = parseFloat(val.replace(',', '.')) || 0
-                            const com = parseFloat(commissionPct3.replace(',', '.')) || 0
-                            const ipi = parseFloat(ipiPct3.replace(',', '.')) || 0
-                            setVariableExpensesTotal3(
-                              String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
-                            )
-                          }}
-                          className="h-8 font-mono text-xs font-bold text-indigo-700 bg-indigo-50/50 border-indigo-200"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px] font-semibold text-slate-600">
-                          Comissão %
-                        </Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={commissionPct3}
-                          onChange={(e) => {
-                            const val = e.target.value
-                            setCommissionPct3(val)
-                            const cTax = parseFloat(cardTaxPct3.replace(',', '.')) || 0
-                            const icms = parseFloat(icmsPct3.replace(',', '.')) || 0
-                            const impSaida = parseFloat(impostoSaidaPct3.replace(',', '.')) || 0
-                            const com = parseFloat(val.replace(',', '.')) || 0
-                            const ipi = parseFloat(ipiPct3.replace(',', '.')) || 0
-                            setVariableExpensesTotal3(
-                              String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
-                            )
-                          }}
-                          className="h-8 font-mono text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px] font-semibold text-slate-600">IPI %</Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={ipiPct3}
-                          onChange={(e) => {
-                            const val = e.target.value
-                            setIpiPct3(val)
-                            const cTax = parseFloat(cardTaxPct3.replace(',', '.')) || 0
-                            const icms = parseFloat(icmsPct3.replace(',', '.')) || 0
-                            const impSaida = parseFloat(impostoSaidaPct3.replace(',', '.')) || 0
-                            const com = parseFloat(commissionPct3.replace(',', '.')) || 0
-                            const ipi = parseFloat(val.replace(',', '.')) || 0
-                            setVariableExpensesTotal3(
-                              String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
-                            )
-                          }}
-                          className="h-8 font-mono text-xs"
-                        />
-                      </div>
-
-                      {/* REQUISITO 1: CAMPO SUBST. TRIBUTÁRIA % NA ABA RÁPIDA */}
-                      <div className="space-y-1">
-                        <Label className="text-[10px] font-bold text-violet-900 flex items-center justify-between">
-                          <span>Subst. Trib. %</span>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <HelpCircle className="h-3 w-3 text-violet-500 cursor-pointer" />
-                              </TooltipTrigger>
-                              <TooltipContent className="text-xs max-w-xs">
-                                Substituição Tributária incidente no custo de aquisição. Entra no
-                                Custo Total do Produto e no Markup.
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={substTributariaPct3}
-                          onChange={(e) => setSubstTributariaPct3(e.target.value)}
-                          className="h-8 font-mono text-xs font-bold text-violet-900 bg-violet-50/60 border-violet-300"
-                          placeholder="0.0"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Botões de Ação do Modo Rápido */}
-                  <div className="pt-2 border-t border-slate-100 space-y-2">
-                    <Label className="text-xs font-bold text-slate-700 block">
-                      Ações de Vinculação:
-                    </Label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setSearchProductModalOpen(true)
-                          handleSearchProducts('')
-                        }}
-                        className="h-9 text-xs font-semibold gap-1.5 border-slate-200 hover:bg-slate-50"
-                      >
-                        <Search className="h-3.5 w-3.5 text-indigo-600" />
-                        <span>Vincular a produto existente</span>
-                      </Button>
-
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          setNewProductName('')
-                          setNewProductCategory('Peças')
-                          setNewProductSku('')
-                          setNewProductCost(String(calcResult3?.custoDiretoTotal || costInput3))
-                          setNewProductModalOpen(true)
-                        }}
-                        className="h-9 text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        <span>Criar novo produto na hora</span>
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Resultado Modo 3 */}
-            <div className="lg:col-span-5 space-y-4">
-              <Card className="border-slate-200 shadow-sm overflow-hidden">
-                <CardHeader className="bg-slate-900 text-white pb-3 pt-4">
-                  <CardTitle className="text-sm font-bold flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <TrendingUp className="h-4 w-4 text-emerald-400" />
-                      Resultado Rápido
-                    </span>
-                    {calcResult3?.isPossible && (
-                      <Badge className="bg-emerald-500 text-white font-mono text-[10px]">
-                        Markup: {calcResult3.markupMultiplicador}×
-                      </Badge>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-
-                <CardContent className="pt-4 space-y-4">
-                  {calcResult3?.isPossible ? (
-                    <>
-                      <div className="text-center py-3 bg-emerald-50/60 rounded-xl border border-emerald-100">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 block mb-1">
-                          Preço Sugerido
-                        </span>
-                        <div className="text-3xl font-extrabold text-emerald-700 font-mono tabular-nums">
-                          {formatCurrencyBRL(calcResult3.salePrice)}
-                        </div>
-                        <p className="text-[11px] text-emerald-800 font-medium mt-1">
-                          Lucro líquido:{' '}
-                          <strong className="font-mono">
-                            {formatCurrencyBRL(calcResult3.lucroUnitario)}
-                          </strong>
-                        </p>
-                      </div>
-
-                      <PricingWaterfallCard
-                        salePrice={calcResult3.salePrice}
-                        custoDiretoTotal={calcResult3.custoDiretoTotal}
-                        custoDiretoPct={calcResult3.fatias.custoDireto.pct}
-                        custoTotalCompleto={calcResult3.custoTotalCompleto}
-                        custoTotalCompletoPct={calcResult3.custoTotalCompletoPct}
-                        custoAquisicao={calcResult3.fatias.custoAquisicao?.valor}
-                        custoAquisicaoPct={calcResult3.fatias.custoAquisicao?.pct}
-                        substTributariaValor={calcResult3.fatias.substTributaria?.valor}
-                        substTributariaPct={calcResult3.fatias.substTributaria?.pct}
-                        substTributariaPctInput={calcResult3.substTributariaPct}
-                        custoFixoRateado={calcResult3.custoFixoRateado}
-                        custoFixoRateadoPct={calcResult3.fatias.custoFixoRateado?.pct}
-                        custoFixoPct={calcResult3.custoFixoPct}
-                        custoFixoValor={calcResult3.fatias.custoFixo?.valor}
-                        custoFixoPctDoPreco={calcResult3.fatias.custoFixo?.pct}
-                        despesaFixaValor={calcResult3.fatias.despesaFixa.valor}
-                        despesaFixaPct={calcResult3.fatias.despesaFixa.pct}
-                        custosVariaveisValor={calcResult3.fatias.custosVariaveis.valor}
-                        custosVariaveisPct={calcResult3.fatias.custosVariaveis.pct}
-                        lucroUnitario={calcResult3.lucroUnitario}
-                        lucroPct={calcResult3.fatias.lucro.pct}
-                        totalPct={calcResult3.fatias.totalPct}
-                        detalheVariaveis={calcResult3.fatias.custosVariaveis.detalhe}
-                      />
-
-                      {/* Seletor de Cliente no Modo 3 (Rápida) */}
-                      {renderCustomerSelector()}
-
-                      <div className="space-y-2 pt-2">
-                        <Button
-                          type="button"
-                          disabled={!calcResult3?.isPossible || !calcResult3?.salePrice}
-                          onClick={async () => {
-                            const resolvedCust = await resolveCustomerForOrcamento()
-                            const item = {
-                              tipo: 'produto',
-                              id_produto: linkedProduct3?.id || null,
-                              descricao:
-                                linkedProduct3?.name ||
-                                newProductName ||
-                                'Item Precificado (Rápida)',
-                              quantidade: 1,
-                              valor_unitario: calcResult3?.salePrice || 0,
-                              valor_total_item: calcResult3?.salePrice || 0,
-                            }
-                            navigate('/orcamentos/novo', {
-                              state: {
-                                fromPricing: true,
-                                item,
-                                pricingItem: item,
-                                customer_id: resolvedCust.customer_id,
-                                customer_name: resolvedCust.customer_name,
-                                customer_phone: resolvedCust.customer_phone,
-                                responsavel_id: user?.id,
-                                cliente: resolvedCust.customer_id
-                                  ? {
-                                      id: resolvedCust.customer_id,
-                                      name: resolvedCust.customer_name,
-                                      phone: resolvedCust.customer_phone,
-                                    }
-                                  : resolvedCust.customer_name
-                                    ? {
-                                        id: '',
-                                        name: resolvedCust.customer_name,
-                                        phone: resolvedCust.customer_phone,
-                                      }
-                                    : null,
-                              },
-                            })
-                          }}
-                          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 gap-1.5"
-                        >
-                          <FileText className="h-4 w-4" />
-                          <span>Enviar para Orçamento</span>
-                        </Button>
-
-                        {linkedProduct3 && (
-                          <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-200 space-y-2">
-                            <div className="text-xs">
-                              <span className="text-slate-600 block">Produto Vinculado:</span>
-                              <span className="font-bold text-indigo-950">
-                                {linkedProduct3.name}
-                              </span>
-                            </div>
-                            <Button
-                              type="button"
-                              onClick={() =>
-                                handleApplyPriceToProduct(linkedProduct3, calcResult3, 'rapida')
-                              }
-                              disabled={applyingPrice}
-                              className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs h-9"
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                              <span>
-                                {applyingPrice
-                                  ? 'Aplicando...'
-                                  : 'Aplicar Preço ao Produto Vinculado'}
-                              </span>
-                            </Button>
-                          </div>
-                        )}
-
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleCopySummary(calcResult3, 'Precificação Rápida')}
-                          className="w-full text-xs text-slate-600 hover:text-slate-900 gap-1.5"
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                          <span>Copiar Resumo</span>
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-center py-8 text-rose-600 text-xs">
-                      <p className="font-bold">Cálculo impossível</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* TABELA DE FORMAS DE PAGAMENTO NO MODO RÁPIDO */}
-              <PaymentMethodsTableCard
-                methods={companyParams.payment_methods_tax || DEFAULT_PAYMENT_METHODS_TAX}
-                onSaveMethods={handleSavePaymentMethods}
-                saving={savingPaymentMethods}
-                currentSalePrice={calcResult3?.salePrice || 0}
-                selectedMethodId={selectedMethod3?.id}
-                onSelectMethod={(method) => {
-                  setSelectedMethod3(method)
-                  if (method) {
-                    setCardTaxPct3(String(method.taxa_pct))
-                    const cTax = method.taxa_pct
-                    const icms = parseFloat(icmsPct3.replace(',', '.')) || 0
-                    const impSaida = parseFloat(impostoSaidaPct3.replace(',', '.')) || 0
-                    const com = parseFloat(commissionPct3.replace(',', '.')) || 0
-                    const ipi = parseFloat(ipiPct3.replace(',', '.')) || 0
-                    setVariableExpensesTotal3(
-                      String(Math.round((cTax + icms + impSaida + com + ipi) * 10) / 10),
-                    )
-                  }
-                }}
-              />
-            </div>
-          </div>
-        </TabsContent>
 
         {/* ==================================================================== */}
         {/* ABA 4: HISTÓRICO DE PRECIFICAÇÕES AMPLIADO                          */}

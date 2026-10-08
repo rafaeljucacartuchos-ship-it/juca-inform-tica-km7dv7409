@@ -1,3 +1,4 @@
+import { usePermissions } from '@/hooks/use-permissions'
 import { useState, useMemo } from 'react'
 import {
   Search,
@@ -28,10 +29,10 @@ interface SupplySlotsGridProps {
   printerModel?: string
   printerManufacturer?: string
   readOnly?: boolean
-  onToggleSlotInclusion?: (slotNumber: 1 | 2 | 3 | 4 | 5, included: boolean) => void
-  onUpdateSlotSupply?: (slotNumber: 1 | 2 | 3 | 4 | 5, supplyId: string | null) => void
+  onToggleSlotInclusion?: (slotNumber: number, included: boolean) => void
+  onUpdateSlotSupply?: (slotNumber: number, supplyId: string | null) => void
   onUpdateSlotValues?: (
-    slotNumber: 1 | 2 | 3 | 4 | 5,
+    slotNumber: number,
     price: number | null,
     yieldPages: number | null,
   ) => void
@@ -43,14 +44,16 @@ export function SupplySlotsGrid({
   allSupplies,
   printerModel,
   printerManufacturer,
-  readOnly = false,
+  readOnly: requestedReadOnly = false,
   onToggleSlotInclusion,
   onUpdateSlotSupply,
   onUpdateSlotValues,
   onOpenSupplyEditModal,
 }: SupplySlotsGridProps) {
+  const { isAdmin, hasPermission } = usePermissions()
+  const readOnly = requestedReadOnly || !isAdmin
   // Modal de seleção / troca de suprimento para um slot (modal completo de busca)
-  const [activeSlotToChange, setActiveSlotToChange] = useState<1 | 2 | 3 | 4 | 5 | null>(null)
+  const [activeSlotToChange, setActiveSlotToChange] = useState<number | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
 
   // Modal com detalhes / histórico do suprimento
@@ -139,7 +142,7 @@ export function SupplySlotsGrid({
         <div className="flex items-center gap-2">
           <Layers className="h-4 w-4 text-indigo-600" />
           <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wide">
-            Árvore de Suprimentos & Manutenção Vinculados (5 Slots)
+            Suprimentos e manutenção vinculados
           </h3>
         </div>
         <span className="text-[10px] text-slate-500 font-medium">
@@ -149,7 +152,11 @@ export function SupplySlotsGrid({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        {slots.map((slot) => {
+        {slots.map((rawSlot) => {
+          if (!Number.isInteger(rawSlot.slotNumber) || rawSlot.slotNumber < 1 || rawSlot.slotNumber > 1000) {
+            return <p key={'unsupported-' + rawSlot.slotNumber} role="alert">Este suprimento exige o cadastro ampliado. A edição nesta grade está indisponível.</p>
+          }
+          const slot = { ...rawSlot, slotNumber: rawSlot.slotNumber as number }
           const { visualStatus } = slot
 
           // ESTILOS VISUAIS CONFORME SEÇÃO 15.3
@@ -180,7 +187,7 @@ export function SupplySlotsGrid({
 
           return (
             <div
-              key={slot.slotNumber}
+              key={`${printerModel}:${slot.slotNumber}:${slot.supplyId}:${slot.valorCompra}:${slot.rendimentoPaginas}`}
               className={`rounded-xl border p-3 flex flex-col justify-between transition-all min-h-[195px] text-xs shadow-sm ${borderBgClass}`}
             >
               {/* Topo do Card */}
@@ -214,7 +221,7 @@ export function SupplySlotsGrid({
                     checked={visualStatus === 'empty' ? false : slot.included}
                     disabled={readOnly || visualStatus === 'empty'}
                     onChange={(e) => {
-                      if (onToggleSlotInclusion && visualStatus !== 'empty') {
+                      if (!readOnly && onToggleSlotInclusion && visualStatus !== 'empty') {
                         onToggleSlotInclusion(slot.slotNumber, e.target.checked)
                       }
                     }}
@@ -380,7 +387,10 @@ export function SupplySlotsGrid({
                             onBlur={(e) => {
                               const raw = e.target.value.trim().replace(',', '.')
                               const val = raw === '' ? null : parseFloat(raw)
-                              if (val !== slot.valorCompra) {
+                              if (
+                                (val === null || (Number.isFinite(val) && val >= 0)) &&
+                                val !== slot.valorCompra
+                              ) {
                                 onUpdateSlotValues(slot.slotNumber, val, slot.rendimentoPaginas)
                               }
                             }}
@@ -416,7 +426,10 @@ export function SupplySlotsGrid({
                             onBlur={(e) => {
                               const raw = e.target.value.trim()
                               const val = raw === '' ? null : parseInt(raw, 10)
-                              if (val !== slot.rendimentoPaginas) {
+                              if (
+                                (val === null || (Number.isFinite(val) && val > 0)) &&
+                                val !== slot.rendimentoPaginas
+                              ) {
                                 onUpdateSlotValues(slot.slotNumber, slot.valorCompra, val)
                               }
                             }}
@@ -446,7 +459,7 @@ export function SupplySlotsGrid({
                       <p className="text-[10px] text-rose-700 font-bold">
                         Preço ou rendimento pendente!
                       </p>
-                      {onOpenSupplyEditModal && (
+                      {!readOnly && onOpenSupplyEditModal && (
                         <Button
                           type="button"
                           variant="destructive"
