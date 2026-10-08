@@ -1,23 +1,15 @@
 /**
- * MOTOR DE PRECIFICAÇÃO DE LOCAÇÃO DE IMPRESSORAS — JUCA CARTUCHOS
- * Fonte de Verdade: Especificação Técnica (20 de setembro de 2026)
- *
- * FÓRMULAS & DIRETRIZES CANÔNICAS:
- * 1. CPP_suprimento = valor_compra / rendimento_paginas
- * 2. CPP_suprimentos = sum(slot_1 .. slot_5), nulo/vazio = 0.000000
- * 3. CPP_equipamento = valor_impressora / (vida_util_meses * producao_mensal_estimada)
- * 4. CPP_fornecedor_total = CPP_suprimentos + CPP_equipamento
- * 5. CPP_venda = CPP_fornecedor_total * mark_up_revenda (Mark-up SEMPRE aplicado ao final sobre o custo total)
- * 6. custo_mensal = producao_mensal * CPP_venda
- * 7. break_even = (locacao_B - locacao_A) / |CPP_venda_A - CPP_venda_B|
- *
- * PRECISÃO:
- * Persistência e cálculos internos em alta precisão (arredondamento para 6 casas decimais nos valores unitários de CPP).
- * Exibição gráfica e contratos arredondados para 2 casas decimais.
+ * JUCA — motor candidato para a regra aprovada da planilha.
+ * Base mensal = (referência do equipamento + Printway mensal × contrato) / payback.
+ * CPP direto = soma dos suprimentos incluídos com preço e rendimento válidos.
+ * CPP de venda = CPP direto × markup; a reserva coletiva é adicionada pela tela uma vez.
+ * Prazo contratual, payback e vida útil são parâmetros distintos.
+ * Valores internos preservam precisão; CPP comercial usa seis casas e moeda duas.
+ * Funções legadas permanecem para seus consumidores; não representam a regra nova.
  */
 
 export interface SupplySlotInput {
-  slotNumber: 1 | 2 | 3 | 4 | 5
+  slotNumber: number
   supplyId?: string | null
   modelo: string
   tipo:
@@ -101,7 +93,7 @@ export type SlotVisualStatus =
   | 'missing_price' // Vermelho: sem preço homologado
 
 export interface EnrichedSupplySlot {
-  slotNumber: 1 | 2 | 3 | 4 | 5
+  slotNumber: number
   supplyId?: string | null
   modelo: string
   tipo: string
@@ -342,12 +334,12 @@ export function calculatePricing(input: PricingEngineInput): PricingEngineResult
     errors.push('Sem suprimentos cadastrados — precificação incompleta')
   }
 
-  // PROCESSAMENTO DOS SLOTS (1 a 5)
+  // Processa todos os itens; preserva as cinco posições mínimas do formato legado.
   const enrichedSlots: EnrichedSupplySlot[] = []
   let sumSuppliesCpp = 0.0
   let hasMissingEssentialSupply = false
 
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= Math.max(5, input.supplies.length); i++) {
     const rawSlot = input.supplies[i - 1]
     const classified = classifySlotStatus(rawSlot)
     const isSlotIncluded = rawSlot?.included !== false
@@ -385,7 +377,7 @@ export function calculatePricing(input: PricingEngineInput): PricingEngineResult
     }
 
     enrichedSlots.push({
-      slotNumber: i as 1 | 2 | 3 | 4 | 5,
+      slotNumber: i,
       supplyId: rawSlot?.supplyId || null,
       modelo: rawSlot?.modelo || '',
       tipo: rawSlot?.tipo || '',
@@ -632,8 +624,46 @@ export function calculateSpreadsheetPricing(
     )
   }
 
+  // Custos obrigatórios por modelo confirmado. Referências regionais não homologadas
+  // continuam dependendo do bloqueio do cadastro; isto não é um catálogo completo.
+  // HP M130: manual c05208327; Brother: folhetos DCP-L5652DN/L5662DN/HL-L6412DW.
+  const cilindrosObrigatorios: Record<string, string> = {
+    M130FW: 'CF219A', M130NW: 'CF219A',
+    LASERJETPROMFPM130FW: 'CF219A', LASERJETPROMFPM130NW: 'CF219A',
+    DCPL5652DN: 'DR3440', DCPL5662DN: 'DR3602', HLL6412DW: 'DR3602',
+    COLORLASERJETM177FW: 'CE314A', M177FW: 'CE314A', CP1025NW: 'CE314A',
+    SLM3375FD: 'MLTR204',
+  }
+  const coresObrigatorias: Record<string, string[]> = {
+    COLORLASERJETM177FW: ['CF350A', 'CF351A', 'CF352A', 'CF353A'],
+    M177FW: ['CF350A', 'CF351A', 'CF352A', 'CF353A'],
+    CP1025NW: ['CE310A', 'CE311A', 'CE312A', 'CE313A'],
+  }
+  for (const codigo of coresObrigatorias[modelo] || []) {
+    const incluido = input.supplies.some(s => s && s.included !== false &&
+      s.tipo === 'toner' && new RegExp(codigo + '(?![0-9])').test(
+        s.modelo.toUpperCase().replace(/[^A-Z0-9]/g, '')
+      ))
+    if (!incluido) result.errors.push('Inclua o toner obrigatório ' + codigo + ' com custo e rendimento confirmados.')
+  }
+  const cilindroObrigatorio = cilindrosObrigatorios[modelo]
+  if (cilindroObrigatorio) {
+    const cilindroIncluido = input.supplies.some(s => {
+      if (!s || s.included === false || s.tipo !== 'fotocondutor') return false
+      const ref = s.modelo.toUpperCase().replace(/[^A-Z0-9]/g, '')
+      return new RegExp(cilindroObrigatorio + '(?![0-9])').test(ref)
+    })
+    if (!cilindroIncluido) result.errors.push(
+      'Inclua o cilindro obrigatório ' + cilindroObrigatorio +
+      ' com identificação, preço e rendimento confirmados antes de gerar a proposta.'
+    )
+  }
+
   const compra = Number(input.valorCompra)
-  const printway = Number(input.valorSoftwarePrintway ?? 0)
+  const printwayInformado = typeof input.valorSoftwarePrintway === 'number' &&
+    Number.isFinite(input.valorSoftwarePrintway) && input.valorSoftwarePrintway >= 0
+  if (!printwayInformado) result.errors.push('Informe o custo do Printway; use zero somente quando não houver cobrança confirmada.')
+  const printway = printwayInformado ? input.valorSoftwarePrintway! : Number.NaN
   const base = calculateRentalBase(compra, printway, input.contratoMeses, input.paybackMeses)
   if (base === null)
     result.errors.push(

@@ -1,3 +1,4 @@
+import type { RentalCommercialQuote } from '@/types/rental-commercial'
 import pb from '@/lib/pocketbase/client'
 import type {
   RentalMachine,
@@ -165,18 +166,6 @@ export async function getRentalQuote(id: string): Promise<RentalQuote | null> {
     const quote = await pb.collection('rental_quotes').getOne<RentalQuote>(id, {
       expand: 'cliente_id,maquinas',
     })
-    // Se não tiver token_acesso (registro antigo), gera e salva se autenticado
-    if (!quote.token_acesso && pb.authStore.isValid) {
-      try {
-        const token = await generateRentalToken(32)
-        const updated = await pb.collection('rental_quotes').update<RentalQuote>(id, {
-          token_acesso: token,
-        })
-        quote.token_acesso = updated.token_acesso || token
-      } catch {
-        /* ignore */
-      }
-    }
     return quote
   } catch {
     return null
@@ -186,16 +175,16 @@ export async function getRentalQuote(id: string): Promise<RentalQuote | null> {
 /**
  * Busca proposta pública por ID e token_acesso (sem exigir login)
  */
-export async function getPublicRentalQuote(id: string, token: string): Promise<RentalQuote | null> {
-  if (!id || !token) return null
+export async function getPublicRentalQuote(id: string, token: string): Promise<RentalCommercialQuote | null> {
+  if (!id || !token || token.length > 256) return null
   try {
-    // Passa query param ?token=... para satisfazer a API rule de view/list
-    return await pb.collection('rental_quotes').getOne<RentalQuote>(id, {
-      expand: 'cliente_id,maquinas',
-      query: { token },
-    })
-  } catch (err) {
-    console.error('Erro ao buscar proposta de locação pública por token:', err)
+    // Implantar junto da rota e das permissões; nunca retornar ao getOne privado como fallback.
+    return await pb.send<RentalCommercialQuote>(
+      '/backend/v1/rental-proposal/' + encodeURIComponent(id),
+      { method: 'GET', query: { token }, cache: 'no-store' },
+    )
+  } catch {
+    // Não registrar a URL do link ou seu token em mensagens de erro.
     return null
   }
 }
@@ -205,15 +194,14 @@ export async function getPublicRentalQuote(id: string, token: string): Promise<R
  * Se já tiver, retorna o existente; se não, gera e salva no PocketBase.
  */
 export async function ensureRentalQuoteToken(quote: RentalQuote): Promise<string> {
-  if (quote.token_acesso) return quote.token_acesso
-  const token = await generateRentalToken(32)
-  try {
-    await pb.collection('rental_quotes').update(quote.id, { token_acesso: token })
-    quote.token_acesso = token
-  } catch (err) {
-    console.warn('Erro ao persistir token_acesso na proposta:', err)
-  }
-  return token
+  const response = await pb.send<{id:string;token:string}>(
+    '/backend/v1/rental-proposal/' + encodeURIComponent(quote.id) + '/share',
+    {method:'POST'},
+  )
+  if (response.id !== quote.id || typeof response.token !== 'string' || !response.token || response.token.length > 256)
+    throw new Error('O servidor não confirmou um link válido. Nenhum link foi gerado.')
+  quote.token_acesso = response.token
+  return response.token
 }
 
 export async function createRentalQuote(data: Partial<RentalQuote>): Promise<RentalQuote> {

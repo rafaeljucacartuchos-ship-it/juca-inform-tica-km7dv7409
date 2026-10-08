@@ -4,7 +4,7 @@ import { getPublicRentalQuote } from '@/services/rental'
 import { RentalProposalPrintView } from '@/components/RentalProposalPrintView'
 import { Printer, ShieldAlert, FileText, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { RentalQuote } from '@/types'
+import type { RentalCommercialQuote } from '@/types/rental-commercial'
 
 export default function PropostaLocacaoPublica() {
   const { id } = useParams<{ id: string }>()
@@ -13,12 +13,13 @@ export default function PropostaLocacaoPublica() {
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [quote, setQuote] = useState<RentalQuote | null>(null)
+  const [quote, setQuote] = useState<RentalCommercialQuote | null>(null)
 
   useEffect(() => {
     let isMounted = true
 
     async function loadQuote() {
+      setQuote(null)
       if (!id) {
         setError('Identificador da proposta não informado.')
         setLoading(false)
@@ -40,7 +41,7 @@ export default function PropostaLocacaoPublica() {
         if (!isMounted) return
 
         if (!data) {
-          setError('Proposta de locação não encontrada ou token de acesso expirado/inválido.')
+          setError('Proposta de locação não encontrada ou token de acesso inválido.')
         } else {
           setQuote(data)
         }

@@ -1,3 +1,4 @@
+import type { RentalCommercialQuote } from '@/types/rental-commercial'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,23 +21,25 @@ import { sanitizePhone } from '@/lib/phones'
 import { ensureRentalQuoteToken } from '@/services/rental'
 import type { RentalQuote, RentalMachineCalculation } from '@/types'
 
-interface RentalProposalPrintViewProps {
+type RentalProposalPrintViewProps = {
   quote: RentalQuote
   onGenerateContract?: (machine: RentalMachineCalculation) => void
   onBack?: () => void
-  isPublicView?: boolean
+  isPublicView?: false
+} | {
+  quote: RentalCommercialQuote
+  isPublicView: true
+  onGenerateContract?: never
+  onBack?: never
 }
 
-export function RentalProposalPrintView({
-  quote,
-  onGenerateContract,
-  onBack,
-  isPublicView = false,
-}: RentalProposalPrintViewProps) {
-  const machines = quote.maquinas_comparadas || quote.resultados?.machines || []
-  const clienteNome = quote.cliente_nome_livre || quote.expand?.cliente_id?.name || 'Cliente'
-  const clienteDoc = quote.cliente_documento || quote.expand?.cliente_id?.cpf_cnpj || '—'
-  const clienteTel = quote.cliente_telefone || quote.expand?.cliente_id?.phone || '—'
+export function RentalProposalPrintView(props: RentalProposalPrintViewProps) {
+  const { quote, isPublicView = false, onGenerateContract, onBack } = props
+  const internalQuote = props.isPublicView === true ? undefined : props.quote
+  const machines = quote.maquinas_comparadas || internalQuote?.resultados?.machines || []
+  const clienteNome = quote.cliente_nome_livre || internalQuote?.expand?.cliente_id?.name || 'Cliente'
+  const clienteDoc = quote.cliente_documento || internalQuote?.expand?.cliente_id?.cpf_cnpj || '—'
+  const clienteTel = quote.cliente_telefone || internalQuote?.expand?.cliente_id?.phone || '—'
   const clienteEnd = quote.cliente_endereco || '—'
 
   const { toast } = useToast()
@@ -49,14 +52,15 @@ export function RentalProposalPrintView({
     year: 'numeric',
   })
 
-  const rawPhone = quote.cliente_telefone || quote.expand?.cliente_id?.phone || ''
+  const rawPhone = quote.cliente_telefone || internalQuote?.expand?.cliente_id?.phone || ''
   const sanitizedPhone = sanitizePhone(rawPhone)
 
   // Obtém o link público da proposta ({origin}/proposta-locacao/{id}?token={token})
   const getProposalPublicUrl = async (): Promise<string> => {
+    if (isPublicView || !internalQuote) throw new Error('Compartilhamento interno indisponível nesta visualização.')
     const origin =
       typeof window !== 'undefined' && window.location.origin ? window.location.origin : ''
-    const token = await ensureRentalQuoteToken(quote)
+    const token = await ensureRentalQuoteToken(internalQuote)
     return `${origin}/proposta-locacao/${quote.id}?token=${encodeURIComponent(token)}`
   }
 
@@ -121,6 +125,7 @@ export function RentalProposalPrintView({
 
   // Compartilhamento via Web Share API com link do documento + fallback para cópia
   const handleShare = async () => {
+    if (isPublicView) return
     setSharing(true)
     try {
       const closingMessage = await getShortClosingMessage()
@@ -177,6 +182,7 @@ export function RentalProposalPrintView({
 
   // Envio direto via WhatsApp wa.me com a mensagem curta de fechamento contendo o link
   const handleWhatsApp = async () => {
+    if (isPublicView) return
     if (!sanitizedPhone) {
       toast({
         title: 'Cliente sem telefone cadastrado',
@@ -211,7 +217,7 @@ export function RentalProposalPrintView({
       {/* BARRA DE AÇÕES (PRINT: HIDDEN) */}
       <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-900 text-white rounded-lg shadow print:hidden">
         <div className="flex items-center gap-2">
-          {onBack && (
+          {!isPublicView && onBack && (
             <Button
               type="button"
               variant="outline"
@@ -227,6 +233,7 @@ export function RentalProposalPrintView({
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {!isPublicView && <>
           {/* BOTÃO COMPARTILHAR PROPOSTA */}
           <Button
             type="button"
@@ -256,6 +263,7 @@ export function RentalProposalPrintView({
             </Button>
           )}
 
+          </>}
           {/* BOTÃO IMPRIMIR / PDF */}
           <Button
             type="button"
@@ -345,8 +353,8 @@ export function RentalProposalPrintView({
           >
             {machines.map((m, idx) => {
               const isBest =
-                quote.resultados?.melhorOpcaoIndex !== undefined &&
-                quote.resultados?.melhorOpcaoIndex === idx
+                internalQuote?.resultados?.melhorOpcaoIndex !== undefined &&
+                internalQuote?.resultados?.melhorOpcaoIndex === idx
               return (
                 <div
                   key={idx}
@@ -423,11 +431,14 @@ export function RentalProposalPrintView({
                   </div>
 
                   {/* BOTÃO GERAR CONTRATO (PRINT: HIDDEN) */}
-                  {onGenerateContract && (
+                  {!isPublicView && onGenerateContract && (
                     <div className="pt-3 mt-3 border-t border-slate-200 print:hidden">
                       <Button
                         type="button"
-                        onClick={() => onGenerateContract(m)}
+                        onClick={() => {
+                          const original = (internalQuote?.maquinas_comparadas || internalQuote?.resultados?.machines || [])[idx]
+                          if (original) onGenerateContract(original)
+                        }}
                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow"
                       >
                         <FileSignature className="h-3.5 w-3.5" />
@@ -441,23 +452,23 @@ export function RentalProposalPrintView({
           </div>
 
           {/* CARD DE COMPARAÇÃO / BREAK-EVEN CASO 2 MÁQUINAS */}
-          {machines.length === 2 && quote.resultados && (
+          {machines.length === 2 && internalQuote?.resultados && (
             <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-3 text-xs space-y-1">
               <div className="flex items-center gap-1.5 font-bold text-indigo-950">
                 <CheckCircle2 className="h-4 w-4 text-indigo-600" />
                 <span>Comparativo & Análise de Ponto de Equilíbrio (Break-Even)</span>
               </div>
-              {quote.resultados.breakEvenPaginas ? (
+              {internalQuote?.resultados.breakEvenPaginas ? (
                 <p className="text-slate-700">
                   <strong>Ponto de Equilíbrio (Break-even):</strong>{' '}
                   <span className="font-mono font-bold text-indigo-900">
-                    {quote.resultados.breakEvenPaginas.toLocaleString('pt-BR')} páginas/mês
+                    {internalQuote?.resultados.breakEvenPaginas.toLocaleString('pt-BR')} páginas/mês
                   </span>
                   . Acima deste volume, a máquina com menor CPP compensa a locação.
                 </p>
               ) : null}
-              {quote.resultados.vantagemDescricao && (
-                <p className="text-slate-800 font-semibold">{quote.resultados.vantagemDescricao}</p>
+              {internalQuote?.resultados.vantagemDescricao && (
+                <p className="text-slate-800 font-semibold">{internalQuote?.resultados.vantagemDescricao}</p>
               )}
             </div>
           )}
