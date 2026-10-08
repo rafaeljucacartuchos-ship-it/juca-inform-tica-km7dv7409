@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-23T02:32:36.901Z",
+  "generatedAt": "2026-10-08T19:32:16.749Z",
   "collections": [
     {
       "name": "users",
@@ -8,7 +8,7 @@
         "list": "@request.auth.id != ''",
         "view": "@request.auth.id != ''",
         "create": "@request.auth.role = 'admin'",
-        "update": "@request.auth.role = 'admin' || (id = @request.auth.id && @request.body.role:isset = false)",
+        "update": "@request.auth.role = 'admin' || (id = @request.auth.id && @request.body.role:isset = false && @request.body.permissions:isset = false)",
         "delete": "@request.auth.role = 'admin'"
       },
       "fields": [
@@ -1866,11 +1866,11 @@
       "name": "orcamentos",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
       },
       "fields": [
         {
@@ -2121,6 +2121,12 @@
           "required": false,
           "system": false,
           "collectionRef": "users"
+        },
+        {
+          "name": "tipo_origem",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -2135,11 +2141,11 @@
       "name": "orcamento_itens",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
       },
       "fields": [
         {
@@ -2234,11 +2240,11 @@
       "name": "orcamento_anexos",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
       },
       "fields": [
         {
@@ -2935,9 +2941,9 @@
       "apiRules": {
         "list": "@request.auth.id != ''",
         "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "create": "@request.auth.role = 'admin'",
+        "update": "@request.auth.role = 'admin'",
+        "delete": "@request.auth.role = 'admin'"
       },
       "fields": [
         {
@@ -2986,9 +2992,9 @@
       "apiRules": {
         "list": "@request.auth.id != ''",
         "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "create": "@request.auth.role = 'admin'",
+        "update": "@request.auth.role = 'admin' || (@request.auth.id != '' && @request.auth.permissions.locacao_precos_rendimentos = true && @request.body.modelo_suprimento:isset = false && @request.body.tipo:isset = false && @request.body.fabricante:isset = false && @request.body.impressoras_compativeis:isset = false && @request.body.fonte_preco:isset = false && @request.body.ativo:isset = false)",
+        "delete": "@request.auth.role = 'admin'"
       },
       "fields": [
         {
@@ -3089,9 +3095,9 @@
       "apiRules": {
         "list": "@request.auth.id != ''",
         "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "create": "@request.auth.role = 'admin'",
+        "update": "@request.auth.role = 'admin' || (@request.auth.id != '' && @request.auth.permissions.locacao_precos_rendimentos = true && @request.body.modelo:isset = false && @request.body.fabricante:isset = false && @request.body.tecnologia:isset = false && @request.body.vida_util_meses:isset = false && @request.body.suprimento_1:isset = false && @request.body.suprimento_2:isset = false && @request.body.suprimento_3:isset = false && @request.body.suprimento_4:isset = false && @request.body.suprimento_5:isset = false && @request.body.fonte_preco_equipamento:isset = false && @request.body.bloqueada:isset = false && @request.body.motivo_bloqueio:isset = false && @request.body.ativo:isset = false && @request.body.custo_mensal_software:isset = false)",
+        "delete": "@request.auth.role = 'admin'"
       },
       "fields": [
         {
@@ -3648,6 +3654,262 @@
         "CREATE INDEX idx_laudos_cliente ON laudos_tecnicos (id_cliente)",
         "CREATE INDEX idx_laudos_status ON laudos_tecnicos (status)"
       ]
+    },
+    {
+      "name": "financial_receivables",
+      "type": "base",
+      "apiRules": {
+        "list": null,
+        "view": null,
+        "create": null,
+        "update": null,
+        "delete": null
+      },
+      "fields": [
+        {
+          "name": "source_key",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": [
+            "onCreate"
+          ]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": [
+            "onUpdate"
+          ]
+        },
+        {
+          "name": "amount",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "pending",
+            "paid",
+            "cancelled",
+            "refunded"
+          ]
+        },
+        {
+          "name": "method",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "cash",
+            "pix",
+            "credit_card",
+            "debit_card",
+            "boleto",
+            "crediario",
+            "transfer",
+            "other"
+          ]
+        },
+        {
+          "name": "origin",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "service_order",
+            "quote",
+            "legacy_payment"
+          ]
+        },
+        {
+          "name": "source_id",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "service_order_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "quote_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "customer_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "customer_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "legacy_payment_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created_by",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cancelled_by",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "paid_at",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cancelled_at",
+          "type": "date",
+          "required": false,
+          "system": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "rental_documents",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.role = 'admin' && @request.auth.ativo = true",
+        "view": "@request.auth.role = 'admin' && @request.auth.ativo = true",
+        "create": "@request.auth.role = 'admin' && @request.auth.ativo = true && @request.body.uploaded_by = @request.auth.id && (kind = 'manifest' || kind = 'part')",
+        "update": null,
+        "delete": null
+      },
+      "fields": [
+        {
+          "name": "contract",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "rental_contracts"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": [
+            "onCreate"
+          ]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": [
+            "onUpdate"
+          ]
+        },
+        {
+          "name": "group_id",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "group_idkind",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "kind",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "payload",
+          "type": "json",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "uploaded_by",
+          "type": "text",
+          "required": true,
+          "system": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "rental_reserve",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && (@request.auth.role = 'admin' || payload.kind = 'rate')",
+        "view": "@request.auth.id != '' && (@request.auth.role = 'admin' || payload.kind = 'rate')",
+        "create": "@request.auth.id != '' && @request.auth.role = 'admin'",
+        "update": null,
+        "delete": null
+      },
+      "fields": [
+        {
+          "name": "payload",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": [
+            "onCreate"
+          ]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": [
+            "onUpdate"
+          ]
+        }
+      ],
+      "indexes": []
     }
   ]
 }

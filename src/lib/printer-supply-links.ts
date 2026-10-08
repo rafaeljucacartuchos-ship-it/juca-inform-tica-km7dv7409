@@ -17,10 +17,14 @@ export interface PrinterLinkSource {
   suprimento_5?: string | null
 }
 export function getPrinterSupplyIds(printer: PrinterLinkSource): Array<string | null> {
-  if (!printer.vinculos_variaveis_ativos) return [
-    printer.suprimento_1 || null, printer.suprimento_2 || null,
-    printer.suprimento_3 || null, printer.suprimento_4 || null, printer.suprimento_5 || null,
-  ]
+  if (!printer.vinculos_variaveis_ativos)
+    return [
+      printer.suprimento_1 || null,
+      printer.suprimento_2 || null,
+      printer.suprimento_3 || null,
+      printer.suprimento_4 || null,
+      printer.suprimento_5 || null,
+    ]
   if (!Array.isArray(printer.vinculos_suprimentos))
     throw new Error('Vínculos ampliados não carregados. Recarregue o cadastro antes de calcular.')
   const slots: Array<string | null> = Array(5).fill(null)
@@ -39,22 +43,34 @@ export function getPrinterSupplyIds(printer: PrinterLinkSource): Array<string | 
   }
   return slots
 }
-export function resolvePrinterSupplies<T extends {id: string}>(
-  printer: PrinterLinkSource, supplies: T[], legacyExpansion?: Record<string, T>,
+export function resolvePrinterSupplies<T extends { id: string }>(
+  printer: PrinterLinkSource,
+  supplies: T[],
+  legacyExpansion?: Record<string, T>,
 ): Array<T | undefined> {
-  const map = new Map(supplies.map(s => [s.id, s]))
+  const map = new Map(supplies.map((s) => [s.id, s]))
   return getPrinterSupplyIds(printer).map((id, index) => {
     if (!id) return undefined
-    const fallback = !printer.vinculos_variaveis_ativos ? legacyExpansion?.['suprimento_' + (index + 1)] : undefined
+    const fallback = !printer.vinculos_variaveis_ativos
+      ? legacyExpansion?.['suprimento_' + (index + 1)]
+      : undefined
     const supply = map.get(id) || (fallback?.id === id ? fallback : undefined)
     if (!supply) throw new Error('Suprimento vinculado não carregado: ' + id)
     return supply
   })
 }
-export function readPrinterSupplies<T extends {id: string}>(
-  printer: PrinterLinkSource | null, supplies: T[], legacyExpansion?: Record<string, T>,
+export function readPrinterSupplies<T extends { id: string }>(
+  printer: PrinterLinkSource | null,
+  supplies: T[],
+  legacyExpansion?: Record<string, T>,
 ): { slots: Array<T | undefined>; error: string | null } {
-  if (!printer) return {slots: [], error: null}
-  try { return {slots: resolvePrinterSupplies(printer, supplies, legacyExpansion), error: null} }
-  catch (error) { return {slots: [], error: error instanceof Error ? error.message : 'Falha ao carregar vínculos.'} }
+  if (!printer) return { slots: [], error: null }
+  try {
+    return { slots: resolvePrinterSupplies(printer, supplies, legacyExpansion), error: null }
+  } catch (error) {
+    return {
+      slots: [],
+      error: error instanceof Error ? error.message : 'Falha ao carregar vínculos.',
+    }
+  }
 }
