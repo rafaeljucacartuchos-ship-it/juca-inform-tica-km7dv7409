@@ -702,7 +702,7 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
       const calc = calculateSpreadsheetPricing(input)
       if (!calc.valid) {
         e.app.logger().error('Rental commercial validation', 'reason', calc.errors.join(' | '))
-        throw new Error('CADASTRO')
+        throw new Error('VALIDACAO: ' + calc.errors.join(' | '))
       }
       const excess = Math.round((calc.cppVenda + rate) * 1000000) / 1000000
       const monthly = Math.round((calc.faturamentoTotalMensal + rate * pages) * 100) / 100
@@ -804,7 +804,7 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
     }
     return e.json(400, {
       error:
-        messages[err.message] ||
+        messages[err.message] || (body.action === 'simulate' && err.message !== 'CADASTRO' ? 'Diagnóstico da simulação: ' + String(err).slice(0,300) : '') ||
         'Equipamento pendente de revisão administrativa. Escolha outro ou solicite a revisão do cadastro.',
     })
   }
