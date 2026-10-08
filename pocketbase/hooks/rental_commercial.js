@@ -20,8 +20,12 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
     const parts = (Number(value) || 0).toFixed(decimals).split('.')
     return parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (decimals ? ',' + parts[1] : '')
   }
-  function formatCPP6(val) { return 'R$ ' + formatDecimal(val, 6) }
-  function formatBRL2(val) { return 'R$ ' + formatDecimal(val, 2) }
+  function formatCPP6(val) {
+    return 'R$ ' + formatDecimal(val, 6)
+  }
+  function formatBRL2(val) {
+    return 'R$ ' + formatDecimal(val, 2)
+  }
   /**
    * 3.1 Custo por Página Individual do Suprimento
    * CPP_suprimento = valor_compra / rendimento_paginas
@@ -691,7 +695,6 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
       }
       const calc = calculateSpreadsheetPricing(input)
       if (!calc.valid) {
-
         throw new Error('VALIDACAO: ' + calc.errors.join(' | '))
       }
       const excess = Math.round((calc.cppVenda + rate) * 1000000) / 1000000
@@ -783,7 +786,6 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
     })
     return e.json(200, response)
   } catch (err) {
-
     const messages = {
       PAYBACK: 'Administrador: confira o payback padrão de locação.',
       RESERVA: 'Administrador: confira o planejamento da reserva.',
@@ -794,7 +796,8 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
     }
     return e.json(400, {
       error:
-        messages[err.message] || (body.action === 'simulate' ? 'Diagnóstico: ' + String(err).slice(0,500) : '') ||
+        messages[err.message] ||
+        (body.action === 'simulate' ? 'Diagnóstico: ' + String(err).slice(0, 500) : '') ||
         'Equipamento pendente de revisão administrativa. Escolha outro ou solicite a revisão do cadastro.',
     })
   }
