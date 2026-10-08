@@ -700,7 +700,10 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
         supplies: slots,
       }
       const calc = calculateSpreadsheetPricing(input)
-      if (!calc.valid) throw new Error('CADASTRO')
+      if (!calc.valid) {
+        e.app.logger().error('Rental commercial validation', 'reason', calc.errors.join(' | '))
+        throw new Error('CADASTRO')
+      }
       const excess = Math.round((calc.cppVenda + rate) * 1000000) / 1000000
       const monthly = Math.round((calc.faturamentoTotalMensal + rate * pages) * 100) / 100
       if (!Number.isFinite(excess) || !Number.isFinite(monthly) || monthly <= 0)
@@ -790,6 +793,7 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
     })
     return e.json(200, response)
   } catch (err) {
+    e.app.logger().error('Rental commercial calculation failed', 'reason', String(err))
     const messages = {
       PAYBACK: 'Administrador: confira o payback padrão de locação.',
       RESERVA: 'Administrador: confira o planejamento da reserva.',
