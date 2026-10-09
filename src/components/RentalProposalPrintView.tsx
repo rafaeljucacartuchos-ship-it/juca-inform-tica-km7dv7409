@@ -1,3 +1,4 @@
+import { RentalPrintButton } from '@/components/RentalPrintButton'
 import type { RentalCommercialQuote } from '@/types/rental-commercial'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -217,7 +218,7 @@ export function RentalProposalPrintView(props: RentalProposalPrintViewProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-rental-view>
       {/* BARRA DE AÇÕES (PRINT: HIDDEN) */}
       <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-900 text-white rounded-lg shadow print:hidden">
         <div className="flex items-center gap-2">
@@ -270,18 +271,16 @@ export function RentalProposalPrintView(props: RentalProposalPrintViewProps) {
             </>
           )}
           {/* BOTÃO IMPRIMIR / PDF */}
-          <Button
-            type="button"
-            onClick={() => window.print()}
+          <RentalPrintButton
             className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold gap-1.5"
           >
             <Printer className="h-4 w-4" /> Imprimir Proposta / Salvar PDF
-          </Button>
+          </RentalPrintButton>
         </div>
       </div>
 
       {/* DOCUMENTO DA PROPOSTA (FORMATO FOLHA A4 / APRESENTÁVEL) */}
-      <div className="bg-white text-slate-900 p-6 sm:p-10 max-w-4xl mx-auto shadow-md rounded-lg border border-slate-200 print:shadow-none print:border-none print:p-0 print:m-0 text-xs">
+      <div data-rental-document="proposal" className="bg-white text-slate-900 p-6 sm:p-10 max-w-[210mm] mx-auto shadow-md rounded-lg border border-slate-200 print:shadow-none print:border-none print:p-0 print:m-0 text-xs">
         {/* CABEÇALHO COM LOGO JUCA INFORMÁTICA */}
         <div className="flex items-center justify-between border-b-2 border-indigo-900 pb-3 mb-4">
           <div className="flex items-center gap-3">
@@ -322,7 +321,7 @@ export function RentalProposalPrintView(props: RentalProposalPrintViewProps) {
           <h2 className="text-[11px] font-bold uppercase text-slate-900 border-b border-slate-200 pb-1 mb-2">
             Dados do Cliente / Solicitante
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+          <div className="rental-customer-grid grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
             <div>
               <strong className="text-slate-700">Razão Social / Nome:</strong>{' '}
               <span className="font-semibold text-slate-900">{clienteNome}</span>
@@ -353,7 +352,7 @@ export function RentalProposalPrintView(props: RentalProposalPrintViewProps) {
 
           <div
             className={`grid gap-4 ${
-              machines.length === 2 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'
+              machines.length === 2 ? 'rental-options-two grid-cols-1 md:grid-cols-2' : 'grid-cols-1'
             }`}
           >
             {machines.map((m, idx) => {
@@ -363,7 +362,7 @@ export function RentalProposalPrintView(props: RentalProposalPrintViewProps) {
               return (
                 <div
                   key={idx}
-                  className={`rounded-lg border-2 p-4 flex flex-col justify-between transition-all ${
+                  className={`rental-option rounded-lg border-2 p-4 flex flex-col justify-between transition-all ${
                     isBest
                       ? 'border-indigo-600 bg-indigo-50/30 shadow-sm'
                       : 'border-slate-300 bg-white'

@@ -7,7 +7,7 @@ import {
   CONTRACT_DETAIL_FIELDS,
   type ContractDetails,
 } from '@/lib/rental-contract-template'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Printer,
   Calculator,
@@ -39,6 +39,7 @@ import {
   getRentalQuote,
   getRentalContracts,
   createRentalContract,
+  updateRentalContract,
   generateNextContractNumber,
 } from '@/services/rental'
 import {
@@ -143,6 +144,8 @@ export default function LocacaoImpressoras() {
     null,
   )
   const [creatingContract, setCreatingContract] = useState(false)
+  const contractSaveLock = useRef(false)
+  const [editingContractId, setEditingContractId] = useState('')
   const [nextContractNumber, setNextContractNumber] = useState('')
   const [contractStartDate, setContractStartDate] = useState(
     new Date().toLocaleDateString('en-CA', { timeZone: 'America/Cuiaba' }),
@@ -235,6 +238,28 @@ export default function LocacaoImpressoras() {
   // Ao clicar em "Gerar Contrato" dentro da proposta
   const handleOpenGenerateContractModal = async (machine: RentalMachineCalculation) => {
     setMachineForContract(machine)
+    const existing = contractsList.find((c) => c.proposta === currentQuote?.id &&
+      c.status !== 'encerrado' && c.equipamento_dados?.produto_id === machine.machineId &&
+      c.equipamento_dados?.nome === machine.machineName)
+    const saved = existing?.equipamento_dados as typeof existing.equipamento_dados & {
+      modelo_contrato?: ReturnType<typeof buildContractSnapshot>
+    }
+    if (existing && (existing.status !== 'rascunho' || !saved?.modelo_contrato)) {
+      setCurrentContract(existing)
+      setActiveTab('contrato')
+      toast({ title: 'Contrato existente aberto', description: 'O contrato arquivado foi preservado.' })
+      return
+    }
+    if (existing && saved?.modelo_contrato) {
+      setEditingContractId(existing.id)
+      setNextContractNumber(existing.numero)
+      setContractStartDate(existing.data_inicio?.slice(0, 10) || '')
+      setClausulasAdicionais(existing.clausulas_adicionais || '')
+      setContractDetails(saved.modelo_contrato.details)
+      setContractModalOpen(true)
+      return
+    }
+    setEditingContractId('')
     try {
       const num = await generateNextContractNumber()
       setNextContractNumber(num)
@@ -328,16 +353,8 @@ export default function LocacaoImpressoras() {
     return payload
   }
 
-  const previewContract = () => {
-    const draft = buildDraft()
-    if (!draft) return
-    setCurrentContract({ ...draft, id: '', created: new Date().toISOString() } as RentalContract)
-    setContractModalOpen(false)
-    setActiveTab('contrato')
-  }
-
-  const handleConfirmContract = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const saveContract = async (requireApproval: boolean) => {
+    if (contractSaveLock.current) return
     const draft = buildDraft()
     if (
       !draft ||
@@ -357,11 +374,11 @@ export default function LocacaoImpressoras() {
       })
       return
     }
-    if (
+    if (requireApproval && (
       !contractDetails.aprovacaoData ||
       !contractDetails.aprovacaoNome?.trim() ||
       !contractDetails.aprovacaoReferencia?.trim()
-    ) {
+    )) {
       toast({
         title: 'Registre a aprovação recebida do cliente',
         description:
@@ -377,19 +394,26 @@ export default function LocacaoImpressoras() {
         c.equipamento_dados?.produto_id === machineForContract?.machineId &&
         c.equipamento_dados?.nome === machineForContract?.machineName,
     )
-    if (sameContract) {
+    if (sameContract && sameContract.id !== editingContractId) {
       toast({
         title: 'Já existe contrato para esta proposta e equipamento',
-        description: 'O contrato existente será aberto para evitar duplicidade.',
+        description: 'Os dados preenchidos continuam na tela. Abra o contrato salvo pela lista para conferi-lo.',
       })
-      setCurrentContract(sameContract)
-      setContractModalOpen(false)
-      setActiveTab('contrato')
       return
     }
+    contractSaveLock.current = true
     setCreatingContract(true)
     try {
-      const created = await createRentalContract(draft)
+      let created: RentalContract
+      if (editingContractId) {
+        const saved = await pb.collection('rental_contracts').getOne<RentalContract>(editingContractId)
+        if (saved.status !== 'rascunho') throw new Error('Contrato não está mais em rascunho')
+        created = await updateRentalContract(editingContractId, draft)
+      } else {
+        created = await createRentalContract(draft)
+      }
+      if (!created.id) throw new Error('Gravação não confirmada')
+      setEditingContractId(created.id)
       toast({
         title: 'Rascunho salvo',
         description:
@@ -397,7 +421,7 @@ export default function LocacaoImpressoras() {
       })
       setCurrentContract(created)
       setContractModalOpen(false)
-      loadContracts()
+      setContractsList((list) => [created, ...list.filter((c) => c.id !== created.id)])
       setActiveTab('contrato')
     } catch {
       toast({
@@ -407,8 +431,14 @@ export default function LocacaoImpressoras() {
         variant: 'destructive',
       })
     } finally {
+      contractSaveLock.current = false
       setCreatingContract(false)
     }
+  }
+
+  const handleConfirmContract = (e: React.FormEvent) => {
+    e.preventDefault()
+    void saveContract(true)
   }
 
   // Ao abrir proposta a partir da lista de contratos
@@ -769,8 +799,9 @@ export default function LocacaoImpressoras() {
                 ainda não envia links nem armazena o PDF assinado automaticamente.
               </p>
               <DialogFooter className="pt-2 gap-2 flex-wrap">
-                <Button type="button" variant="outline" onClick={previewContract}>
-                  Visualizar sem salvar
+                <Button type="button" variant="outline" disabled={creatingContract}
+                  onClick={() => void saveContract(false)}>
+                  {creatingContract ? 'Salvando...' : 'Salvar rascunho e visualizar'}
                 </Button>
                 <Button
                   type="button"
