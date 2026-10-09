@@ -11,9 +11,12 @@ export const MAX_PHOTO_CHARACTERS = 130000
 export function validateContractPhotos(photos: RentalContractPhoto[]): void {
   if (photos.length > MAX_CONTRACT_PHOTOS) throw new Error('Inclua no máximo 6 fotos por contrato.')
   for (const photo of photos) {
-    if (!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(photo.dataUrl) ||
-        photo.dataUrl.length > MAX_PHOTO_CHARACTERS ||
-        photo.caption.length > 200 || photo.name.length > 160) {
+    if (
+      !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(photo.dataUrl) ||
+      photo.dataUrl.length > MAX_PHOTO_CHARACTERS ||
+      photo.caption.length > 200 ||
+      photo.name.length > 160
+    ) {
       throw new Error('Foto inválida ou muito grande. Remova e selecione novamente.')
     }
   }
@@ -46,5 +49,7 @@ export async function prepareContractPhoto(file: File): Promise<RentalContractPh
     const photo = { id: crypto.randomUUID(), name: file.name.slice(0, 160), caption: '', dataUrl }
     validateContractPhotos([photo])
     return photo
-  } finally { URL.revokeObjectURL(url) }
+  } finally {
+    URL.revokeObjectURL(url)
+  }
 }
