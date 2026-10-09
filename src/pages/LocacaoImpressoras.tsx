@@ -4,11 +4,10 @@ import pb from '@/lib/pocketbase/client'
 import {
   buildContractSnapshot,
   inheritRentalContractDetails,
-  CONTRACT_DETAIL_FIELDS,
   type ContractDetails,
 } from '@/lib/rental-contract-template'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { RentalContractPhotosEditor } from '@/components/RentalContractPhotosEditor'
+import { RentalContractFormFields } from '@/components/RentalContractFormFields'
 import { validateContractPhotos, type RentalContractPhoto } from '@/lib/rental-contract-photos'
 import {
   Printer,
@@ -242,23 +241,16 @@ export default function LocacaoImpressoras() {
   // Ao clicar em "Gerar Contrato" dentro da proposta
   const handleOpenGenerateContractModal = async (machine: RentalMachineCalculation) => {
     setMachineForContract(machine)
-    const existing = contractsList.find(
-      (c) =>
-        c.proposta === currentQuote?.id &&
-        c.status !== 'encerrado' &&
-        c.equipamento_dados?.produto_id === machine.machineId &&
-        c.equipamento_dados?.nome === machine.machineName,
-    )
+    const existing = contractsList.find((c) => c.proposta === currentQuote?.id &&
+      c.status !== 'encerrado' && c.equipamento_dados?.produto_id === machine.machineId &&
+      c.equipamento_dados?.nome === machine.machineName)
     const saved = existing?.equipamento_dados as typeof existing.equipamento_dados & {
       modelo_contrato?: ReturnType<typeof buildContractSnapshot>
     }
     if (existing && (existing.status !== 'rascunho' || !saved?.modelo_contrato)) {
       setCurrentContract(existing)
       setActiveTab('contrato')
-      toast({
-        title: 'Contrato existente aberto',
-        description: 'O contrato arquivado foi preservado.',
-      })
+      toast({ title: 'Contrato existente aberto', description: 'O contrato arquivado foi preservado.' })
       return
     }
     if (existing && saved?.modelo_contrato) {
@@ -337,12 +329,7 @@ export default function LocacaoImpressoras() {
         prazoMeses: payload.contrato_meses || 0,
         dataInicio: contractStartDate,
       },
-      {
-        ...contractDetails,
-        fotos:
-          contractDetails.fotos ||
-          contractPhotos.map((p, i) => 'Foto ' + (i + 1) + ': ' + (p.caption || p.name)).join('; '),
-      },
+      { ...contractDetails, fotos: contractDetails.fotos || contractPhotos.map((p, i) => 'Foto ' + (i + 1) + ': ' + (p.caption || p.name)).join('; ') },
       clausulasAdicionais.trim(),
       contractPhotos,
     )
@@ -374,22 +361,14 @@ export default function LocacaoImpressoras() {
 
   const saveContract = async (requireApproval: boolean) => {
     if (contractSaveLock.current || preparingPhotos) return
-    try {
-      validateContractPhotos(contractPhotos)
-    } catch (error) {
-      toast({
-        title: error instanceof Error ? error.message : 'Confira as fotos',
-        variant: 'destructive',
-      })
+    try { validateContractPhotos(contractPhotos) }
+    catch (error) {
+      toast({ title: error instanceof Error ? error.message : 'Confira as fotos', variant: 'destructive' })
       return
     }
     const draft = buildDraft()
     if (new TextEncoder().encode(JSON.stringify(draft?.equipamento_dados || {})).length > 950000) {
-      toast({
-        title: 'Contrato muito grande',
-        description: 'Reduza as fotos ou observações antes de salvar.',
-        variant: 'destructive',
-      })
+      toast({ title: 'Contrato muito grande', description: 'Reduza as fotos ou observações antes de salvar.', variant: 'destructive' })
       return
     }
     if (
@@ -410,12 +389,11 @@ export default function LocacaoImpressoras() {
       })
       return
     }
-    if (
-      requireApproval &&
-      (!contractDetails.aprovacaoData ||
-        !contractDetails.aprovacaoNome?.trim() ||
-        !contractDetails.aprovacaoReferencia?.trim())
-    ) {
+    if (requireApproval && (
+      !contractDetails.aprovacaoData ||
+      !contractDetails.aprovacaoNome?.trim() ||
+      !contractDetails.aprovacaoReferencia?.trim()
+    )) {
       toast({
         title: 'Registre a aprovação recebida do cliente',
         description:
@@ -434,8 +412,7 @@ export default function LocacaoImpressoras() {
     if (sameContract && sameContract.id !== editingContractId) {
       toast({
         title: 'Já existe contrato para esta proposta e equipamento',
-        description:
-          'Os dados preenchidos continuam na tela. Abra o contrato salvo pela lista para conferi-lo.',
+        description: 'Os dados preenchidos continuam na tela. Abra o contrato salvo pela lista para conferi-lo.',
       })
       return
     }
@@ -444,9 +421,7 @@ export default function LocacaoImpressoras() {
     try {
       let created: RentalContract
       if (editingContractId) {
-        const saved = await pb
-          .collection('rental_contracts')
-          .getOne<RentalContract>(editingContractId)
+        const saved = await pb.collection('rental_contracts').getOne<RentalContract>(editingContractId)
         if (saved.status !== 'rascunho') throw new Error('Contrato não está mais em rascunho')
         created = await updateRentalContract(editingContractId, draft)
       } else {
@@ -678,7 +653,7 @@ export default function LocacaoImpressoras() {
 
       {/* MODAL DE EMISSÃO DE CONTRATO (CONGELA OS DADOS COM CLÁUSULAS PADRONIZADAS) */}
       <Dialog open={contractModalOpen} onOpenChange={setContractModalOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-5">
+        <DialogContent className="w-[96vw] max-w-6xl max-h-[95vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <div className="flex items-center gap-2 text-indigo-600">
               <FileSignature className="h-5 w-5" />
@@ -693,13 +668,13 @@ export default function LocacaoImpressoras() {
           </DialogHeader>
 
           {machineForContract && currentQuote && (
-            <form onSubmit={handleConfirmContract} className="space-y-3 py-2 text-xs">
+            <form onSubmit={handleConfirmContract} className="space-y-4 py-2 text-sm">
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
                 <p>
                   <strong>Cliente:</strong> {currentQuote.cliente_nome_livre || 'Cliente'}
                 </p>
                 <p>
-                  <strong>Equipamento Escolhido:</strong> {machineForContract.machineName}
+                  <strong>Impressora:</strong> {machineForContract.machineName}
                 </p>
                 <p>
                   <strong>Franquia Mensal:</strong> {currentQuote.franquia_paginas} páginas/mês
@@ -708,173 +683,22 @@ export default function LocacaoImpressoras() {
                   <strong>Valor Mensal:</strong> R$ {machineForContract.franquiaSugerida.toFixed(2)}
                 </p>
                 <p>
-                  <strong>Excedente Homologado (CPP Venda):</strong> R${' '}
+                  <strong>Valor por página excedente:</strong> R${' '}
                   {machineForContract.excedenteSugerido.toFixed(6)} / pág
                 </p>
               </div>
 
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">Número do Contrato *</Label>
-                <Input
-                  value={nextContractNumber}
-                  onChange={(e) => setNextContractNumber(e.target.value)}
-                  placeholder="Ex: CT-2026-001"
-                  required
-                  className="h-9 text-xs font-mono font-bold text-indigo-900"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">
-                  Data prevista de entrega e início
-                </Label>
-                <Input
-                  type="date"
-                  value={contractStartDate}
-                  onChange={(e) => setContractStartDate(e.target.value)}
-                  className="h-9 text-xs"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">
-                  Cláusulas / Observações Especiais (Opcional)
-                </Label>
-                <Input
-                  value={clausulasAdicionais}
-                  onChange={(e) => setClausulasAdicionais(e.target.value)}
-                  placeholder="Ex: Entrega e treinamento no local..."
-                  className="h-9 text-xs"
-                />
-              </div>
-
-              <section className="rounded border p-3 space-y-3">
-                <h3 className="font-semibold">Aprovação recebida do cliente</h3>
-                <p>
-                  Registre a aprovação da proposta selecionada. O contrato será arquivado como
-                  rascunho para assinatura.
-                </p>
-                <label className="block">
-                  Data da aprovação
-                  <Input
-                    aria-label="Data da aprovação"
-                    type="date"
-                    value={contractDetails.aprovacaoData || ''}
-                    onChange={(e) =>
-                      setContractDetails((p) => ({ ...p, aprovacaoData: e.target.value }))
-                    }
-                  />
-                </label>
-                <label className="block">
-                  Quem aprovou
-                  <Input
-                    aria-label="Quem aprovou"
-                    value={contractDetails.aprovacaoNome || ''}
-                    onChange={(e) =>
-                      setContractDetails((p) => ({ ...p, aprovacaoNome: e.target.value }))
-                    }
-                  />
-                </label>
-                <label className="block">
-                  Referência da aprovação (mensagem, e-mail ou documento)
-                  <Input
-                    aria-label="Referência da aprovação"
-                    value={contractDetails.aprovacaoReferencia || ''}
-                    onChange={(e) =>
-                      setContractDetails((p) => ({ ...p, aprovacaoReferencia: e.target.value }))
-                    }
-                  />
-                </label>
-                <label className="block">
-                  Forma de assinatura
-                  <select
-                    aria-label="Forma de assinatura"
-                    className="block w-full border rounded p-2 bg-white"
-                    value={contractDetails.modalidade || 'impressa'}
-                    onChange={(e) =>
-                      setContractDetails((p) => ({ ...p, modalidade: e.target.value }))
-                    }
-                  >
-                    <option value="impressa">Impressa — assinatura à mão</option>
-                    <option value="eletronica">Eletrônica — por provedor externo</option>
-                  </select>
-                </label>
-              </section>
-              <details className="rounded border p-3" open>
-                <summary className="font-semibold cursor-pointer">
-                  Conferir cliente, equipamento e anexos
-                </summary>
-                <p className="my-2 text-slate-600">
-                  Dados disponíveis foram herdados da proposta e dos cadastros vinculados. O valor
-                  do bem vem da precificação da proposta e não é alterado aqui. Confira local de
-                  instalação e suprimentos; informação ausente não é inventada. Fotos e comprovantes
-                  devem acompanhar a via impressa ou o PDF.
-                </p>
-                <div className="grid sm:grid-cols-2 gap-3">
-                  {CONTRACT_DETAIL_FIELDS.map(([key, label, type]) => (
-                    <label key={key} className="space-y-1 block">
-                      <span>{label}</span>
-                      <Input
-                        readOnly={key === 'valorBem'}
-                        title={
-                          key === 'valorBem'
-                            ? 'Herdado da precificação da proposta. Para alterar, revise a precificação e emita nova proposta.'
-                            : undefined
-                        }
-                        aria-label={label}
-                        type={type}
-                        min={type === 'number' ? 0 : undefined}
-                        step={key === 'valorBem' ? '0.01' : '1'}
-                        value={contractDetails[key] || ''}
-                        onChange={(e) =>
-                          setContractDetails((prev) => ({ ...prev, [key]: e.target.value }))
-                        }
-                      />
-                    </label>
-                  ))}
-                </div>
-              </details>
-              <RentalContractPhotosEditor
-                photos={contractPhotos}
-                onChange={setContractPhotos}
-                disabled={creatingContract}
-                onBusyChange={setPreparingPhotos}
+              <RentalContractFormFields
+                number={nextContractNumber} setNumber={setNextContractNumber}
+                date={contractStartDate} setDate={setContractStartDate}
+                notes={clausulasAdicionais} setNotes={setClausulasAdicionais}
+                details={contractDetails} setDetails={setContractDetails}
+                photos={contractPhotos} setPhotos={setContractPhotos}
+                busy={creatingContract} preparingPhotos={preparingPhotos}
+                setPreparingPhotos={setPreparingPhotos}
+                saveDraft={() => void saveContract(false)}
+                cancel={() => setContractModalOpen(false)} proposalId={currentQuote.id}
               />
-              <p className="text-slate-600">
-                Assinatura por link: envie o PDF e anexos por um provedor de assinatura. O sistema
-                ainda não envia links nem armazena o PDF assinado automaticamente.
-              </p>
-              <DialogFooter className="pt-2 gap-2 flex-wrap">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={creatingContract || preparingPhotos}
-                  onClick={() => void saveContract(false)}
-                >
-                  {creatingContract ? 'Salvando...' : 'Salvar rascunho e visualizar'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setContractModalOpen(false)}
-                  disabled={creatingContract}
-                  className="text-xs"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={creatingContract}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5"
-                >
-                  <FileSignature className="h-3.5 w-3.5" />
-                  <span>
-                    {creatingContract ? 'Salvando...' : 'Arquivar contrato para assinatura'}
-                  </span>
-                </Button>
-              </DialogFooter>
             </form>
           )}
         </DialogContent>
