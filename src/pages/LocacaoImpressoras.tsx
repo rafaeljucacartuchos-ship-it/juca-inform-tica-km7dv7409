@@ -653,7 +653,7 @@ export default function LocacaoImpressoras() {
 
       {/* MODAL DE EMISSÃO DE CONTRATO (CONGELA OS DADOS COM CLÁUSULAS PADRONIZADAS) */}
       <Dialog open={contractModalOpen} onOpenChange={setContractModalOpen}>
-        <DialogContent className="w-[96vw] max-w-6xl max-h-[95vh] overflow-y-auto p-4 sm:p-6">
+        <DialogContent className="w-full max-w-none sm:w-[96vw] sm:max-w-[1600px] max-h-[95vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <div className="flex items-center gap-2 text-indigo-600">
               <FileSignature className="h-5 w-5" />
