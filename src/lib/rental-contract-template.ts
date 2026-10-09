@@ -327,13 +327,25 @@ export function inheritRentalContractDetails(
   )?.pricingSnapshot?.impressora
   const price =
     pricing?.id && pricing.id === machine.machineId ? pricing.valor_compra : machine.valorCompra
+  const document = quote.cliente_documento?.trim() || c?.cpf_cnpj?.trim() || ''
+  const phone = quote.cliente_telefone?.trim() || c?.celular?.trim() || c?.phone?.trim() || ''
+  const email = c?.email?.trim() || ''
+  // A pessoa física é sugerida como signatária; poderes/representação ainda exigem conferência.
+  // Não transformar nome de empresa, contato ou vendedor em representante legal.
+  const individual = document.replace(/\D/g, '').length === 11 && !!name
   return {
     nome: name,
-    documento: quote.cliente_documento || c?.cpf_cnpj || '',
+    documento: document,
     endereco: address,
-    contato: [quote.cliente_telefone || c?.celular || c?.phone, c?.email]
+    contato: [phone, email]
       .filter(Boolean)
       .join(' / '),
+    telefoneCliente: phone,
+    emailCliente: email,
+    signatarioClienteNome: individual ? name : '',
+    signatarioClienteCpf: individual ? document : '',
+    representante: individual ? name + ', CPF ' + document : '',
+    signatarioClienteOrigem: individual ? 'titular-sugerido' : '',
     local: address,
     serial: machine.serial || linkedMachine?.serial || '',
     contador: counter == null ? '' : String(counter),
