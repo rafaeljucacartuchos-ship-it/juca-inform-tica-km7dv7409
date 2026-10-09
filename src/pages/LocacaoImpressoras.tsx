@@ -241,16 +241,23 @@ export default function LocacaoImpressoras() {
   // Ao clicar em "Gerar Contrato" dentro da proposta
   const handleOpenGenerateContractModal = async (machine: RentalMachineCalculation) => {
     setMachineForContract(machine)
-    const existing = contractsList.find((c) => c.proposta === currentQuote?.id &&
-      c.status !== 'encerrado' && c.equipamento_dados?.produto_id === machine.machineId &&
-      c.equipamento_dados?.nome === machine.machineName)
+    const existing = contractsList.find(
+      (c) =>
+        c.proposta === currentQuote?.id &&
+        c.status !== 'encerrado' &&
+        c.equipamento_dados?.produto_id === machine.machineId &&
+        c.equipamento_dados?.nome === machine.machineName,
+    )
     const saved = existing?.equipamento_dados as typeof existing.equipamento_dados & {
       modelo_contrato?: ReturnType<typeof buildContractSnapshot>
     }
     if (existing && (existing.status !== 'rascunho' || !saved?.modelo_contrato)) {
       setCurrentContract(existing)
       setActiveTab('contrato')
-      toast({ title: 'Contrato existente aberto', description: 'O contrato arquivado foi preservado.' })
+      toast({
+        title: 'Contrato existente aberto',
+        description: 'O contrato arquivado foi preservado.',
+      })
       return
     }
     if (existing && saved?.modelo_contrato) {
@@ -329,7 +336,12 @@ export default function LocacaoImpressoras() {
         prazoMeses: payload.contrato_meses || 0,
         dataInicio: contractStartDate,
       },
-      { ...contractDetails, fotos: contractDetails.fotos || contractPhotos.map((p, i) => 'Foto ' + (i + 1) + ': ' + (p.caption || p.name)).join('; ') },
+      {
+        ...contractDetails,
+        fotos:
+          contractDetails.fotos ||
+          contractPhotos.map((p, i) => 'Foto ' + (i + 1) + ': ' + (p.caption || p.name)).join('; '),
+      },
       clausulasAdicionais.trim(),
       contractPhotos,
     )
@@ -361,14 +373,22 @@ export default function LocacaoImpressoras() {
 
   const saveContract = async (requireApproval: boolean) => {
     if (contractSaveLock.current || preparingPhotos) return
-    try { validateContractPhotos(contractPhotos) }
-    catch (error) {
-      toast({ title: error instanceof Error ? error.message : 'Confira as fotos', variant: 'destructive' })
+    try {
+      validateContractPhotos(contractPhotos)
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : 'Confira as fotos',
+        variant: 'destructive',
+      })
       return
     }
     const draft = buildDraft()
     if (new TextEncoder().encode(JSON.stringify(draft?.equipamento_dados || {})).length > 950000) {
-      toast({ title: 'Contrato muito grande', description: 'Reduza as fotos ou observações antes de salvar.', variant: 'destructive' })
+      toast({
+        title: 'Contrato muito grande',
+        description: 'Reduza as fotos ou observações antes de salvar.',
+        variant: 'destructive',
+      })
       return
     }
     if (
@@ -389,11 +409,12 @@ export default function LocacaoImpressoras() {
       })
       return
     }
-    if (requireApproval && (
-      !contractDetails.aprovacaoData ||
-      !contractDetails.aprovacaoNome?.trim() ||
-      !contractDetails.aprovacaoReferencia?.trim()
-    )) {
+    if (
+      requireApproval &&
+      (!contractDetails.aprovacaoData ||
+        !contractDetails.aprovacaoNome?.trim() ||
+        !contractDetails.aprovacaoReferencia?.trim())
+    ) {
       toast({
         title: 'Registre a aprovação recebida do cliente',
         description:
@@ -412,7 +433,8 @@ export default function LocacaoImpressoras() {
     if (sameContract && sameContract.id !== editingContractId) {
       toast({
         title: 'Já existe contrato para esta proposta e equipamento',
-        description: 'Os dados preenchidos continuam na tela. Abra o contrato salvo pela lista para conferi-lo.',
+        description:
+          'Os dados preenchidos continuam na tela. Abra o contrato salvo pela lista para conferi-lo.',
       })
       return
     }
@@ -421,7 +443,9 @@ export default function LocacaoImpressoras() {
     try {
       let created: RentalContract
       if (editingContractId) {
-        const saved = await pb.collection('rental_contracts').getOne<RentalContract>(editingContractId)
+        const saved = await pb
+          .collection('rental_contracts')
+          .getOne<RentalContract>(editingContractId)
         if (saved.status !== 'rascunho') throw new Error('Contrato não está mais em rascunho')
         created = await updateRentalContract(editingContractId, draft)
       } else {
@@ -689,15 +713,22 @@ export default function LocacaoImpressoras() {
               </div>
 
               <RentalContractFormFields
-                number={nextContractNumber} setNumber={setNextContractNumber}
-                date={contractStartDate} setDate={setContractStartDate}
-                notes={clausulasAdicionais} setNotes={setClausulasAdicionais}
-                details={contractDetails} setDetails={setContractDetails}
-                photos={contractPhotos} setPhotos={setContractPhotos}
-                busy={creatingContract} preparingPhotos={preparingPhotos}
+                number={nextContractNumber}
+                setNumber={setNextContractNumber}
+                date={contractStartDate}
+                setDate={setContractStartDate}
+                notes={clausulasAdicionais}
+                setNotes={setClausulasAdicionais}
+                details={contractDetails}
+                setDetails={setContractDetails}
+                photos={contractPhotos}
+                setPhotos={setContractPhotos}
+                busy={creatingContract}
+                preparingPhotos={preparingPhotos}
                 setPreparingPhotos={setPreparingPhotos}
                 saveDraft={() => void saveContract(false)}
-                cancel={() => setContractModalOpen(false)} proposalId={currentQuote.id}
+                cancel={() => setContractModalOpen(false)}
+                proposalId={currentQuote.id}
               />
             </form>
           )}

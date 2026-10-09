@@ -337,9 +337,7 @@ export function inheritRentalContractDetails(
     nome: name,
     documento: document,
     endereco: address,
-    contato: [phone, email]
-      .filter(Boolean)
-      .join(' / '),
+    contato: [phone, email].filter(Boolean).join(' / '),
     telefoneCliente: phone,
     emailCliente: email,
     signatarioClienteNome: individual ? name : '',
