@@ -1,3 +1,4 @@
+import { RentalPrintButton } from '@/components/RentalPrintButton'
 import { contractMissingDetails, type RentalContractSnapshot } from '@/lib/rental-contract-template'
 import { Button } from '@/components/ui/button'
 import { Printer, Download, ArrowLeft } from 'lucide-react'
@@ -70,7 +71,7 @@ export function RentalContractPrintView({ contract, onBack }: RentalContractPrin
   })
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-rental-view>
       {/* BARRA DE AÇÕES (NÃO APARECE NA IMPRESSÃO) */}
       <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-900 text-white rounded-lg shadow print:hidden">
         <div className="flex items-center gap-2">
@@ -90,18 +91,17 @@ export function RentalContractPrintView({ contract, onBack }: RentalContractPrin
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            onClick={() => window.print()}
+          <RentalPrintButton
+            disabled={!contract.id}
             className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold gap-1.5"
           >
             <Printer className="h-4 w-4" /> Imprimir para assinatura / Salvar PDF
-          </Button>
+          </RentalPrintButton>
         </div>
       </div>
 
       {/* DOCUMENTO DO CONTRATO (FOLHA FORMATADA PARA IMPRESSÃO/PDF) */}
-      <div className="bg-white text-slate-900 p-8 sm:p-12 max-w-4xl mx-auto shadow-md rounded-lg border border-slate-200 print:shadow-none print:border-none print:p-0 print:m-0 font-serif text-[11pt] leading-relaxed">
+      <div data-rental-document="contract" className="bg-white text-slate-900 p-8 sm:p-12 max-w-[210mm] mx-auto shadow-md rounded-lg border border-slate-200 print:shadow-none print:border-none print:p-0 print:m-0 font-serif text-[11pt] leading-relaxed">
         {/* CABEÇALHO DO CONTRATO */}
         <div className="flex items-center justify-between border-b-2 border-slate-900 pb-4 mb-6">
           <div className="flex items-center gap-4">
@@ -315,7 +315,7 @@ function RevisedRentalContract({
   if (!s.data.dataInicio) missing.push('Data prevista de início')
   const value = (key: string) => s.details[key]?.trim() || '[PREENCHER ANTES DE ASSINAR]'
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-rental-view>
       <style>{`@media print { .rental-v2, .rental-v2 p, .rental-v2 span, .rental-v2 td { font-size:12pt!important; } .rental-v2 h3 { break-after:avoid; } .rental-v2 .annex { break-before:page; } .rental-v2 { box-shadow:none!important; border:0!important; padding:0!important; } }`}</style>
       <div className="print:hidden rounded-xl border bg-white p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -334,11 +334,11 @@ function RevisedRentalContract({
                 Voltar
               </Button>
             )}
-            <Button onClick={() => window.print()}>
+            <RentalPrintButton disabled={!contract.id}>
               {s.details.modalidade === 'eletronica'
                 ? 'Salvar PDF para assinatura eletrônica'
                 : 'Imprimir para assinatura / Salvar PDF'}
-            </Button>
+            </RentalPrintButton>
           </div>
         </div>
         <p className="text-sm">
@@ -394,7 +394,7 @@ function RevisedRentalContract({
           </p>
         </details>
       </div>
-      <article className="rental-v2 bg-white text-slate-900 p-8 sm:p-12 max-w-4xl mx-auto shadow border rounded font-serif text-[12pt] leading-relaxed">
+      <article data-rental-document="contract" className="rental-v2 bg-white text-slate-900 p-8 sm:p-12 max-w-[210mm] mx-auto shadow border rounded font-serif text-[12pt] leading-relaxed">
         <header className="border-b-2 border-slate-900 pb-4 mb-6">
           <h1 className="font-bold text-xl">{s.locadora.nomeFantasia}</h1>
           <p>
