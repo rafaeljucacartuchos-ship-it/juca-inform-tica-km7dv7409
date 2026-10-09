@@ -199,6 +199,7 @@ export function buildContractSnapshot(
   data: ContractTemplateData,
   details: ContractDetails,
   adicionais = '',
+  photos: import('./rental-contract-photos').RentalContractPhoto[] = [],
 ) {
   const d = (key: string) => details[key]?.trim() || '[PREENCHER ANTES DE ASSINAR]'
   const monthly = formatBRL(data.valorMensal)
@@ -272,6 +273,7 @@ export function buildContractSnapshot(
     locadora: { ...RENTAL_LOCADORA_FIXA },
     data: JSON.parse(JSON.stringify(data)) as ContractTemplateData,
     details: { ...details },
+    photos: photos.map((photo) => ({ ...photo })),
     adicionais,
     clauses,
     annexes: [

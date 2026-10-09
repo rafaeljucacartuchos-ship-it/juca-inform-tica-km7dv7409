@@ -497,6 +497,14 @@ function RevisedRentalContract({
           <section key={i} className="annex mt-8 border-t-2 pt-5">
             <h3 className="font-bold mb-3">{a.titulo}</h3>
             <p className="whitespace-pre-wrap">{a.conteudo}</p>
+            {i === 1 && !!s.photos?.length && <div className="mt-4 space-y-4">
+              <p>{s.photos.length} foto(s) incorporada(s) e arquivada(s) neste contrato.</p>
+              {s.photos.map((photo, index) => <figure key={photo.id} className="page-break-inside-avoid border p-3">
+                <img src={photo.dataUrl} alt={photo.caption || photo.name}
+                  style={{ width: '100%', height: 'auto', maxHeight: '95mm', objectFit: 'contain' }} />
+                <figcaption className="mt-2 break-words">Foto {index + 1} — {photo.caption || photo.name}</figcaption>
+              </figure>)}
+            </div>}
           </section>
         ))}
         <section className="annex mt-8 border-t-2 pt-5">

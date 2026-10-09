@@ -8,6 +8,8 @@ import {
   type ContractDetails,
 } from '@/lib/rental-contract-template'
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { RentalContractPhotosEditor } from '@/components/RentalContractPhotosEditor'
+import { validateContractPhotos, type RentalContractPhoto } from '@/lib/rental-contract-photos'
 import {
   Printer,
   Calculator,
@@ -152,6 +154,8 @@ export default function LocacaoImpressoras() {
   )
   const [clausulasAdicionais, setClausulasAdicionais] = useState('')
   const [contractDetails, setContractDetails] = useState<ContractDetails>({})
+  const [contractPhotos, setContractPhotos] = useState<RentalContractPhoto[]>([])
+  const [preparingPhotos, setPreparingPhotos] = useState(false)
 
   // Carrega dados de precificação (parâmetros, suprimentos, impressoras e auditoria)
   const loadPricingData = useCallback(async () => {
@@ -256,10 +260,12 @@ export default function LocacaoImpressoras() {
       setContractStartDate(existing.data_inicio?.slice(0, 10) || '')
       setClausulasAdicionais(existing.clausulas_adicionais || '')
       setContractDetails(saved.modelo_contrato.details)
+      setContractPhotos(saved.modelo_contrato.photos || [])
       setContractModalOpen(true)
       return
     }
     setEditingContractId('')
+    setContractPhotos([])
     try {
       const num = await generateNextContractNumber()
       setNextContractNumber(num)
@@ -324,8 +330,9 @@ export default function LocacaoImpressoras() {
         prazoMeses: payload.contrato_meses || 0,
         dataInicio: contractStartDate,
       },
-      contractDetails,
+      { ...contractDetails, fotos: contractDetails.fotos || contractPhotos.map((p, i) => 'Foto ' + (i + 1) + ': ' + (p.caption || p.name)).join('; ') },
       clausulasAdicionais.trim(),
+      contractPhotos,
     )
     const equipment = {
       nome: machineForContract.machineName,
@@ -354,8 +361,17 @@ export default function LocacaoImpressoras() {
   }
 
   const saveContract = async (requireApproval: boolean) => {
-    if (contractSaveLock.current) return
+    if (contractSaveLock.current || preparingPhotos) return
+    try { validateContractPhotos(contractPhotos) }
+    catch (error) {
+      toast({ title: error instanceof Error ? error.message : 'Confira as fotos', variant: 'destructive' })
+      return
+    }
     const draft = buildDraft()
+    if (new TextEncoder().encode(JSON.stringify(draft?.equipamento_dados || {})).length > 950000) {
+      toast({ title: 'Contrato muito grande', description: 'Reduza as fotos ou observações antes de salvar.', variant: 'destructive' })
+      return
+    }
     if (
       !draft ||
       !draft.numero ||
@@ -794,12 +810,14 @@ export default function LocacaoImpressoras() {
                   ))}
                 </div>
               </details>
+              <RentalContractPhotosEditor photos={contractPhotos} onChange={setContractPhotos}
+                disabled={creatingContract} onBusyChange={setPreparingPhotos} />
               <p className="text-slate-600">
                 Assinatura por link: envie o PDF e anexos por um provedor de assinatura. O sistema
                 ainda não envia links nem armazena o PDF assinado automaticamente.
               </p>
               <DialogFooter className="pt-2 gap-2 flex-wrap">
-                <Button type="button" variant="outline" disabled={creatingContract}
+                  <Button type="button" variant="outline" disabled={creatingContract || preparingPhotos}
                   onClick={() => void saveContract(false)}>
                   {creatingContract ? 'Salvando...' : 'Salvar rascunho e visualizar'}
                 </Button>
