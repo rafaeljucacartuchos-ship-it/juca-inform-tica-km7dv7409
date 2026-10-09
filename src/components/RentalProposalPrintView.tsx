@@ -271,16 +271,17 @@ export function RentalProposalPrintView(props: RentalProposalPrintViewProps) {
             </>
           )}
           {/* BOTÃO IMPRIMIR / PDF */}
-          <RentalPrintButton
-            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold gap-1.5"
-          >
+          <RentalPrintButton className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold gap-1.5">
             <Printer className="h-4 w-4" /> Imprimir Proposta / Salvar PDF
           </RentalPrintButton>
         </div>
       </div>
 
       {/* DOCUMENTO DA PROPOSTA (FORMATO FOLHA A4 / APRESENTÁVEL) */}
-      <div data-rental-document="proposal" className="bg-white text-slate-900 p-6 sm:p-10 max-w-[210mm] mx-auto shadow-md rounded-lg border border-slate-200 print:shadow-none print:border-none print:p-0 print:m-0 text-xs">
+      <div
+        data-rental-document="proposal"
+        className="bg-white text-slate-900 p-6 sm:p-10 max-w-[210mm] mx-auto shadow-md rounded-lg border border-slate-200 print:shadow-none print:border-none print:p-0 print:m-0 text-xs"
+      >
         {/* CABEÇALHO COM LOGO JUCA INFORMÁTICA */}
         <div className="flex items-center justify-between border-b-2 border-indigo-900 pb-3 mb-4">
           <div className="flex items-center gap-3">
@@ -352,7 +353,9 @@ export function RentalProposalPrintView(props: RentalProposalPrintViewProps) {
 
           <div
             className={`grid gap-4 ${
-              machines.length === 2 ? 'rental-options-two grid-cols-1 md:grid-cols-2' : 'grid-cols-1'
+              machines.length === 2
+                ? 'rental-options-two grid-cols-1 md:grid-cols-2'
+                : 'grid-cols-1'
             }`}
           >
             {machines.map((m, idx) => {

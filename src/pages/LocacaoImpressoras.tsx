@@ -238,16 +238,23 @@ export default function LocacaoImpressoras() {
   // Ao clicar em "Gerar Contrato" dentro da proposta
   const handleOpenGenerateContractModal = async (machine: RentalMachineCalculation) => {
     setMachineForContract(machine)
-    const existing = contractsList.find((c) => c.proposta === currentQuote?.id &&
-      c.status !== 'encerrado' && c.equipamento_dados?.produto_id === machine.machineId &&
-      c.equipamento_dados?.nome === machine.machineName)
+    const existing = contractsList.find(
+      (c) =>
+        c.proposta === currentQuote?.id &&
+        c.status !== 'encerrado' &&
+        c.equipamento_dados?.produto_id === machine.machineId &&
+        c.equipamento_dados?.nome === machine.machineName,
+    )
     const saved = existing?.equipamento_dados as typeof existing.equipamento_dados & {
       modelo_contrato?: ReturnType<typeof buildContractSnapshot>
     }
     if (existing && (existing.status !== 'rascunho' || !saved?.modelo_contrato)) {
       setCurrentContract(existing)
       setActiveTab('contrato')
-      toast({ title: 'Contrato existente aberto', description: 'O contrato arquivado foi preservado.' })
+      toast({
+        title: 'Contrato existente aberto',
+        description: 'O contrato arquivado foi preservado.',
+      })
       return
     }
     if (existing && saved?.modelo_contrato) {
@@ -374,11 +381,12 @@ export default function LocacaoImpressoras() {
       })
       return
     }
-    if (requireApproval && (
-      !contractDetails.aprovacaoData ||
-      !contractDetails.aprovacaoNome?.trim() ||
-      !contractDetails.aprovacaoReferencia?.trim()
-    )) {
+    if (
+      requireApproval &&
+      (!contractDetails.aprovacaoData ||
+        !contractDetails.aprovacaoNome?.trim() ||
+        !contractDetails.aprovacaoReferencia?.trim())
+    ) {
       toast({
         title: 'Registre a aprovação recebida do cliente',
         description:
@@ -397,7 +405,8 @@ export default function LocacaoImpressoras() {
     if (sameContract && sameContract.id !== editingContractId) {
       toast({
         title: 'Já existe contrato para esta proposta e equipamento',
-        description: 'Os dados preenchidos continuam na tela. Abra o contrato salvo pela lista para conferi-lo.',
+        description:
+          'Os dados preenchidos continuam na tela. Abra o contrato salvo pela lista para conferi-lo.',
       })
       return
     }
@@ -406,7 +415,9 @@ export default function LocacaoImpressoras() {
     try {
       let created: RentalContract
       if (editingContractId) {
-        const saved = await pb.collection('rental_contracts').getOne<RentalContract>(editingContractId)
+        const saved = await pb
+          .collection('rental_contracts')
+          .getOne<RentalContract>(editingContractId)
         if (saved.status !== 'rascunho') throw new Error('Contrato não está mais em rascunho')
         created = await updateRentalContract(editingContractId, draft)
       } else {
@@ -799,8 +810,12 @@ export default function LocacaoImpressoras() {
                 ainda não envia links nem armazena o PDF assinado automaticamente.
               </p>
               <DialogFooter className="pt-2 gap-2 flex-wrap">
-                <Button type="button" variant="outline" disabled={creatingContract}
-                  onClick={() => void saveContract(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={creatingContract}
+                  onClick={() => void saveContract(false)}
+                >
                   {creatingContract ? 'Salvando...' : 'Salvar rascunho e visualizar'}
                 </Button>
                 <Button

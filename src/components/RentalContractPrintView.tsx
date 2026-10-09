@@ -101,7 +101,10 @@ export function RentalContractPrintView({ contract, onBack }: RentalContractPrin
       </div>
 
       {/* DOCUMENTO DO CONTRATO (FOLHA FORMATADA PARA IMPRESSÃO/PDF) */}
-      <div data-rental-document="contract" className="bg-white text-slate-900 p-8 sm:p-12 max-w-[210mm] mx-auto shadow-md rounded-lg border border-slate-200 print:shadow-none print:border-none print:p-0 print:m-0 font-serif text-[11pt] leading-relaxed">
+      <div
+        data-rental-document="contract"
+        className="bg-white text-slate-900 p-8 sm:p-12 max-w-[210mm] mx-auto shadow-md rounded-lg border border-slate-200 print:shadow-none print:border-none print:p-0 print:m-0 font-serif text-[11pt] leading-relaxed"
+      >
         {/* CABEÇALHO DO CONTRATO */}
         <div className="flex items-center justify-between border-b-2 border-slate-900 pb-4 mb-6">
           <div className="flex items-center gap-4">
@@ -394,7 +397,10 @@ function RevisedRentalContract({
           </p>
         </details>
       </div>
-      <article data-rental-document="contract" className="rental-v2 bg-white text-slate-900 p-8 sm:p-12 max-w-[210mm] mx-auto shadow border rounded font-serif text-[12pt] leading-relaxed">
+      <article
+        data-rental-document="contract"
+        className="rental-v2 bg-white text-slate-900 p-8 sm:p-12 max-w-[210mm] mx-auto shadow border rounded font-serif text-[12pt] leading-relaxed"
+      >
         <header className="border-b-2 border-slate-900 pb-4 mb-6">
           <h1 className="font-bold text-xl">{s.locadora.nomeFantasia}</h1>
           <p>

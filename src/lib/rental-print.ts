@@ -36,17 +36,23 @@ export async function printRentalDocument(source: HTMLElement): Promise<void> {
     const doc = frame.contentDocument
     const win = frame.contentWindow
     if (!doc || !win) throw new Error('Impressão indisponível')
-    doc.title = source.dataset.rentalDocument === 'proposal' ? 'Proposta de locação JUCA' : 'Contrato de locação JUCA'
+    doc.title =
+      source.dataset.rentalDocument === 'proposal'
+        ? 'Proposta de locação JUCA'
+        : 'Contrato de locação JUCA'
     const base = doc.createElement('base')
     base.href = document.baseURI
     doc.head.appendChild(base)
     const styles: Promise<void>[] = []
     document.querySelectorAll('link[rel="stylesheet"], style').forEach((style) => {
       const copy = style.cloneNode(true) as HTMLElement
-      if (copy.tagName === 'LINK') styles.push(new Promise((resolve, reject) => {
-        copy.onload = () => resolve()
-        copy.onerror = () => reject(new Error('Falha ao carregar estilo'))
-      }))
+      if (copy.tagName === 'LINK')
+        styles.push(
+          new Promise((resolve, reject) => {
+            copy.onload = () => resolve()
+            copy.onerror = () => reject(new Error('Falha ao carregar estilo'))
+          }),
+        )
       doc.head.appendChild(copy)
     })
     const css = doc.createElement('style')
@@ -57,15 +63,23 @@ export async function printRentalDocument(source: HTMLElement): Promise<void> {
     doc.body.appendChild(copy)
     await Promise.race([
       Promise.all(styles),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Tempo de carregamento excedido')), 15000)),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Tempo de carregamento excedido')), 15000),
+      ),
     ])
     await doc.fonts.ready
-    await Promise.all(Array.from(doc.images).map(async (img) => {
-      try { await img.decode() } catch { /* Text remains printable if the logo is unavailable. */ }
-    }))
+    await Promise.all(
+      Array.from(doc.images).map(async (img) => {
+        try {
+          await img.decode()
+        } catch {
+          /* Text remains printable if the logo is unavailable. */
+        }
+      }),
+    )
     // Fit ordinary proposals on one A4 sheet. Never crop long documents or hide clauses.
     if (copy.dataset.rentalDocument === 'proposal') {
-      const usableHeight = 273 * 96 / 25.4
+      const usableHeight = (273 * 96) / 25.4
       const scale = Math.min(1, usableHeight / copy.scrollHeight)
       if (scale >= 0.8) copy.style.zoom = String(scale)
     }
@@ -73,5 +87,8 @@ export async function printRentalDocument(source: HTMLElement): Promise<void> {
     setTimeout(cleanup, 300000)
     win.focus()
     win.print()
-  } catch (error) { cleanup(); throw error }
+  } catch (error) {
+    cleanup()
+    throw error
+  }
 }
