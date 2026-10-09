@@ -1,3 +1,4 @@
+import { RENTAL_PROPOSAL_PRINT_CSS } from './rental-proposal-print-css'
 /** Prints only the document, outside the app's fixed-height scrolling workspace. */
 export const RENTAL_PRINT_CSS = `
 @page { size: A4 portrait; margin: 12mm; }
@@ -56,7 +57,7 @@ export async function printRentalDocument(source: HTMLElement): Promise<void> {
       doc.head.appendChild(copy)
     })
     const css = doc.createElement('style')
-    css.textContent = RENTAL_PRINT_CSS
+    css.textContent = RENTAL_PRINT_CSS + RENTAL_PROPOSAL_PRINT_CSS
     doc.head.appendChild(css)
     const copy = source.cloneNode(true) as HTMLElement
     copy.querySelectorAll('button, script, .print\\:hidden').forEach((el) => el.remove())
