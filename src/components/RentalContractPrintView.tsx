@@ -319,7 +319,7 @@ function RevisedRentalContract({
   const value = (key: string) => s.details[key]?.trim() || '[PREENCHER ANTES DE ASSINAR]'
   return (
     <div className="space-y-4" data-rental-view>
-      <style>{`@media print { .rental-v2, .rental-v2 p, .rental-v2 span, .rental-v2 td { font-size:12pt!important; } .rental-v2 h3 { break-after:avoid; } .rental-v2 .annex { break-before:page; } .rental-v2 { box-shadow:none!important; border:0!important; padding:0!important; } }`}</style>
+      <style>{`@media print { .rental-v2, .rental-v2 p, .rental-v2 span, .rental-v2 td { font-size:12pt!important; } .rental-v2 h3 { break-after:avoid; } .rental-v2 .annex { break-before:auto; page-break-before:auto; break-inside:auto; margin-top:6mm!important; padding-top:4mm!important; } .rental-v2 .rental-signature-row { break-inside:avoid; page-break-inside:avoid; } .rental-v2 .rental-witness-label { break-after:avoid; page-break-after:avoid; } .rental-v2 { box-shadow:none!important; border:0!important; padding:0!important; } }`}</style>
       <div className="print:hidden rounded-xl border bg-white p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -538,7 +538,7 @@ function RevisedRentalContract({
           <p className="mt-5">
             Local e data (assinatura física): ____________________________________
           </p>
-          <div className="grid grid-cols-2 gap-8 mt-12">
+          <div className="rental-signature-row grid grid-cols-2 gap-8 mt-12">
             <div className="border-t pt-2">
               LOCADORA
               <br />
@@ -554,8 +554,8 @@ function RevisedRentalContract({
               {value('representante')}
             </div>
           </div>
-          <p className="mt-8">Testemunhas, quando utilizadas (inclusive eletronicamente):</p>
-          <div className="grid grid-cols-2 gap-8 mt-10">
+          <p className="rental-witness-label mt-8">Testemunhas, quando utilizadas (inclusive eletronicamente):</p>
+          <div className="rental-signature-row grid grid-cols-2 gap-8 mt-10">
             <p className="border-t pt-2">
               1. Nome: __________________
               <br />
