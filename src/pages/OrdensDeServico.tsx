@@ -192,9 +192,11 @@ export default function OrdensDeServico() {
     try {
       const filters: string[] = []
       if (user?.role === 'technician' && user?.id) {
-        filters.push(`technician = "${user.id}"`)
+        filters.push(`(technician = "${user.id}" || second_technician = "${user.id}")`)
       } else if (technicianFilter !== 'all') {
-        filters.push(`technician = "${technicianFilter}"`)
+        filters.push(
+          `(technician = "${technicianFilter}" || second_technician = "${technicianFilter}")`,
+        )
       }
       if (dateStart) {
         filters.push(`created >= "${dateStart} 00:00:00.000Z"`)

@@ -156,7 +156,9 @@ export default function Dashboard() {
       ])
       if (current !== request.current) return
       const scoped =
-        user.role === 'technician' ? orders.filter((o) => o.technician === user.id) : orders
+        user.role === 'technician'
+          ? orders.filter((o) => o.technician === user.id || o.second_technician === user.id)
+          : orders
       const ids = new Set(scoped.map((o) => o.id))
       setData({
         orders: scoped,

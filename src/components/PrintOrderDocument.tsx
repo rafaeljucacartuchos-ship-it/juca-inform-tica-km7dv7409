@@ -463,14 +463,20 @@ export function PrintOrderDocument({
             </h3>
             <div className="space-y-0.5 leading-tight">
               <p>
-                <strong className="text-slate-700">Técnico Responsável:</strong>{' '}
+                <strong className="text-slate-700">
+                  {order.expand?.second_technician
+                    ? 'Técnicos responsáveis:'
+                    : 'Técnico Responsável:'}
+                </strong>{' '}
                 <span className="font-semibold text-slate-900">
-                  {tech?.name || 'Não atribuído'}
+                  {order.expand?.second_technician
+                    ? `${tech?.name || 'Principal'} e ${order.expand.second_technician.name || 'Segundo Técnico'}`
+                    : tech?.name || 'Não atribuído'}
                 </span>
               </p>
               <p>
-                <strong className="text-slate-700">Telefone do Técnico:</strong>{' '}
-                {tech?.phone || '—'}
+                <strong className="text-slate-700">Telefone:</strong>{' '}
+                {tech?.phone || order.expand?.second_technician?.phone || '—'}
               </p>
               {order.started_at && (
                 <p>

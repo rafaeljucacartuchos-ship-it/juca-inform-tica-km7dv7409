@@ -70,7 +70,24 @@ import {
   deleteServiceOrder,
   syncServiceOrderTotal,
   copyOrcamentoItensToServiceOrder,
+  updateServiceOrder,
+  getOrderItems,
+  getOrderDivisionHistory,
+  recordOrderDivisionChange,
 } from '@/services/service_orders'
+import { getOrderPayments } from '@/services/payments'
+import { getAllUsers, getTechnicians } from '@/services/users'
+import { OrderTeamDivisionSection } from '@/components/OrderTeamDivisionSection'
+import { computeDivisionDetails } from '@/lib/order-division'
+import {
+  User,
+  DivisionModel,
+  DivisionDetails,
+  OrderDivisionHistoryRecord,
+  Payment,
+  ServiceOrderItem,
+} from '@/types'
+import { Users, History, Save, Check } from 'lucide-react'
 import { getCustomerPhone, getCustomerDisplayName } from '@/services/customers'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { offlinePb } from '@/lib/offline-pb'
@@ -195,6 +212,27 @@ export default function OrdemDetail() {
   const [editOsDescription, setEditOsDescription] = useState('')
   const [savingOs, setSavingOs] = useState(false)
 
+  // Estados para Equipe e Divisão da O.S. (admin)
+  const [teamUsers, setTeamUsers] = useState<User[]>([])
+  const [divisionTech1, setDivisionTech1] = useState<string>('')
+  const [divisionTech2, setDivisionTech2] = useState<string>('')
+  const [divisionSeller, setDivisionSeller] = useState<string>('')
+  const [divisionModel, setDivisionModel] = useState<DivisionModel>('single')
+  const [divisionDetails, setDivisionDetails] = useState<DivisionDetails | null>(null)
+  const [customPctTech1, setCustomPctTech1] = useState<number>(50)
+  const [customPctTech2, setCustomPctTech2] = useState<number>(50)
+  const [savingDivision, setSavingDivision] = useState(false)
+  const [divisionHistoryList, setDivisionHistoryList] = useState<OrderDivisionHistoryRecord[]>([])
+  const [loadingDivisionHistory, setLoadingDivisionHistory] = useState(false)
+  const [orderPaymentsList, setOrderPaymentsList] = useState<Payment[]>([])
+  const [orderItemsList, setOrderItemsList] = useState<ServiceOrderItem[]>([])
+  const [isDivisionHistoryOpen, setIsDivisionHistoryOpen] = useState(false)
+
+  // Diálogo de Justificativa Obrigatória (quando OS finalizada/fechada ou com pagamentos)
+  const [confirmDivisionDialogOpen, setConfirmDivisionDialogOpen] = useState(false)
+  const [divisionJustification, setDivisionJustification] = useState('')
+  const [divisionRequiresJustification, setDivisionRequiresJustification] = useState(false)
+
   // Estados para itens e edição do orçamento vinculado dentro da OS
   const [orcItemModalOpen, setOrcItemModalOpen] = useState(false)
   const [editingOrcItem, setEditingOrcItem] = useState<OrcamentoItem | null>(null)
@@ -207,7 +245,12 @@ export default function OrdemDetail() {
 
   const isTechnician = user?.role === 'technician'
   const isOrderOwner = Boolean(
-    order && user && (order.technician === user.id || order.expand?.technician?.id === user.id),
+    order &&
+    user &&
+    (order.technician === user.id ||
+      order.expand?.technician?.id === user.id ||
+      order.second_technician === user.id ||
+      order.expand?.second_technician?.id === user.id),
   )
   const canEdit = user?.role === 'admin' || (isTechnician && (!order?.technician || isOrderOwner))
   const canDeleteOs = user?.role === 'admin' || hasPermission('os_delete')
@@ -273,6 +316,35 @@ export default function OrdemDetail() {
       setEditOsDescription(o.description || '')
       setHistory(h)
       setServiceReport(o.service_report || '')
+
+      // Inicializa estados de equipe e divisão da OS
+      setDivisionTech1(o.technician || '')
+      setDivisionTech2(o.second_technician || '')
+      setDivisionSeller(o.seller || '')
+      setDivisionModel((o.division_model as DivisionModel) || 'single')
+      setDivisionDetails((o.division_details as DivisionDetails) || null)
+      if (o.division_details?.technician1_pct != null) {
+        setCustomPctTech1(o.division_details.technician1_pct)
+        setCustomPctTech2(o.division_details.technician2_pct || 0)
+      }
+
+      // Se for admin, carrega pagamentos, itens da OS, histórico de divisão e usuários do time
+      if (user?.role === 'admin') {
+        try {
+          const [pays, oItens, divHist, allUsrs] = await Promise.all([
+            getOrderPayments(o.id).catch(() => []),
+            getOrderItems(o.id).catch(() => []),
+            getOrderDivisionHistory(o.id).catch(() => []),
+            getAllUsers().catch(() => []),
+          ])
+          setOrderPaymentsList(pays || [])
+          setOrderItemsList(oItens || [])
+          setDivisionHistoryList(divHist || [])
+          setTeamUsers(allUsrs || [])
+        } catch (e) {
+          console.warn('Erro ao carregar dados auxiliares de divisão para admin:', e)
+        }
+      }
     } catch (err: any) {
       console.warn('Erro ao carregar detalhes da ordem de serviço:', err)
       const status = err?.status || err?.response?.status || err?.statusCode
@@ -311,6 +383,18 @@ export default function OrdemDetail() {
     if (id)
       getStatusHistory(id)
         .then(setHistory)
+        .catch(() => {})
+  })
+  useRealtime('order_division_history', () => {
+    if (id && user?.role === 'admin')
+      getOrderDivisionHistory(id)
+        .then(setDivisionHistoryList)
+        .catch(() => {})
+  })
+  useRealtime('payments', () => {
+    if (id && user?.role === 'admin')
+      getOrderPayments(id)
+        .then(setOrderPaymentsList)
         .catch(() => {})
   })
 
@@ -360,6 +444,155 @@ export default function OrdemDetail() {
   // mas canEdit só permite edições se o usuário for admin ou for o técnico atribuído a esta O.S.
 
   const isFinalizada = order.status === 'completed' || order.status === 'closed'
+  const hasPayments = orderPaymentsList.length > 0
+  const divisionIsLockedWithReason = isFinalizada || hasPayments
+
+  // Itens para cálculo de serviços x produtos
+  // Prioriza itens da própria OS (service_order_items); se não houver, usa itens do orçamento vinculado
+  const computedItemsForDivision = useMemo(() => {
+    if (orderItemsList && orderItemsList.length > 0) {
+      return orderItemsList.map((item) => ({
+        tipo: (item.item_type === 'product' ? 'produto' : 'servico') as 'servico' | 'produto',
+        unit_price: Number(item.unit_price || 0),
+        quantity: Number(item.quantity || 1),
+      }))
+    }
+    if (orcamentoItens && orcamentoItens.length > 0) {
+      return orcamentoItens.map((item) => ({
+        tipo: (item.tipo === 'produto' ? 'produto' : 'servico') as 'servico' | 'produto',
+        unit_price: Number(item.preco_unitario || 0),
+        quantity: Number(item.quantidade || 1),
+      }))
+    }
+    return []
+  }, [orderItemsList, orcamentoItens])
+
+  // Recalcula prévia da divisão sempre que mudarem os participantes, modelo, percentuais ou itens
+  const liveComputedDivision = useMemo(() => {
+    const totalServicos = computedItemsForDivision
+      .filter((i) => i.tipo === 'servico')
+      .reduce((acc, i) => acc + i.unit_price * i.quantity, 0)
+    const totalProdutos = computedItemsForDivision
+      .filter((i) => i.tipo === 'produto')
+      .reduce((acc, i) => acc + i.unit_price * i.quantity, 0)
+
+    const t1Obj = teamUsers.find((u) => u.id === divisionTech1)
+    const t2Obj = teamUsers.find((u) => u.id === divisionTech2)
+    const sObj = teamUsers.find((u) => u.id === divisionSeller)
+
+    return computeDivisionDetails({
+      totalServices: totalServicos,
+      totalProducts: totalProdutos,
+      model: divisionModel,
+      technician1: divisionTech1
+        ? { id: divisionTech1, name: t1Obj?.name || 'Técnico 1' }
+        : undefined,
+      technician2: divisionTech2
+        ? { id: divisionTech2, name: t2Obj?.name || 'Técnico 2' }
+        : undefined,
+      seller: divisionSeller ? { id: divisionSeller, name: sObj?.name || 'Vendedor' } : undefined,
+      customSplit: {
+        technician1Pct: customPctTech1,
+        technician2Pct: customPctTech2,
+      },
+    })
+  }, [
+    computedItemsForDivision,
+    divisionModel,
+    divisionTech1,
+    divisionTech2,
+    divisionSeller,
+    customPctTech1,
+    customPctTech2,
+    teamUsers,
+  ])
+
+  // Handler para salvar a divisão de equipe
+  const handleInitiateSaveDivision = () => {
+    if (divisionIsLockedWithReason) {
+      setDivisionRequiresJustification(true)
+      setDivisionJustification('')
+      setConfirmDivisionDialogOpen(true)
+    } else {
+      executeSaveDivision('')
+    }
+  }
+
+  const executeSaveDivision = async (reasonText: string) => {
+    if (!order) return
+    setSavingDivision(true)
+    try {
+      const prevDetails = (order.division_details as DivisionDetails) || null
+      const prevModel = order.division_model || 'single'
+      const prevTech1 = order.technician || ''
+      const prevTech2 = order.second_technician || ''
+      const prevSeller = order.seller || ''
+
+      const updatePayload: Partial<ServiceOrder> = {
+        technician: divisionTech1 || undefined,
+        second_technician: divisionTech2 || undefined,
+        seller: divisionSeller || undefined,
+        division_model: divisionModel,
+        division_details: liveComputedDivision,
+      }
+
+      // 1. Atualiza a O.S.
+      await updateServiceOrder(order.id, updatePayload)
+
+      // 2. Grava histórico de auditoria em order_division_history
+      const reasonToSave =
+        reasonText.trim() ||
+        (divisionIsLockedWithReason
+          ? 'Alteração com trava de segurança'
+          : 'Ajuste de equipe/divisão')
+      await recordOrderDivisionChange({
+        orderId: order.id,
+        userId: user?.id || '',
+        userName: user?.name || 'Administrador',
+        action: 'updated',
+        reason: reasonToSave,
+        previousState: {
+          technician: prevTech1,
+          second_technician: prevTech2,
+          seller: prevSeller,
+          division_model: prevModel,
+        },
+        newState: {
+          technician: divisionTech1,
+          second_technician: divisionTech2,
+          seller: divisionSeller,
+          division_model: divisionModel,
+        },
+        previousDetails: prevDetails,
+        newDetails: liveComputedDivision,
+        orderStatusAtChange: order.status,
+      }).catch((e) => {
+        console.warn('Falha ao registrar histórico de auditoria da divisão:', e)
+      })
+
+      // Recarrega histórico
+      const updatedHist = await getOrderDivisionHistory(order.id).catch(() => [])
+      setDivisionHistoryList(updatedHist)
+      setConfirmDivisionDialogOpen(false)
+      setDivisionJustification('')
+
+      toast({
+        title: 'Divisão da O.S. salva com sucesso!',
+        description: 'Os responsáveis e percentuais foram atualizados.',
+      })
+
+      await loadAll()
+    } catch (err: any) {
+      console.error('Erro ao salvar divisão da O.S.:', err)
+      toast({
+        title: 'Erro ao salvar divisão',
+        description: getErrorMessage(err) || 'Verifique os dados e tente novamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingDivision(false)
+    }
+  }
 
   const handleFinalizarOrdemConfirmada = async () => {
     // Validação da regra de negócio: Equipamento obrigatório ao fechar/concluir a O.S.
@@ -1730,7 +1963,11 @@ export default function OrdemDetail() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                 <div>
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-500">Técnico Responsável:</span>
+                    <span className="font-semibold text-slate-500">
+                      {order.expand?.second_technician
+                        ? 'Técnicos Responsáveis:'
+                        : 'Técnico Responsável:'}
+                    </span>
                     {canEdit && (
                       <button
                         type="button"
@@ -1744,8 +1981,16 @@ export default function OrdemDetail() {
                     )}
                   </div>
                   <p className="font-medium text-slate-900 mt-0.5">
-                    {order.expand?.technician?.name || 'Não atribuído'}
+                    {order.expand?.second_technician
+                      ? `${order.expand?.technician?.name || 'Principal'} e ${order.expand.second_technician.name || 'Segundo Técnico'}`
+                      : order.expand?.technician?.name || 'Não atribuído'}
                   </p>
+                  {order.expand?.seller && (
+                    <p className="text-xs text-slate-500 mt-1">
+                      <span className="font-semibold text-slate-600">Vendedor:</span>{' '}
+                      {order.expand.seller.name}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <div className="flex items-center justify-between">
@@ -2421,6 +2666,181 @@ export default function OrdemDetail() {
         </div>
 
         <div className="space-y-6">
+          {/* Seção de Equipe e Divisão da O.S. (Visível apenas para Administradores) */}
+          {user?.role === 'admin' && (
+            <div className="space-y-4">
+              <Card className="border-indigo-200 shadow-sm bg-white overflow-hidden">
+                <CardHeader className="flex flex-row items-center justify-between pb-3 bg-indigo-50/50 border-b border-indigo-100">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-indigo-600" />
+                    <div>
+                      <CardTitle className="text-sm font-bold text-slate-900">
+                        Equipe e Divisão da O.S.
+                      </CardTitle>
+                      <CardDescription className="text-[11px] text-slate-500">
+                        Distribuição interna de mão de obra e vendas (visível apenas para
+                        administradores)
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleInitiateSaveDivision}
+                    disabled={savingDivision}
+                    className="h-8 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shadow-xs"
+                  >
+                    {savingDivision ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Save className="h-3.5 w-3.5" />
+                    )}
+                    <span>{savingDivision ? 'Salvando...' : 'Salvar Divisão'}</span>
+                  </Button>
+                </CardHeader>
+                <CardContent className="p-4 space-y-4">
+                  {divisionIsLockedWithReason && (
+                    <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 flex items-start gap-2 text-xs text-amber-900">
+                      <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-semibold">Trava de Segurança Ativa: </span>
+                        <span>
+                          {isFinalizada && hasPayments
+                            ? 'Esta O.S. já foi concluída e possui pagamentos registrados. Qualquer alteração exigirá justificativa obrigatória e ficará registrada na trilha de auditoria.'
+                            : isFinalizada
+                              ? 'Esta O.S. já foi concluída. Qualquer alteração na divisão exigirá justificativa obrigatória e auditoria.'
+                              : 'Esta O.S. possui lançamentos de pagamento. Qualquer alteração exigirá justificativa obrigatória.'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <OrderTeamDivisionSection
+                    users={teamUsers}
+                    technician1={divisionTech1}
+                    technician2={divisionTech2}
+                    seller={divisionSeller}
+                    divisionModel={divisionModel}
+                    customSplit={{
+                      technician1Pct: customPctTech1,
+                      technician2Pct: customPctTech2,
+                    }}
+                    computedDivision={liveComputedDivision}
+                    onTechnician1Change={setDivisionTech1}
+                    onTechnician2Change={setDivisionTech2}
+                    onSellerChange={setDivisionSeller}
+                    onDivisionModelChange={setDivisionModel}
+                    onCustomSplitChange={(t1, t2) => {
+                      setCustomPctTech1(t1)
+                      setCustomPctTech2(t2)
+                    }}
+                    orderStatus={order.status}
+                    hasPayments={hasPayments}
+                    disabled={savingDivision}
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Trilha de Auditoria / Histórico de Divisão da OS */}
+              <Card className="border-slate-200 shadow-sm bg-white">
+                <CardHeader className="pb-3 pt-3 flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <History className="h-4 w-4 text-indigo-600" />
+                    <CardTitle className="text-sm font-bold text-slate-900">
+                      Histórico da Divisão ({divisionHistoryList.length})
+                    </CardTitle>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsDivisionHistoryOpen(!isDivisionHistoryOpen)}
+                    className="h-7 text-xs text-slate-600 hover:text-slate-900 gap-1"
+                  >
+                    <span>{isDivisionHistoryOpen ? 'Ocultar' : 'Ver Trilha'}</span>
+                    {isDivisionHistoryOpen ? (
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </CardHeader>
+                {isDivisionHistoryOpen && (
+                  <CardContent className="space-y-3 pt-0">
+                    {divisionHistoryList.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic py-2">
+                        Nenhuma alteração de divisão registrada para esta O.S. ainda.
+                      </p>
+                    ) : (
+                      <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
+                        {divisionHistoryList.map((rec) => {
+                          const dateFmt = rec.created
+                            ? new Date(rec.created).toLocaleString('pt-BR')
+                            : 'Data não informada'
+                          return (
+                            <div
+                              key={rec.id}
+                              className="text-xs border-l-2 border-indigo-500 pl-3 py-2 bg-slate-50/70 rounded-r-md border border-l-indigo-500 border-slate-200/60 space-y-1.5"
+                            >
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <span className="font-semibold text-slate-900">
+                                  {rec.user_name || 'Usuário'}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {dateFmt}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] uppercase font-semibold"
+                                >
+                                  Status na alteração: {rec.order_status_at_change || '—'}
+                                </Badge>
+                                <span className="text-[11px] text-indigo-700 font-medium">
+                                  Ação: {rec.action}
+                                </span>
+                              </div>
+                              {rec.reason && (
+                                <p className="text-[11px] text-slate-700 bg-white p-1.5 rounded border border-slate-200">
+                                  <strong className="text-slate-900">Motivo:</strong> {rec.reason}
+                                </p>
+                              )}
+                              {/* Comparação Resumida dos Detalhes da Divisão */}
+                              {rec.new_details && (
+                                <div className="text-[10px] font-mono text-slate-600 bg-white/80 p-1.5 rounded border border-slate-100 space-y-0.5">
+                                  <div>
+                                    <strong>Modelo novo:</strong> {rec.new_details.model} | Total:
+                                    R${' '}
+                                    {(
+                                      (rec.new_details.total_services_cents +
+                                        rec.new_details.total_products_cents) /
+                                      100
+                                    ).toFixed(2)}
+                                  </div>
+                                  <div className="space-y-0.5 pt-0.5">
+                                    {rec.new_details.participants?.map((p: any) => (
+                                      <div key={p.user_id} className="text-slate-700">
+                                        • {p.name} ({p.role}): {p.pct_services}% serv (R${' '}
+                                        {(p.total_services_cents / 100).toFixed(2)}) |{' '}
+                                        {p.pct_products}% prod (R${' '}
+                                        {(p.total_products_cents / 100).toFixed(2)})
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
+            </div>
+          )}
+
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-bold text-slate-900">Ações Rápidas</CardTitle>
@@ -2527,6 +2947,71 @@ export default function OrdemDetail() {
           </Card>
         </div>
       </div>
+
+      {/* Modal de Trava de Segurança com Justificativa Obrigatória para Alteração de Divisão */}
+      <Dialog open={confirmDivisionDialogOpen} onOpenChange={setConfirmDivisionDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600 font-bold">
+              <AlertCircle className="h-5 w-5" />
+              Confirmação de Alteração da Divisão
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-600 space-y-2 pt-1">
+              <span className="block">
+                Esta Ordem de Serviço{' '}
+                {isFinalizada
+                  ? 'já se encontra concluída/fechada.'
+                  : 'já possui pagamentos registrados no financeiro.'}
+              </span>
+              <span className="block text-slate-800 font-medium bg-amber-50 border border-amber-200 p-2 rounded text-[11px]">
+                Para garantir a integridade dos dados e a trilha de auditoria, informe
+                obrigatoriamente o motivo desta alteração. O registro ficará vinculado ao seu
+                usuário.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2 space-y-2">
+            <Label htmlFor="division-reason" className="text-xs font-semibold text-slate-800">
+              Justificativa da Alteração <span className="text-rose-500">*</span>
+            </Label>
+            <Textarea
+              id="division-reason"
+              value={divisionJustification}
+              onChange={(e) => setDivisionJustification(e.target.value)}
+              placeholder="Ex: Correção de percentual combinada com a gerência; auxílio prestado no fechamento..."
+              rows={3}
+              className="text-xs"
+            />
+            {!divisionJustification.trim() && (
+              <p className="text-[11px] text-rose-500">
+                A justificativa é obrigatória para prosseguir.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={savingDivision}
+              onClick={() => setConfirmDivisionDialogOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={savingDivision || !divisionJustification.trim()}
+              onClick={() => executeSaveDivision(divisionJustification.trim())}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+            >
+              {savingDivision ? 'Salvando...' : 'Confirmar e Gravar Auditoria'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={confirmFinalizarOpen} onOpenChange={setConfirmFinalizarOpen}>
         <AlertDialogContent>
