@@ -554,7 +554,9 @@ function RevisedRentalContract({
               {value('representante')}
             </div>
           </div>
-          <p className="rental-witness-label mt-8">Testemunhas, quando utilizadas (inclusive eletronicamente):</p>
+          <p className="rental-witness-label mt-8">
+            Testemunhas, quando utilizadas (inclusive eletronicamente):
+          </p>
           <div className="rental-signature-row grid grid-cols-2 gap-8 mt-10">
             <p className="border-t pt-2">
               1. Nome: __________________
