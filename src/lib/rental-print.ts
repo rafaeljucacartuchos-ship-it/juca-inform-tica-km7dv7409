@@ -18,7 +18,10 @@ html, body { width:auto!important; height:auto!important; min-height:0!important
 [data-rental-document] h4 { break-after:avoid; }
 [data-rental-document] img { max-width:100%; }
 .page-break-inside-avoid, [data-rental-document] tr { break-inside:avoid; }
-.rental-v2 .annex { break-before:page; }
+.rental-v2 .annex { break-before:auto; page-break-before:auto; break-inside:auto;
+  margin-top:6mm!important; padding-top:4mm!important; }
+.rental-v2 .rental-signature-row { break-inside:avoid; page-break-inside:avoid; }
+.rental-v2 .rental-witness-label { break-after:avoid; page-break-after:avoid; }
 [data-rental-document="proposal"] { font-size:9pt!important; line-height:1.25!important; }
 [data-rental-document="proposal"] .rental-options-two { grid-template-columns:repeat(2,minmax(0,1fr))!important; }
 [data-rental-document="proposal"] .rental-customer-grid,
