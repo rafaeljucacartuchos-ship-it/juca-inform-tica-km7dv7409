@@ -143,7 +143,19 @@ cronAdd('juquinha_pos_venda_cron', '* * * * *', () => {
           ) {
             return 'seu equipamento'
           }
-          return trimmed
+          var clean = trimmed
+          clean = clean.replace(/^Not\s+dell\s*-\s*Dell/i, 'Notebook Dell')
+          clean = clean.replace(/^Not\b/i, 'Notebook')
+          clean = clean
+            .replace(/\s+-\s+(\w+)\s*$/i, function (match, brand) {
+              var prefix = clean.slice(0, clean.length - match.length).trim()
+              if (prefix.toLowerCase().indexOf(brand.toLowerCase()) !== -1) {
+                return ''
+              }
+              return ' ' + brand
+            })
+            .trim()
+          return clean || trimmed
         }
 
         function buildEquipPhrase(eq, prefix) {
@@ -176,10 +188,11 @@ cronAdd('juquinha_pos_venda_cron', '* * * * *', () => {
         var equipPhraseDo = buildEquipPhrase(equip, 'do')
         var techPart = techName ? ' pelo técnico *' + techName + '*' : ''
 
-        var originUrl =
-          'https://assistencia-tecnica-movel-86527--skip-app.shrd00.internal.goskip.dev'
+        var originUrl = 'https://assistencia-tecnica-movel-86527.goskip.app'
         var envPublic = $os.getenv('APP_PUBLIC_URL') || $os.getenv('FRONTEND_URL') || ''
-        if (envPublic) originUrl = envPublic.replace(/\/+$/, '')
+        if (envPublic && !envPublic.includes('internal.goskip.dev')) {
+          originUrl = envPublic.replace(/\/+$/, '')
+        }
 
         // Se a mensagem já tiver token_acesso, reaproveita; senão gera token seguro
         var token = msgRec.getString('token_acesso')

@@ -31,7 +31,19 @@ export function sanitizeEquipmentDescription(equipment?: string): string {
   ) {
     return 'seu equipamento'
   }
-  return trimmed
+  let clean = trimmed
+  clean = clean.replace(/^Not\s+dell\s*-\s*Dell/i, 'Notebook Dell')
+  clean = clean.replace(/^Not\b/i, 'Notebook')
+  clean = clean
+    .replace(/\s+-\s+(\w+)\s*$/i, (match, brand) => {
+      const prefix = clean.slice(0, clean.length - match.length).trim()
+      if (prefix.toLowerCase().includes(brand.toLowerCase())) {
+        return ''
+      }
+      return ' ' + brand
+    })
+    .trim()
+  return clean || trimmed
 }
 
 /**

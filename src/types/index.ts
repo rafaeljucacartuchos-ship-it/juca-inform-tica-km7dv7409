@@ -120,11 +120,56 @@ export interface ServiceType {
   updated?: string
 }
 
+export type DivisionModel =
+  | 'single_tech'
+  | 'two_techs_split_services'
+  | 'two_split_all'
+  | 'tech_and_seller'
+  | 'two_techs_and_seller'
+  | 'custom'
+
+export interface DivisionParticipantShare {
+  userId: string
+  userName: string
+  role: 'primary_tech' | 'second_tech' | 'seller'
+  servicesPct: number
+  productsPct: number
+  servicesAmount: number
+  productsAmount: number
+  totalAmount: number
+}
+
+export interface DivisionHistoryEntry {
+  changedAt: string
+  changedByUserId: string
+  changedByUserName: string
+  previousModel?: DivisionModel
+  newModel?: DivisionModel
+  previousDetails?: any
+  newDetails?: any
+  note?: string
+}
+
+export interface DivisionDetails {
+  model: DivisionModel
+  isCustom: boolean
+  configured: boolean
+  totalServices: number
+  totalProducts: number
+  orderTotal: number
+  participants: DivisionParticipantShare[]
+  history?: DivisionHistoryEntry[]
+}
+
 export interface ServiceOrder {
   id: string
   number: string
   customer: string
   technician?: string
+  second_technician?: string
+  seller?: string
+  division_model?: DivisionModel
+  division_details?: DivisionDetails
   appointment?: string
   attendance_type?: string
   status: OrderStatus
@@ -153,6 +198,8 @@ export interface ServiceOrder {
   expand?: {
     customer?: Customer
     technician?: User
+    second_technician?: User
+    seller?: User
     appointment?: Appointment
     equipment_ref?: Equipment
     attendance_type?: ServiceType

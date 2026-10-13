@@ -30,7 +30,9 @@ import { Check, ChevronsUpDown, Loader2, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Customer, User, OrderPriority, Equipment, ServiceType } from '@/types'
 import { getCustomers, getCustomer } from '@/services/customers'
-import { getTechnicians } from '@/services/users'
+import { getTechnicians, getAllUsers } from '@/services/users'
+import { OrderTeamDivisionSection } from '@/components/OrderTeamDivisionSection'
+import { DivisionModel, DivisionDetails } from '@/types'
 import { formatPhone } from '@/lib/phones'
 import { getEquipmentByCustomer } from '@/services/equipment'
 import { createAppointment } from '@/services/appointments'
@@ -58,6 +60,12 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
 
   const [techComboboxOpen, setTechComboboxOpen] = useState(false)
   const [technicians, setTechnicians] = useState<User[]>([])
+  const [allUsers, setAllUsers] = useState<User[]>([])
+  const [secondTechnician, setSecondTechnician] = useState('')
+  const [seller, setSeller] = useState('')
+  const [divisionModel, setDivisionModel] = useState<DivisionModel>('single_tech')
+  const [isCustomDivision, setIsCustomDivision] = useState(false)
+  const [currentDivisionDetails, setCurrentDivisionDetails] = useState<DivisionDetails | null>(null)
   const [equipment, setEquipment] = useState<Equipment[]>([])
   const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([])
   const [customerModalOpen, setCustomerModalOpen] = useState(false)
@@ -92,6 +100,10 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
 
       getTechnicians()
         .then(setTechnicians)
+        .catch(() => {})
+
+      getAllUsers()
+        .then(setAllUsers)
         .catch(() => {})
 
       getServiceTypes(true)
@@ -274,6 +286,10 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
       const created = await offlinePb.create('service_orders', {
         customer: formData.customer,
         technician: formData.technician || undefined,
+        second_technician: secondTechnician || undefined,
+        seller: seller || undefined,
+        division_model: divisionModel || 'single_tech',
+        division_details: currentDivisionDetails || undefined,
         appointment: appointment.id,
         attendance_type: formData.attendance_type || undefined,
         equipment_ref: formData.equipment_ref || undefined,
@@ -322,6 +338,10 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
         description: '',
         priority: 'medium',
       })
+      setSecondTechnician('')
+      setSeller('')
+      setDivisionModel('single_tech')
+      setIsCustomDivision(false)
       setSelectedCustomer(null)
       onOpenChange(false)
       if (onCreated) onCreated()
@@ -559,89 +579,35 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-700">Técnico Responsável</Label>
-                <Popover open={techComboboxOpen} onOpenChange={setTechComboboxOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={techComboboxOpen}
-                      className={cn(
-                        'w-full h-9 text-xs justify-between font-normal px-3 bg-white border-slate-200 hover:bg-slate-50',
-                        !formData.technician && 'text-slate-400',
-                      )}
-                    >
-                      <span className="truncate text-left">
-                        {formData.technician
-                          ? technicians.find((t) => t.id === formData.technician)?.name ||
-                            'Técnico selecionado'
-                          : 'Sem técnico'}
-                      </span>
-                      <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    className="w-[--radix-popover-trigger-width] p-0 shadow-lg max-h-60 overflow-hidden"
-                    align="start"
-                  >
-                    <Command className="max-h-60 flex flex-col">
-                      <CommandInput
-                        placeholder="Buscar técnico..."
-                        className="h-9 text-xs shrink-0"
-                      />
-                      <CommandList className="max-h-48 overflow-y-auto">
-                        <CommandEmpty className="py-4 text-center text-xs text-slate-500">
-                          Nenhum técnico encontrado.
-                        </CommandEmpty>
-                        <CommandGroup>
-                          <CommandItem
-                            value="__none__"
-                            onSelect={() => {
-                              setFormData((prev) => ({ ...prev, technician: '' }))
-                              setTechComboboxOpen(false)
-                            }}
-                            className="text-xs cursor-pointer flex items-center justify-between py-2"
-                          >
-                            <span className="text-slate-500 italic">Sem técnico</span>
-                            <Check
-                              className={cn(
-                                'h-4 w-4 shrink-0 text-indigo-600',
-                                !formData.technician ? 'opacity-100' : 'opacity-0',
-                              )}
-                            />
-                          </CommandItem>
-                          {technicians.map((t) => {
-                            const isSelected = formData.technician === t.id
-                            return (
-                              <CommandItem
-                                key={t.id}
-                                value={t.name || t.id}
-                                onSelect={() => {
-                                  setFormData((prev) => ({ ...prev, technician: t.id }))
-                                  setTechComboboxOpen(false)
-                                }}
-                                className="text-xs cursor-pointer flex items-center justify-between py-2"
-                              >
-                                <span className="font-medium text-slate-900 truncate">
-                                  {t.name}
-                                </span>
-                                <Check
-                                  className={cn(
-                                    'h-4 w-4 shrink-0 text-indigo-600',
-                                    isSelected ? 'opacity-100' : 'opacity-0',
-                                  )}
-                                />
-                              </CommandItem>
-                            )
-                          })}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
+              {/* Seção Equipe e divisão da OS */}
+              <OrderTeamDivisionSection
+                technicians={technicians}
+                allUsers={allUsers.length > 0 ? allUsers : technicians}
+                primaryTechId={formData.technician}
+                secondTechId={secondTechnician}
+                sellerId={seller}
+                divisionModel={divisionModel}
+                isCustom={isCustomDivision}
+                totalServices={0}
+                totalProducts={0}
+                orderTotal={0}
+                onPrimaryTechChange={(id) => setFormData((prev) => ({ ...prev, technician: id }))}
+                onSecondTechChange={(id) => {
+                  setSecondTechnician(id)
+                  if (id && divisionModel === 'single_tech') {
+                    setDivisionModel('two_techs_split_services')
+                  }
+                }}
+                onSellerChange={(id) => {
+                  setSeller(id)
+                  if (id && divisionModel === 'single_tech') {
+                    setDivisionModel(secondTechnician ? 'two_techs_and_seller' : 'tech_and_seller')
+                  }
+                }}
+                onDivisionModelChange={setDivisionModel}
+                onIsCustomChange={setIsCustomDivision}
+                onDetailsChange={setCurrentDivisionDetails}
+              />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">

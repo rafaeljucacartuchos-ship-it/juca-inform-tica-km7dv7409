@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T20:34:50.221Z",
+  "generatedAt": "2026-10-13T21:42:33.780Z",
   "collections": [
     {
       "name": "users",
@@ -491,6 +491,40 @@
           "required": false,
           "system": false,
           "collectionRef": "service_types"
+        },
+        {
+          "name": "second_technician",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "seller",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "division_model",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": [
+            "single_tech",
+            "two_techs_split_services",
+            "two_split_all",
+            "tech_and_seller",
+            "two_techs_and_seller",
+            "custom"
+          ]
+        },
+        {
+          "name": "division_details",
+          "type": "json",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [

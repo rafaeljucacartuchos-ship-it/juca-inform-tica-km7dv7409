@@ -133,7 +133,20 @@ onRecordAfterUpdateSuccess((e) => {
       ) {
         return 'seu equipamento'
       }
-      return trimmed
+      // Limpeza de duplicidades como "Not dell - Dell" -> "Notebook Dell"
+      var clean = trimmed
+      clean = clean.replace(/^Not\s+dell\s*-\s*Dell/i, 'Notebook Dell')
+      clean = clean.replace(/^Not\b/i, 'Notebook')
+      clean = clean
+        .replace(/\s+-\s+(\w+)\s*$/i, function (match, brand) {
+          var prefix = clean.slice(0, clean.length - match.length).trim()
+          if (prefix.toLowerCase().indexOf(brand.toLowerCase()) !== -1) {
+            return ''
+          }
+          return ' ' + brand
+        })
+        .trim()
+      return clean || trimmed
     }
 
     function buildEquipPhrase(eq, prefix) {
@@ -167,9 +180,11 @@ onRecordAfterUpdateSuccess((e) => {
     var techPart = techName ? ' pelo técnico *' + techName + '*' : ''
 
     // Determina a URL base pública da aplicação
-    var originUrl = 'https://assistencia-tecnica-movel-86527--skip-app.shrd00.internal.goskip.dev'
+    var originUrl = 'https://assistencia-tecnica-movel-86527.goskip.app'
     var envPublic = $os.getenv('APP_PUBLIC_URL') || $os.getenv('FRONTEND_URL') || ''
-    if (envPublic) originUrl = envPublic.replace(/\/+$/, '')
+    if (envPublic && !envPublic.includes('internal.goskip.dev')) {
+      originUrl = envPublic.replace(/\/+$/, '')
+    }
 
     function buildEvalLinkBlock(url) {
       if (url && url.trim()) {
