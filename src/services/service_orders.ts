@@ -174,13 +174,14 @@ export const addStatusHistory = (data: Partial<StatusHistory>) =>
   pb.collection('status_history').create<StatusHistory>(data)
 
 export const getOrderDivisionHistory = async (
-  orderId: string,
+  orderId?: string,
 ): Promise<import('@/types').OrderDivisionHistoryRecord[]> => {
   try {
+    const filter = orderId ? `service_order = "${orderId}"` : ''
     const records = await pb.collection('order_division_history').getFullList({
-      filter: `service_order = "${orderId}"`,
+      filter,
       sort: '-created',
-      expand: 'user',
+      expand: 'user,service_order',
       requestKey: null,
     })
     return records as unknown as import('@/types').OrderDivisionHistoryRecord[]
@@ -188,6 +189,12 @@ export const getOrderDivisionHistory = async (
     console.warn('Erro ao carregar histórico de divisão da OS:', err)
     return []
   }
+}
+
+export const getAllOrderDivisionHistory = async (): Promise<
+  import('@/types').OrderDivisionHistoryRecord[]
+> => {
+  return getOrderDivisionHistory()
 }
 
 export const recordOrderDivisionChange = async (params: {

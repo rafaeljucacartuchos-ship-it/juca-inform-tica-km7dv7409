@@ -186,37 +186,54 @@ export function computeDivisionDetails(params: ComputeDivisionParams): DivisionD
   }
 
   // Cálculo de valores com arredondamento em centavos e preservação exata da soma
+  // Cálculo de valores com base em centavos inteiros (Math.floor) e resíduo atribuído
+  // ao primeiro participante com cota > 0%, garantindo soma exata ao centavo
   // 1) Serviços
   if (hasServices && participants.length > 0) {
+    const totalServicesCents = Math.round(totalServices * 100)
     const participantsWithServices = participants.filter((p) => p.servicesPct > 0)
     if (participantsWithServices.length > 0) {
-      let runningServices = 0
+      const sharesCents: number[] = []
+      let sumCalculatedCents = 0
       for (let i = 0; i < participantsWithServices.length; i++) {
         const p = participantsWithServices[i]
-        if (i === participantsWithServices.length - 1) {
-          // Último participante com participação absorve centavos residuais para garantir totalServices exato
-          p.servicesAmount = roundCents(totalServices - runningServices)
-        } else {
-          p.servicesAmount = roundCents((totalServices * p.servicesPct) / 100)
-          runningServices += p.servicesAmount
-        }
+        // Base de serviços = soma de itens de serviço em centavos; Math.floor por participante
+        const shareCents = Math.floor((totalServicesCents * p.servicesPct) / 100)
+        sharesCents.push(shareCents)
+        sumCalculatedCents += shareCents
+      }
+      // Resíduo para o primeiro com cota > 0%
+      const remainderCents = totalServicesCents - sumCalculatedCents
+      if (sharesCents.length > 0 && remainderCents > 0) {
+        sharesCents[0] += remainderCents
+      }
+      for (let i = 0; i < participantsWithServices.length; i++) {
+        participantsWithServices[i].servicesAmount = sharesCents[i] / 100
       }
     }
   }
 
   // 2) Produtos
   if (hasProducts && participants.length > 0) {
+    const totalProductsCents = Math.round(totalProducts * 100)
     const participantsWithProducts = participants.filter((p) => p.productsPct > 0)
     if (participantsWithProducts.length > 0) {
-      let runningProducts = 0
+      const sharesCents: number[] = []
+      let sumCalculatedCents = 0
       for (let i = 0; i < participantsWithProducts.length; i++) {
         const p = participantsWithProducts[i]
-        if (i === participantsWithProducts.length - 1) {
-          p.productsAmount = roundCents(totalProducts - runningProducts)
-        } else {
-          p.productsAmount = roundCents((totalProducts * p.productsPct) / 100)
-          runningProducts += p.productsAmount
-        }
+        // Base de produtos = soma de itens de produto em centavos; Math.floor por participante
+        const shareCents = Math.floor((totalProductsCents * p.productsPct) / 100)
+        sharesCents.push(shareCents)
+        sumCalculatedCents += shareCents
+      }
+      // Resíduo para o primeiro com cota > 0%
+      const remainderCents = totalProductsCents - sumCalculatedCents
+      if (sharesCents.length > 0 && remainderCents > 0) {
+        sharesCents[0] += remainderCents
+      }
+      for (let i = 0; i < participantsWithProducts.length; i++) {
+        participantsWithProducts[i].productsAmount = sharesCents[i] / 100
       }
     }
   }

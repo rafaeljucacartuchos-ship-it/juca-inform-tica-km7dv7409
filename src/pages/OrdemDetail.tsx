@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -49,7 +49,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { CompanyHeader } from '@/components/CompanyHeader'
 import { Badge } from '@/components/ui/badge'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -217,7 +217,7 @@ export default function OrdemDetail() {
   const [divisionTech1, setDivisionTech1] = useState<string>('')
   const [divisionTech2, setDivisionTech2] = useState<string>('')
   const [divisionSeller, setDivisionSeller] = useState<string>('')
-  const [divisionModel, setDivisionModel] = useState<DivisionModel>('single')
+  const [divisionModel, setDivisionModel] = useState<DivisionModel>('single_tech')
   const [divisionDetails, setDivisionDetails] = useState<DivisionDetails | null>(null)
   const [customPctTech1, setCustomPctTech1] = useState<number>(50)
   const [customPctTech2, setCustomPctTech2] = useState<number>(50)
@@ -321,11 +321,13 @@ export default function OrdemDetail() {
       setDivisionTech1(o.technician || '')
       setDivisionTech2(o.second_technician || '')
       setDivisionSeller(o.seller || '')
-      setDivisionModel((o.division_model as DivisionModel) || 'single')
+      setDivisionModel((o.division_model as DivisionModel) || 'single_tech')
       setDivisionDetails((o.division_details as DivisionDetails) || null)
-      if (o.division_details?.technician1_pct != null) {
-        setCustomPctTech1(o.division_details.technician1_pct)
-        setCustomPctTech2(o.division_details.technician2_pct || 0)
+      if (o.division_details?.participants) {
+        const p1 = o.division_details.participants.find((p) => p.role === 'primary_tech')
+        const p2 = o.division_details.participants.find((p) => p.role === 'second_tech')
+        if (p1?.servicesPct != null) setCustomPctTech1(p1.servicesPct)
+        if (p2?.servicesPct != null) setCustomPctTech2(p2.servicesPct)
       }
 
       // Se for admin, carrega pagamentos, itens da OS, histórico de divisão e usuários do time
@@ -398,6 +400,64 @@ export default function OrdemDetail() {
         .catch(() => {})
   })
 
+  // Itens para cálculo de serviços x produtos
+  // Prioriza itens da própria OS (service_order_items); se não houver, usa itens do orçamento vinculado
+  // Declarado no topo do componente para rodar incondicionalmente em todas as renders
+  const computedItemsForDivision = useMemo(() => {
+    if (orderItemsList && orderItemsList.length > 0) {
+      return orderItemsList.map((item) => ({
+        tipo: (item.product ? 'produto' : 'servico') as 'servico' | 'produto',
+        unit_price: Number(item.unit_price || 0),
+        quantity: Number(item.quantity || 1),
+      }))
+    }
+    if (orcamentoItens && orcamentoItens.length > 0) {
+      return orcamentoItens.map((item) => ({
+        tipo: (item.tipo === 'produto' ? 'produto' : 'servico') as 'servico' | 'produto',
+        unit_price: Number(item.valor_unitario || 0),
+        quantity: Number(item.quantidade || 1),
+      }))
+    }
+    return []
+  }, [orderItemsList, orcamentoItens])
+
+  // Recalcula prévia da divisão sempre que mudarem os participantes, modelo, percentuais ou itens
+  const liveComputedDivision = useMemo(() => {
+    const totalServicos = computedItemsForDivision
+      .filter((i) => i.tipo === 'servico')
+      .reduce((acc, i) => acc + i.unit_price * i.quantity, 0)
+    const totalProdutos = computedItemsForDivision
+      .filter((i) => i.tipo === 'produto')
+      .reduce((acc, i) => acc + i.unit_price * i.quantity, 0)
+
+    const t1Obj = teamUsers.find((u) => u.id === divisionTech1)
+    const t2Obj = teamUsers.find((u) => u.id === divisionTech2)
+    const sObj = teamUsers.find((u) => u.id === divisionSeller)
+
+    return computeDivisionDetails({
+      model: divisionModel,
+      tech1: divisionTech1 ? { id: divisionTech1, name: t1Obj?.name || 'Técnico 1' } : null,
+      tech2: divisionTech2 ? { id: divisionTech2, name: t2Obj?.name || 'Técnico 2' } : null,
+      seller: divisionSeller ? { id: divisionSeller, name: sObj?.name || 'Vendedor' } : null,
+      totalServices: totalServicos,
+      totalProducts: totalProdutos,
+      orderTotal: totalServicos + totalProdutos,
+      customPcts: {
+        tech1ServicesPct: customPctTech1,
+        tech2ServicesPct: customPctTech2,
+      },
+    })
+  }, [
+    computedItemsForDivision,
+    divisionModel,
+    divisionTech1,
+    divisionTech2,
+    divisionSeller,
+    customPctTech1,
+    customPctTech2,
+    teamUsers,
+  ])
+
   if (notFound) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center p-4">
@@ -447,66 +507,6 @@ export default function OrdemDetail() {
   const hasPayments = orderPaymentsList.length > 0
   const divisionIsLockedWithReason = isFinalizada || hasPayments
 
-  // Itens para cálculo de serviços x produtos
-  // Prioriza itens da própria OS (service_order_items); se não houver, usa itens do orçamento vinculado
-  const computedItemsForDivision = useMemo(() => {
-    if (orderItemsList && orderItemsList.length > 0) {
-      return orderItemsList.map((item) => ({
-        tipo: (item.item_type === 'product' ? 'produto' : 'servico') as 'servico' | 'produto',
-        unit_price: Number(item.unit_price || 0),
-        quantity: Number(item.quantity || 1),
-      }))
-    }
-    if (orcamentoItens && orcamentoItens.length > 0) {
-      return orcamentoItens.map((item) => ({
-        tipo: (item.tipo === 'produto' ? 'produto' : 'servico') as 'servico' | 'produto',
-        unit_price: Number(item.preco_unitario || 0),
-        quantity: Number(item.quantidade || 1),
-      }))
-    }
-    return []
-  }, [orderItemsList, orcamentoItens])
-
-  // Recalcula prévia da divisão sempre que mudarem os participantes, modelo, percentuais ou itens
-  const liveComputedDivision = useMemo(() => {
-    const totalServicos = computedItemsForDivision
-      .filter((i) => i.tipo === 'servico')
-      .reduce((acc, i) => acc + i.unit_price * i.quantity, 0)
-    const totalProdutos = computedItemsForDivision
-      .filter((i) => i.tipo === 'produto')
-      .reduce((acc, i) => acc + i.unit_price * i.quantity, 0)
-
-    const t1Obj = teamUsers.find((u) => u.id === divisionTech1)
-    const t2Obj = teamUsers.find((u) => u.id === divisionTech2)
-    const sObj = teamUsers.find((u) => u.id === divisionSeller)
-
-    return computeDivisionDetails({
-      totalServices: totalServicos,
-      totalProducts: totalProdutos,
-      model: divisionModel,
-      technician1: divisionTech1
-        ? { id: divisionTech1, name: t1Obj?.name || 'Técnico 1' }
-        : undefined,
-      technician2: divisionTech2
-        ? { id: divisionTech2, name: t2Obj?.name || 'Técnico 2' }
-        : undefined,
-      seller: divisionSeller ? { id: divisionSeller, name: sObj?.name || 'Vendedor' } : undefined,
-      customSplit: {
-        technician1Pct: customPctTech1,
-        technician2Pct: customPctTech2,
-      },
-    })
-  }, [
-    computedItemsForDivision,
-    divisionModel,
-    divisionTech1,
-    divisionTech2,
-    divisionSeller,
-    customPctTech1,
-    customPctTech2,
-    teamUsers,
-  ])
-
   // Handler para salvar a divisão de equipe
   const handleInitiateSaveDivision = () => {
     if (divisionIsLockedWithReason) {
@@ -523,7 +523,7 @@ export default function OrdemDetail() {
     setSavingDivision(true)
     try {
       const prevDetails = (order.division_details as DivisionDetails) || null
-      const prevModel = order.division_model || 'single'
+      const prevModel = order.division_model || 'single_tech'
       const prevTech1 = order.technician || ''
       const prevTech2 = order.second_technician || ''
       const prevSeller = order.seller || ''
@@ -546,9 +546,8 @@ export default function OrdemDetail() {
           ? 'Alteração com trava de segurança'
           : 'Ajuste de equipe/divisão')
       await recordOrderDivisionChange({
-        orderId: order.id,
-        userId: user?.id || '',
-        userName: user?.name || 'Administrador',
+        serviceOrderId: order.id,
+        user: { id: user?.id, name: user?.name || 'Administrador' },
         action: 'updated',
         reason: reasonToSave,
         previousState: {
@@ -2716,27 +2715,28 @@ export default function OrdemDetail() {
                   )}
 
                   <OrderTeamDivisionSection
-                    users={teamUsers}
-                    technician1={divisionTech1}
-                    technician2={divisionTech2}
-                    seller={divisionSeller}
+                    technicians={teamUsers.filter(
+                      (u) => u.role === 'technician' || u.role === 'admin',
+                    )}
+                    allUsers={teamUsers}
+                    primaryTechId={divisionTech1}
+                    secondTechId={divisionTech2}
+                    sellerId={divisionSeller}
                     divisionModel={divisionModel}
-                    customSplit={{
-                      technician1Pct: customPctTech1,
-                      technician2Pct: customPctTech2,
-                    }}
-                    computedDivision={liveComputedDivision}
-                    onTechnician1Change={setDivisionTech1}
-                    onTechnician2Change={setDivisionTech2}
+                    isCustom={divisionModel === 'custom'}
+                    totalServices={liveComputedDivision.totalServices}
+                    totalProducts={liveComputedDivision.totalProducts}
+                    orderTotal={liveComputedDivision.orderTotal}
+                    divisionDetails={liveComputedDivision}
+                    onPrimaryTechChange={setDivisionTech1}
+                    onSecondTechChange={setDivisionTech2}
                     onSellerChange={setDivisionSeller}
                     onDivisionModelChange={setDivisionModel}
-                    onCustomSplitChange={(t1, t2) => {
-                      setCustomPctTech1(t1)
-                      setCustomPctTech2(t2)
+                    onIsCustomChange={(c) => {
+                      if (c) setDivisionModel('custom')
                     }}
-                    orderStatus={order.status}
-                    hasPayments={hasPayments}
-                    disabled={savingDivision}
+                    onDetailsChange={() => {}}
+                    readOnly={!canEdit}
                   />
                 </CardContent>
               </Card>
@@ -2813,20 +2813,32 @@ export default function OrdemDetail() {
                                     <strong>Modelo novo:</strong> {rec.new_details.model} | Total:
                                     R${' '}
                                     {(
-                                      (rec.new_details.total_services_cents +
-                                        rec.new_details.total_products_cents) /
-                                      100
+                                      (rec.new_details.totalServices || 0) +
+                                      (rec.new_details.totalProducts || 0)
                                     ).toFixed(2)}
                                   </div>
                                   <div className="space-y-0.5 pt-0.5">
-                                    {rec.new_details.participants?.map((p: any) => (
-                                      <div key={p.user_id} className="text-slate-700">
-                                        • {p.name} ({p.role}): {p.pct_services}% serv (R${' '}
-                                        {(p.total_services_cents / 100).toFixed(2)}) |{' '}
-                                        {p.pct_products}% prod (R${' '}
-                                        {(p.total_products_cents / 100).toFixed(2)})
-                                      </div>
-                                    ))}
+                                    {rec.new_details.participants?.map((p: any) => {
+                                      const pName = p.userName || p.name || 'Participante'
+                                      const servPct = p.servicesPct ?? p.pct_services ?? 0
+                                      const prodPct = p.productsPct ?? p.pct_products ?? 0
+                                      const servVal = Number(
+                                        p.servicesAmount != null
+                                          ? p.servicesAmount
+                                          : (p.total_services_cents || 0) / 100,
+                                      ).toFixed(2)
+                                      const prodVal = Number(
+                                        p.productsAmount != null
+                                          ? p.productsAmount
+                                          : (p.total_products_cents || 0) / 100,
+                                      ).toFixed(2)
+                                      return (
+                                        <div key={p.userId || p.user_id} className="text-slate-700">
+                                          • {pName} ({p.role}): {servPct}% serv (R$ {servVal}) |{' '}
+                                          {prodPct}% prod (R$ {prodVal})
+                                        </div>
+                                      )
+                                    })}
                                   </div>
                                 </div>
                               )}
