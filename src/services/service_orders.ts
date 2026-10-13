@@ -173,6 +173,52 @@ export const getStatusHistory = (orderId: string) =>
 export const addStatusHistory = (data: Partial<StatusHistory>) =>
   pb.collection('status_history').create<StatusHistory>(data)
 
+export const getOrderDivisionHistory = async (
+  orderId: string,
+): Promise<import('@/types').OrderDivisionHistoryRecord[]> => {
+  try {
+    const records = await pb.collection('order_division_history').getFullList({
+      filter: `service_order = "${orderId}"`,
+      sort: '-created',
+      expand: 'user',
+      requestKey: null,
+    })
+    return records as unknown as import('@/types').OrderDivisionHistoryRecord[]
+  } catch (err) {
+    console.warn('Erro ao carregar histórico de divisão da OS:', err)
+    return []
+  }
+}
+
+export const recordOrderDivisionChange = async (params: {
+  serviceOrderId: string
+  user?: { id?: string; name?: string }
+  action?: string
+  reason?: string
+  previousState?: any
+  newState?: any
+  previousDetails?: any
+  newDetails?: any
+  orderStatusAtChange?: string
+}): Promise<void> => {
+  try {
+    await pb.collection('order_division_history').create({
+      service_order: params.serviceOrderId,
+      user: params.user?.id || undefined,
+      user_name: params.user?.name || undefined,
+      action: params.action || 'Atualização da divisão',
+      reason: params.reason || '',
+      previous_state: params.previousState || null,
+      new_state: params.newState || null,
+      previous_details: params.previousDetails || null,
+      new_details: params.newDetails || null,
+      order_status_at_change: params.orderStatusAtChange || '',
+    })
+  } catch (err) {
+    console.error('Falha ao registrar histórico de alteração da divisão:', err)
+  }
+}
+
 export const uploadSignature = async (
   id: string,
   field: 'technician_signature' | 'customer_signature',

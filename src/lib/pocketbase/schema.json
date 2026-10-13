@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-13T21:42:33.780Z",
+  "generatedAt": "2026-10-13T22:09:06.018Z",
   "collections": [
     {
       "name": "users",
@@ -3639,6 +3639,85 @@
         }
       ],
       "indexes": []
+    },
+    {
+      "name": "order_division_history",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.role = \"admin\"",
+        "delete": "@request.auth.role = \"admin\""
+      },
+      "fields": [
+        {
+          "name": "service_order",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "service_orders"
+        },
+        {
+          "name": "user",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "user_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "action",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "previous_state",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "new_state",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "previous_details",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "new_details",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "order_status_at_change",
+          "type": "text",
+          "required": false,
+          "system": false
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_odh_so ON order_division_history (service_order)",
+        "CREATE INDEX idx_odh_user ON order_division_history (user)"
+      ]
     }
   ]
 }

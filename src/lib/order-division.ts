@@ -188,29 +188,35 @@ export function computeDivisionDetails(params: ComputeDivisionParams): DivisionD
   // Cálculo de valores com arredondamento em centavos e preservação exata da soma
   // 1) Serviços
   if (hasServices && participants.length > 0) {
-    let runningServices = 0
-    for (let i = 0; i < participants.length; i++) {
-      const p = participants[i]
-      if (i === participants.length - 1) {
-        // Último participante absorve centavos residuais para garantir totalServices exato
-        p.servicesAmount = roundCents(totalServices - runningServices)
-      } else {
-        p.servicesAmount = roundCents((totalServices * p.servicesPct) / 100)
-        runningServices += p.servicesAmount
+    const participantsWithServices = participants.filter((p) => p.servicesPct > 0)
+    if (participantsWithServices.length > 0) {
+      let runningServices = 0
+      for (let i = 0; i < participantsWithServices.length; i++) {
+        const p = participantsWithServices[i]
+        if (i === participantsWithServices.length - 1) {
+          // Último participante com participação absorve centavos residuais para garantir totalServices exato
+          p.servicesAmount = roundCents(totalServices - runningServices)
+        } else {
+          p.servicesAmount = roundCents((totalServices * p.servicesPct) / 100)
+          runningServices += p.servicesAmount
+        }
       }
     }
   }
 
   // 2) Produtos
   if (hasProducts && participants.length > 0) {
-    let runningProducts = 0
-    for (let i = 0; i < participants.length; i++) {
-      const p = participants[i]
-      if (i === participants.length - 1) {
-        p.productsAmount = roundCents(totalProducts - runningProducts)
-      } else {
-        p.productsAmount = roundCents((totalProducts * p.productsPct) / 100)
-        runningProducts += p.productsAmount
+    const participantsWithProducts = participants.filter((p) => p.productsPct > 0)
+    if (participantsWithProducts.length > 0) {
+      let runningProducts = 0
+      for (let i = 0; i < participantsWithProducts.length; i++) {
+        const p = participantsWithProducts[i]
+        if (i === participantsWithProducts.length - 1) {
+          p.productsAmount = roundCents(totalProducts - runningProducts)
+        } else {
+          p.productsAmount = roundCents((totalProducts * p.productsPct) / 100)
+          runningProducts += p.productsAmount
+        }
       }
     }
   }

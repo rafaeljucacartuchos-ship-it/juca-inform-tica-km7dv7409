@@ -150,6 +150,26 @@ export interface DivisionHistoryEntry {
   note?: string
 }
 
+export interface OrderDivisionHistoryRecord {
+  id: string
+  service_order: string
+  user?: string
+  user_name?: string
+  action?: string
+  reason?: string
+  previous_state?: any
+  new_state?: any
+  previous_details?: DivisionDetails | null
+  new_details?: DivisionDetails | null
+  order_status_at_change?: string
+  created?: string
+  updated?: string
+  expand?: {
+    user?: User
+    service_order?: ServiceOrder
+  }
+}
+
 export interface DivisionDetails {
   model: DivisionModel
   isCustom: boolean

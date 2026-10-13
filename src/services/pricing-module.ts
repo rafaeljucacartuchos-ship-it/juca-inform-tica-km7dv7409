@@ -429,6 +429,9 @@ export async function recalculateLinkedPrintersForSupply(
     }
 
     return { updatedCount: linkedPrinters.length, printers: updatedPrinterModels }
+  } catch (err) {
+    console.error('Erro ao recalcular impressoras vinculadas:', err)
+    throw err
   }
 }
 
@@ -570,6 +573,9 @@ export async function getImpressoras(incluirInativas = false): Promise<Impressor
       expand: 'suprimento_1,suprimento_2,suprimento_3,suprimento_4,suprimento_5',
     })
     return attachPrinterSupplyLinks(records)
+  } catch (err) {
+    console.error('Erro ao buscar impressoras:', err)
+    throw err
   }
 }
 
