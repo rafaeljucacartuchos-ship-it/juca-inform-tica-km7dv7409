@@ -429,8 +429,6 @@ export async function recalculateLinkedPrintersForSupply(
     }
 
     return { updatedCount: linkedPrinters.length, printers: updatedPrinterModels }
-  } catch (err) {
-    throw err
   }
 }
 
@@ -572,8 +570,6 @@ export async function getImpressoras(incluirInativas = false): Promise<Impressor
       expand: 'suprimento_1,suprimento_2,suprimento_3,suprimento_4,suprimento_5',
     })
     return attachPrinterSupplyLinks(records)
-  } catch (err) {
-    throw err
   }
 }
 
@@ -604,14 +600,9 @@ export async function createImpressora(
   const slotIds = getPrinterSupplyIds(data)
 
   if (slotIds.length > 0) {
-    try {
-      const suppliesList = await getSuprimentos(true)
-      totalCppSuprimentos = calculateCatalogCPP(slotIds, suppliesList)
-    } catch (e) {
-      throw e
-    }
+    const suppliesList = await getSuprimentos(true)
+    totalCppSuprimentos = calculateCatalogCPP(slotIds, suppliesList)
   }
-
   const cppFornecedorTotal = totalCppSuprimentos
 
   const created = await pb.collection('impressoras').create<ImpressoraRecord>({
@@ -733,16 +724,11 @@ export async function updateImpressora(
   const slotIds = getPrinterSupplyIds(merged)
 
   if (slotIds.length > 0) {
-    try {
-      const suppliesList = await getSuprimentos(true)
-      totalCppSuprimentos = calculateCatalogCPP(slotIds, suppliesList)
-    } catch (e) {
-      throw e
-    }
+    const suppliesList = await getSuprimentos(true)
+    totalCppSuprimentos = calculateCatalogCPP(slotIds, suppliesList)
   }
 
   const cppFornecedorTotal = totalCppSuprimentos
-
   return await pb.collection('impressoras').update<ImpressoraRecord>(id, {
     ...data,
     cpp_suprimentos: totalCppSuprimentos,
