@@ -397,14 +397,6 @@ export function ImportProductsModal({ open, onOpenChange, onSuccess }: ImportPro
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-slate-100">
-          {purchaseMode && (
-            <SupplierPurchaseForm
-              onDone={() => {
-                onSuccess?.()
-                handleClose(false)
-              }}
-            />
-          )}
           {!purchaseMode && step === 'upload' && (
             <Button type="button" variant="outline" size="sm" onClick={() => handleClose(false)}>
               Cancelar
