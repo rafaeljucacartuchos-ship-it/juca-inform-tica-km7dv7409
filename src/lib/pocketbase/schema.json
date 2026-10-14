@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-14T02:48:50.375Z",
+  "generatedAt": "2026-10-14T03:14:16.732Z",
   "collections": [
     {
       "name": "users",
@@ -3409,8 +3409,8 @@
       "name": "financial_receivables",
       "type": "base",
       "apiRules": {
-        "list": null,
-        "view": null,
+        "list": "@request.auth.id != '' && @request.auth.role = 'admin'",
+        "view": "@request.auth.id != '' && @request.auth.role = 'admin'",
         "create": null,
         "update": null,
         "delete": null

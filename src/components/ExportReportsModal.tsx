@@ -278,17 +278,28 @@ export function ExportReportsModal({
 
     try {
       setDownloadingAttachments(true)
-      setAttachmentProgress('Iniciando download dos arquivos em lote...')
+      setAttachmentProgress(
+        'Iniciando download dos arquivos em lote via serviço administrativo seguro...',
+      )
       const { downloadAttachmentsBatch, downloadAttachmentsManifestCSV } =
         await import('@/services/migration-export')
 
+      // Filtra apenas anexos que precisam de download (preserva os já baixados c/ SHA-256)
+      const pendingCount = lastPackage.attachments_manifest.filter(
+        (it) => it.download_status !== 'success' || !it.sha256,
+      ).length
+
+      setAttachmentProgress(
+        `Iniciando lote: ${pendingCount} pendentes de ${lastPackage.attachments_manifest.length} totais...`,
+      )
+
       const result = await downloadAttachmentsBatch({
         manifest: lastPackage.attachments_manifest,
-        batchSize: 3,
-        maxRetries: 2,
+        batchSize: 5,
+        maxRetries: 3,
         onProgress: (p) => {
           setAttachmentProgress(
-            `Baixando (${p.completed + p.failed}/${p.total}): ${p.currentFilename} [${p.percent}%]`,
+            `Baixando (${p.completed + p.failed}/${p.total}): ${p.currentFilename} [${p.percent}%] - Sucesso: ${p.completed}, Falhas: ${p.failed}`,
           )
         },
       })
@@ -298,7 +309,7 @@ export function ExportReportsModal({
       downloadAttachmentsManifestCSV(result.manifest)
 
       setAttachmentProgress(
-        `Download concluído! ${result.successfulBlobs.length} arquivos baixados com sucesso e verificados via SHA-256 (${result.failedCount} falhas). Manifesto atualizado baixado.`,
+        `Processamento de anexos concluído! ${result.successfulBlobs.length} arquivos com hash SHA-256 preenchido (${result.failedCount} falhas). Novo manifesto CSV baixado.`,
       )
     } catch (err: any) {
       setAttachmentProgress(`Erro no download dos anexos: ${err?.message || String(err)}`)

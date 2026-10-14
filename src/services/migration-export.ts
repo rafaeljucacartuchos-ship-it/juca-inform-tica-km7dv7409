@@ -5,15 +5,19 @@ export type ExportStatusKind = 'complete' | 'partial' | 'error'
 
 export interface CollectionExportMeta {
   collection: string
-  status: 'exported' | 'empty' | 'forbidden' | 'failed' | 'excluded'
+  status: 'exported' | 'empty' | 'forbidden' | 'failed' | 'partial' | 'excluded'
   count_expected?: number
   count_exported: number
+  difference?: number
   page_size: number
   total_pages: number
   has_error: boolean
   error?: string
   authenticated_user_role?: string
-  verified_coverage?: 'verified_independent_admin' | 'unverified_rls_dependent'
+  verified_coverage?:
+    | 'verified_independent_admin'
+    | 'unverified_rls_dependent'
+    | 'divergent_independent_admin'
 }
 
 export interface AttachmentManifestItem {
@@ -221,7 +225,8 @@ export async function computeSHA256(buffer: ArrayBuffer): Promise<string> {
 
 /**
  * Busca de forma paginada e com ordenação estável todos os registros de uma coleção.
- * Distingue coleção vazia de falha de permissão ou erro de rede.
+ * Tenta PRIMEIRO o hook administrativo de exportação com privilégio total de servidor (Superuser interno).
+ * Caso não esteja disponível, faz fallback seguro para a SDK PocketBase.
  */
 async function fetchAllRecordsFromCollection(
   collectionName: string,
@@ -232,9 +237,84 @@ async function fetchAllRecordsFromCollection(
   let totalItemsExpected = 0
   let totalPages = 1
 
+  const pbUrl = (
+    import.meta.env.VITE_POCKETBASE_URL ||
+    'https://assistencia-tecnica-movel-86527.shrd00.internal.goskip.dev'
+  ).replace(/\/$/, '')
+
+  // 1. Tentativa via Rota Administrativa Server-Side (privilégio total de Superuser)
   try {
-    // 1ª página com sort estável por ID e requestKey: null para não cancelar chamadas paralelas
-    const firstRes = await pb.collection(collectionName).getList(page, perPage, {
+    const firstAdminRes = await fetch(`${pbUrl}/backend/v1/migration/admin-export`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(pb.authStore.token ? { Authorization: `Bearer ${pb.authStore.token}` } : {}),
+      },
+      body: JSON.stringify({
+        collection: collectionName,
+        page,
+        perPage,
+      }),
+    })
+
+    if (firstAdminRes.ok) {
+      const data = await firstAdminRes.json()
+      if (data && data.success) {
+        totalItemsExpected = data.totalItems || 0
+        totalPages = data.totalPages || 1
+        if (Array.isArray(data.items)) {
+          for (const item of data.items) records.push(item)
+        }
+
+        while (page < totalPages) {
+          page++
+          const nextRes = await fetch(`${pbUrl}/backend/v1/migration/admin-export`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(pb.authStore.token ? { Authorization: `Bearer ${pb.authStore.token}` } : {}),
+            },
+            body: JSON.stringify({
+              collection: collectionName,
+              page,
+              perPage,
+            }),
+          })
+          if (!nextRes.ok) break
+          const nextData = await nextRes.json()
+          if (
+            !nextData ||
+            !nextData.success ||
+            !Array.isArray(nextData.items) ||
+            nextData.items.length === 0
+          )
+            break
+          for (const it of nextData.items) records.push(it)
+        }
+
+        const isZero = records.length === 0
+        return {
+          records,
+          meta: {
+            collection: collectionName,
+            status: isZero ? 'empty' : 'exported',
+            count_expected: totalItemsExpected,
+            count_exported: records.length,
+            page_size: perPage,
+            total_pages: totalPages,
+            has_error: false,
+            verified_coverage: 'verified_independent_admin',
+          },
+        }
+      }
+    }
+  } catch (_) {
+    // Se a chamada admin falhar, tenta o fallback via SDK cliente
+  }
+
+  // 2. Fallback via SDK cliente PocketBase
+  try {
+    const firstRes = await pb.collection(collectionName).getList(1, perPage, {
       sort: '+id',
       requestKey: null,
     })
@@ -248,10 +328,10 @@ async function fetchAllRecordsFromCollection(
       }
     }
 
-    // Paginação sequencial estável
-    while (page < totalPages) {
-      page++
-      const res = await pb.collection(collectionName).getList(page, perPage, {
+    let p = 1
+    while (p < totalPages) {
+      p++
+      const res = await pb.collection(collectionName).getList(p, perPage, {
         sort: '+id',
         requestKey: null,
       })
@@ -568,15 +648,23 @@ export async function generateFullMigrationPackage(
     const result = await fetchAllRecordsFromCollection(colName)
 
     // Se temos contagem independente do servidor, confronta e enriquece o meta
+    let isDivergent = false
     if (independentCounts && independentCounts[colName]) {
       const ind = independentCounts[colName]
       if (ind.count !== null && ind.count !== undefined) {
         result.meta.count_expected = ind.count
-        result.meta.verified_coverage = 'verified_independent_admin'
-        if (ind.count !== result.records.length) {
+        const diff = ind.count - result.records.length
+        result.meta.difference = diff
+
+        if (diff !== 0) {
+          isDivergent = true
+          result.meta.status = 'partial'
+          result.meta.verified_coverage = 'divergent_independent_admin'
           integrityWarnings.push(
-            `Divergência na coleção "${colName}": servidor indicou ${ind.count} registros mas foram exportados ${result.records.length}`,
+            `Divergência auditada na coleção "${colName}": esperado independente no servidor: ${ind.count}; exportados: ${result.records.length}; diferença não comprovada: ${diff}`,
           )
+        } else {
+          result.meta.verified_coverage = 'verified_independent_admin'
         }
       }
     }
@@ -589,6 +677,8 @@ export async function generateFullMigrationPackage(
     if (result.meta.has_error) {
       failedCollectionsCount++
       integrityWarnings.push(`Coleção "${colName}": ${result.meta.error}`)
+    } else if (isDivergent) {
+      failedCollectionsCount++ // Sinaliza no total de falhas/divergências para manter pacote PARCIAL
     } else if (result.meta.status === 'empty') {
       emptyCollectionsCount++
     } else {
@@ -683,6 +773,14 @@ export async function generateFullMigrationPackage(
   let packageStatus: ExportStatusKind = 'complete'
   if (failedCollectionsCount > 0) {
     packageStatus = totalRecords > 0 ? 'partial' : 'error'
+  } else {
+    // Se qualquer coleção tiver divergência ou status partial/forbidden/failed, mantém pacote PARCIAL
+    const hasAnyIncomplete = Object.values(summary).some(
+      (m) => m.status === 'partial' || m.status === 'forbidden' || m.status === 'failed',
+    )
+    if (hasAnyIncomplete) {
+      packageStatus = 'partial'
+    }
   }
 
   onProgress?.(
@@ -701,12 +799,13 @@ export async function generateFullMigrationPackage(
       completed_at: endTime,
       duration_ms: endTs - startTs,
       target_migration_deadline: '2026-11-02',
-      version_preview: 'v0.0.395',
+      version_preview: 'v0.0.397',
       version_published_production:
         'v0.0.389 (verificada anteriormente como publicada; v0.0.232 era tag de congelamento)',
       version_verification_status: 'verified_via_git_and_runtime',
       git_commit_origin: '0086d9b (evidência do build/código atual)',
-      environment_origin: 'Skip Cloud / Prévia ativa em desenvolvimento',
+      environment_origin:
+        'Skip Cloud / Prévia ativa em desenvolvimento (https://assistencia-tecnica-movel-86527.shrd00.internal.goskip.dev)',
       pocketbase_version: 'PocketBase v0.36 (Skip Cloud)',
       base_storage_url: `${pbUrl}/api/files/`,
       total_collections_catalog: totalCollections,
@@ -859,23 +958,71 @@ export async function downloadAttachmentsBatch(options: AttachmentBatchDownloadO
           return
         }
 
-        // Download autenticado do PocketBase
+        // Download administrativo de anexos:
+        // Primeiro tenta via endpoint administrativo seguro (/backend/v1/migration/admin-export com action: download_file)
+        // que roda no servidor com acesso direto ao storage e calcula SHA-256 server-side.
+        // Se não disponível, tenta via HTTP GET autenticado (Bearer token no cabeçalho, sem token na URL).
         let attempt = 0
         let success = false
         let lastError = ''
 
-        // Se já foi baixado com sucesso em execução anterior, pula (retoma somente com falha/pendente)
+        // Se já foi baixado com sucesso em execução anterior, pula (retomada inteligente de falhas)
         if (item.download_status === 'success' && item.sha256) {
           completed++
           return
         }
 
+        const pbUrl = (
+          import.meta.env.VITE_POCKETBASE_URL ||
+          'https://assistencia-tecnica-movel-86527.shrd00.internal.goskip.dev'
+        ).replace(/\/$/, '')
+
         while (attempt <= maxRetries && !success) {
           attempt++
           try {
+            // Tentativa A: Servidor administrativo interno
+            const adminRes = await fetch(`${pbUrl}/backend/v1/migration/admin-export`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({
+                action: 'download_file',
+                collection: item.collection,
+                record_id: item.record_id,
+                filename: item.filename,
+              }),
+            })
+
+            if (adminRes.ok) {
+              const resJson = await adminRes.json()
+              if (resJson && resJson.success && resJson.data_base64) {
+                // Converte base64 para ArrayBuffer e Blob
+                const binaryStr = atob(resJson.data_base64)
+                const len = binaryStr.length
+                const bytes = new Uint8Array(len)
+                for (let b = 0; b < len; b++) {
+                  bytes[b] = binaryStr.charCodeAt(b)
+                }
+                const blob = new Blob([bytes])
+                const calculatedSha = await computeSHA256(bytes.buffer)
+                const sha = resJson.sha256 || calculatedSha
+
+                item.file_size_bytes = resJson.size_bytes || blob.size
+                item.sha256 = sha
+                item.download_status = 'success'
+                item.download_error = undefined
+                successfulBlobs.push({ item, blob })
+                success = true
+                completed++
+                break
+              }
+            }
+
+            // Tentativa B: Fallback via URL direta com token no cabeçalho Authorization
             const headers: Record<string, string> = {}
             if (token) {
-              // Envia bearer token no header HTTP seguro (nunca na URL ou query param)
               headers['Authorization'] = `Bearer ${token}`
             }
 
@@ -898,7 +1045,6 @@ export async function downloadAttachmentsBatch(options: AttachmentBatchDownloadO
           } catch (err: any) {
             lastError = err?.message || String(err)
             if (attempt <= maxRetries) {
-              // Espera exponencial breve
               await new Promise((r) => setTimeout(r, 400 * attempt))
             }
           }

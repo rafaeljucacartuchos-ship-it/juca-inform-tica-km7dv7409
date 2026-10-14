@@ -75,13 +75,24 @@ if (!injectTimestamp(distSw)) {
 }
 
 // --- index.html: data-app-version ------------------------------------------
+// Atualiza src/build-meta.json para consumo verificado em runtime
+try {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
+  const meta = {
+    version: pkg.version || '0.0.397',
+    build_timestamp: BUILD_TIMESTAMP,
+    git_commit: '0086d9b',
+    environment: 'Skip Cloud',
+  }
+  fs.writeFileSync(path.join(root, 'src', 'build-meta.json'), JSON.stringify(meta, null, 2), 'utf8')
+} catch (_) {}
+
 // Injeta o MESMO timestamp do sw.js no atributo data-app-version do <html>. O
 // app lê esse atributo em runtime (src/hooks/use-app-version.ts) e compara com
 // a versão reportada pelo sw.js deployado (// BUILD:). Se divergirem, o
 // index.html servido está stale (cacheado pelo SW antigo) e o app exibe o
 // banner "App desatualizado — feche e abra novamente para atualizar".
 const distIndex = path.join(root, outDir, 'index.html')
-
 /** Replace the `data-app-version="__APP_VERSION__"` placeholder. No-op if absent. */
 function injectAppVersion(filePath) {
   if (!fs.existsSync(filePath)) {

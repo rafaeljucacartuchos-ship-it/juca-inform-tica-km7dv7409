@@ -80,13 +80,64 @@ routerAdd('POST', '/backend/v1/migration/admin-export', (e) => {
     if (perPage > 500) perPage = 500
     if (page < 1) page = 1
 
+    // Ação: download seguro de anexo via servidor administrativo (Superuser interno)
+    if (body.action === 'download_file') {
+      var dlCollection = body.collection ? String(body.collection).trim() : ''
+      var dlRecordId = body.record_id ? String(body.record_id).trim() : ''
+      var dlFilename = body.filename ? String(body.filename).trim() : ''
+
+      if (!dlCollection || !dlRecordId || !dlFilename) {
+        return e.json(400, {
+          success: false,
+          error: 'Parâmetros collection, record_id e filename são obrigatórios.',
+        })
+      }
+
+      try {
+        var recordToRead = e.app.findRecordById(dlCollection, dlRecordId)
+        var fs = e.app.newBlobFileSystem()
+        var storageKey = recordToRead.baseFilesPath() + '/' + dlFilename
+        var fileBlob = fs.getFile(storageKey)
+        if (!fileBlob) {
+          return e.json(404, {
+            success: false,
+            error: 'Arquivo não encontrado no storage: ' + storageKey,
+          })
+        }
+
+        // Lê bytes e converte para base64 com integridade sha256 server-side
+        var fileReader = fileBlob.reader
+        var bytes = $bytes.readAll(fileReader)
+        var base64Data = $security.base64Encode(bytes)
+        var sha256Hex = $security.sha256(bytes)
+        var sizeBytes = bytes.length
+
+        return e.json(200, {
+          success: true,
+          collection: dlCollection,
+          record_id: dlRecordId,
+          filename: dlFilename,
+          size_bytes: sizeBytes,
+          sha256: sha256Hex,
+          data_base64: base64Data,
+        })
+      } catch (errDl) {
+        return e.json(500, {
+          success: false,
+          error:
+            'Falha no acesso ao arquivo: ' +
+            (errDl && errDl.message ? errDl.message : String(errDl)),
+        })
+      }
+    }
+
     // Ação: contagens esperadas independentes via servidor (super-auditoria)
     if (body.action === 'counts') {
       var counts = {}
       for (var i = 0; i < collections.length; i++) {
         var cName = collections[i]
         try {
-          // Usa countRecords do PocketBase
+          // Usa countRecords do PocketBase com privilégio total de superuser
           var total = e.app.countRecords(cName)
           counts[cName] = {
             count: total,
@@ -111,7 +162,8 @@ routerAdd('POST', '/backend/v1/migration/admin-export', (e) => {
       })
     }
 
-    // Ação: exportar uma coleção específica de forma paginada e segura
+    // Ação: exportar uma coleção específica de forma paginada e segura server-side
+    // Com e.app, a consulta bypassa todas as regras de RLS (executa como Superuser interno)
     if (targetCollection) {
       if (collections.indexOf(targetCollection) === -1) {
         return e.json(400, {
@@ -145,7 +197,6 @@ routerAdd('POST', '/backend/v1/migration/admin-export', (e) => {
         var rec = records[r]
         var plain = {}
         try {
-          // PocketBase Record.publicExport() ou serialização direta
           if (rec.publicExport) {
             plain = rec.publicExport()
           } else {
