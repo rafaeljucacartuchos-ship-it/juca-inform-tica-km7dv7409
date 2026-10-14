@@ -49,8 +49,32 @@ onRecordAfterCreateSuccess((e) => {
     }
   }
 
-  var technician = e.record.getString('technician')
-  if (!technician) return e.next()
+  var technician = e.record.getString('technician') || ''
+  var secondTechnician = e.record.getString('second_technician') || ''
+
+  // Identificar técnicos envolvidos sem duplicidade
+  var recipientMap = {}
+  var techRecipients = []
+
+  if (technician && !recipientMap[technician]) {
+    recipientMap[technician] = true
+    techRecipients.push(technician)
+  }
+  if (secondTechnician && !recipientMap[secondTechnician]) {
+    recipientMap[secondTechnician] = true
+    techRecipients.push(secondTechnician)
+  }
+
+  if (techRecipients.length === 0) {
+    $app
+      .logger()
+      .info(
+        'notify_service_order: Nenhuma notificação de criação criada (OS sem técnico atribuído)',
+        'os',
+        number,
+      )
+    return e.next()
+  }
 
   // Nome do cliente para o corpo do push.
   var customerName = ''
@@ -66,45 +90,83 @@ onRecordAfterCreateSuccess((e) => {
     }
   } catch (_) {}
 
+  var notifCol = null
   try {
-    var notifCol = $app.findCollectionByNameOrId('notifications')
-    var notif = new Record(notifCol)
-    notif.set('user', technician)
-    notif.set('title', 'Nova OS atribuída: ' + number)
-    notif.set('message', title || 'Você tem uma nova ordem de serviço')
-    notif.set('type', 'service_order')
-    notif.set('read', false)
-    notif.set('link', '/ordens/' + e.record.id)
-    $app.save(notif)
-  } catch (err) {
-    $app.logger().error('Failed to create SO notification', 'error', String(err))
+    notifCol = $app.findCollectionByNameOrId('notifications')
+  } catch (errCol) {
+    $app.logger().error('Failed to find notifications collection', 'error', String(errCol))
   }
 
-  // Push notification (Web Push) para o técnico — chega no celular mesmo
-  // com o app fechado.
-  try {
-    $sendPushToUser($app, technician, {
-      title: '🔔 Nova Ordem de Serviço #' + number,
-      body: customerName ? 'Cliente: ' + customerName : title || 'Nova OS atribuída',
-      icon: '/icon-maskable.svg',
-      url: '/ordens/' + e.record.id,
-      tag: 'os-' + e.record.id,
-    })
-  } catch (pushErr) {
-    $app.logger().error('Push notification failed (non-blocking)', 'error', String(pushErr))
+  for (var ti = 0; ti < techRecipients.length; ti++) {
+    var targetTech = techRecipients[ti]
+    if (notifCol) {
+      try {
+        var notif = new Record(notifCol)
+        notif.set('user', targetTech)
+        notif.set('title', 'Nova OS atribuída: ' + number)
+        notif.set('message', title || 'Você tem uma nova ordem de serviço')
+        notif.set('type', 'service_order')
+        notif.set('read', false)
+        notif.set('link', '/ordens/' + e.record.id)
+        $app.save(notif)
+
+        $app
+          .logger()
+          .info(
+            'notify_service_order: Notificação interna gravada para técnico',
+            'os',
+            number,
+            'user',
+            targetTech,
+            'is_primary',
+            targetTech === technician,
+            'is_second',
+            targetTech === secondTechnician,
+          )
+      } catch (err) {
+        $app
+          .logger()
+          .error('Failed to create SO notification', 'user', targetTech, 'error', String(err))
+      }
+    }
+
+    // Push notification (Web Push) para cada técnico envolvido
+    try {
+      if (typeof $sendPushToUser === 'function') {
+        $sendPushToUser($app, targetTech, {
+          title: '🔔 Nova Ordem de Serviço #' + number,
+          body: customerName ? 'Cliente: ' + customerName : title || 'Nova OS atribuída',
+          icon: '/icon-maskable.svg',
+          url: '/ordens/' + e.record.id,
+          tag: 'os-' + e.record.id,
+        })
+      }
+    } catch (pushErr) {
+      $app
+        .logger()
+        .error(
+          'Push notification failed (non-blocking)',
+          'user',
+          targetTech,
+          'error',
+          String(pushErr),
+        )
+    }
   }
 
   return e.next()
 }, 'service_orders')
 
 onRecordAfterUpdateSuccess((e) => {
-  var technician = e.record.getString('technician')
+  var technician = e.record.getString('technician') || ''
+  var secondTechnician = e.record.getString('second_technician') || ''
   var number = e.record.getString('number')
   var title = e.record.getString('title')
-  var prevTech = e.record.original().getString('technician')
+  var prevTech = e.record.original().getString('technician') || ''
+  var prevSecondTech = e.record.original().getString('second_technician') || ''
   var prevStatus = e.record.original().getString('status')
   var currStatus = e.record.getString('status')
-  var techChanged = technician !== prevTech
+  var techChanged = technician !== prevTech || secondTechnician !== prevSecondTech
   var statusChanged = currStatus !== prevStatus
 
   if (statusChanged) {
@@ -199,25 +261,62 @@ onRecordAfterUpdateSuccess((e) => {
 
   if (!techChanged && !statusChanged) return e.next()
 
-  var msg = ''
-  if (techChanged) {
-    msg = 'OS ' + number + ' foi atribuída a você'
+  // Determinar quais técnicos devem receber notificação nesta atualização
+  var updateRecipients = []
+  var updateMap = {}
+
+  if (techChanged && !statusChanged) {
+    // Apenas os técnicos recém-atribuídos devem receber aviso de atribuição
+    if (technician && technician !== prevTech && !updateMap[technician]) {
+      updateMap[technician] = true
+      updateRecipients.push({ user: technician, msg: 'OS ' + number + ' foi atribuída a você' })
+    }
+    if (secondTechnician && secondTechnician !== prevSecondTech && !updateMap[secondTechnician]) {
+      updateMap[secondTechnician] = true
+      updateRecipients.push({
+        user: secondTechnician,
+        msg: 'OS ' + number + ' foi atribuída a você',
+      })
+    }
   } else if (statusChanged) {
-    msg = 'OS ' + number + ' teve o status alterado para: ' + currStatus
+    var statusMsg = 'OS ' + number + ' teve o status alterado para: ' + currStatus
+    if (technician && !updateMap[technician]) {
+      updateMap[technician] = true
+      updateRecipients.push({ user: technician, msg: statusMsg })
+    }
+    if (secondTechnician && !updateMap[secondTechnician]) {
+      updateMap[secondTechnician] = true
+      updateRecipients.push({ user: secondTechnician, msg: statusMsg })
+    }
   }
 
-  try {
-    var notifCol = $app.findCollectionByNameOrId('notifications')
-    var notif = new Record(notifCol)
-    notif.set('user', technician)
-    notif.set('title', 'Atualização da OS: ' + number)
-    notif.set('message', msg || title || 'Ordem de serviço atualizada')
-    notif.set('type', 'service_order')
-    notif.set('read', false)
-    notif.set('link', '/ordens/' + e.record.id)
-    $app.save(notif)
-  } catch (err) {
-    $app.logger().error('Failed to create SO update notification', 'error', String(err))
+  for (var ui = 0; ui < updateRecipients.length; ui++) {
+    var item = updateRecipients[ui]
+    try {
+      var notifCol = $app.findCollectionByNameOrId('notifications')
+      var notif = new Record(notifCol)
+      notif.set('user', item.user)
+      notif.set('title', 'Atualização da OS: ' + number)
+      notif.set('message', item.msg || title || 'Ordem de serviço atualizada')
+      notif.set('type', 'service_order')
+      notif.set('read', false)
+      notif.set('link', '/ordens/' + e.record.id)
+      $app.save(notif)
+
+      $app
+        .logger()
+        .info(
+          'notify_service_order: Notificação de atualização enviada para técnico',
+          'os',
+          number,
+          'user',
+          item.user,
+        )
+    } catch (err) {
+      $app
+        .logger()
+        .error('Failed to create SO update notification', 'user', item.user, 'error', String(err))
+    }
   }
 
   if (statusChanged) {
@@ -245,7 +344,8 @@ onRecordAfterUpdateSuccess((e) => {
       var adminNotifCol = $app.findCollectionByNameOrId('notifications')
       for (var ai = 0; ai < admins.length; ai++) {
         var adminId = admins[ai].id
-        if (adminId === technician) continue
+        // Não notificar admin se ele já for técnico desta OS (já recebeu a notificação acima)
+        if (adminId === technician || adminId === secondTechnician) continue
         var adminNotif = new Record(adminNotifCol)
         adminNotif.set('user', adminId)
         adminNotif.set(
@@ -264,31 +364,55 @@ onRecordAfterUpdateSuccess((e) => {
         // Push para admins quando a OS é concluída.
         if (currStatus === 'completed') {
           try {
-            $sendPushToUser($app, adminId, {
-              title: '✅ OS #' + number + ' concluída',
-              body: 'Técnico ' + techName + ' concluiu a O.S.',
-              icon: '/icon-maskable.svg',
-              url: '/ordens/' + e.record.id,
-              tag: 'os-' + e.record.id,
-            })
+            if (typeof $sendPushToUser === 'function') {
+              $sendPushToUser($app, adminId, {
+                title: '✅ OS #' + number + ' concluída',
+                body: 'Técnico ' + techName + ' concluiu a O.S.',
+                icon: '/icon-maskable.svg',
+                url: '/ordens/' + e.record.id,
+                tag: 'os-' + e.record.id,
+              })
+            }
           } catch (pushErr) {
             $app.logger().error('Admin push failed (non-blocking)', 'error', String(pushErr))
           }
         }
       }
 
-      // Push para o próprio técnico quando a OS é concluída.
-      if (currStatus === 'completed' && technician) {
-        try {
-          $sendPushToUser($app, technician, {
-            title: '✅ OS #' + number + ' concluída',
-            body: 'A ordem de serviço foi marcada como concluída',
-            icon: '/icon-maskable.svg',
-            url: '/ordens/' + e.record.id,
-            tag: 'os-' + e.record.id,
-          })
-        } catch (pushErr2) {
-          $app.logger().error('Tech push failed (non-blocking)', 'error', String(pushErr2))
+      // Push para os técnicos envolvidos quando a OS é concluída.
+      if (currStatus === 'completed') {
+        var completedTechs = []
+        var compMap = {}
+        if (technician && !compMap[technician]) {
+          compMap[technician] = true
+          completedTechs.push(technician)
+        }
+        if (secondTechnician && !compMap[secondTechnician]) {
+          compMap[secondTechnician] = true
+          completedTechs.push(secondTechnician)
+        }
+        for (var cti = 0; cti < completedTechs.length; cti++) {
+          try {
+            if (typeof $sendPushToUser === 'function') {
+              $sendPushToUser($app, completedTechs[cti], {
+                title: '✅ OS #' + number + ' concluída',
+                body: 'A ordem de serviço foi marcada como concluída',
+                icon: '/icon-maskable.svg',
+                url: '/ordens/' + e.record.id,
+                tag: 'os-' + e.record.id,
+              })
+            }
+          } catch (pushErr2) {
+            $app
+              .logger()
+              .error(
+                'Tech push failed (non-blocking)',
+                'user',
+                completedTechs[cti],
+                'error',
+                String(pushErr2),
+              )
+          }
         }
       }
     } catch (err2) {
