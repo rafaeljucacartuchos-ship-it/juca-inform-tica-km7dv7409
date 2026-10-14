@@ -6,7 +6,12 @@ export function buildStoredZip(entries: { name: string; bytes: Uint8Array }[]): 
   let directorySize = 0
   const names = new Set<string>()
   for (const entry of entries) {
-    if (!entry.name || entry.name.startsWith('/') || entry.name.split('/').includes('..') || names.has(entry.name)) {
+    if (
+      !entry.name ||
+      entry.name.startsWith('/') ||
+      entry.name.split('/').includes('..') ||
+      names.has(entry.name)
+    ) {
       throw new Error('Caminho ZIP inválido ou duplicado.')
     }
     names.add(entry.name)
@@ -15,7 +20,7 @@ export function buildStoredZip(entries: { name: string; bytes: Uint8Array }[]): 
     let crc = 0xffffffff
     for (const byte of data) {
       crc ^= byte
-      for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0)
+      for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0)
     }
     crc = (crc ^ 0xffffffff) >>> 0
     const local = new Uint8Array(30 + name.length)

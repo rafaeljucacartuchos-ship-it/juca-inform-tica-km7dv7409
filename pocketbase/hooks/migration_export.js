@@ -82,8 +82,14 @@ routerAdd('POST', '/backend/v1/migration/admin-export', (e) => {
 
     // Bytes reais, com acesso administrativo já validado acima.
     function readAttachment(collection, recordId, filename) {
-      if (collections.indexOf(collection) === -1 || !/^[a-zA-Z0-9_-]+$/.test(recordId) ||
-          !filename || /[/\\\\\x00]/.test(filename) || filename === '.' || filename === '..') {
+      if (
+        collections.indexOf(collection) === -1 ||
+        !/^[a-zA-Z0-9_-]+$/.test(recordId) ||
+        !filename ||
+        /[/\\\\\x00]/.test(filename) ||
+        filename === '.' ||
+        filename === '..'
+      ) {
         throw new Error('Identificação de arquivo inválida.')
       }
       var record = e.app.findRecordById(collection, recordId)
@@ -92,7 +98,8 @@ routerAdd('POST', '/backend/v1/migration/admin-export', (e) => {
       try {
         reader = fs.getFile(record.baseFilesPath() + '/' + filename)
         var bytes = toBytes(reader, 64 * 1024 * 1024 + 1)
-        if (bytes.length > 64 * 1024 * 1024) throw new Error('Arquivo excede 64 MB; exportação individual necessária.')
+        if (bytes.length > 64 * 1024 * 1024)
+          throw new Error('Arquivo excede 64 MB; exportação individual necessária.')
         return bytes
       } finally {
         if (reader) reader.close()
@@ -106,8 +113,11 @@ routerAdd('POST', '/backend/v1/migration/admin-export', (e) => {
         var dlFilename = String(body.filename || '')
         var bytes = readAttachment(dlCollection, dlRecordId, dlFilename)
         var responsePayload = {
-          success: true, collection: dlCollection, record_id: dlRecordId,
-          filename: dlFilename, size_bytes: bytes.length
+          success: true,
+          collection: dlCollection,
+          record_id: dlRecordId,
+          filename: dlFilename,
+          size_bytes: bytes.length,
         }
         {
           responsePayload.data_base64 = Buffer.from(bytes).toString('base64')
