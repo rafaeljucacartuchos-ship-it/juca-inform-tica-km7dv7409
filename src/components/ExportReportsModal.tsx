@@ -228,6 +228,33 @@ export function ExportReportsModal({
     exportToCSV(`migracao_divisao_os_${startDate}_${endDate}`, migrationSections)
   }
 
+  const [exportingFull, setExportingFull] = useState(false)
+  const [exportStatus, setExportStatus] = useState<string | null>(null)
+
+  const handleExportFullSystemPackage = async () => {
+    try {
+      setExportingFull(true)
+      setExportStatus('Iniciando exportação...')
+      const {
+        generateFullMigrationPackage,
+        downloadMigrationPackageFile,
+        downloadAttachmentsManifestCSV,
+      } = await import('@/services/migration-export')
+      const pkg = await generateFullMigrationPackage((msg) => {
+        setExportStatus(msg)
+      })
+      downloadMigrationPackageFile(pkg)
+      downloadAttachmentsManifestCSV(pkg.attachments_manifest)
+      setExportStatus(
+        `Sucesso! ${pkg.meta.total_records} registros e ${pkg.meta.total_attachments} anexos exportados.`,
+      )
+    } catch (err: any) {
+      setExportStatus(`Erro ao exportar: ${err?.message || String(err)}`)
+    } finally {
+      setExportingFull(false)
+    }
+  }
+
   const handleExportMigrationJSON = () => {
     const relevantHistory = divisionHistory.filter((h) => periodOrderIds.has(h.service_order))
     const payload = {
@@ -341,31 +368,61 @@ export function ExportReportsModal({
             </div>
           </div>
         </div>
-        <div className="pt-2 border-t border-slate-200">
-          <div className="flex items-center justify-between pb-2">
-            <span className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
-              Exportação para Migração (Equipe e Divisão)
-            </span>
+        <div className="pt-2 border-t border-slate-200 space-y-3">
+          <div className="rounded-md border border-indigo-200 bg-indigo-50/70 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                📦 Pacote Completo de Migração (Todas as Coleções)
+              </span>
+            </div>
+            <p className="text-[11px] text-indigo-700">
+              Exporta todas as 37 coleções em JSON bruto, manifesto completo de anexos com URLs e
+              auditoria financeira de controle.
+            </p>
+            {exportStatus && (
+              <p className="text-[10px] font-mono text-indigo-900 bg-white/80 p-1.5 rounded border border-indigo-200">
+                {exportStatus}
+              </p>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              disabled={exportingFull}
+              onClick={handleExportFullSystemPackage}
+              className="w-full text-xs gap-1.5 bg-indigo-700 hover:bg-indigo-800 text-white font-semibold"
+            >
+              {exportingFull
+                ? 'Exportando base...'
+                : 'Gerar Pacote Completo de Migração (JSON + Manifesto)'}
+            </Button>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleExportMigrationCSV}
-              className="text-xs gap-1.5 border-indigo-200 hover:bg-indigo-50 text-indigo-700"
-            >
-              <FileText className="h-3.5 w-3.5" /> CSV Migração
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleExportMigrationJSON}
-              className="text-xs gap-1.5 border-indigo-200 hover:bg-indigo-50 text-indigo-700"
-            >
-              <FileText className="h-3.5 w-3.5" /> JSON Migração
-            </Button>
+
+          <div>
+            <div className="flex items-center justify-between pb-2">
+              <span className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
+                Exportação do Período (Equipe e Divisão de OS)
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleExportMigrationCSV}
+                className="text-xs gap-1.5 border-indigo-200 hover:bg-indigo-50 text-indigo-700"
+              >
+                <FileText className="h-3.5 w-3.5" /> CSV Divisão (Período)
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleExportMigrationJSON}
+                className="text-xs gap-1.5 border-indigo-200 hover:bg-indigo-50 text-indigo-700"
+              >
+                <FileText className="h-3.5 w-3.5" /> JSON Divisão (Período)
+              </Button>
+            </div>
           </div>
         </div>
 
