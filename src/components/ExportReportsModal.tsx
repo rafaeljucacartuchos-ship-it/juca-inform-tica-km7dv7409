@@ -232,7 +232,15 @@ export function ExportReportsModal({
   const [exportStatus, setExportStatus] = useState<string | null>(null)
   const [downloadingAttachments, setDownloadingAttachments] = useState(false)
   const [attachmentProgress, setAttachmentProgress] = useState<string | null>(null)
-  const [lastPackage, setLastPackage] = useState<any | null>(null)
+  const [lastPackage, setLastPackage] = useState<any | null>(() => {
+    try {
+      const cached = localStorage.getItem('juca_last_migration_package_meta')
+      if (cached) return JSON.parse(cached)
+    } catch {
+      /* intentionally ignored */
+    }
+    return null
+  })
   const [showAuditDetails, setShowAuditDetails] = useState(false)
 
   const handleExportFullSystemPackage = async () => {
@@ -248,6 +256,11 @@ export function ExportReportsModal({
         setExportStatus(msg)
       })
       setLastPackage(pkg)
+      try {
+        localStorage.setItem('juca_last_migration_package_meta', JSON.stringify(pkg))
+      } catch {
+        /* intentionally ignored */
+      }
       downloadMigrationPackageFile(pkg)
       downloadAttachmentsManifestCSV(pkg.attachments_manifest)
 
@@ -256,8 +269,12 @@ export function ExportReportsModal({
           ? 'PACOTE COMPLETO'
           : `PACOTE PARCIAL (${pkg.meta.collections_failed_count} coleções com falha)`
 
+      const verifiedInitial = (pkg.attachments_manifest || []).filter(
+        (it: any) => it.download_status === 'success' && !!it.sha256,
+      ).length
+
       setExportStatus(
-        `Status: ${statusDesc}. Exportados: ${pkg.meta.total_records_exported} registros em ${pkg.meta.collections_exported_count} coleções. Manifesto com ${pkg.meta.total_attachments_manifested} anexos gerado.`,
+        `Status: ${statusDesc}. Exportados: ${pkg.meta.total_records_exported} registros em ${pkg.meta.collections_exported_count} coleções. Manifesto com ${pkg.meta.total_attachments_manifested} anexos gerado (${verifiedInitial} c/ SHA-256 no cache).`,
       )
     } catch (err: any) {
       setExportStatus(`Erro ao exportar: ${err?.message || String(err)}`)
@@ -309,12 +326,20 @@ export function ExportReportsModal({
       // Atualiza manifesto do pacote com os hashes e status de download
       lastPackage.attachments_manifest = result.manifest
       lastPackage.meta.total_attachments_downloaded = result.successfulCount
+      setLastPackage({ ...lastPackage })
+      try {
+        localStorage.setItem('juca_last_migration_package_meta', JSON.stringify(lastPackage))
+      } catch {
+        /* intentionally ignored */
+      }
+
+      // Dispara o download imediato do manifesto CSV atualizado com hashes reais
       downloadAttachmentsManifestCSV(result.manifest)
 
       const msg =
         result.failedCount === 0
-          ? `Sucesso completo! Todos os ${result.successfulCount} arquivos foram verificados com hash SHA-256 preenchido. Novo manifesto CSV baixado.`
-          : `Processamento concluído com ${result.successfulCount} sucessos e ${result.failedCount} falhas com motivos registrados individualmente. Novo manifesto CSV baixado. Você pode tentar novamente para retomar os pendentes.`
+          ? `Sucesso completo! Todos os ${result.successfulCount} arquivos foram verificados com hash SHA-256 real. Manifesto CSV baixado com sucesso.`
+          : `Processamento concluído com ${result.successfulCount} sucessos e ${result.failedCount} pendências. Manifesto CSV baixado com os dados atuais. Clique em "Baixar Manifesto Atual" a qualquer momento.`
 
       setAttachmentProgress(msg)
     } catch (err: any) {
@@ -484,6 +509,51 @@ export function ExportReportsModal({
                       ? 'Baixando anexos em lote...'
                       : `Baixar e Verificar Arquivos Físicos (${lastPackage.attachments_manifest?.length || 0} arquivos c/ SHA-256)`}
                   </Button>
+
+                  {/* Botão direto para baixar manifesto CSV a qualquer momento sem reprocessar */}
+                  <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={downloadingAttachments || exportingFull}
+                      onClick={async () => {
+                        const { downloadAttachmentsManifestCSV } =
+                          await import('@/services/migration-export')
+                        downloadAttachmentsManifestCSV(
+                          lastPackage.attachments_manifest || [],
+                          'completo',
+                        )
+                      }}
+                      className="text-[11px] gap-1 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                    >
+                      <FileText className="h-3 w-3" /> Baixar Manifesto CSV
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={downloadingAttachments || exportingFull}
+                      onClick={async () => {
+                        const { downloadAttachmentsManifestCSV } =
+                          await import('@/services/migration-export')
+                        const pendingOrFailed = (lastPackage.attachments_manifest || []).filter(
+                          (m: any) => m.download_status !== 'success' || !m.sha256,
+                        )
+                        if (pendingOrFailed.length === 0) {
+                          alert(
+                            'Não há arquivos pendentes ou com falha! Todos os anexos estão 100% verificados.',
+                          )
+                          return
+                        }
+                        downloadAttachmentsManifestCSV(pendingOrFailed, 'pendentes')
+                      }}
+                      className="text-[11px] gap-1 border-amber-200 text-amber-800 hover:bg-amber-50"
+                    >
+                      <FileText className="h-3 w-3" /> Manifesto Pendentes
+                    </Button>
+                  </div>
+
                   <Button
                     type="button"
                     variant="ghost"

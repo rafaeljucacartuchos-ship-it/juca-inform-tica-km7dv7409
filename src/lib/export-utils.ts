@@ -10,16 +10,19 @@ export function downloadFile(filename: string, content: string, mimeType: string
   const a = document.createElement('a')
   a.href = url
   a.download = filename
+  a.style.display = 'none'
   document.body.appendChild(a)
   a.click()
-  if (a.parentNode) {
-    try {
-      a.parentNode.removeChild(a)
-    } catch {
-      // nó já removido
+  setTimeout(() => {
+    if (a.parentNode) {
+      try {
+        a.parentNode.removeChild(a)
+      } catch {
+        // nó já removido
+      }
     }
-  }
-  URL.revokeObjectURL(url)
+    URL.revokeObjectURL(url)
+  }, 1000)
 }
 
 export function exportToCSV(filename: string, sections: ExportSection[]) {

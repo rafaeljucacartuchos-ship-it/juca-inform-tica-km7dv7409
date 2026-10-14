@@ -110,6 +110,11 @@ routerAdd('POST', '/backend/v1/migration/admin-export', (e) => {
         // Lê bytes e calcula sha256 server-side com garantia de integridade
         var fileReader = fileBlob.reader
         var bytes = $bytes.readAll(fileReader)
+        if (typeof fileReader.close === 'function') {
+          try {
+            fileReader.close()
+          } catch (_) {}
+        }
         var sha256Hex = $security.sha256(bytes)
         var sizeBytes = bytes.length
 
@@ -135,6 +140,104 @@ routerAdd('POST', '/backend/v1/migration/admin-export', (e) => {
             (errDl && errDl.message ? errDl.message : String(errDl)),
         })
       }
+    }
+
+    // Ação: salvar hashes verificados no cache persistente do servidor (settings)
+    // Permite persistir o progresso consolidado de hash SHA-256 e tamanho de cada arquivo
+    if (body.action === 'save_hashes') {
+      var incomingHashes = body.hashes && typeof body.hashes === 'object' ? body.hashes : {}
+      var keysCount = Object.keys(incomingHashes).length
+      if (keysCount === 0) {
+        return e.json(400, { success: false, error: 'Dicionário de hashes vazio.' })
+      }
+
+      var existingMap = {}
+      var settingsRecord = null
+      try {
+        settingsRecord = e.app.findFirstRecordByData('settings', 'key', 'migration_verified_hashes')
+        if (settingsRecord && settingsRecord.getString('value')) {
+          try {
+            existingMap = JSON.parse(settingsRecord.getString('value')) || {}
+          } catch (_) {
+            existingMap = {}
+          }
+        }
+      } catch (_) {
+        settingsRecord = null
+      }
+
+      // Mescla os novos hashes com os existentes
+      for (var k in incomingHashes) {
+        if (Object.prototype.hasOwnProperty.call(incomingHashes, k)) {
+          var hVal = incomingHashes[k]
+          if (hVal && hVal.sha256) {
+            existingMap[k] = {
+              sha256: String(hVal.sha256),
+              size_bytes: Number(hVal.size_bytes) || 0,
+              verified_at: hVal.verified_at || new Date().toISOString(),
+            }
+          }
+        }
+      }
+
+      var mergedJson = JSON.stringify(existingMap)
+      try {
+        if (settingsRecord) {
+          settingsRecord.set('value', mergedJson)
+          settingsRecord.set(
+            'description',
+            'Cache de integridade SHA-256 da migração JUCA (' +
+              Object.keys(existingMap).length +
+              ' hashes)',
+          )
+          e.app.save(settingsRecord)
+        } else {
+          var newSetCol = e.app.findCollectionByNameOrId('settings')
+          var newSetRec = new Record(newSetCol)
+          newSetRec.set('key', 'migration_verified_hashes')
+          newSetRec.set('value', mergedJson)
+          newSetRec.set(
+            'description',
+            'Cache de integridade SHA-256 da migração JUCA (' +
+              Object.keys(existingMap).length +
+              ' hashes)',
+          )
+          e.app.save(newSetRec)
+        }
+      } catch (errSaveSet) {
+        return e.json(500, {
+          success: false,
+          error:
+            'Falha ao persistir hashes no servidor: ' +
+            (errSaveSet && errSaveSet.message ? errSaveSet.message : String(errSaveSet)),
+        })
+      }
+
+      return e.json(200, {
+        success: true,
+        action: 'save_hashes',
+        saved_count: Object.keys(existingMap).length,
+      })
+    }
+
+    // Ação: obter hashes verificados salvos no servidor
+    if (body.action === 'get_hashes') {
+      var savedHashesMap = {}
+      try {
+        var sRec = e.app.findFirstRecordByData('settings', 'key', 'migration_verified_hashes')
+        if (sRec && sRec.getString('value')) {
+          savedHashesMap = JSON.parse(sRec.getString('value')) || {}
+        }
+      } catch (_) {
+        savedHashesMap = {}
+      }
+
+      return e.json(200, {
+        success: true,
+        action: 'get_hashes',
+        count: Object.keys(savedHashesMap).length,
+        hashes: savedHashesMap,
+      })
     }
 
     // Ação: verificação em lote server-side (batch_verify)
@@ -190,7 +293,13 @@ routerAdd('POST', '/backend/v1/migration/admin-export', (e) => {
             continue
           }
 
-          var bBytes = $bytes.readAll(bFile.reader)
+          var bReader = bFile.reader
+          var bBytes = $bytes.readAll(bReader)
+          if (typeof bReader.close === 'function') {
+            try {
+              bReader.close()
+            } catch (_) {}
+          }
           var bSha = $security.sha256(bBytes)
           verifyResults.push({
             collection: vCol,

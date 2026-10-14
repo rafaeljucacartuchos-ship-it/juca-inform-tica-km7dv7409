@@ -37,6 +37,39 @@ export interface AttachmentManifestItem {
   is_signed_original?: boolean
 }
 
+/**
+ * Consulta o cache de hashes verificados persistidos no backend (coleção settings)
+ */
+export async function getVerifiedHashesFromServer(): Promise<
+  Record<string, { sha256: string; size_bytes: number }>
+> {
+  const token = pb.authStore.token
+  const pbUrl = (
+    import.meta.env.VITE_POCKETBASE_URL ||
+    'https://assistencia-tecnica-movel-86527.shrd00.internal.goskip.dev'
+  ).replace(/\/$/, '')
+
+  try {
+    const res = await fetch(`${pbUrl}/backend/v1/migration/admin-export`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ action: 'get_hashes' }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data && data.success && data.hashes) {
+        return data.hashes
+      }
+    }
+  } catch {
+    // Ignora erro e recorre a vazio
+  }
+  return {}
+}
+
 export interface FinancialStatusBreakdown {
   status: string
   count: number
@@ -639,6 +672,14 @@ export async function generateFullMigrationPackage(
     // Se a rota do hook não estiver acessível, segue com a consulta paginada via SDK
   }
 
+  // 3.1 Busca prévia de hashes verificados no cache persistente do servidor
+  let serverHashesCache: Record<string, { sha256: string; size_bytes: number }> = {}
+  try {
+    serverHashesCache = await getVerifiedHashesFromServer()
+  } catch {
+    /* intentionally ignored */
+  }
+
   // 4. Exportação das Coleções
   for (let i = 0; i < totalCollections; i++) {
     const colName = collections[i]
@@ -705,6 +746,9 @@ export async function generateFullMigrationPackage(
                 colName === 'laudos_tecnicos' ||
                 colName === 'rental_contracts'
 
+              const cacheKey = `${colName}::${record.id}::${filename}`
+              const cached = serverHashesCache[cacheKey]
+
               manifest.push({
                 collection: colName,
                 record_id: record.id,
@@ -712,7 +756,9 @@ export async function generateFullMigrationPackage(
                 filename,
                 storage_path: storagePath,
                 download_url: downloadUrl,
-                download_status: 'not_downloaded',
+                download_status: cached && cached.sha256 ? 'success' : 'not_downloaded',
+                sha256: cached?.sha256,
+                file_size_bytes: cached?.size_bytes,
                 is_signed_original: isSigned,
               })
             }
@@ -834,27 +880,49 @@ export async function generateFullMigrationPackage(
 }
 
 /**
+ * Helper resiliente para disparar download de arquivo sem descartar URL prematuramente
+ */
+function triggerBrowserDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.style.display = 'none'
+  document.body.appendChild(link)
+  link.click()
+  // Retarda a limpeza do link e do ObjectURL para permitir que navegadores
+  // e WebViews móveis/desktop iniciem e concluam o salvamento no disco
+  setTimeout(() => {
+    if (link.parentNode) {
+      try {
+        link.parentNode.removeChild(link)
+      } catch {
+        /* intentionally ignored */
+      }
+    }
+    URL.revokeObjectURL(url)
+  }, 1000)
+}
+
+/**
  * Dispara o download local no navegador do pacote JSON completo
  */
 export function downloadMigrationPackageFile(pkg: FullMigrationPackage, filename?: string) {
   const jsonStr = JSON.stringify(pkg, null, 2)
   const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
   const dateStr = new Date().toISOString().substring(0, 10)
   const statusPrefix = pkg.meta.package_status === 'complete' ? 'COMPLETO' : 'PARCIAL'
-  link.href = url
-  link.download = filename || `juca_migracao_${statusPrefix}_${dateStr}_${pkg.meta.export_id}.json`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  const fname = filename || `juca_migracao_${statusPrefix}_${dateStr}_${pkg.meta.export_id}.json`
+  triggerBrowserDownload(blob, fname)
 }
 
 /**
  * Dispara o download do Manifesto de Anexos em formato CSV seguro conforme RFC 4180
  */
-export function downloadAttachmentsManifestCSV(manifest: AttachmentManifestItem[]) {
+export function downloadAttachmentsManifestCSV(
+  manifest: AttachmentManifestItem[],
+  filenameSuffix?: string,
+) {
   const headers = [
     'colecao',
     'registro_id',
@@ -887,15 +955,10 @@ export function downloadAttachmentsManifestCSV(manifest: AttachmentManifestItem[
 
   const csvContent = buildCSVContent(headers, rows, ';')
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
   const dateStr = new Date().toISOString().substring(0, 10)
-  link.href = url
-  link.download = `manifesto_anexos_juca_${dateStr}.csv`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  const suffix = filenameSuffix ? `_${filenameSuffix}` : ''
+  const fname = `manifesto_anexos_juca_${dateStr}${suffix}.csv`
+  triggerBrowserDownload(blob, fname)
 }
 
 export interface AttachmentBatchDownloadOptions {
@@ -954,6 +1017,37 @@ export async function downloadAttachmentsBatch(options: AttachmentBatchDownloadO
     import.meta.env.VITE_POCKETBASE_URL ||
     'https://assistencia-tecnica-movel-86527.shrd00.internal.goskip.dev'
   ).replace(/\/$/, '')
+
+  // 0. Carrega hashes previamente persistidos no servidor para enriquecimento imediato
+  try {
+    const serverHashesRes = await fetch(`${pbUrl}/backend/v1/migration/admin-export`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ action: 'get_hashes' }),
+    })
+    if (serverHashesRes.ok) {
+      const serverHashesData = await serverHashesRes.json()
+      if (serverHashesData && serverHashesData.success && serverHashesData.hashes) {
+        for (const item of results) {
+          if (item.download_status === 'success' && item.sha256) continue
+          const key = `${item.collection}::${item.record_id}::${item.filename}`
+          const cached = serverHashesData.hashes[key]
+          if (cached && cached.sha256) {
+            item.sha256 = cached.sha256
+            item.file_size_bytes = cached.size_bytes
+            item.download_status = 'success'
+            item.download_error = undefined
+            completed++
+          }
+        }
+      }
+    }
+  } catch (_) {
+    // Se falhar recuperar cache do servidor, segue normalmente com verificação direta
+  }
 
   // 1. Processa itens embutidos (DataURL / Base64) que não precisam de chamada de rede ao storage
   for (let i = 0; i < total; i++) {
@@ -1153,6 +1247,60 @@ export async function downloadAttachmentsBatch(options: AttachmentBatchDownloadO
         percent: Math.round(((completed + failed) / total) * 100),
       })
     }
+
+    // Persiste os novos hashes verificados no cache do servidor a cada lote
+    const newlyVerifiedMap: Record<string, { sha256: string; size_bytes: number }> = {}
+    for (const idx of chunkIndices) {
+      const it = results[idx]
+      if (it.download_status === 'success' && it.sha256) {
+        newlyVerifiedMap[`${it.collection}::${it.record_id}::${it.filename}`] = {
+          sha256: it.sha256,
+          size_bytes: it.file_size_bytes || 0,
+        }
+      }
+    }
+    if (Object.keys(newlyVerifiedMap).length > 0) {
+      try {
+        await fetch(`${pbUrl}/backend/v1/migration/admin-export`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            action: 'save_hashes',
+            hashes: newlyVerifiedMap,
+          }),
+        })
+      } catch (_) {
+        // Falha no save_hashes não deve abortar o fluxo de verificação
+      }
+    }
+  }
+
+  // 4. Salva também o manifesto verificado no cache do localStorage como redundância local
+  try {
+    const compactManifest = results.map((m) => ({
+      c: m.collection,
+      r: m.record_id,
+      f: m.filename,
+      s: m.sha256,
+      b: m.file_size_bytes,
+      st: m.download_status,
+      err: m.download_error,
+    }))
+    localStorage.setItem(
+      'juca_last_verified_manifest_summary',
+      JSON.stringify({
+        saved_at: new Date().toISOString(),
+        total,
+        completed,
+        failed,
+        items: compactManifest,
+      }),
+    )
+  } catch {
+    /* intentionally ignored */
   }
 
   return {
