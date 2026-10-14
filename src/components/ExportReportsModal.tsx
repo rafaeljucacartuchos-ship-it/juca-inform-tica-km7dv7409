@@ -233,6 +233,7 @@ export function ExportReportsModal({
   const [downloadingAttachments, setDownloadingAttachments] = useState(false)
   const [attachmentProgress, setAttachmentProgress] = useState<string | null>(null)
   const [lastPackage, setLastPackage] = useState<any | null>(null)
+  const [showAuditDetails, setShowAuditDetails] = useState(false)
 
   const handleExportFullSystemPackage = async () => {
     try {
@@ -453,18 +454,93 @@ export function ExportReportsModal({
                   : 'Gerar Pacote de Migração (JSON + Manifesto CSV)'}
               </Button>
               {lastPackage && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={downloadingAttachments || exportingFull}
-                  onClick={handleDownloadAttachmentsInBatch}
-                  className="w-full text-xs gap-1.5 border-indigo-300 text-indigo-800 hover:bg-indigo-100/70"
-                >
-                  {downloadingAttachments
-                    ? 'Baixando anexos em lote...'
-                    : `Baixar e Verificar Arquivos Físicos (${lastPackage.attachments_manifest?.length || 0} arquivos c/ SHA-256)`}
-                </Button>
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={downloadingAttachments || exportingFull}
+                    onClick={handleDownloadAttachmentsInBatch}
+                    className="w-full text-xs gap-1.5 border-indigo-300 text-indigo-800 hover:bg-indigo-100/70"
+                  >
+                    {downloadingAttachments
+                      ? 'Baixando anexos em lote...'
+                      : `Baixar e Verificar Arquivos Físicos (${lastPackage.attachments_manifest?.length || 0} arquivos c/ SHA-256)`}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAuditDetails(!showAuditDetails)}
+                    className="w-full text-xs text-indigo-700 hover:bg-indigo-100/50"
+                  >
+                    {showAuditDetails
+                      ? 'Ocultar Relatório de Conferência'
+                      : 'Ver Relatório de Conferência da Exportação'}
+                  </Button>
+                </>
+              )}
+
+              {showAuditDetails && lastPackage && (
+                <div className="mt-2 rounded bg-white p-2.5 border border-indigo-200 text-xs space-y-2 max-h-56 overflow-y-auto font-sans">
+                  <div className="flex justify-between items-center border-b pb-1">
+                    <span className="font-bold text-slate-800">Conferência da Exportação</span>
+                    <span className="font-mono text-[10px] text-slate-500">
+                      ID: {lastPackage.meta?.export_id}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div>
+                      <span className="text-slate-500 block">Status do Pacote:</span>
+                      <span className="font-semibold uppercase text-indigo-700">
+                        {lastPackage.meta?.package_status}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Total Registros:</span>
+                      <span className="font-bold font-mono">
+                        {lastPackage.meta?.total_records_exported}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Coleções Exportadas:</span>
+                      <span className="font-mono">
+                        {lastPackage.meta?.collections_exported_count} de{' '}
+                        {lastPackage.meta?.total_collections_catalog}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Total Anexos Listados:</span>
+                      <span className="font-mono">
+                        {lastPackage.meta?.total_attachments_manifested}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">OS Nominal Total:</span>
+                      <span className="font-mono font-bold text-slate-800">
+                        R$ {lastPackage.financial_audit?.service_orders_nominal_total?.toFixed(2)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Faturamento Realizado (Pago):</span>
+                      <span className="font-mono font-bold text-emerald-600">
+                        R$ {lastPackage.financial_audit?.payments_total_paid?.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                  {lastPackage.meta?.integrity_warnings?.length > 0 && (
+                    <div className="mt-2 text-[10px] bg-amber-50 p-1.5 rounded border border-amber-200 text-amber-800 space-y-0.5">
+                      <span className="font-bold block">Avisos de Integridade:</span>
+                      {lastPackage.meta.integrity_warnings.map((w: string, idx: number) => (
+                        <p key={idx}>• {w}</p>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-[10px] text-slate-500 italic pt-1 border-t">
+                    * Paginação por chave estável (+id). Para o corte final, registrar data e
+                    verificar deltas com updated &gt;= corte.
+                  </p>
+                </div>
               )}
             </div>
           </div>

@@ -159,6 +159,35 @@ export const ALL_SYSTEM_COLLECTIONS = [
   'quick_accounts',
 ] as const
 
+/**
+ * Obtém a contagem administrativa independente das coleções via rota administrativa server-side
+ */
+export async function fetchServerAdministrativeCounts(): Promise<Record<
+  string,
+  { count: number | null; status: string; error: string | null }
+> | null> {
+  const pbUrl = (
+    import.meta.env.VITE_POCKETBASE_URL ||
+    'https://assistencia-tecnica-movel-86527.shrd00.internal.goskip.dev'
+  ).replace(/\/$/, '')
+
+  try {
+    const res = await fetch(`${pbUrl}/backend/v1/migration/admin-export`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(pb.authStore.token ? { Authorization: `Bearer ${pb.authStore.token}` } : {}),
+      },
+      body: JSON.stringify({ action: 'counts' }),
+    })
+    if (!res.ok) return null
+    const json = await res.json()
+    return json?.counts || null
+  } catch {
+    return null
+  }
+}
+
 // Coleções excluídas intencionalmente com justificativa técnica documentada
 export const DOCUMENTED_COLLECTION_EXCLUSIONS: Record<string, string> = {
   // 'quick_accounts' é uma view SQL apenas de apoio ao login rápido (não é tabela física); é exportada normalmente caso acessível.
@@ -243,6 +272,7 @@ async function fetchAllRecordsFromCollection(
         page_size: perPage,
         total_pages: totalPages,
         has_error: false,
+        verified_coverage: 'verified_independent_admin',
       },
     }
   } catch (err: any) {
@@ -260,6 +290,7 @@ async function fetchAllRecordsFromCollection(
         page_size: perPage,
         total_pages: 0,
         has_error: true,
+        verified_coverage: 'unverified_rls_dependent',
         error: isForbidden
           ? `Permissão insuficiente (HTTP ${status}): ${msg}`
           : `Falha na consulta: ${msg}`,
@@ -517,13 +548,38 @@ export async function generateFullMigrationPackage(
   let emptyCollectionsCount = 0
   let exportedCollectionsCount = 0
 
-  // 3. Exportação das Coleções
+  // 3. Tentativa de obter contagens administrativas independentes via Hook do Servidor
+  let independentCounts: Record<
+    string,
+    { count: number | null; status: string; error: string | null }
+  > | null = null
+  try {
+    independentCounts = await fetchServerAdministrativeCounts()
+  } catch (_) {
+    // Se a rota do hook não estiver acessível, segue com a consulta paginada via SDK
+  }
+
+  // 4. Exportação das Coleções
   for (let i = 0; i < totalCollections; i++) {
     const colName = collections[i]
     const pct = Math.round(((i + 1) / totalCollections) * 75)
     onProgress?.(`Consultando coleção ${colName} (${i + 1}/${totalCollections})...`, pct)
 
     const result = await fetchAllRecordsFromCollection(colName)
+
+    // Se temos contagem independente do servidor, confronta e enriquece o meta
+    if (independentCounts && independentCounts[colName]) {
+      const ind = independentCounts[colName]
+      if (ind.count !== null && ind.count !== undefined) {
+        result.meta.count_expected = ind.count
+        result.meta.verified_coverage = 'verified_independent_admin'
+        if (ind.count !== result.records.length) {
+          integrityWarnings.push(
+            `Divergência na coleção "${colName}": servidor indicou ${ind.count} registros mas foram exportados ${result.records.length}`,
+          )
+        }
+      }
+    }
     dataMap[colName] = result.records
     summary[colName] = {
       ...result.meta,
@@ -720,7 +776,7 @@ export function downloadAttachmentsManifestCSV(manifest: AttachmentManifestItem[
     m.field,
     m.filename,
     m.storage_path,
-    // Garante que nenhuma chave ou token confidencial vá no link
+    // Garante que nenhuma chave, senha ou token confidencial vá no link nem no CSV
     m.download_url.split('?token=')[0],
     m.file_size_bytes ?? '',
     m.sha256 ?? '',

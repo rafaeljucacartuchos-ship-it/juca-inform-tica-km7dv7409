@@ -8,6 +8,27 @@
 
 ---
 
+## 0. GUIA RÁPIDO DO ADMINISTRADOR (ONDE CLICAR E O QUE ESPERAR)
+
+Para executar a conferência e gerar os artefatos de migração na prévia:
+
+1. Abra o JUCA logado como usuário com perfil `admin` (ex.: conta Administrador).
+2. Vá em **Relatórios** (menu lateral ou topo) e clique no botão **"Rel. Geral / Migração"**.
+3. Na janela aberta, localize o card **"📦 Pacote Completo de Migração (Todas as Coleções)"**.
+4. Clique em **"Gerar Pacote de Migração (JSON + Manifesto CSV)"**:
+   - O sistema realiza consulta independente via servidor (`/backend/v1/migration/admin-export`) para apurar as contagens esperadas;
+   - Em seguida, pagina todas as 38 coleções da base de dados com ordenação estável `+id` (em lotes de 200 itens);
+   - Gera e faz download imediato do arquivo JSON estruturado com todos os registros íntegros;
+   - Gera e faz download imediato do `manifesto_anexos_juca_YYYY-MM-DD.csv` conforme a RFC 4180;
+   - O painel exibe resumo em tempo real e permite clicar em **"Ver Relatório de Conferência da Exportação"** para conferir contagens, total nominal e faturamento real.
+5. Em seguida, clique em **"Baixar e Verificar Arquivos Físicos"**:
+   - O sistema processa os anexos da lista (em lotes paralelos seguros de 3 requisições autenticadas por Bearer token no cabeçalho HTTP);
+   - Calcula o hash criptográfico **SHA-256** de cada anexo baixado e embutido (Base64 de contratos/documentos);
+   - Faz o download do manifesto atualizado contendo os hashes SHA-256 e o status comprovado de cada arquivo.
+6. Nenhum segredo ou token confidencial (`PB_SUPERUSER_TOKEN`, senhas de usuários) é exposto nos arquivos exportados, URLs ou CSV.
+
+---
+
 ## 1. IDENTIFICAÇÃO RIGOROSA DAS VERSÕES E AMBIENTES
 
 Conforme auditoria do repositório Git, logs de migração e dados de execução:
@@ -144,13 +165,46 @@ O cálculo financeiro **NÃO adota somas nominais como faturamento realizado**. 
 
 A migração tem como destino uma nova aplicação em desenvolvimento na plataforma **Sites**. Ela **não exige PocketBase nem restauração idêntica de servidor VPS**.
 
-### 6.1 Mapeamento de Dados para o Destino
+### 6.1 Mapeamento de Dados para o Destino e Equipe / Divisão de OS
 
 - **Formato dos Dados:** Arquivo JSON hierárquico com chaves correspondentes aos nomes das coleções originais.
 - **Estratégia de Identificadores (IDs):**
-  - O destino deve criar uma coluna `origem_id` (VARCHAR 30) em cada tabela destino.
-  - Ao importar cada entidade, armazena o ID original de 15 caracteres do PocketBase em `origem_id`.
+  - **Importante:** A equipe responsável pela importação no **Sites** deve criar as colunas de rastreamento (ex.: `origem_id` VARCHAR 30) nas tabelas do destino. O exportador do JUCA **NÃO cria** nem altera o banco de dados do destino (já que o destino não está acessível no backend do Skip Cloud).
+  - Ao importar cada entidade, a equipe do Sites armazena o ID original de 15 caracteres do PocketBase em `origem_id`.
   - Durante o vínculo de chaves estrangeiras (ex: `service_orders.customer` apontando para `customers.id`), o importador do destino faz o DE-PARA consultando a tabela `customers` onde `origem_id = service_order.customer`.
+- **Ordem Recomendada de Importação no Destino:**
+  1. `settings`, `funcoes`, `service_types`
+  2. `users` (colaboradores/técnicos/vendedores)
+  3. `customers`, `suprimentos`
+  4. `equipment`, `products`, `services`, `impressoras`
+  5. `appointments`, `rental_machines`
+  6. `orcamentos`, `orcamento_itens`, `orcamento_anexos`
+  7. `service_orders`, `service_order_items`, `status_history`, `service_attachments`
+  8. `order_division_history` (histórico de divisões de equipe)
+  9. `payments`, `financial_receivables`, `evaluations`, `notifications`, `pos_venda_messages`
+  10. `rental_quotes`, `rental_contracts`, `contratos`, `rental_documents`, `rental_reserve`
+  11. `campaigns`, `campanha_messages`, `pricing_history`, `auditoria_precos`
+
+### 6.2 Equipe e Divisão da OS (Tabelas, Campos, Cálculos e Permissões)
+
+A versão v0.0.395 implementou divisão granular de O.S. com múltiplos técnicos e vendedores:
+
+- **Tabelas Envolvidas:**
+  - `service_orders`: campos `technician` (técnico principal), `second_technician` (segundo técnico opcional), `seller` (vendedor opcional), `division_model` (enum: `single_tech`, `two_techs_split_services`, `two_split_all`, `tech_and_seller`, `two_techs_and_seller`, `custom`), `division_details` (JSON com participantes, percentuais de produtos/serviços e centavos exatos).
+  - `order_division_history`: trilha de auditoria registrando `service_order`, `user`, `user_name`, `action` (`created`, `updated`, `reset`), `reason`, `previous_state`, `new_state`, `previous_details`, `new_details`, `order_status_at_change`.
+- **Cálculo da Divisão:**
+  - Baseado em centavos inteiros (`roundCents(valor * 100)`) para prevenir perdas de arredondamento.
+  - Serviços e Peças/Produtos possuem alocações separadas.
+  - A soma das partes sempre bate exatamente com o total nominal da O.S. (diferenças de centavos residuais são alocadas ao participante primário conforme convenção).
+  - Ordens históricas antigas sem divisão preenchida são identificadas como "Divisão não informada" e **não devem ser rateadas retroativamente** no destino sem decisão expressa da gestão.
+- **Permissões e Regras de Negócio:**
+  - Apenas administradores e perfis com permissão `ordens` ou administrativa podem alterar modelos de divisão.
+  - Alterações geram registro imutável em `order_division_history`.
+- **O que aguarda ensaio / validação no Destino:**
+  - Teste de consistência do JSON de `division_details` no parser do Sites;
+  - Teste da integridade referencial dos IDs de usuários múltiplos (`technician`, `second_technician`, `seller`);
+  - Validação da reprodução visual dos relatórios de produção individual no destino sem dupla contagem de faturamento.
+
 - **Autenticação e Senhas dos Usuários:**
   - O PocketBase armazena os hashes de senha com bcrypt internamente no SQLite (`_pb_users_auth_`). A API do PocketBase não expõe os hashes de senha nem tokens confidenciais por motivos de segurança e LGPD.
   - **Procedimento para o destino:** Os usuários devem ser criados no destino com suas informações cadastrais (`name`, `email`, `role`, `phone`, `funcao`). Na primeira entrada no novo sistema, deve ser utilizado fluxo de "Primeiro Acesso / Redefinir Senha" por e-mail ou SMS/WhatsApp, ou senha padrão provisória com troca obrigatória no primeiro login.

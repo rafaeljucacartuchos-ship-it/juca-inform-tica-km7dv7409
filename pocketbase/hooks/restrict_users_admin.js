@@ -6,8 +6,11 @@ onRecordUpdateRequest((e) => {
     return e.forbiddenError('Autenticacao necessaria')
   }
 
-  var isSuper = auth.isSuperuser()
-  var currentRole = auth.record ? auth.record.getString('role') : ''
+  var isSuper = auth ? (typeof auth.isSuperuser === 'function' ? auth.isSuperuser() : false) : false
+  var currentRole =
+    auth && auth.record && typeof auth.record.getString === 'function'
+      ? auth.record.getString('role')
+      : ''
   var isAdmin = isSuper || currentRole === 'admin'
 
   var body = e.requestInfo().body
@@ -38,8 +41,11 @@ onRecordCreateRequest((e) => {
     return e.forbiddenError('Autenticacao necessaria')
   }
 
-  var isSuper = auth.isSuperuser()
-  var currentRole = auth.record ? auth.record.getString('role') : ''
+  var isSuper = auth ? (typeof auth.isSuperuser === 'function' ? auth.isSuperuser() : false) : false
+  var currentRole =
+    auth && auth.record && typeof auth.record.getString === 'function'
+      ? auth.record.getString('role')
+      : ''
   var isAdmin = isSuper || currentRole === 'admin'
 
   if (!isAdmin) {
