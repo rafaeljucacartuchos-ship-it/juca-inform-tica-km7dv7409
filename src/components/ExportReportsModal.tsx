@@ -1,3 +1,4 @@
+import { MigrationPhysicalDownload } from '@/components/MigrationPhysicalDownload'
 import { useState } from 'react'
 import { FileText, FileSpreadsheet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -230,8 +231,8 @@ export function ExportReportsModal({
 
   const [exportingFull, setExportingFull] = useState(false)
   const [exportStatus, setExportStatus] = useState<string | null>(null)
-  const [downloadingAttachments, setDownloadingAttachments] = useState(false)
-  const [attachmentProgress, setAttachmentProgress] = useState<string | null>(null)
+  const downloadingAttachments = false
+  const attachmentProgress: string | null = null
   const [lastPackage, setLastPackage] = useState<any | null>(() => {
     try {
       const cached = localStorage.getItem('juca_last_migration_package_meta')
@@ -280,72 +281,6 @@ export function ExportReportsModal({
       setExportStatus(`Erro ao exportar: ${err?.message || String(err)}`)
     } finally {
       setExportingFull(false)
-    }
-  }
-
-  const handleDownloadAttachmentsInBatch = async () => {
-    if (
-      !lastPackage ||
-      !lastPackage.attachments_manifest ||
-      lastPackage.attachments_manifest.length === 0
-    ) {
-      alert('Gere primeiro o Pacote de Migração para identificar a lista de anexos.')
-      return
-    }
-
-    try {
-      setDownloadingAttachments(true)
-      setAttachmentProgress(
-        'Iniciando verificação e download dos arquivos físicos via serviço administrativo seguro...',
-      )
-      const { downloadAttachmentsBatch, downloadAttachmentsManifestCSV } =
-        await import('@/services/migration-export')
-
-      // Identifica quantos já foram verificados/baixados com sucesso (retomada inteligente)
-      const alreadySuccessCount = lastPackage.attachments_manifest.filter(
-        (it: any) => it.download_status === 'success' && !!it.sha256,
-      ).length
-      const pendingCount = lastPackage.attachments_manifest.length - alreadySuccessCount
-
-      setAttachmentProgress(
-        `Iniciando processamento: ${alreadySuccessCount} já validados, ${pendingCount} pendentes de ${lastPackage.attachments_manifest.length} totais...`,
-      )
-
-      const result = await downloadAttachmentsBatch({
-        manifest: lastPackage.attachments_manifest,
-        batchSize: 25,
-        maxRetries: 2,
-        retainBlobsInMemory: false, // Evita travamento por esgotamento de memória no navegador
-        onProgress: (p) => {
-          setAttachmentProgress(
-            `Processando anexos (${p.completed + p.failed}/${p.total}): ${p.currentFilename} [${p.percent}%] - Sucesso: ${p.completed}, Falhas: ${p.failed}`,
-          )
-        },
-      })
-
-      // Atualiza manifesto do pacote com os hashes e status de download
-      lastPackage.attachments_manifest = result.manifest
-      lastPackage.meta.total_attachments_downloaded = result.successfulCount
-      setLastPackage({ ...lastPackage })
-      try {
-        localStorage.setItem('juca_last_migration_package_meta', JSON.stringify(lastPackage))
-      } catch {
-        /* intentionally ignored */
-      }
-
-      // Dispara o download imediato do manifesto CSV atualizado com hashes reais
-      downloadAttachmentsManifestCSV(result.manifest)
-
-      const msg =
-        result.failedCount === 0
-          ? `Sucesso completo! Todos os ${result.successfulCount} arquivos foram verificados com hash SHA-256 real. Manifesto CSV baixado com sucesso.`
-          : `Processamento concluído com ${result.successfulCount} sucessos e ${result.failedCount} pendências. Manifesto CSV baixado com os dados atuais. Clique em "Baixar Manifesto Atual" a qualquer momento.`
-
-      setAttachmentProgress(msg)
-    } catch (err: any) {
-      setAttachmentProgress(`Erro no download dos anexos: ${err?.message || String(err)}`)
-    } finally {
-      setDownloadingAttachments(false)
     }
   }
 
@@ -497,18 +432,10 @@ export function ExportReportsModal({
               </Button>
               {lastPackage && (
                 <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={downloadingAttachments || exportingFull}
-                    onClick={handleDownloadAttachmentsInBatch}
-                    className="w-full text-xs gap-1.5 border-indigo-300 text-indigo-800 hover:bg-indigo-100/70"
-                  >
-                    {downloadingAttachments
-                      ? 'Baixando anexos em lote...'
-                      : `Baixar e Verificar Arquivos Físicos (${lastPackage.attachments_manifest?.length || 0} arquivos c/ SHA-256)`}
-                  </Button>
+                  <MigrationPhysicalDownload
+                    manifest={lastPackage.attachments_manifest || []}
+                    exportId={lastPackage.meta?.export_id || 'exportacao'}
+                  />
 
                   {/* Botão direto para baixar manifesto CSV a qualquer momento sem reprocessar */}
                   <div className="grid grid-cols-2 gap-1.5 pt-0.5">

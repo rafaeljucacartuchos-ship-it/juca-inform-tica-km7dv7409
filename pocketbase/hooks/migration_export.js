@@ -80,6 +80,44 @@ routerAdd('POST', '/backend/v1/migration/admin-export', (e) => {
     if (perPage > 500) perPage = 500
     if (page < 1) page = 1
 
+    // Bytes reais, com acesso administrativo já validado acima.
+    function readAttachment(collection, recordId, filename) {
+      if (collections.indexOf(collection) === -1 || !/^[a-zA-Z0-9_-]+$/.test(recordId) ||
+          !filename || /[/\\\\\x00]/.test(filename) || filename === '.' || filename === '..') {
+        throw new Error('Identificação de arquivo inválida.')
+      }
+      var record = e.app.findRecordById(collection, recordId)
+      var fs = e.app.newFilesystem()
+      var reader = null
+      try {
+        reader = fs.getFile(record.baseFilesPath() + '/' + filename)
+        var bytes = toBytes(reader, 64 * 1024 * 1024 + 1)
+        if (bytes.length > 64 * 1024 * 1024) throw new Error('Arquivo excede 64 MB; exportação individual necessária.')
+        return bytes
+      } finally {
+        if (reader) reader.close()
+        fs.close()
+      }
+    }
+    if (body.action === 'download_physical') {
+      try {
+        var dlCollection = String(body.collection || '')
+        var dlRecordId = String(body.record_id || '')
+        var dlFilename = String(body.filename || '')
+        var bytes = readAttachment(dlCollection, dlRecordId, dlFilename)
+        var responsePayload = {
+          success: true, collection: dlCollection, record_id: dlRecordId,
+          filename: dlFilename, size_bytes: bytes.length
+        }
+        {
+          responsePayload.data_base64 = Buffer.from(bytes).toString('base64')
+        }
+        return e.json(200, responsePayload)
+      } catch (errDl) {
+        return e.json(500, { success: false, error: String(errDl.message || errDl) })
+      }
+    }
+
     // Ação: download seguro de anexo via servidor administrativo (Superuser interno)
     // Suporta 'include_data: false' para calcular apenas SHA-256 e tamanho server-side (sem transportar payload pesado)
     if (body.action === 'download_file' || body.action === 'verify_file') {
