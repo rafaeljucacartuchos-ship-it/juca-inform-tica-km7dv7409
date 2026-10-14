@@ -1,3 +1,4 @@
+import { SupplierPurchaseForm } from '@/components/SupplierPurchaseForm'
 import { useState, useRef } from 'react'
 import {
   Dialog,
@@ -40,6 +41,7 @@ interface ImportProductsModalProps {
 type Step = 'upload' | 'preview' | 'importing' | 'summary'
 
 export function ImportProductsModal({ open, onOpenChange, onSuccess }: ImportProductsModalProps) {
+  const [purchaseMode, setPurchaseMode] = useState(false)
   const [step, setStep] = useState<Step>('upload')
   const [file, setFile] = useState<File | null>(null)
   const [parsedRows, setParsedRows] = useState<ParsedProductRow[]>([])
@@ -57,6 +59,7 @@ export function ImportProductsModal({ open, onOpenChange, onSuccess }: ImportPro
   const { toast } = useToast()
 
   const handleReset = () => {
+    setPurchaseMode(false)
     setStep('upload')
     setFile(null)
     setParsedRows([])
@@ -150,14 +153,16 @@ export function ImportProductsModal({ open, onOpenChange, onSuccess }: ImportPro
             </DialogTitle>
           </div>
           <DialogDescription className="text-xs text-slate-500">
-            Envie uma planilha Excel (.xlsx) ou .csv para atualizar e cadastrar produtos em massa.
+            Para compras, escolha Entrada de compra. A importação comum abaixo substitui o saldo de estoque.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto py-3 space-y-4">
           {/* ETAPA 1: UPLOAD */}
-          {step === 'upload' && (
+          {purchaseMode && <SupplierPurchaseForm onDone={() => { onSuccess?.(); handleClose(false) }} />}
+          {!purchaseMode && step === 'upload' && (
             <div className="space-y-4">
+              <Button onClick={() => setPurchaseMode(true)}>Entrada de compra GET / Multilaser — somar ao estoque</Button>
               <div
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => e.preventDefault()}
@@ -382,7 +387,8 @@ export function ImportProductsModal({ open, onOpenChange, onSuccess }: ImportPro
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-slate-100">
-          {step === 'upload' && (
+          {purchaseMode && <SupplierPurchaseForm onDone={() => { onSuccess?.(); handleClose(false) }} />}
+          {!purchaseMode && step === 'upload' && (
             <Button type="button" variant="outline" size="sm" onClick={() => handleClose(false)}>
               Cancelar
             </Button>
