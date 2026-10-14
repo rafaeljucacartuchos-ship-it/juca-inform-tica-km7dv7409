@@ -1,4 +1,5 @@
 // Impede que usuários sem perfil 'admin' alterem 'role' ou manipulem outros usuários
+
 onRecordUpdateRequest((e) => {
   var auth = e.auth
   if (!auth) {
