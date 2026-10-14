@@ -13,6 +13,7 @@ export interface CollectionExportMeta {
   has_error: boolean
   error?: string
   authenticated_user_role?: string
+  verified_coverage?: 'verified_independent_admin' | 'unverified_rls_dependent'
 }
 
 export interface AttachmentManifestItem {
@@ -27,6 +28,9 @@ export interface AttachmentManifestItem {
   sha256?: string
   download_status?: 'pending' | 'success' | 'failed' | 'not_downloaded'
   download_error?: string
+  batch_number?: number
+  resumed_download?: boolean
+  is_signed_original?: boolean
 }
 
 export interface FinancialStatusBreakdown {
@@ -549,6 +553,11 @@ export async function generateFullMigrationPackage(
               const colTarget = record.collectionId || colName
               const storagePath = `pb_data/storage/${colTarget}/${record.id}/${filename}`
               const downloadUrl = `${pbUrl}/api/files/${colTarget}/${record.id}/${encodeURIComponent(filename)}`
+              const isSigned =
+                f.includes('signature') ||
+                f.includes('assinatura') ||
+                colName === 'laudos_tecnicos' ||
+                colName === 'rental_contracts'
 
               manifest.push({
                 collection: colName,
@@ -558,6 +567,7 @@ export async function generateFullMigrationPackage(
                 storage_path: storagePath,
                 download_url: downloadUrl,
                 download_status: 'not_downloaded',
+                is_signed_original: isSigned,
               })
             }
           }
@@ -701,6 +711,8 @@ export function downloadAttachmentsManifestCSV(manifest: AttachmentManifestItem[
     'sha256',
     'status_download',
     'motivo_falha',
+    'lote_numerado',
+    'arquivo_original_assinado',
   ]
   const rows = manifest.map((m) => [
     m.collection,
@@ -708,11 +720,14 @@ export function downloadAttachmentsManifestCSV(manifest: AttachmentManifestItem[
     m.field,
     m.filename,
     m.storage_path,
-    m.download_url,
+    // Garante que nenhuma chave ou token confidencial vá no link
+    m.download_url.split('?token=')[0],
     m.file_size_bytes ?? '',
     m.sha256 ?? '',
     m.download_status || 'not_downloaded',
     m.download_error || '',
+    m.batch_number ? `Lote ${m.batch_number}` : 'Lote 1',
+    m.is_signed_original ? 'SIM' : 'NAO',
   ])
 
   const csvContent = buildCSVContent(headers, rows, ';')
@@ -756,6 +771,11 @@ export async function downloadAttachmentsBatch(options: AttachmentBatchDownloadO
   let completed = 0
   let failed = 0
 
+  // Atribui números de lotes para rastreabilidade de entrega
+  for (let i = 0; i < total; i++) {
+    results[i].batch_number = Math.floor(i / 10) + 1
+  }
+
   const token = pb.authStore.token
 
   for (let i = 0; i < total; i += batchSize) {
@@ -788,11 +808,18 @@ export async function downloadAttachmentsBatch(options: AttachmentBatchDownloadO
         let success = false
         let lastError = ''
 
+        // Se já foi baixado com sucesso em execução anterior, pula (retoma somente com falha/pendente)
+        if (item.download_status === 'success' && item.sha256) {
+          completed++
+          return
+        }
+
         while (attempt <= maxRetries && !success) {
           attempt++
           try {
             const headers: Record<string, string> = {}
             if (token) {
+              // Envia bearer token no header HTTP seguro (nunca na URL ou query param)
               headers['Authorization'] = `Bearer ${token}`
             }
 
