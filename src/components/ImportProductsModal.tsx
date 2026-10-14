@@ -153,16 +153,26 @@ export function ImportProductsModal({ open, onOpenChange, onSuccess }: ImportPro
             </DialogTitle>
           </div>
           <DialogDescription className="text-xs text-slate-500">
-            Para compras, escolha Entrada de compra. A importação comum abaixo substitui o saldo de estoque.
+            Para compras, escolha Entrada de compra. A importação comum abaixo substitui o saldo de
+            estoque.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto py-3 space-y-4">
           {/* ETAPA 1: UPLOAD */}
-          {purchaseMode && <SupplierPurchaseForm onDone={() => { onSuccess?.(); handleClose(false) }} />}
+          {purchaseMode && (
+            <SupplierPurchaseForm
+              onDone={() => {
+                onSuccess?.()
+                handleClose(false)
+              }}
+            />
+          )}
           {!purchaseMode && step === 'upload' && (
             <div className="space-y-4">
-              <Button onClick={() => setPurchaseMode(true)}>Entrada de compra GET / Multilaser — somar ao estoque</Button>
+              <Button onClick={() => setPurchaseMode(true)}>
+                Entrada de compra GET / Multilaser — somar ao estoque
+              </Button>
               <div
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => e.preventDefault()}
@@ -387,7 +397,14 @@ export function ImportProductsModal({ open, onOpenChange, onSuccess }: ImportPro
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-slate-100">
-          {purchaseMode && <SupplierPurchaseForm onDone={() => { onSuccess?.(); handleClose(false) }} />}
+          {purchaseMode && (
+            <SupplierPurchaseForm
+              onDone={() => {
+                onSuccess?.()
+                handleClose(false)
+              }}
+            />
+          )}
           {!purchaseMode && step === 'upload' && (
             <Button type="button" variant="outline" size="sm" onClick={() => handleClose(false)}>
               Cancelar
