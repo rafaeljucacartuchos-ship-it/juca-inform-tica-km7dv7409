@@ -1,88 +1,52 @@
-# PACOTE COMPLETO E VERIFICÁVEL DE MIGRAÇÃO — JUCA INFORMÁTICA
+# PACOTE DE MIGRAÇÃO VERIFICÁVEL — JUCA INFORMÁTICA
 
 **Data de Inventário & Exportação:** Outubro / 2026  
 **Prazo Limite Estabelecido:** 02/11/2026  
 **Sistema:** JUCA INFORMÁTICA (Gestão de Assistência Técnica, OS, Clientes, Orçamentos, Locação e Precificação)  
-**Stack de Origem:** Frontend React 19 + TypeScript + Vite + Tailwind PWA sobre Backend PocketBase v0.36 (Skip Cloud)
+**Stack de Origem:** Frontend React 19 + TypeScript + Vite + Tailwind PWA sobre Backend PocketBase v0.36 (Skip Cloud)  
+**Destino Previsto:** Aplicação em desenvolvimento no **Sites** (não presume PocketBase e não exige contratação de VPS)
 
 ---
 
-## 1. CÓDIGO E CONFIGURAÇÃO
+## 1. IDENTIFICAÇÃO RIGOROSA DAS VERSÕES E AMBIENTES
 
-### 1.1 Estado das Versões e Ambientes
+Conforme auditoria do repositório Git, logs de migração e dados de execução:
 
-- **Versão Publicada em Produção:** `v0.0.232` (mantida estável e intacta por solicitação do usuário, sem publicação recente).
-- **Versão da Prévia Atual:** `v0.0.395` (inclui todas as migrações aplicadas, módulos de locação de impressoras, precificação moderna, contratos, laudos técnicos, pós-venda Juquinha automatizado, auditoria de equipe e divisão de OS, e o exportador completo de migração).
-- **Repositório Conectado:** GitHub sincronizado com controle de versão Git.
-- **Data da Exportação deste Pacote:** 14/10/2026.
-
-### 1.2 Dependências e Ferramentas
-
-- **Node.js:** v20+ ou v22 LTS recomendado.
-- **Gerenciador de Pacotes:** `npm` ou `pnpm`.
-- **Bibliotecas Principais do Frontend:**
-  - `react`: `^19.2.7`, `react-dom`: `^19.2.7`
-  - `vite`: `8.0.16`
-  - `pocketbase`: `~0.26.9` (SDK client JS)
-  - `xlsx`: `^0.18.5` (importação/exportação de planilhas de produtos e clientes)
-  - `@radix-ui/*`: conjunto completo shadcn/ui
-  - `recharts`: `^3.8.1` (gráficos de faturamento e evolução)
-  - `html5-qrcode`, `quagga2`: leitura de código de barras
-  - `heic2any`: conversão de imagens iPhone no upload de anexos
-  - `date-fns`: manipulação de datas
-
-### 1.3 Comandos para Executar e Construir
-
-```bash
-# 1. Instalar dependências
-npm install
-
-# 2. Executar em modo desenvolvimento local
-npm run dev
-
-# 3. Executar testes automatizados
-npm run test
-
-# 4. Verificação estática (linter e types)
-npm run lint
-npx tsc --noEmit
-
-# 5. Build de produção (gera a pasta dist/)
-npm run build
-
-# 6. Pré-visualizar o build local
-npm run preview
-```
-
-### 1.4 Nomes das Configurações Necessárias (Environment Variables)
-
-> **Aviso de Segurança:** Por rígida diretriz de conformidade, **nenhum valor secreto, chave de API ou token é registrado neste relatório**. Apenas os NOMES das variáveis necessárias são informados abaixo.
-
-#### Frontend (.env / build-time):
-
-- `VITE_POCKETBASE_URL`: URL base do backend PocketBase (ex: `https://seu-pocketbase.com`).
-
-#### Backend (PocketBase / pb_hooks / $os.getenv):
-
-- `PB_INSTANCE_URL`: URL da instância backend interna.
-- `PB_SUPERUSER_TOKEN`: Token de autenticação superuser do PocketBase para hooks administrativos.
-- `SITE_URL` / `APP_PUBLIC_URL` / `FRONTEND_URL`: Endereço web público da aplicação cliente (utilizado para gerar os links de avaliação `/avaliar/:token`, propostas e O.S. compartilhada).
-- `SKIP_AI_GATEWAY_API_KEY`: Chave da API do gateway de IA (caso utilize a geração customizada do assistente Juquinha).
-- `SKIP_AI_GATEWAY_URL`: Endpoint do gateway de IA.
-
-#### Procedimento Seguro para Transferência das Chaves:
-
-1. Gere um arquivo `.env` seguro no servidor de destino com permissões restritas de leitura (`chmod 600 .env`).
-2. Transfira as credenciais reais através de canal cifrado de ponta a ponta (ex: Bitwarden, 1Password Secrets, GPG ou SSH seguro). Nunca envie por e-mail ou canais abertos.
-3. Cadastre novos usuários administradores diretamente pelo painel do PocketBase no destino (`/_/`) com credenciais fortes e gere novas chaves para o serviço de IA.
+| Ambiente / Componente        | Versão / Tag         | Evidência / Status                                    | Observação                                                                                                                                                                   |
+| ---------------------------- | -------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Produção Publicada**       | `v0.0.389`           | **Verificada em publicação anterior**                 | A versão `v0.0.232` correspondia ao marco histórico de congelamento solicitado pelo usuário; a `v0.0.389` foi verificada como a última publicação ativa. Ambas documentadas. |
+| **Ambiente de Prévia Atual** | `v0.0.395`           | **Verificada** (`package.json`, commit Git `0086d9b`) | Ambiente ativo de desenvolvimento contendo todas as 99 migrações do banco, precificação moderna, contratos e módulo de migração.                                             |
+| **Commit de Origem**         | `0086d9b`            | **Verificado**                                        | Hash do Git do build atual no Skip Cloud.                                                                                                                                    |
+| **Data/Hora de Exportação**  | Dinâmica             | **Verificada a cada geração**                         | Gravada em `meta.started_at` e `meta.completed_at` no JSON exportado.                                                                                                        |
+| **PocketBase Backend**       | `v0.36` (Skip Cloud) | **Verificado**                                        | Instância interna servida com SQLite subjacente.                                                                                                                             |
 
 ---
 
-## 2. BANCO DE DADOS COMPLETO E ESQUEMA
+## 2. STATUS E VALIDAÇÃO DA EXPORTAÇÃO (SEM FALSO POSITIVO)
 
-O backend é construído sobre o **PocketBase v0.36** (SQLite com camada de metadados, regras de acesso RLS e hooks transacionais).
+O exportador (`src/services/migration-export.ts`) classifica formalmente cada pacote:
 
-### 2.1 Lista Completa das 37 Coleções do Sistema
+1. **`complete`**: Todas as coleções do catálogo foram consultadas com sucesso integral (vazias ou com registros).
+2. **`partial`**: Uma ou mais coleções falharam ou tiveram leitura negada por permissão RLS, mas dados foram recuperados para diagnóstico.
+3. **`error`**: Falha crítica total que impediu a obtenção dos dados.
+
+### 2.1 Distinção entre Coleção Vazia e Coleção com Falha
+
+- **Coleção Vazia (`status: 'empty'`):** A consulta retornou HTTP 200 com array de itens vazio (`totalItems === 0`).
+- **Coleção com Falha (`status: 'failed'` ou `'forbidden'`):** A requisição disparou erro de rede, erro de sintaxe ou HTTP 403. O pacote registra explicitamente a mensagem de erro e **não camufla** como coleção vazia.
+
+### 2.2 Auditoria de Permissões da Conta Conectada
+
+- Ao exportar, o sistema inspeciona `pb.authStore.record`.
+- Se a conta logada for administrador (`role === 'admin'`), a leitura ignora restrições de RLS.
+- Se a conta for atendente ou técnico, o pacote adiciona aviso explícito em `meta.integrity_warnings` informando que registros não autorizados podem ter sido filtrados pelas regras de API.
+- **Exportação Administrativa Segura:** Para garantir 100% de integridade, execute o botão "Gerar Pacote de Migração" com o usuário administrador (`administrador`).
+
+---
+
+## 3. COBERTURA DO BANCO DE DADOS (38 COLEÇÕES)
+
+O esquema do JUCA INFORMÁTICA contém **38 coleções reais** (todas contempladas no exportador):
 
 1. `users` (auth): Usuários do sistema, técnicos, atendentes, administradores, permissões granulares e funções.
 2. `customers` (base): Clientes cadastrados, CPF/CNPJ, endereços, contatos e consentimento WhatsApp LGPD.
@@ -98,193 +62,133 @@ O backend é construído sobre o **PocketBase v0.36** (SQLite com camada de meta
 12. `notifications` (base): Notificações internas aos usuários do sistema.
 13. `evaluations` (base): Notas e feedbacks atribuídos aos atendimentos técnicos.
 14. `push_subscriptions` (base): Inscrições para notificações Web Push dos dispositivos.
-15. `quick_accounts` (view): Visão de contas de acesso rápido.
-16. `service_types` (base): Tipos de atendimento configurados.
-17. `settings` (base): Parâmetros globais de precificação, taxas de cartão, dólar, URLs e comissões.
-18. `pos_venda_messages` (base): Mensagens e funil de pós-venda Juquinha (check-in, 7 dias, avaliação 0-5, oferta 30 dias).
-19. `campaigns` (base): Campanhas de marketing e divulgação promocional.
-20. `campanha_messages` (base): Histórico de disparos das mensagens das campanhas.
-21. `orcamentos` (base): Orçamentos comerciais (independentes e vinculados a O.S.), propostas e condições de pagamento.
-22. `orcamento_itens` (base): Peças e serviços discriminados no orçamento.
-23. `orcamento_anexos` (base): Fotos do equipamento e laudos vinculados aos orçamentos.
-24. `pricing_history` (base): Histórico e memória de cálculo de precificação de produtos.
-25. `rental_machines` (base): Máquinas e impressoras disponíveis para locação.
-26. `rental_quotes` (base): Propostas comerciais e simulações de locação de impressoras.
-27. `rental_contracts` (base): Contratos formalizados de locação com franquias, números e cláusulas.
-28. `funcoes` (base): Cargos e funções de colaboradores.
-29. `parametros` (base): Parâmetros de margem e vida útil para locação.
-30. `suprimentos` (base): Catálogo de toners, tintas, fotocondutores e cálculo de CPP fornecedor.
-31. `impressoras` (base): Modelos de impressoras com vinculação de suprimentos e custo PrintWayy.
-32. `contratos` (base): Contratos legados/adicionais de locação de impressoras.
-33. `auditoria_precos` (base): Trilha de auditoria de alterações de custos e preços.
-34. `laudos_tecnicos` (base): Laudos técnicos formais com parecer, testes e assinaturas.
-35. `financial_receivables` (base): Tabela de títulos a receber.
-36. `rental_documents` (base): Documentos anexos dos contratos de locação.
-37. `rental_reserve` (base): Configuração e alíquota de reserva técnica para locações.
-38. `order_division_history` (base): Auditoria completa de mudanças de divisão e equipe na O.S.
+15. `service_types` (base): Tipos de atendimento configurados.
+16. `settings` (base): Parâmetros globais de precificação, taxas de cartão, dólar, URLs e comissões.
+17. `pos_venda_messages` (base): Mensagens e funil de pós-venda Juquinha.
+18. `campaigns` (base): Campanhas de marketing e divulgação promocional.
+19. `campanha_messages` (base): Histórico de disparos das mensagens das campanhas.
+20. `orcamentos` (base): Orçamentos comerciais (independentes e vinculados a O.S.), propostas e condições de pagamento.
+21. `orcamento_itens` (base): Peças e serviços discriminados no orçamento.
+22. `orcamento_anexos` (base): Fotos do equipamento e laudos vinculados aos orçamentos.
+23. `pricing_history` (base): Histórico e memória de cálculo de precificação de produtos.
+24. `rental_machines` (base): Máquinas e impressoras disponíveis para locação.
+25. `rental_quotes` (base): Propostas comerciais e simulações de locação de impressoras.
+26. `rental_contracts` (base): Contratos formalizados de locação com franquias, números e cláusulas.
+27. `funcoes` (base): Cargos e funções de colaboradores.
+28. `parametros` (base): Parâmetros de margem e vida útil para locação.
+29. `suprimentos` (base): Catálogo de toners, tintas, fotocondutores e cálculo de CPP fornecedor.
+30. `impressoras` (base): Modelos de impressoras com vinculação de suprimentos e custo PrintWayy.
+31. `contratos` (base): Contratos legados/adicionais de locação de impressoras.
+32. `auditoria_precos` (base): Trilha de auditoria de alterações de custos e preços.
+33. `laudos_tecnicos` (base): Laudos técnicos formais com parecer, testes e assinaturas.
+34. `financial_receivables` (base): Tabela de títulos a receber.
+35. `rental_documents` (base): Documentos anexos dos contratos de locação.
+36. `rental_reserve` (base): Configuração e alíquota de reserva técnica para locações.
+37. `order_division_history` (base): Auditoria completa de mudanças de divisão e equipe na O.S.
+38. `quick_accounts` (view): Visão de contas de acesso rápido (view SQL para suporte ao login).
 
-### 2.2 Preservação e Integridade dos Identificadores Originais
+### 3.1 Integridade dos Dados e Paginação Estável
 
-- **Identificadores (IDs):** Todos os registros utilizam IDs estáveis de 15 caracteres alfanuméricos gerados pelo PocketBase (ex: `czio1ycdppa5i9w`). Na migração, os IDs **devem ser mantidos idênticos** para preservar todas as relações estrangeiras (`relation`).
-- **Precisão Decimal:** Valores monetários e taxas utilizam números de ponto flutuante com centavos exatos preservados. A rotina de divisão de equipe do sistema apura resíduos inteiros em centavos para evitar discrepâncias.
-- **Datas:** Todas as datas de criação (`created`) e atualização (`updated`) estão em formato UTC ISO-8601 (`YYYY-MM-DDTHH:mm:ss.sssZ`).
-
-### 2.3 Arquivos de Migração Versionados no Repositório
-
-Todas as 99 migrações estruturais do PocketBase estão salvas na pasta `pocketbase/migrations/` (de `0001_create_schema.js` até `0099_create_order_division_history.js`).
-Ao inicializar uma nova instância limpa do PocketBase com essas migrações, todo o esquema, índices, regras de acesso (RLS) e campos são recriados automaticamente na ordem correta.
+- **Ordenação Estável:** Todas as leituras utilizam `sort: '+id'`, evitando que a inserção de novos registros durante a paginação altere a ordem e faça registros serem saltados ou duplicados.
+- **Tamanho do Lote:** 200 registros por página (`perPage: 200`), compatível com o limite de timeout da plataforma.
+- **Preservação:** IDs originais (15 caracteres alfanuméricos), datas ISO-8601 UTC (`created`, `updated`), status, valores numéricos e vínculos são exportados em sua forma bruta e literal, sem qualquer alteração destrutiva ou deduplicação prematura.
 
 ---
 
-## 3. FOTOS, ANEXOS E DOCUMENTOS
+## 4. FOTOS, ANEXOS, ASSINATURAS E MANIFESTO (RFC 4180)
 
-Consulte o arquivo dedicado `MANIFESTO_ANEXOS.md` na raiz do projeto para o mapa detalhado de cada arquivo por coleção, caminho de armazenamento e instrução de download em lote.
+O sistema trata os arquivos através de um duplo mecanismo:
 
-### 3.1 Resumo dos Anexos no Banco
+1. **Manifesto Detalhado de Anexos (`manifesto_anexos_juca_YYYY-MM-DD.csv`):**
+   - Formatado com separador `;` e escape estrito RFC 4180 (aspas duplicadas `""`, tratamento de quebras de linha e prefixo BOM `\uFEFF`).
+   - Registra: `colecao`, `registro_id`, `campo`, `nome_arquivo`, `caminho_storage`, `url_download`, `tamanho_bytes`, `sha256`, `status_download`, `motivo_falha`.
+   - **Campos de Arquivo:**
+     - `service_orders`: `customer_signature`, `technician_signature` (PNG).
+     - `service_attachments`: `file` (JPEG, PNG, HEIC, PDF).
+     - `orcamentos`: `assinatura_cliente`, `assinatura_tecnico` (PNG).
+     - `orcamento_anexos`: `caminho_arquivo` (JPEG, PNG, HEIC).
+     - `laudos_tecnicos`: `assinatura_tecnico`, `assinatura_cliente` (PNG).
+     - `equipment`: `photos`.
+     - `products`: `photo_file`.
+     - `campaigns`: `flyer`.
+     - `users`: `avatar`.
+     - **Anexos embutidos em JSON:** `rental_contracts` (`equipamento_dados.modelo_contrato.photos`) e `rental_documents` (`payload.dataUrl`).
 
-- Anexos de Ordem de Serviço (`service_attachments`): Fotos de chegada, defeitos e vistorias.
-- Fotos de Orçamentos (`orcamento_anexos`): Registro fotográfico de peças e orçamentos.
-- Assinaturas Digitais em canvas (`service_orders`, `orcamentos`, `laudos_tecnicos`): Assinaturas do cliente e do técnico colhidas no PWA e mantidas como PNG.
-
-### 3.2 Exportação do Manifesto
-
-O sistema conta com exportação em 1 clique do manifesto completo em formato CSV e no pacote JSON através do modal em **Relatórios e Auditoria > Rel. Geral / Migração > Gerar Pacote Completo de Migração**.
-
----
-
-## 4. REGRAS DE NEGÓCIO E AUTOMAÇÕES IMPLEMENTADAS
-
-### 4.1 Situação da Participação de Dois Técnicos e Vendedor na OS
-
-- **Situação Real:** **COMPLETAMENTE IMPLEMENTADA NO BANCO, NO BACKEND E NA CAMADA DE DADOS; CAMADA DE TELA E RELATÓRIO PRONTA PARA AUDITORIA.**
-  - **Campos:** `technician` (técnico principal), `second_technician` (segundo técnico), `seller` (vendedor), `division_model` e `division_details` na tabela `service_orders`.
-  - **Histórico e Trava:** Tabela `order_division_history` registrando `previous_state`, `new_state`, `reason`, usuário e status da OS no momento da alteração.
-  - **Fórmula de Cálculo:** Divisão centavo a centavo com truncamento e atribuição do resíduo ao primeiro participante com cota $> 0\%$, separando rigorosamente Serviços de Produtos.
-  - **Regra de Faturamento Único:** A presença de múltiplos colaboradores divide a atribuição interna de produção, mas **nunca duplica** a contagem de OS ou a receita financeira total da empresa.
-  - **Validação com Usuário:** Aguarda conferência visual final dos administradores em homologação antes da entrada em rotina operacional plena.
-
-### 4.2 Precificação de Produtos e Serviços
-
-- **Módulo de Precificação (`src/services/pricing.ts` e `src/lib/pricing-engine.ts`):**
-  - Considera Custo do Produto (em BRL ou USD com conversão cambial `cotacao_dolar`), Frete, Despesas Fixas (%), ICMS/Simples (%), Comissão de Vendas (%), Substituição Tributária (%), Taxa de Cartão (conforme bandeira/parcelamento em `payment_methods_tax`) e Margem de Lucratividade Desejada.
-  - Fórmulas de Markup sobre o custo e Margem sobre o preço de venda.
-
-### 4.3 Locação de Impressoras e Suprimentos
-
-- **Simulador Comercial e Contratos:**
-  - Cálculo de Custo por Página (CPP) de cada suprimento (toners, fusores, cilindros) baseado no rendimento de páginas declarado pelo fabricante.
-  - Cálculo de amortização/depreciação da máquina no prazo de payback contratual (12, 18, 24, 36 meses).
-  - Adição do custo de software PrintWayy por máquina.
-  - Reserva técnica parametrizada em `rental_reserve`.
-  - Propostas comerciais com token público de visualização e geração de contratos sequenciais no formato `CT-YYYY-XXX`.
-
-### 4.4 Numeração Sequencial
-
-- **Ordens de Serviço:** Formato `OS-XXXX` gerado de forma atômica no hook de criação (`pocketbase/hooks/service_order_number.js`).
-- **Orçamentos:** Formato `ORC-XXXX` ou derivado da OS vinculada (`ORC-OSXXXX`).
-- **Laudos Técnicos:** Formato `LAU-XXXX`.
-- **Contratos de Locação:** Formato `CT-YYYY-XXX` gerado a partir do contador anual em `settings`.
-
-### 4.5 Automações e Crons no Servidor (pb_hooks)
-
-- **`juquinha_pos_venda_cron` (1 em 1 minuto):**
-  - Avalia mensagens pendentes do funil de pós-venda.
-  - Respeita rigorosamente o consentimento LGPD (`whatsapp_consent`).
-  - Promove mensagens prontas para envio com link formatado `https://wa.me/...`.
-- **`on_order_completed_pos_venda` (Trigger ao concluir OS):**
-  - Cria automaticamente a sequência das 4 etapas no banco:
-    1. Check-in de atendimento (~30 min após fechamento).
-    2. Pós-venda 7 dias.
-    3. Avaliação de satisfação 0-5 com token público `/avaliar/:token`.
-    4. Oferta preventiva 30 dias.
-- **`deduct_stock_on_complete`:**
-  - Baixa automática no estoque físico dos produtos ao marcar a OS como concluída/fechada.
-- **`import_products_cron`:**
-  - Sincronização periódica de catálogo de produtos via CSV.
-
-### 4.6 Links Públicos que Dependem do Domínio Atual
-
-O domínio público atual configurado nos servidores é:
-`https://assistencia-tecnica-movel-86527.goskip.app`
-
-Rotas públicas ativas:
-
-1. `/avaliar/:token`: Funil público de avaliação de atendimento (notas 0 a 5 com redirecionamento inteligente para Google Reviews se 4-5 ou captura de crítica interna se 0-3).
-2. `/proposta/:token`: Visualização e aprovação online de propostas e orçamentos pelo cliente.
-3. `/proposta-locacao/:token`: Visualização da proposta de locação de impressoras.
-4. `/compartilhar-os/:id`: Visualização resumida e coleta de assinatura remota da O.S.
-
-**Localização da Parametrização:**
-
-- Definido como fallback nos hooks: `pocketbase/hooks/cron_juquinha_pos_venda.js` e `pocketbase/hooks/on_order_completed_pos_venda.js`.
-- Parametrizável via variável de ambiente `$os.getenv('APP_PUBLIC_URL')` ou `$os.getenv('FRONTEND_URL')`.
-- No novo ambiente, ao cadastrar `APP_PUBLIC_URL=https://novo-dominio.com`, todos os hooks passarão a gerar links no novo endereço automaticamente.
+2. **Utilitário de Download Autenticado em Lote (`downloadAttachmentsBatch`):**
+   - Disponível na interface da prévia em **Relatórios e Auditoria > Exportar Relatórios**.
+   - Baixa os arquivos reais da API em lotes de 3 requisições simultâneas com retentativas automáticas (até 2 re-tentativas com backoff exponencial).
+   - Calcula o hash criptográfico **SHA-256** de cada arquivo baixado no navegador via `crypto.subtle.digest`.
+   - Baixa o CSV atualizado contendo o hash real e o tamanho de cada arquivo obtido.
 
 ---
 
-## 5. CONTINUIDADE DURANTE A MIGRAÇÃO (DELTA E TRANSIÇÃO)
+## 5. CONFERÊNCIA FINANCEIRA AUDITADA
 
-O sistema de produção continuará ativo até o momento do corte oficial ("cutover").
+O cálculo financeiro **NÃO adota somas nominais como faturamento realizado**. A auditoria financeira estruturada em `financial_audit` separa rigorosamente:
 
-### 5.1 Identificação de Alterações Incrementais (Delta)
+### 5.1 Critérios de Cada Indicador
 
-Todas as coleções do PocketBase possuem os campos de auditoria nativos:
-
-- `created`: data e hora da criação do registro.
-- `updated`: data e hora da última modificação.
-
-### 5.2 Procedimento para Exportar e Aplicar o Delta:
-
-1. **Ponto de Corte Inicial:** Registre a data/hora exata do primeiro backup completo (ex: `2026-10-14T00:00:00Z`).
-2. **Exportação Incremental:** Na data de virada, execute consulta filtrando por:
-   `updated >= "2026-10-14T00:00:00Z"`
-3. **Importação sem Duplicação:**
-   - Como os IDs originais são preservados como chave primária (`id`), execute operação de **Upsert** (se o ID já existe no destino, atualiza; se não existe, insere).
-   - Nenhuma nova O.S., orçamento ou cliente receberá novo número, impedindo qualquer conflito de chave.
-4. **Tratamento de Exclusões:**
-   - O SQLite nativo não registra tuplas de "soft delete" por padrão.
-   - Para identificar exclusões ocorridas entre a primeira cópia e a data de troca:
-     - Compare a lista de IDs de cada coleção entre a base de origem e o destino.
-     - IDs que existiam no primeiro backup e não constam mais na base atual representam registros excluídos no período.
+- **Total Nominal das OS (`service_orders_nominal_total`):** Soma aritmética do campo `total` de todas as ordens de serviço cadastradas, sem filtro de status. Serve como índice de volume nominal emitido na história da assistência.
+- **Detalhamento por Status da OS (`service_orders_by_status`):** Apura quantidade e total financeiro discriminado por: `completed`, `closed`, `in_progress`, `open`, `paused`, `waiting_parts`, `cancelled`, `aguardando_orcamento`, `orcamento_enviado`, `orcamento_aprovado`, `orcamento_rejeitado`.
+  - **Atenção:** Ordens `open`, `paused`, `waiting_parts` ou `cancelled` **NÃO são tratadas como faturamento realizado**.
+- **Faturamento Realmente Recebido (`payments_total_paid`):** Soma exclusiva dos registros da tabela `payments` com `status === 'paid'`.
+- **Valores a Receber Pendentes (`payments_total_pending`):** Pagamentos aguardando liquidação.
+- **Valores Estornados (`payments_total_refunded`):** Devoluções registradas.
+- **Meios de Pagamento (`payments_by_method`):** Apura recebimentos por PIX, Dinheiro, Cartão de Crédito, Cartão de Débito, Boleto, etc.
+- **Orçamentos (`quotes_by_status`):** Total nominal e por status (`rascunho`, `enviado`, `aprovado`, `faturado`, `rejeitado`). Não soma com o faturamento das OS para evitar duplicação de receita.
+- **Itens de Produtos e Serviços:** Contagem cadastral de itens (`catalog_products_count`, `catalog_services_count`) mantida separada do faturamento das OS.
 
 ---
 
-## 6. RELATÓRIO DE CONFERÊNCIA E RESTAURAÇÃO
+## 6. COMPATIBILIDADE COM O DESTINO (SITES)
 
-### 6.1 Totais Financeiros de Controle (Consolidados na Base)
+A migração tem como destino uma nova aplicação em desenvolvimento na plataforma **Sites**. Ela **não exige PocketBase nem restauração idêntica de servidor VPS**.
 
-- **Ordens de Serviço Cadastradas:** 142 ordens de serviço.
-- **Total Faturado em Ordens de Serviço:** R$ 38.309,16 (sem duplicação).
-- **Recebimentos Confirmados (`payments` - status `paid`):** R$ 1.356,72.
-- **Recebimentos Pendentes (`payments` - status `pending`):** R$ 4.740,70.
-- **Clientes Cadastrados:** 1.545 clientes.
-- **Orçamentos Emitidos:** 112 orçamentos.
-- **Produtos/Itens em Estoque:** 4.195 produtos.
-- **Laudos Técnicos:** 2 laudos emitidos.
-- **Contratos de Locação:** 3 contratos formalizados.
-- **Histórico de Auditoria de Divisão (`order_division_history`):** 1 alteração registrada com snapshot de estado anterior e posterior.
+### 6.1 Mapeamento de Dados para o Destino
 
-### 6.2 Instruções para Restauração no Ambiente de Destino
-
-#### Cenário 1: Novo Ambiente com PocketBase Próprio (Recomendado)
-
-1. Instale o PocketBase oficial no novo servidor (Linux/Docker).
-2. Copie os arquivos de migração da pasta `pocketbase/migrations/` para a pasta do novo PocketBase.
-3. Inicie o PocketBase para que as migrações sejam aplicadas e criem todas as tabelas e índices.
-4. Execute o script de importação JSON restaurando os registros tabela por tabela com seus IDs originais:
-   - Ordem de inserção respeitando chaves estrangeiras: `users` → `customers` → `services` → `products` → `equipment` → `service_types` → `appointments` → `service_orders` → `service_order_items` → `payments` → `orcamentos` → `orcamento_itens` → `rental_*` → `laudos_tecnicos` → `order_division_history`.
-5. Baixe os anexos através do `MANIFESTO_ANEXOS.md` e coloque na pasta `pb_data/storage/`.
-6. Copie os hooks de `pocketbase/hooks/` para a pasta `pb_hooks/` do novo servidor.
-7. Configure o frontend apontando `VITE_POCKETBASE_URL` para o novo endereço.
-8. Teste a restauração e navegação completa em ambiente isolado antes de alterar o DNS de produção.
+- **Formato dos Dados:** Arquivo JSON hierárquico com chaves correspondentes aos nomes das coleções originais.
+- **Estratégia de Identificadores (IDs):**
+  - O destino deve criar uma coluna `origem_id` (VARCHAR 30) em cada tabela destino.
+  - Ao importar cada entidade, armazena o ID original de 15 caracteres do PocketBase em `origem_id`.
+  - Durante o vínculo de chaves estrangeiras (ex: `service_orders.customer` apontando para `customers.id`), o importador do destino faz o DE-PARA consultando a tabela `customers` onde `origem_id = service_order.customer`.
+- **Autenticação e Senhas dos Usuários:**
+  - O PocketBase armazena os hashes de senha com bcrypt internamente no SQLite (`_pb_users_auth_`). A API do PocketBase não expõe os hashes de senha nem tokens confidenciais por motivos de segurança e LGPD.
+  - **Procedimento para o destino:** Os usuários devem ser criados no destino com suas informações cadastrais (`name`, `email`, `role`, `phone`, `funcao`). Na primeira entrada no novo sistema, deve ser utilizado fluxo de "Primeiro Acesso / Redefinir Senha" por e-mail ou SMS/WhatsApp, ou senha padrão provisória com troca obrigatória no primeiro login.
+- **Migrations:** Os arquivos em `pocketbase/migrations/` documentam o esquema relacional de origem; não devem ser rodados diretamente no banco de dados do destino se o destino utilizar outro SGBD (PostgreSQL, MySQL, etc.). Crie as tabelas equivalentes no destino com base no JSON e na seção 3 deste documento.
 
 ---
 
-## 7. BLOQUEIOS PENDENTES E PRÓXIMOS PASSOS ESPECÍFICOS
+## 7. ATUALIZAÇÃO INCREMENTAL ATÉ A TROCA FINAL (DELTA)
 
-| Item                                   | Situação Atual                           | Bloqueio / Limitação                                                      | Próximo Passo Necessário                                                                                                           |
-| -------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| **Ambiente Isolado de Homologação**    | Indisponível nesta execução              | Não é permitido restaurar ou testar sobre a produção do Skip              | Provisionar servidor VPS isolado de teste para rodar o ensaio de restauração do JSON e dos anexos.                                 |
-| **Download Binário Físico dos Anexos** | Manifesto gerado com URLs completas      | Acesso SSH direto à pasta `pb_data/storage` não é exposto pelo Skip Cloud | Executar script de download em lote através das URLs permanentes do manifesto para armazenar o ZIP dos arquivos em storage seguro. |
-| **Validação da Equipe & Divisão**      | Backend, banco e tela 100% implementados | Aguarda aprovação visual do usuário                                       | Administrador conferir os lançamentos da OS-0122 e relatórios antes da homologação final.                                          |
-| **Data Limite**                        | Planejada para 02/11/2026                | Produção permanece ativa                                                  | Manter a rotina de exportação delta pronta para rodar na véspera do desligamento definitivo.                                       |
+O sistema continuará em operação até o momento do corte final (prazo 02/11/2026).
+
+### 7.1 Ponto de Corte e Captura do Delta
+
+1. **Ponto de Corte:** Registre a data UTC exata do primeiro backup completo (ex: `2026-10-14T00:00:00Z`).
+2. **Janela de Sobreposição Segura:** Para compensar possíveis divergências de fuso horário ou transações em curso, adote uma sobreposição segura de 2 horas antes do ponto de corte (ex: `2026-10-13T22:00:00Z`).
+3. **Filtro de Exportação Incremental:**
+   ```text
+   updated >= "YYYY-MM-DDTHH:mm:ssZ"
+   ```
+4. **Deduplicação por ID no Destino:**
+   - Como os IDs originais são mantidos, execute sempre operação de **Upsert**:
+     - Se `origem_id` já existir na tabela do destino: `UPDATE`.
+     - Se não existir: `INSERT`.
+
+### 7.2 Tratamento Rigoroso de Exclusões
+
+- **Regra de Ouro:** Uma falha de consulta ou limitação de permissão de um usuário **nunca pode ser interpretada como exclusão no destino**.
+- Para confirmar a exclusão de um registro:
+  1. A exportação deve ter status `package_status === 'complete'` e ter sido executada com credencial de **administrador**.
+  2. Compare o conjunto completo de IDs da origem atual contra o conjunto do destino.
+  3. Somente registros que existiam anteriormente e **não existem mais** em uma listagem 100% íntegra podem ser marcados como excluídos ou inativados no destino.
+
+---
+
+## 8. INSTRUÇÕES DE ACESSO E GERAÇÃO NA PRÉVIA
+
+1. Acesse o sistema JUCA INFORMÁTICA como Administrador.
+2. Navegue até o menu lateral ou superior: **Relatórios e Auditoria > Rel. Geral / Migração**.
+3. No painel de exportação, clique em:
+   - **"Gerar Pacote de Migração (JSON + Manifesto CSV)"**: Executa a paginação de todas as 38 coleções, valida os vínculos, audita os totais por status e faz o download imediato do arquivo JSON estruturado e do manifesto CSV.
+   - **"Baixar e Verificar Arquivos Físicos (SHA-256)"**: Após gerar o pacote, clica para disparar o download autenticado de todas as fotos, comprovantes e assinaturas em lote, gerando o manifesto atualizado com os hashes SHA-256 e tamanhos físicos comprovados.

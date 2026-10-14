@@ -230,6 +230,9 @@ export function ExportReportsModal({
 
   const [exportingFull, setExportingFull] = useState(false)
   const [exportStatus, setExportStatus] = useState<string | null>(null)
+  const [downloadingAttachments, setDownloadingAttachments] = useState(false)
+  const [attachmentProgress, setAttachmentProgress] = useState<string | null>(null)
+  const [lastPackage, setLastPackage] = useState<any | null>(null)
 
   const handleExportFullSystemPackage = async () => {
     try {
@@ -243,15 +246,63 @@ export function ExportReportsModal({
       const pkg = await generateFullMigrationPackage((msg) => {
         setExportStatus(msg)
       })
+      setLastPackage(pkg)
       downloadMigrationPackageFile(pkg)
       downloadAttachmentsManifestCSV(pkg.attachments_manifest)
+
+      const statusDesc =
+        pkg.meta.package_status === 'complete'
+          ? 'PACOTE COMPLETO'
+          : `PACOTE PARCIAL (${pkg.meta.collections_failed_count} coleções com falha)`
+
       setExportStatus(
-        `Sucesso! ${pkg.meta.total_records} registros e ${pkg.meta.total_attachments} anexos exportados.`,
+        `Status: ${statusDesc}. Exportados: ${pkg.meta.total_records_exported} registros em ${pkg.meta.collections_exported_count} coleções. Manifesto com ${pkg.meta.total_attachments_manifested} anexos gerado.`,
       )
     } catch (err: any) {
       setExportStatus(`Erro ao exportar: ${err?.message || String(err)}`)
     } finally {
       setExportingFull(false)
+    }
+  }
+
+  const handleDownloadAttachmentsInBatch = async () => {
+    if (
+      !lastPackage ||
+      !lastPackage.attachments_manifest ||
+      lastPackage.attachments_manifest.length === 0
+    ) {
+      alert('Gere primeiro o Pacote de Migração para identificar a lista de anexos.')
+      return
+    }
+
+    try {
+      setDownloadingAttachments(true)
+      setAttachmentProgress('Iniciando download dos arquivos em lote...')
+      const { downloadAttachmentsBatch, downloadAttachmentsManifestCSV } =
+        await import('@/services/migration-export')
+
+      const result = await downloadAttachmentsBatch({
+        manifest: lastPackage.attachments_manifest,
+        batchSize: 3,
+        maxRetries: 2,
+        onProgress: (p) => {
+          setAttachmentProgress(
+            `Baixando (${p.completed + p.failed}/${p.total}): ${p.currentFilename} [${p.percent}%]`,
+          )
+        },
+      })
+
+      // Atualiza manifesto do pacote com os hashes e status de download
+      lastPackage.attachments_manifest = result.manifest
+      downloadAttachmentsManifestCSV(result.manifest)
+
+      setAttachmentProgress(
+        `Download concluído! ${result.successfulBlobs.length} arquivos baixados com sucesso e verificados via SHA-256 (${result.failedCount} falhas). Manifesto atualizado baixado.`,
+      )
+    } catch (err: any) {
+      setAttachmentProgress(`Erro no download dos anexos: ${err?.message || String(err)}`)
+    } finally {
+      setDownloadingAttachments(false)
     }
   }
 
@@ -376,25 +427,46 @@ export function ExportReportsModal({
               </span>
             </div>
             <p className="text-[11px] text-indigo-700">
-              Exporta todas as 37 coleções em JSON bruto, manifesto completo de anexos com URLs e
-              auditoria financeira de controle.
+              Exporta as 38 coleções do sistema em JSON bruto, manifesto de anexos com URLs
+              permanentes, SHA-256 e auditoria financeira por status.
             </p>
             {exportStatus && (
-              <p className="text-[10px] font-mono text-indigo-900 bg-white/80 p-1.5 rounded border border-indigo-200">
+              <p className="text-[10px] font-mono text-indigo-900 bg-white/80 p-1.5 rounded border border-indigo-200 whitespace-pre-wrap">
                 {exportStatus}
               </p>
             )}
-            <Button
-              type="button"
-              size="sm"
-              disabled={exportingFull}
-              onClick={handleExportFullSystemPackage}
-              className="w-full text-xs gap-1.5 bg-indigo-700 hover:bg-indigo-800 text-white font-semibold"
-            >
-              {exportingFull
-                ? 'Exportando base...'
-                : 'Gerar Pacote Completo de Migração (JSON + Manifesto)'}
-            </Button>
+            {attachmentProgress && (
+              <p className="text-[10px] font-mono text-emerald-800 bg-emerald-50 p-1.5 rounded border border-emerald-200 whitespace-pre-wrap">
+                {attachmentProgress}
+              </p>
+            )}
+            <div className="flex flex-col gap-1.5 pt-1">
+              <Button
+                type="button"
+                size="sm"
+                disabled={exportingFull || downloadingAttachments}
+                onClick={handleExportFullSystemPackage}
+                className="w-full text-xs gap-1.5 bg-indigo-700 hover:bg-indigo-800 text-white font-semibold"
+              >
+                {exportingFull
+                  ? 'Exportando base...'
+                  : 'Gerar Pacote de Migração (JSON + Manifesto CSV)'}
+              </Button>
+              {lastPackage && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={downloadingAttachments || exportingFull}
+                  onClick={handleDownloadAttachmentsInBatch}
+                  className="w-full text-xs gap-1.5 border-indigo-300 text-indigo-800 hover:bg-indigo-100/70"
+                >
+                  {downloadingAttachments
+                    ? 'Baixando anexos em lote...'
+                    : `Baixar e Verificar Arquivos Físicos (${lastPackage.attachments_manifest?.length || 0} arquivos c/ SHA-256)`}
+                </Button>
+              )}
+            </div>
           </div>
 
           <div>

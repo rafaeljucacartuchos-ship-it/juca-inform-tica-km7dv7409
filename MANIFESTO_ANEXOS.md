@@ -1,101 +1,134 @@
 # MANIFESTO E MAPA COMPLETO DE ANEXOS E ARQUIVOS — JUCA INFORMÁTICA
 
-Este manifesto descreve a estrutura física, campos de origem, URLs de download e armazenamento dos arquivos, fotos, PDFs e assinaturas do sistema JUCA INFORMÁTICA no PocketBase (Skip Cloud).
+Este documento detalha o inventário de arquivos, fotos, PDFs e assinaturas digitais do sistema JUCA INFORMÁTICA, com o mapeamento completo dos campos, URLs permanentes da plataforma e rotinas de download autenticado com cálculo de hash SHA-256.
 
 ---
 
-## 1. Estrutura de Armazenamento no PocketBase
+## 1. Origem e Estrutura dos Arquivos no PocketBase
 
-No PocketBase (backend padrão), todos os arquivos binários enviados são armazenados internamente na pasta física:
+No PocketBase (Skip Cloud), os arquivos são armazenados com um nome sanitizado acrescido de um token de 10 caracteres alfanuméricos gerado no momento do upload (ex: `img_6889_6mv9yvi9om.jpeg`).
+
+### 1.1 Rota Oficial da API de Arquivos
 
 ```text
-pb_data/storage/<collectionId_ou_collectionName>/<record_id>/<filename>
+https://<BACKEND_HOST>/api/files/<collectionId_ou_collectionName>/<record_id>/<filename>
 ```
 
-A URL de download público/autenticado é disponibilizada na rota:
+**Host do Backend Atual:**
+`https://assistencia-tecnica-movel-86527.shrd00.internal.goskip.dev`
 
-```text
-https://<BACKEND_HOST>/api/files/<collectionId>/<record_id>/<filename>
+> **Atenção:** Embora contenha `.internal.` no nome do host, o endpoint é acessível publicamente via HTTPS direta pelos navegadores autorizados pelo Skip Cloud com CORS aberto.
+
+---
+
+## 2. Mapa Completo de Campos de Arquivos por Coleção
+
+| Coleção               | Campo                  | Tipo de Arquivo         | Formatos Permitidos        | Observação                                    |
+| --------------------- | ---------------------- | ----------------------- | -------------------------- | --------------------------------------------- |
+| `service_orders`      | `customer_signature`   | Assinatura cliente      | PNG / JPEG                 | Coletada no canvas na entrega/conclusão da OS |
+| `service_orders`      | `technician_signature` | Assinatura técnico      | PNG / JPEG                 | Coletada no fechamento do técnico             |
+| `service_attachments` | `file`                 | Fotos / Laudos OS       | JPEG, PNG, WEBP, HEIC, PDF | Vistoria de entrada, peças danificadas, etc.  |
+| `orcamentos`          | `assinatura_cliente`   | Assinatura cliente      | PNG / JPEG                 | Aprovação presencial de orçamento             |
+| `orcamentos`          | `assinatura_tecnico`   | Assinatura técnico      | PNG / JPEG                 | Assinatura técnica na proposta                |
+| `orcamento_anexos`    | `caminho_arquivo`      | Fotos do defeito / peça | JPEG, PNG, WEBP, HEIC      | Fotos vinculadas ao orçamento comercial       |
+| `laudos_tecnicos`     | `assinatura_tecnico`   | Assinatura responsável  | PNG / JPEG                 | Laudo pericial técnico                        |
+| `laudos_tecnicos`     | `assinatura_cliente`   | Assinatura cliente      | PNG / JPEG                 | Ciência do cliente no laudo                   |
+| `equipment`           | `photos`               | Foto cadastral          | JPEG, PNG                  | Fotos do equipamento na entrada               |
+| `products`            | `photo_file`           | Foto do catálogo        | JPEG, PNG, WEBP            | Foto do produto / insumo em estoque           |
+| `campaigns`           | `flyer`                | Imagem da campanha      | JPEG, PNG, PDF             | Folheto promocional para WhatsApp             |
+| `users`               | `avatar`               | Foto de perfil          | JPEG, PNG                  | Foto do técnico / atendente                   |
+
+### 2.1 Arquivos e Fotos Embutidos em JSON
+
+Além dos campos nativos de arquivos gerenciados pelo PocketBase, existem anexos armazenados como `DataURL` (Base64) em snapshots de contratos:
+
+- `rental_contracts` (`equipamento_dados.modelo_contrato.photos`): Lista de até 6 fotos por contrato de locação (vistorias e entrega da máquina).
+- `rental_documents` (`payload.dataUrl`): Documentos anexos de contratos de locação.
+
+O exportador do sistema rastreia e inclui esses arquivos embutidos no manifesto oficial com `is_embedded_base64: true`.
+
+---
+
+## 3. Formato do Manifesto CSV (Conforme RFC 4180)
+
+O manifesto gerado pelo sistema (`manifesto_anexos_juca_YYYY-MM-DD.csv`) segue a especificação internacional RFC 4180:
+
+- Separador: ponto-e-vírgula (`;`).
+- Prefixo BOM UTF-8 (`\uFEFF`) para compatibilidade nativa com Excel, Google Sheets e LibreOffice.
+- Campos com aspas, vírgulas e quebras de linha são devidamente escapados com aspas duplas dobradas (`""`).
+
+### 3.1 Colunas do Manifesto
+
+1. `colecao`: Nome da coleção no PocketBase.
+2. `registro_id`: ID do registro que detém o arquivo.
+3. `campo`: Nome do campo de arquivo no esquema.
+4. `nome_arquivo`: Nome original do arquivo.
+5. `caminho_storage`: Caminho relativo sugerido no pacote de migração.
+6. `url_download`: URL de download autenticada.
+7. `tamanho_bytes`: Tamanho físico em bytes apurado no download.
+8. `sha256`: Hash criptográfico SHA-256 apurado no download.
+9. `status_download`: `success`, `pending`, `failed` ou `not_downloaded`.
+10. `motivo_falha`: Descrição detalhada da falha em caso de erro HTTP.
+
+---
+
+## 4. Procedimento de Download e Verificação SHA-256
+
+### 4.1 Via Interface do Sistema (1 Clique na Prévia)
+
+1. Acesse o sistema como Administrador e abra **Relatórios e Auditoria > Rel. Geral / Migração**.
+2. Clique em **"Gerar Pacote de Migração"**.
+3. Em seguida, clique em **"Baixar e Verificar Arquivos Físicos (SHA-256)"**.
+4. O sistema baixará os arquivos em lotes com retentativas automáticas, calculará o SHA-256 de cada um via Web Crypto API e exportará o manifesto CSV completo com a integridade comprovada.
+
+### 4.2 Script de Download em Lote Externo (Node.js)
+
+Caso deseje baixar diretamente no servidor de destino:
+
+```javascript
+import fs from 'node:fs'
+import path from 'node:path'
+import crypto from 'node:crypto'
+
+// 1. Carregue o pacote JSON completo gerado pelo JUCA
+const pkg = JSON.parse(fs.readFileSync('juca_migracao_COMPLETO_...json', 'utf8'))
+const manifest = pkg.attachments_manifest
+
+console.log(`Iniciando download de ${manifest.length} arquivos...`)
+
+for (const item of manifest) {
+  const destDir = path.join('arquivos_migracao', item.collection, item.record_id)
+  fs.mkdirSync(destDir, { recursive: true })
+  const destPath = path.join(destDir, item.filename)
+
+  if (item.is_embedded_base64 && item.download_url.startsWith('data:')) {
+    // Arquivo Base64 embutido
+    const base64Data = item.download_url.split(',')[1]
+    const buffer = Buffer.from(base64Data, 'base64')
+    fs.writeFileSync(destPath, buffer)
+    const hash = crypto.createHash('sha256').update(buffer).digest('hex')
+    console.log(`[OK Base64] ${item.filename} (SHA256: ${hash})`)
+    continue
+  }
+
+  // Arquivo via HTTP
+  try {
+    const res = await fetch(item.download_url)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const buffer = Buffer.from(await res.arrayBuffer())
+    fs.writeFileSync(destPath, buffer)
+    const hash = crypto.createHash('sha256').update(buffer).digest('hex')
+    console.log(`[OK HTTP] ${item.filename} - ${buffer.length} bytes (SHA256: ${hash})`)
+  } catch (err) {
+    console.error(`[FALHA] ${item.filename}: ${err.message}`)
+  }
+}
 ```
 
-No ambiente atual:
-`https://assistencia-tecnica-movel-86527.shrd00.internal.goskip.dev/api/files/<collectionId>/<record_id>/<filename>`
-
 ---
 
-## 2. Mapa de Coleções e Campos de Anexos
+## 5. Garantias de Preservação e Segurança
 
-| Coleção               | ID da Coleção     | Campo do Arquivo       | Tipo / Finalidade                           | Mime Types / Formatos Permitidos |
-| --------------------- | ----------------- | ---------------------- | ------------------------------------------- | -------------------------------- |
-| `service_orders`      | `pbc_4228091215`  | `customer_signature`   | Assinatura digital do cliente na O.S.       | PNG / JPEG                       |
-| `service_orders`      | `pbc_4228091215`  | `technician_signature` | Assinatura digital do técnico na O.S.       | PNG / JPEG                       |
-| `service_attachments` | `pbc_3421240048`  | `file`                 | Fotos de entrada, laudos e anexos da O.S.   | JPEG, PNG, WEBP, HEIC, PDF       |
-| `orcamentos`          | `pbc_3606511530`  | `assinatura_cliente`   | Assinatura de aprovação do cliente          | PNG / JPEG                       |
-| `orcamentos`          | `pbc_3606511530`  | `assinatura_tecnico`   | Assinatura do técnico no orçamento          | PNG / JPEG                       |
-| `orcamento_anexos`    | `pbc_2045541202`  | `caminho_arquivo`      | Fotos do equipamento, defeitos e orçamentos | JPEG, PNG, WEBP, HEIC            |
-| `laudos_tecnicos`     | `pbc_781251809`   | `assinatura_tecnico`   | Assinatura do responsável pelo laudo        | PNG / JPEG                       |
-| `laudos_tecnicos`     | `pbc_781251809`   | `assinatura_cliente`   | Assinatura do cliente no laudo técnico      | PNG / JPEG                       |
-| `equipment`           | `equipment`       | `photos`               | Foto cadastral do equipamento               | JPEG, PNG                        |
-| `products`            | `products`        | `photo_file`           | Foto do produto no estoque/catálogo         | JPEG, PNG, WEBP                  |
-| `campaigns`           | `campaigns`       | `flyer`                | Imagem/folheto da campanha promocional      | JPEG, PNG, PDF                   |
-| `users`               | `_pb_users_auth_` | `avatar`               | Foto de perfil do usuário/técnico           | JPEG, PNG                        |
-
----
-
-## 3. Inventário Apurado de Arquivos na Base Atual
-
-1. **`service_attachments` (Anexos de O.S.):**
-   - 50+ arquivos vinculados a ordens de serviço ativas e históricas.
-   - Padrões de nomes: `img_*.jpeg`, `*.jpg`, `*.png`.
-   - Exemplos reais confirmados no banco:
-     - `a549a723_800d_4518_9ffa_e2b8de5de8ad_vd3myvhg84.jpeg` (OS `z7og7raj1slcm7d`)
-     - `img_0061_p0als99sjr.jpeg` (OS `3uqytne6am9hexj` - OS-0001)
-     - `304763_msg4amct3j.jpg` (OS `2fo462gghs368zx` - OS-0008)
-
-2. **`orcamento_anexos` (Fotos de Equipamentos/Orçamentos):**
-   - 33 arquivos vinculados aos orçamentos emitidos.
-   - Exemplos reais confirmados no banco:
-     - `image_yiwovpoxyo.jpg` (Orçamento ORC-0041, id `g3yqox0wpqy8pam`)
-     - `img_6481_9a3wtgyg19.jpeg` (Orçamento ORC-0043, id `d2woavigxfvz6va`)
-     - `d_nq_np_2_x_940271_mla114610203683_072026_f_5pjgil8q3o.webp` (Orçamento ORC-0085, id `aozhhlhihi3vilv`)
-
-3. **Assinaturas Digitais em `orcamentos` e `service_orders`:**
-   - Armazenadas como arquivos `.png` gerados pelo canvas de assinatura.
-   - Preservadas integralmente sem perda de resolução nem redimensionamento destrutivo.
-   - Exemplos reais confirmados:
-     - `assinatura_cliente_boye4jxzc7.png` e `assinatura_tecnico_szpn3yw5ym.png` no orçamento `g3yqox0wpqy8pam`.
-     - `signature_phvds8fjgf.png` na OS-0001 (`3uqytne6am9hexj`).
-
----
-
-## 4. Procedimento Seguro de Cópia e Download Físico
-
-Como o Skip Cloud não expõe acesso SSH ou rsync direto à pasta `pb_data/storage`, o download em massa deve ser realizado pelo manifesto gerado:
-
-### Opção A: Download Automatizado via Script de Migração (Node.js ou Python)
-
-Utilize o manifesto gerado pelo sistema (`manifesto_anexos_juca_YYYY-MM-DD.csv` ou a chave `attachments_manifest` do arquivo `juca_backup_completo_migracao_YYYY-MM-DD.json`):
-
-```bash
-# Exemplo de download via script Node.js:
-# Para cada item no manifesto:
-# 1. Faz GET na url_download
-# 2. Salva no caminho local idêntico: destination_storage/<collection>/<record_id>/<filename>
-# 3. Calcula hash SHA-256 e compara com integridade local
-```
-
-### Opção B: Cópia Direta de Storage para Storage (Destino PocketBase)
-
-Se o novo ambiente for um servidor PocketBase próprio (VPS Docker / Linux):
-
-1. Crie a estrutura de diretórios `pb_data/storage/<collectionId>/<record_id>/`.
-2. Baixe os arquivos diretamente preservando os nomes originais (ex.: `filename_token.png`).
-3. Ao restaurar os dados do banco SQLite (`pb_data/data.db`), os nomes gravados nas colunas baterão 100% com os arquivos presentes em `pb_data/storage/`.
-
----
-
-## 5. Garantia de Preservação e Restrições
-
-- Não foram gerados links temporários com expiração curta: a URL de download é a rota permanente do endpoint de storage da API do PocketBase.
-- Não altere nomes de arquivos nem extensões, pois o hash de token sufixado pelo PocketBase (ex: `_vd3myvhg84.jpeg`) é o identificador exato registrado na tupla do banco.
-- Nenhum anexo foi removido ou alterado durante este inventário.
+- **Sem Links Temporários Expiráveis:** As URLs referenciam os endpoints permanentes do PocketBase.
+- **Tokens Protegidos:** O token de autenticação administrativa do usuário autenticado é enviado apenas no cabeçalho `Authorization: Bearer <token>` durante a requisição e **nunca é embutido na query string da URL nem no CSV público**.
+- **Imutabilidade:** Nomes e extensões originais são preservados para que a restauração no destino faça correspondência 1-para-1 com os registros do banco de dados.
