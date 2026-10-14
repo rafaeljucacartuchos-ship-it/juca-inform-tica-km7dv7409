@@ -81,10 +81,12 @@ routerAdd('POST', '/backend/v1/migration/admin-export', (e) => {
     if (page < 1) page = 1
 
     // Ação: download seguro de anexo via servidor administrativo (Superuser interno)
-    if (body.action === 'download_file') {
+    // Suporta 'include_data: false' para calcular apenas SHA-256 e tamanho server-side (sem transportar payload pesado)
+    if (body.action === 'download_file' || body.action === 'verify_file') {
       var dlCollection = body.collection ? String(body.collection).trim() : ''
       var dlRecordId = body.record_id ? String(body.record_id).trim() : ''
       var dlFilename = body.filename ? String(body.filename).trim() : ''
+      var includeData = body.include_data !== false && body.action !== 'verify_file'
 
       if (!dlCollection || !dlRecordId || !dlFilename) {
         return e.json(400, {
@@ -101,26 +103,30 @@ routerAdd('POST', '/backend/v1/migration/admin-export', (e) => {
         if (!fileBlob) {
           return e.json(404, {
             success: false,
-            error: 'Arquivo não encontrado no storage: ' + storageKey,
+            error: 'Arquivo não encontrado no storage físico: ' + storageKey,
           })
         }
 
-        // Lê bytes e converte para base64 com integridade sha256 server-side
+        // Lê bytes e calcula sha256 server-side com garantia de integridade
         var fileReader = fileBlob.reader
         var bytes = $bytes.readAll(fileReader)
-        var base64Data = $security.base64Encode(bytes)
         var sha256Hex = $security.sha256(bytes)
         var sizeBytes = bytes.length
 
-        return e.json(200, {
+        var responsePayload = {
           success: true,
           collection: dlCollection,
           record_id: dlRecordId,
           filename: dlFilename,
           size_bytes: sizeBytes,
           sha256: sha256Hex,
-          data_base64: base64Data,
-        })
+        }
+
+        if (includeData) {
+          responsePayload.data_base64 = $security.base64Encode(bytes)
+        }
+
+        return e.json(200, responsePayload)
       } catch (errDl) {
         return e.json(500, {
           success: false,
@@ -129,6 +135,88 @@ routerAdd('POST', '/backend/v1/migration/admin-export', (e) => {
             (errDl && errDl.message ? errDl.message : String(errDl)),
         })
       }
+    }
+
+    // Ação: verificação em lote server-side (batch_verify)
+    // Permite verificar até 50 arquivos de uma só vez sem transportar os bytes na rede
+    if (body.action === 'batch_verify') {
+      var itemsToVerify = Array.isArray(body.items) ? body.items : []
+      if (itemsToVerify.length === 0) {
+        return e.json(400, {
+          success: false,
+          error: 'Lista de itens para verificação está vazia.',
+        })
+      }
+      if (itemsToVerify.length > 50) {
+        itemsToVerify = itemsToVerify.slice(0, 50)
+      }
+
+      var fsBatch = null
+      try {
+        fsBatch = e.app.newBlobFileSystem()
+      } catch (_) {}
+
+      var verifyResults = []
+      for (var vIdx = 0; vIdx < itemsToVerify.length; vIdx++) {
+        var vItem = itemsToVerify[vIdx]
+        var vCol = vItem.collection ? String(vItem.collection).trim() : ''
+        var vRecId = vItem.record_id ? String(vItem.record_id).trim() : ''
+        var vFname = vItem.filename ? String(vItem.filename).trim() : ''
+
+        if (!vCol || !vRecId || !vFname) {
+          verifyResults.push({
+            collection: vCol,
+            record_id: vRecId,
+            filename: vFname,
+            success: false,
+            error: 'Campos incompletos para o arquivo',
+          })
+          continue
+        }
+
+        try {
+          var recObj = e.app.findRecordById(vCol, vRecId)
+          if (!fsBatch) fsBatch = e.app.newBlobFileSystem()
+          var sKey = recObj.baseFilesPath() + '/' + vFname
+          var bFile = fsBatch.getFile(sKey)
+          if (!bFile) {
+            verifyResults.push({
+              collection: vCol,
+              record_id: vRecId,
+              filename: vFname,
+              success: false,
+              error: 'Arquivo não encontrado no storage físico: ' + sKey,
+            })
+            continue
+          }
+
+          var bBytes = $bytes.readAll(bFile.reader)
+          var bSha = $security.sha256(bBytes)
+          verifyResults.push({
+            collection: vCol,
+            record_id: vRecId,
+            filename: vFname,
+            success: true,
+            size_bytes: bBytes.length,
+            sha256: bSha,
+          })
+        } catch (vErr) {
+          verifyResults.push({
+            collection: vCol,
+            record_id: vRecId,
+            filename: vFname,
+            success: false,
+            error: vErr && vErr.message ? vErr.message : String(vErr),
+          })
+        }
+      }
+
+      return e.json(200, {
+        success: true,
+        action: 'batch_verify',
+        count: verifyResults.length,
+        results: verifyResults,
+      })
     }
 
     // Ação: contagens esperadas independentes via servidor (super-auditoria)

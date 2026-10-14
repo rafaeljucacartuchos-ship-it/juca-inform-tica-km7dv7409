@@ -902,6 +902,7 @@ export interface AttachmentBatchDownloadOptions {
   manifest: AttachmentManifestItem[]
   batchSize?: number
   maxRetries?: number
+  retainBlobsInMemory?: boolean // Se false, descarta referências binárias da memória para evitar travamento do navegador
   onProgress?: (progress: {
     total: number
     completed: number
@@ -912,164 +913,252 @@ export interface AttachmentBatchDownloadOptions {
 }
 
 /**
- * Utilitário de download de arquivos em lote com autenticação, SHA-256 e retentativas seguras
+ * Utilitário de download e verificação de arquivos em lote com autenticação, SHA-256 e retentativas seguras.
+ * - Suporta verificação de integridade server-side em lote (batch_verify) ultra-rápida e resiliente.
+ * - Suporta fallback direto via HTTP autenticado por arquivo com cálculo de SHA-256 cliente.
+ * - Desacopla o armazenamento de blobs da memória por padrão (evita estouro de RAM com 746+ arquivos).
+ * - Garante retomada inteligente: itens com download_status === 'success' e sha256 válido não são baixados novamente.
+ * - Falhas individuais marcam o motivo exato sem interromper os demais arquivos do lote.
  */
 export async function downloadAttachmentsBatch(options: AttachmentBatchDownloadOptions): Promise<{
   manifest: AttachmentManifestItem[]
   successfulBlobs: { item: AttachmentManifestItem; blob: Blob }[]
+  successfulCount: number
   failedCount: number
 }> {
-  const { manifest, batchSize = 3, maxRetries = 2, onProgress } = options
-  const results: AttachmentManifestItem[] = [...manifest]
+  const {
+    manifest,
+    batchSize = 25,
+    maxRetries = 2,
+    retainBlobsInMemory = false,
+    onProgress,
+  } = options
+
+  const results: AttachmentManifestItem[] = manifest.map((item) => ({ ...item }))
   const successfulBlobs: { item: AttachmentManifestItem; blob: Blob }[] = []
   const total = results.length
-  let completed = 0
+
+  // Identifica itens já concluídos anteriormente para garantir retomada correta
+  let completed = results.filter(
+    (item) => item.download_status === 'success' && !!item.sha256,
+  ).length
   let failed = 0
 
-  // Atribui números de lotes para rastreabilidade de entrega
+  // Atribui números de lotes para rastreabilidade de entrega no manifesto CSV
   for (let i = 0; i < total; i++) {
     results[i].batch_number = Math.floor(i / 10) + 1
   }
 
   const token = pb.authStore.token
+  const pbUrl = (
+    import.meta.env.VITE_POCKETBASE_URL ||
+    'https://assistencia-tecnica-movel-86527.shrd00.internal.goskip.dev'
+  ).replace(/\/$/, '')
 
-  for (let i = 0; i < total; i += batchSize) {
-    const chunk = results.slice(i, i + batchSize)
+  // 1. Processa itens embutidos (DataURL / Base64) que não precisam de chamada de rede ao storage
+  for (let i = 0; i < total; i++) {
+    const item = results[i]
+    if (item.download_status === 'success' && item.sha256) continue
 
-    await Promise.all(
-      chunk.map(async (item) => {
-        // Se for Base64 embutido, converte direto para Blob e calcula hash
-        if (item.is_embedded_base64 && item.download_url.startsWith('data:')) {
-          try {
-            const resp = await fetch(item.download_url)
-            const blob = await resp.blob()
-            const buffer = await blob.arrayBuffer()
-            const sha = await computeSHA256(buffer)
-            item.file_size_bytes = blob.size
-            item.sha256 = sha
-            item.download_status = 'success'
-            successfulBlobs.push({ item, blob })
-            completed++
-          } catch (err: any) {
-            item.download_status = 'failed'
-            item.download_error = `Erro ao processar Base64 embutido: ${err?.message || String(err)}`
-            failed++
-          }
-          return
+    if (item.is_embedded_base64 && item.download_url && item.download_url.startsWith('data:')) {
+      try {
+        const resp = await fetch(item.download_url)
+        const blob = await resp.blob()
+        const buffer = await blob.arrayBuffer()
+        const sha = await computeSHA256(buffer)
+        item.file_size_bytes = blob.size
+        item.sha256 = sha
+        item.download_status = 'success'
+        item.download_error = undefined
+        if (retainBlobsInMemory) {
+          successfulBlobs.push({ item, blob })
         }
+        completed++
+      } catch (err: any) {
+        item.download_status = 'failed'
+        item.download_error = `Erro ao processar Base64 embutido: ${err?.message || String(err)}`
+        failed++
+      }
 
-        // Download administrativo de anexos:
-        // Primeiro tenta via endpoint administrativo seguro (/backend/v1/migration/admin-export com action: download_file)
-        // que roda no servidor com acesso direto ao storage e calcula SHA-256 server-side.
-        // Se não disponível, tenta via HTTP GET autenticado (Bearer token no cabeçalho, sem token na URL).
-        let attempt = 0
-        let success = false
-        let lastError = ''
+      onProgress?.({
+        total,
+        completed,
+        failed,
+        currentFilename: item.filename,
+        percent: Math.round(((completed + failed) / total) * 100),
+      })
+    }
+  }
 
-        // Se já foi baixado com sucesso em execução anterior, pula (retomada inteligente de falhas)
-        if (item.download_status === 'success' && item.sha256) {
+  // 2. Coleta itens remotos do storage PocketBase que precisam de download/verificação
+  const pendingIndices: number[] = []
+  for (let i = 0; i < total; i++) {
+    const item = results[i]
+    if (item.download_status === 'success' && item.sha256) continue
+    if (item.is_embedded_base64) continue
+    pendingIndices.push(i)
+  }
+
+  // 3. Processamento em lotes dos arquivos do storage
+  // Estratégia de alta resiliência:
+  // Primeiro tenta batch_verify no servidor (até 25 por chamada).
+  // Para qualquer item que falhe ou se a chamada batch falhar, recorre à verificação individual (endpoint / verify_file / download_file / HTTP direto).
+  for (let b = 0; b < pendingIndices.length; b += batchSize) {
+    const chunkIndices = pendingIndices.slice(b, b + batchSize)
+    const chunkItems = chunkIndices.map((idx) => results[idx])
+
+    // Tentativa otimizada via batch_verify do servidor administrativo
+    let batchVerifyDone = false
+    try {
+      const batchRes = await fetch(`${pbUrl}/backend/v1/migration/admin-export`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          action: 'batch_verify',
+          items: chunkItems.map((it) => ({
+            collection: it.collection,
+            record_id: it.record_id,
+            filename: it.filename,
+          })),
+        }),
+      })
+
+      if (batchRes.ok) {
+        const batchData = await batchRes.json()
+        if (batchData && batchData.success && Array.isArray(batchData.results)) {
+          const resultMap = new Map<string, any>()
+          for (const r of batchData.results) {
+            const key = `${r.collection}::${r.record_id}::${r.filename}`
+            resultMap.set(key, r)
+          }
+
+          for (const idx of chunkIndices) {
+            const item = results[idx]
+            const key = `${item.collection}::${item.record_id}::${item.filename}`
+            const r = resultMap.get(key)
+            if (r && r.success && r.sha256) {
+              item.file_size_bytes = r.size_bytes
+              item.sha256 = r.sha256
+              item.download_status = 'success'
+              item.download_error = undefined
+              completed++
+            }
+          }
+          batchVerifyDone = true
+        }
+      }
+    } catch (_) {
+      // Se falhar o lote, cai no fallback individual abaixo
+    }
+
+    // Para itens do chunk que ainda não foram concluídos com sucesso, executa verificação/download individual
+    for (const idx of chunkIndices) {
+      const item = results[idx]
+      if (item.download_status === 'success' && item.sha256) continue
+
+      let attempt = 0
+      let success = false
+      let lastError = ''
+
+      while (attempt <= maxRetries && !success) {
+        attempt++
+        try {
+          // Fallback A: endpoint administrativo individual com include_data: false
+          const singleAdminRes = await fetch(`${pbUrl}/backend/v1/migration/admin-export`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              action: 'verify_file',
+              collection: item.collection,
+              record_id: item.record_id,
+              filename: item.filename,
+            }),
+          })
+
+          if (singleAdminRes.ok) {
+            const singleJson = await singleAdminRes.json()
+            if (singleJson && singleJson.success && singleJson.sha256) {
+              item.file_size_bytes = singleJson.size_bytes
+              item.sha256 = singleJson.sha256
+              item.download_status = 'success'
+              item.download_error = undefined
+              success = true
+              completed++
+              break
+            } else if (singleJson && singleJson.error) {
+              lastError = singleJson.error
+            }
+          }
+
+          // Fallback B: HTTP GET autenticado direto na URL pública do arquivo
+          const headers: Record<string, string> = {}
+          if (token) headers['Authorization'] = `Bearer ${token}`
+          const directRes = await fetch(item.download_url, { headers })
+          if (!directRes.ok) {
+            throw new Error(
+              `HTTP ${directRes.status} (${directRes.statusText || 'Erro no storage'})`,
+            )
+          }
+
+          const blob = await directRes.blob()
+          const buffer = await blob.arrayBuffer()
+          const sha = await computeSHA256(buffer)
+
+          item.file_size_bytes = blob.size
+          item.sha256 = sha
+          item.download_status = 'success'
+          item.download_error = undefined
+          if (retainBlobsInMemory) {
+            successfulBlobs.push({ item, blob })
+          }
+          success = true
           completed++
-          return
-        }
-
-        const pbUrl = (
-          import.meta.env.VITE_POCKETBASE_URL ||
-          'https://assistencia-tecnica-movel-86527.shrd00.internal.goskip.dev'
-        ).replace(/\/$/, '')
-
-        while (attempt <= maxRetries && !success) {
-          attempt++
-          try {
-            // Tentativa A: Servidor administrativo interno
-            const adminRes = await fetch(`${pbUrl}/backend/v1/migration/admin-export`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              },
-              body: JSON.stringify({
-                action: 'download_file',
-                collection: item.collection,
-                record_id: item.record_id,
-                filename: item.filename,
-              }),
-            })
-
-            if (adminRes.ok) {
-              const resJson = await adminRes.json()
-              if (resJson && resJson.success && resJson.data_base64) {
-                // Converte base64 para ArrayBuffer e Blob
-                const binaryStr = atob(resJson.data_base64)
-                const len = binaryStr.length
-                const bytes = new Uint8Array(len)
-                for (let b = 0; b < len; b++) {
-                  bytes[b] = binaryStr.charCodeAt(b)
-                }
-                const blob = new Blob([bytes])
-                const calculatedSha = await computeSHA256(bytes.buffer)
-                const sha = resJson.sha256 || calculatedSha
-
-                item.file_size_bytes = resJson.size_bytes || blob.size
-                item.sha256 = sha
-                item.download_status = 'success'
-                item.download_error = undefined
-                successfulBlobs.push({ item, blob })
-                success = true
-                completed++
-                break
-              }
-            }
-
-            // Tentativa B: Fallback via URL direta com token no cabeçalho Authorization
-            const headers: Record<string, string> = {}
-            if (token) {
-              headers['Authorization'] = `Bearer ${token}`
-            }
-
-            const response = await fetch(item.download_url, { headers })
-            if (!response.ok) {
-              throw new Error(`HTTP ${response.status} ${response.statusText}`)
-            }
-
-            const blob = await response.blob()
-            const buffer = await blob.arrayBuffer()
-            const sha = await computeSHA256(buffer)
-
-            item.file_size_bytes = blob.size
-            item.sha256 = sha
-            item.download_status = 'success'
-            item.download_error = undefined
-            successfulBlobs.push({ item, blob })
-            success = true
-            completed++
-          } catch (err: any) {
-            lastError = err?.message || String(err)
-            if (attempt <= maxRetries) {
-              await new Promise((r) => setTimeout(r, 400 * attempt))
-            }
+          break
+        } catch (err: any) {
+          lastError = err?.message || String(err)
+          if (attempt <= maxRetries) {
+            await new Promise((r) => setTimeout(r, 200 * attempt))
           }
         }
+      }
 
-        if (!success) {
-          item.download_status = 'failed'
-          item.download_error = `Falha após ${maxRetries + 1} tentativas: ${lastError}`
-          failed++
-        }
+      if (!success) {
+        item.download_status = 'failed'
+        item.download_error = `Falha (${lastError || 'Arquivo inacessível ou corrompido'})`
+        failed++
+      }
 
-        onProgress?.({
-          total,
-          completed,
-          failed,
-          currentFilename: item.filename,
-          percent: Math.round(((completed + failed) / total) * 100),
-        })
-      }),
-    )
+      onProgress?.({
+        total,
+        completed,
+        failed,
+        currentFilename: item.filename,
+        percent: Math.round(((completed + failed) / total) * 100),
+      })
+    }
+
+    // Se o lote batch_verify foi executado, emite o progresso geral
+    if (batchVerifyDone) {
+      onProgress?.({
+        total,
+        completed,
+        failed,
+        currentFilename: chunkItems[chunkItems.length - 1]?.filename || '',
+        percent: Math.round(((completed + failed) / total) * 100),
+      })
+    }
   }
 
   return {
     manifest: results,
     successfulBlobs,
+    successfulCount: completed,
     failedCount: failed,
   }
 }
