@@ -117,6 +117,7 @@ import { TransferTechnicianModal } from '@/components/TransferTechnicianModal'
 import { RescheduleOrderModal } from '@/components/RescheduleOrderModal'
 import { getEquipmentItem, getEquipmentByCustomer } from '@/services/equipment'
 import { PrintEquipmentLabelModal } from '@/components/PrintEquipmentLabelModal'
+import { QrOrderScannerModal } from '@/components/QrOrderScannerModal'
 import { RecordActionsMenu, RecordActionItem } from '@/components/RecordActionsMenu'
 import { useAuth } from '@/hooks/use-auth'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -161,6 +162,7 @@ export default function OrdemDetail() {
   const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false)
   const [confirmDeleteOsOpen, setConfirmDeleteOsOpen] = useState(false)
   const [deletingOs, setDeletingOs] = useState(false)
+  const [qrScannerOpen, setQrScannerOpen] = useState(false)
 
   const handleDeleteOs = async () => {
     if (!order?.id) return
@@ -1668,6 +1670,12 @@ export default function OrdemDetail() {
             triggerClassName="min-h-[44px] min-w-[44px] h-11 w-11 sm:h-9 sm:w-9 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 shadow-xs rounded-md touch-manipulation"
             items={[
               {
+                key: 'scan_qr_order',
+                label: 'Ler QR Code de Outra OS',
+                icon: QrCode,
+                onClick: () => setQrScannerOpen(true),
+              },
+              {
                 key: 'print_label',
                 label: 'Imprimir Etiqueta (Térmica / QR)',
                 icon: QrCode,
@@ -3174,6 +3182,9 @@ export default function OrdemDetail() {
           onSaved={loadAll}
         />
       )}
+
+      {/* Modal Leitor de QR Code para leitura direta de O.S. a partir da tela de detalhe */}
+      <QrOrderScannerModal open={qrScannerOpen} onOpenChange={setQrScannerOpen} />
 
       {/* Modal Seletor de Compartilhamento do Link do Documento (/share/:id) */}
       <Dialog
