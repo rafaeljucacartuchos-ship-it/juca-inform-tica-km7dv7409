@@ -511,6 +511,8 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
           id: r.id,
           modelo: r.getString('modelo'),
           fabricante: r.getString('fabricante'),
+          precoOficial: r.get('preco_oficial') ? Number(r.get('preco_oficial')) : null,
+          margemReferencia: r.get('margem_referencia') ? Number(r.get('margem_referencia')) : null,
         })),
       })
     }

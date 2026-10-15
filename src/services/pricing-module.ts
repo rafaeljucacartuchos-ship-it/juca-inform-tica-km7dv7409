@@ -86,6 +86,8 @@ export interface ImpressoraRecord {
   valor_compra?: number | null
   vida_util_meses?: number
   custo_mensal_software?: number | null
+  preco_oficial?: number | null
+  margem_referencia?: number | null
   suprimento_1?: string | null
   suprimento_2?: string | null
   suprimento_3?: string | null
@@ -631,6 +633,56 @@ export async function createImpressora(
   return created
 }
 
+/**
+ * Salva o Preço Oficial e Margem de Referência de uma impressora no banco (coleção `impressoras`)
+ * e registra histórico na coleção `auditoria_precos` com tabela_afetada='impressoras', id do registro,
+ * preço anterior/novo e margem anterior/nova, usuário responsável, data e hora.
+ */
+export async function saveOfficialPricing(params: {
+  printerId: string
+  newPrice: number
+  newMargin: number
+  oldRecord?: ImpressoraRecord | null
+  usuarioNome?: string
+}): Promise<ImpressoraRecord> {
+  const { printerId, newPrice, newMargin, oldRecord, usuarioNome } = params
+  const current = oldRecord || (await getImpressoraById(printerId))
+  const user =
+    usuarioNome ||
+    (pb.authStore.model as any)?.name ||
+    (pb.authStore.model as any)?.username ||
+    'Administrador'
+
+  const oldPrice = current?.preco_oficial ?? null
+  const oldMargin = current?.margem_referencia ?? null
+
+  const updated = await pb.collection('impressoras').update<ImpressoraRecord>(printerId, {
+    preco_oficial: newPrice,
+    margem_referencia: newMargin,
+  })
+
+  // Registra na auditoria_precos
+  await logPriceAudit({
+    tabela: 'impressoras',
+    idRegistro: printerId,
+    campo: 'preco_oficial',
+    valorAntigo: oldPrice != null ? `R$ ${Number(oldPrice).toFixed(2)}` : 'não definido',
+    valorNovo: `R$ ${Number(newPrice).toFixed(2)}`,
+    usuario: user,
+  })
+
+  await logPriceAudit({
+    tabela: 'impressoras',
+    idRegistro: printerId,
+    campo: 'margem_referencia',
+    valorAntigo: oldMargin != null ? `${Number(oldMargin).toFixed(2)}%` : 'não definido',
+    valorNovo: `${Number(newMargin).toFixed(2)}%`,
+    usuario: user,
+  })
+
+  return updated
+}
+
 export async function updateImpressora(
   id: string,
   data: Partial<ImpressoraRecord>,
@@ -698,6 +750,35 @@ export async function updateImpressora(
         campo: 'custo_mensal_software',
         valorAntigo: current.custo_mensal_software ?? 0,
         valorNovo: data.custo_mensal_software ?? 0,
+        usuario: usuarioNome,
+      })
+    }
+    if (data.preco_oficial !== undefined && data.preco_oficial !== current.preco_oficial) {
+      await logPriceAudit({
+        tabela: 'impressoras',
+        idRegistro: id,
+        campo: 'preco_oficial',
+        valorAntigo:
+          current.preco_oficial != null
+            ? `R$ ${Number(current.preco_oficial).toFixed(2)}`
+            : 'não definido',
+        valorNovo: `R$ ${Number(data.preco_oficial).toFixed(2)}`,
+        usuario: usuarioNome,
+      })
+    }
+    if (
+      data.margem_referencia !== undefined &&
+      data.margem_referencia !== current.margem_referencia
+    ) {
+      await logPriceAudit({
+        tabela: 'impressoras',
+        idRegistro: id,
+        campo: 'margem_referencia',
+        valorAntigo:
+          current.margem_referencia != null
+            ? `${Number(current.margem_referencia).toFixed(2)}%`
+            : 'não definido',
+        valorNovo: `${Number(data.margem_referencia).toFixed(2)}%`,
         usuario: usuarioNome,
       })
     }

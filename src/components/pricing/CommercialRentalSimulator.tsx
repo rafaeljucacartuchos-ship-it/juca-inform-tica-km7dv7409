@@ -20,7 +20,13 @@ export function CommercialRentalSimulator({
   onQuoteGenerated: (q: RentalQuote) => void
 }) {
   const [printers, setPrinters] = useState<
-    Array<{ id: string; modelo: string; fabricante: string }>
+    Array<{
+      id: string
+      modelo: string
+      fabricante: string
+      precoOficial?: number | null
+      margemReferencia?: number | null
+    }>
   >([])
   const [printerId, setPrinterId] = useState('')
   const [pages, setPages] = useState('1000')
@@ -130,10 +136,39 @@ export function CommercialRentalSimulator({
             <option value="">Selecione...</option>
             {printers.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.modelo} ({p.fabricante})
+                {p.modelo} ({p.fabricante}){' '}
+                {p.precoOficial && p.precoOficial > 0
+                  ? `— Preço Oficial: R$ ${p.precoOficial.toFixed(2)}/mês`
+                  : ''}
               </option>
             ))}
           </select>
+          {(() => {
+            const selected = printers.find((p) => p.id === printerId)
+            if (selected && selected.precoOficial && selected.precoOficial > 0) {
+              return (
+                <div className="mt-1.5 p-2.5 bg-emerald-50 border border-emerald-200 rounded-md text-xs text-emerald-900 flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-slate-700">
+                      Preço oficial atualmente salvo:{' '}
+                    </span>
+                    <strong className="font-bold text-emerald-800">
+                      R$ {selected.precoOficial.toFixed(2)}/mês
+                    </strong>
+                    {selected.margemReferencia != null && selected.margemReferencia > 0 && (
+                      <span className="text-slate-500 ml-2">
+                        (Margem de referência: {selected.margemReferencia.toFixed(1)}%)
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] bg-emerald-200/60 text-emerald-800 px-2 py-0.5 rounded font-semibold uppercase">
+                    Preço Oficial Homologado
+                  </span>
+                </div>
+              )
+            }
+            return null
+          })()}
         </label>
         <div className="grid sm:grid-cols-2 gap-3">
           <label>

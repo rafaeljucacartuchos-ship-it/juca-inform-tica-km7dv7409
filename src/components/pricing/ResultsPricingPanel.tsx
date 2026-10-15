@@ -2,14 +2,34 @@ import { readRentalReserveRate, validRentalReserveInput } from './rental-reserve
 import { usePermissions } from '@/hooks/use-permissions'
 import { useState, useEffect, useRef } from 'react'
 import reservePb from '@/lib/pocketbase/client'
-import { FileText, Sparkles, AlertCircle, Copy, Check, ChevronRight } from 'lucide-react'
+import {
+  FileText,
+  Sparkles,
+  AlertCircle,
+  Copy,
+  Check,
+  ChevronRight,
+  Info,
+  Save,
+  CheckCircle2,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import type { PricingEngineResult, BreakEvenResult } from '@/lib/pricing-engine'
 import type { ImpressoraRecord } from '@/services/pricing-module'
+import { saveOfficialPricing } from '@/services/pricing-module'
 
 interface ResultsPricingPanelProps {
   fund: ReserveState
@@ -107,12 +127,14 @@ Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarif
       {isAdmin && (
         <AdminRentalProfit
           key={selectedPrinter?.id}
+          printer={selectedPrinter}
           calculation={calculation}
           producaoMensal={producaoMensal}
           contratoMeses={contratoMeses}
           valorCompra={valorCompra}
           valido={dadosValidos}
           reservaPagina={fund.rate ?? 0}
+          markup={markup}
         />
       )}
       <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 space-y-3">
@@ -471,23 +493,30 @@ Total do mês = mensalidade + máximo(0, páginas do mês − franquia) × tarif
 }
 
 function AdminRentalProfit({
+  printer,
   reservaPagina,
   calculation,
   producaoMensal,
   contratoMeses,
   valorCompra,
   valido,
+  markup,
 }: {
+  printer: ImpressoraRecord | null
   calculation: PricingEngineResult
   producaoMensal: number
   contratoMeses: number
   valorCompra: number
   valido: boolean
   reservaPagina: number
+  markup: number
 }) {
   const { isAdmin } = usePermissions()
-  const [margemDesejada, setMargemDesejada] = useState('')
-  const [impostos, setImpostos] = useState('')
+  const { toast } = useToast()
+  const [margemDesejada, setMargemDesejada] = useState(() =>
+    printer?.margem_referencia ? String(printer.margem_referencia) : '',
+  )
+  const [impostos, setImpostos] = useState('10')
   const [despesaMensal, setDespesaMensal] = useState('')
   const [despesaInicial, setDespesaInicial] = useState('')
   const [origem, setOrigem] = useState('parque')
@@ -496,6 +525,18 @@ function AdminRentalProfit({
   const [foraCidade, setForaCidade] = useState(false)
   const [viagemVisita, setViagemVisita] = useState('')
   const [viagemInicial, setViagemInicial] = useState('')
+
+  // Modal de confirmação para salvar precificação oficial
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false)
+  const [isSavingPrice, setIsSavingPrice] = useState(false)
+
+  // Sincroniza margemDesejada quando printer mudar
+  useEffect(() => {
+    if (printer?.margem_referencia != null && printer.margem_referencia > 0) {
+      setMargemDesejada(String(printer.margem_referencia))
+    }
+  }, [printer?.id, printer?.margem_referencia])
+
   if (!isAdmin) return null
   const entradas = [
     { nome: 'Impostos sobre receita', valor: impostos, id: 'profit-tax' },
