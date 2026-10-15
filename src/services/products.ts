@@ -45,6 +45,64 @@ export const getProducts = async (
   return result.items
 }
 
+/**
+ * Busca de produtos para a janela de consulta ("Consultar Produto").
+ *
+ * Suporta:
+ * 1) 'barcode': correspondência EXATA de barcode / codigo_barras.
+ *    Preserva zeros à esquerda rigorosamente (como string pura).
+ *    NÃO busca em sku (código interno) nem search_text para não confundir
+ *    com código interno.
+ * 2) 'description': busca parcial por texto normalizado (nome/descrição/palavras).
+ */
+export const searchProductsLookup = async ({
+  mode,
+  term,
+  page = 1,
+  perPage = 50,
+}: {
+  mode: 'description' | 'barcode'
+  term: string
+  page?: number
+  perPage?: number
+}): Promise<{ items: Product[]; totalItems: number }> => {
+  const cleanTerm = (term ?? '').trim()
+  if (!cleanTerm) {
+    return { items: [], totalItems: 0 }
+  }
+
+  if (mode === 'barcode') {
+    // Escapa aspas e barras para montagem segura do filtro PocketBase
+    // Preserva zeros à esquerda exatamente como digitado (ex: "00123" !== "123")
+    const safeBarcode = cleanTerm.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+    const filter = `barcode = '${safeBarcode}' || codigo_barras = '${safeBarcode}'`
+    const result = await pb.collection('products').getList<Product>(page, perPage, {
+      filter,
+      sort: 'name',
+    })
+    return { items: result.items, totalItems: result.totalItems }
+  }
+
+  // mode === 'description'
+  const normalized = normalizeSearchText(cleanTerm)
+  const words = normalized
+    .split(/\s+/)
+    .map((w) => w.trim().replace(/\\/g, '\\\\').replace(/'/g, "\\'"))
+    .filter((w) => w.length > 0)
+
+  let filter = ''
+  if (words.length > 0) {
+    // Busca AND para que todas as palavras informadas estejam presentes na descrição/busca
+    filter = words.map((w) => `search_text ~ '${w}'`).join(' && ')
+  }
+
+  const result = await pb.collection('products').getList<Product>(page, perPage, {
+    filter: filter || undefined,
+    sort: 'name',
+  })
+  return { items: result.items, totalItems: result.totalItems }
+}
+
 export const getProduct = (id: string) => pb.collection('products').getOne<Product>(id)
 
 export const createProduct = (data: Partial<Product>) =>

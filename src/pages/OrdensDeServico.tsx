@@ -59,6 +59,7 @@ import { RescheduleOrderModal } from '@/components/RescheduleOrderModal'
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
 import { PrintEquipmentLabelModal } from '@/components/PrintEquipmentLabelModal'
 import { QrOrderScannerModal } from '@/components/QrOrderScannerModal'
+import { ProductLookupModal } from '@/components/ProductLookupModal'
 import { RecordActionsMenu, RecordActionItem } from '@/components/RecordActionsMenu'
 import { useAuth } from '@/hooks/use-auth'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -150,6 +151,7 @@ export default function OrdensDeServico() {
   )
   const [newModalOpen, setNewModalOpen] = useState(false)
   const [qrScannerOpen, setQrScannerOpen] = useState(false)
+  const [productLookupOpen, setProductLookupOpen] = useState(false)
   const [deleteOrderTarget, setDeleteOrderTarget] = useState<ServiceOrder | null>(null)
   const [labelModalOpen, setLabelModalOpen] = useState(false)
   const [orderToLabel, setOrderToLabel] = useState<ServiceOrder | null>(null)
@@ -573,10 +575,21 @@ export default function OrdensDeServico() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => setQrScannerOpen(true)}
-            className="w-full sm:w-auto min-h-[44px] h-11 border-indigo-200 text-indigo-700 hover:bg-indigo-50 gap-1.5 text-xs sm:text-sm touch-manipulation active:scale-[0.98] font-semibold"
+            onClick={() => setProductLookupOpen(true)}
+            className="w-full sm:w-auto min-h-[44px] h-11 border-indigo-200 text-indigo-700 hover:bg-indigo-50 gap-1.5 text-xs sm:text-sm touch-manipulation active:scale-[0.98] font-bold"
+            title="Consultar produtos no estoque por descrição ou código de barras"
           >
-            <QrCode className="h-4 w-4 text-indigo-600" />
+            <Package className="h-4 w-4 text-indigo-600" />
+            <span>Consultar Produto</span>
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setQrScannerOpen(true)}
+            className="w-full sm:w-auto min-h-[44px] h-11 border-slate-200 text-slate-700 hover:bg-slate-50 gap-1.5 text-xs sm:text-sm touch-manipulation active:scale-[0.98] font-semibold"
+          >
+            <QrCode className="h-4 w-4 text-slate-600" />
             <span>Ler QR Code</span>
           </Button>
 
@@ -1578,6 +1591,13 @@ export default function OrdensDeServico() {
       )}
 
       <QrOrderScannerModal open={qrScannerOpen} onOpenChange={setQrScannerOpen} />
+
+      {/* Modal de Consulta de Produto no Estoque */}
+      <ProductLookupModal
+        open={productLookupOpen}
+        onOpenChange={setProductLookupOpen}
+        originContext="Lista de Ordens de Serviço"
+      />
 
       <NewOrderModal open={newModalOpen} onOpenChange={setNewModalOpen} onCreated={loadData} />
 

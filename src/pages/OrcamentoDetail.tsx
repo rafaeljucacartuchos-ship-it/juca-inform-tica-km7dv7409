@@ -102,6 +102,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
 import { BarcodeScanner } from '@/components/BarcodeScanner'
+import { ProductLookupModal } from '@/components/ProductLookupModal'
 import { OrcamentoItemModal } from '@/components/OrcamentoItemModal'
 import {
   OrcamentoServicoSelectModal,
@@ -251,6 +252,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
   const [editingItem, setEditingItem] = useState<OrcamentoItem | null>(null)
   const [itemToDelete, setItemToDelete] = useState<{ id: string; desc: string } | null>(null)
   const [scannerOpen, setScannerOpen] = useState(false)
+  const [productLookupOpen, setProductLookupOpen] = useState(false)
   const [signatureModalOpen, setSignatureModalOpen] = useState(false)
   const [signerRole, setSignerRole] = useState<'customer' | 'technician'>('customer')
   const [aprovarSemAssinaturaOpen, setAprovarSemAssinaturaOpen] = useState(false)
@@ -2951,32 +2953,46 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
                 </div>
               </div>
 
-              {canEdit && (
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setScannerOpen(true)}
-                    className="h-8 text-xs gap-1.5 border-slate-200"
-                    title="Ler código de barras ou bipar leitor físico"
-                  >
-                    <ScanLine className="h-3.5 w-3.5 text-indigo-600" />
-                    <span>Código de Barras</span>
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setEditingItem(null)
-                      setModalDefaultKind('produto')
-                      setModalLockKind(true)
-                      setItemModalOpen(true)
-                    }}
-                    className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shadow-xs font-semibold"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Adicionar Produto
-                  </Button>
-                </div>
-              )}
+              <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+                {/* Botão Consultar Produto: somente leitura de estoque/preço sem alterar o orçamento */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setProductLookupOpen(true)}
+                  className="h-8 text-xs gap-1.5 border-indigo-200 text-indigo-700 bg-indigo-50/60 hover:bg-indigo-100 font-bold"
+                  title="Consultar estoque e preços de produtos por descrição ou código de barras"
+                >
+                  <Package className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>Consultar Produto</span>
+                </Button>
+
+                {canEdit && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setScannerOpen(true)}
+                      className="h-8 text-xs gap-1.5 border-slate-200"
+                      title="Inserir produto bipando leitor de código de barras ou câmera"
+                    >
+                      <ScanLine className="h-3.5 w-3.5 text-indigo-600" />
+                      <span>Inserir via Código</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setEditingItem(null)
+                        setModalDefaultKind('produto')
+                        setModalLockKind(true)
+                        setItemModalOpen(true)
+                      }}
+                      className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shadow-xs font-semibold"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Adicionar Produto
+                    </Button>
+                  </>
+                )}
+              </div>
             </CardHeader>
 
             <CardContent className="p-0">
@@ -4316,6 +4332,15 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
         open={scannerOpen}
         onOpenChange={setScannerOpen}
         onDetected={handleBarcodeScanned}
+      />
+
+      {/* Modal Consultar Produto (somente leitura sem perder dados do orçamento) */}
+      <ProductLookupModal
+        open={productLookupOpen}
+        onOpenChange={setProductLookupOpen}
+        originContext={
+          orcamento.numero_orcamento ? `Orçamento #${orcamento.numero_orcamento}` : 'Orçamento'
+        }
       />
 
       {/* Modal de Seleção de Serviço Cadastrado */}

@@ -118,6 +118,7 @@ import { RescheduleOrderModal } from '@/components/RescheduleOrderModal'
 import { getEquipmentItem, getEquipmentByCustomer } from '@/services/equipment'
 import { PrintEquipmentLabelModal } from '@/components/PrintEquipmentLabelModal'
 import { QrOrderScannerModal } from '@/components/QrOrderScannerModal'
+import { ProductLookupModal } from '@/components/ProductLookupModal'
 import { RecordActionsMenu, RecordActionItem } from '@/components/RecordActionsMenu'
 import { useAuth } from '@/hooks/use-auth'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -163,6 +164,7 @@ export default function OrdemDetail() {
   const [confirmDeleteOsOpen, setConfirmDeleteOsOpen] = useState(false)
   const [deletingOs, setDeletingOs] = useState(false)
   const [qrScannerOpen, setQrScannerOpen] = useState(false)
+  const [productLookupOpen, setProductLookupOpen] = useState(false)
 
   const handleDeleteOs = async () => {
     if (!order?.id) return
@@ -1663,12 +1665,30 @@ export default function OrdemDetail() {
             </Button>
           )}
 
+          {/* Botão Consultar Produto (somente leitura de estoque e preços sem sair da OS) */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setProductLookupOpen(true)}
+            className="text-xs gap-1.5 min-h-[44px] sm:min-h-0 h-11 sm:h-9 flex-1 sm:flex-initial justify-center border-indigo-200 text-indigo-700 bg-indigo-50/60 hover:bg-indigo-100 font-bold touch-manipulation active:scale-[0.98]"
+            title="Consultar produtos no estoque por descrição ou código de barras"
+          >
+            <Package className="h-4 w-4 text-indigo-600" />
+            <span>Consultar Produto</span>
+          </Button>
+
           {/* Menu em cascata com todas as demais ações */}
           <RecordActionsMenu
             label={`O.S. #${order.number}`}
             title="Mais ações desta O.S."
             triggerClassName="min-h-[44px] min-w-[44px] h-11 w-11 sm:h-9 sm:w-9 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 shadow-xs rounded-md touch-manipulation"
             items={[
+              {
+                key: 'lookup_product',
+                label: 'Consultar Produto (Estoque)',
+                icon: Package,
+                onClick: () => setProductLookupOpen(true),
+              },
               {
                 key: 'scan_qr_order',
                 label: 'Ler QR Code de Outra OS',
@@ -3196,6 +3216,13 @@ export default function OrdemDetail() {
 
       {/* Modal Leitor de QR Code para leitura direta de O.S. a partir da tela de detalhe */}
       <QrOrderScannerModal open={qrScannerOpen} onOpenChange={setQrScannerOpen} />
+
+      {/* Modal de Consulta de Produto (sem sair da OS e sem perder alterações) */}
+      <ProductLookupModal
+        open={productLookupOpen}
+        onOpenChange={setProductLookupOpen}
+        originContext={`O.S. #${order.number}`}
+      />
 
       {/* Modal Seletor de Compartilhamento do Link do Documento (/share/:id) */}
       <Dialog
