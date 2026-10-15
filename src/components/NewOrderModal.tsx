@@ -26,9 +26,10 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import { Check, ChevronsUpDown, Loader2, Plus } from 'lucide-react'
+import { Check, ChevronsUpDown, Loader2, Plus, Printer } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Customer, User, OrderPriority, Equipment, ServiceType } from '@/types'
+import { Customer, User, OrderPriority, Equipment, ServiceType, ServiceOrder } from '@/types'
+import { PrintEquipmentLabelModal } from './PrintEquipmentLabelModal'
 import { getCustomers, getCustomer } from '@/services/customers'
 import { getTechnicians, getAllUsers } from '@/services/users'
 import { OrderTeamDivisionSection } from '@/components/OrderTeamDivisionSection'
@@ -72,6 +73,11 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
   const [equipmentModalOpen, setEquipmentModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  // Estado para impressão imediata de etiqueta após salvar OS com identificação válida
+  const [labelModalOpen, setLabelModalOpen] = useState(false)
+  const [lastCreatedOrder, setLastCreatedOrder] = useState<ServiceOrder | null>(null)
+  const [lastCreatedEquipments, setLastCreatedEquipments] = useState<Equipment[]>([])
   const { user } = useAuth()
   const { toast } = useToast()
 
@@ -317,14 +323,34 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
       if (created.queued || hist.queued) {
         toast({
           title: 'Ordem salva localmente',
-          description: 'Será sincronizada quando houver conexão.',
+          description:
+            'Será sincronizada quando houver conexão. Etiqueta disponível para impressão.',
         })
       } else {
         toast({
           title: 'Ordem criada com sucesso!',
-          description: `Ordem aberta no sistema.`,
+          description: `Ordem aberta no sistema. Imprima a etiqueta do equipamento se desejar.`,
         })
       }
+
+      // Prepara os dados para impressão imediata da etiqueta sem sair da tela
+      const fullCreatedOrder: ServiceOrder = {
+        ...created,
+        id: created.id,
+        order_number: (created as any).order_number || `OS-${created.id.slice(0, 6)}`,
+        customer_id: formData.customer,
+        customer_name: selectedDisplayName,
+        equipment_type: eqItem?.type,
+        equipment_brand: eqItem?.brand,
+        equipment_model: eqItem?.model,
+        serial_number: eqItem?.serial_number,
+        attendance_type: formData.attendance_type,
+        status: 'open',
+        created: new Date().toISOString(),
+      } as unknown as ServiceOrder
+
+      setLastCreatedOrder(fullCreatedOrder)
+      setLastCreatedEquipments(eqItem ? [eqItem] : equipment)
 
       const balcaoDefault = serviceTypes.find((t) => t.name.trim().toLowerCase() === 'balcão')
       setFormData({
@@ -343,6 +369,9 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
       setDivisionModel('single_tech')
       setIsCustomDivision(false)
       setSelectedCustomer(null)
+
+      // Abre imediatamente o modal de impressão da etiqueta para fluxo ágil
+      setLabelModalOpen(true)
       onOpenChange(false)
       if (onCreated) onCreated()
     } catch (err) {
@@ -780,6 +809,22 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
         }}
         defaultCustomerId={formData.customer}
       />
+
+      {/* MODAL DE ETIQUETA APÓS ABERTURA DA OS */}
+      {lastCreatedOrder && (
+        <PrintEquipmentLabelModal
+          open={labelModalOpen}
+          onOpenChange={setLabelModalOpen}
+          order={lastCreatedOrder}
+          customer={selectedCustomer}
+          equipmentsList={lastCreatedEquipments}
+          attendanceTypeLabel={
+            serviceTypes.find((st) => st.id === lastCreatedOrder.attendance_type)?.name
+          }
+          technicianName={technicians.find((t) => t.id === lastCreatedOrder.technician)?.name}
+          context="new_order"
+        />
+      )}
     </>
   )
 }
