@@ -76,16 +76,19 @@ export const EquipmentLabelContent: React.FC<EquipmentLabelContentProps> = ({
   const is40x40 = Math.abs(config.widthMm - 40) <= 0.5 && Math.abs(config.heightMm - 40) <= 0.5
 
   // QR Code específico para o modelo 40x40 mm (dimensão equilibrada, quietZone segura de 2 módulos)
+  // Observação CD410Label Printer: com alinhamento horizontal já calibrado no driver,
+  // mantemos a renderização centralizada com quietZone padrão de 2 módulos para contraste térmico.
   const qrSvg40x40 = useMemo(() => {
     if (!is40x40) return null
     try {
       const matrix = generateQrMatrix(orderUrl)
-      // No modelo 40x40 mm: largura útil ~ 36mm (com margens padrão 2mm de cada lado).
-      // Altura disponível após cliente (~8mm) é ~28mm.
-      // 25mm a ~3.78 px/mm (96 DPI) = ~95px; multiplicando por scale (padrão 100% = 1.0)
+      // No modelo 40x40 mm: área útil com margens de segurança (2mm laterais, 1.5mm verticais).
+      // Altura reservada ao nome do cliente (até 2 linhas): ~7-8mm.
+      // Área remanescente para o QR Code: ~26-28mm.
+      // 92px (~24.3mm a 96DPI) escala perfeitamente dentro dos limites físicos sem sangria.
       const basePx = 92
       const sizePx = Math.max(60, Math.min(130, Math.round(basePx * scale)))
-      // quietZone = 2 garante margem branca ao redor para facilitar leitura imediata por celulares
+      // quietZone = 2 garante margem branca ao redor para facilitar leitura imediata por celulares e scanners
       return qrMatrixToSvg(matrix, sizePx, 2)
     } catch (err) {
       console.error('Erro ao gerar QR Code 40x40:', err)
