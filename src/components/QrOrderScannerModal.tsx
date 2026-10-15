@@ -56,6 +56,7 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
   // Referências DOM e controle de ciclo de vida
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const hiddenCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const cropCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const decoderInstanceRef = useRef<Html5Qrcode | null>(null)
   const barcodeDetectorRef = useRef<BarcodeDetector | null>(null)
@@ -66,6 +67,7 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
   const isProcessingRef = useRef(false)
   const isOpenRef = useRef(open)
   const decoderBusyRef = useRef(false)
+  const loopCycleCountRef = useRef(0)
   const hiddenContainerId = useRef(`qr-hidden-decoder-${Math.random().toString(36).slice(2, 9)}`)
 
   // Estados de interface
@@ -88,6 +90,7 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
       window.clearTimeout(scanLoopTimerRef.current)
       scanLoopTimerRef.current = null
     }
+    loopCycleCountRef.current = 0
 
     // 2. Interrompe todas as tracks de câmera ativas
     if (streamRef.current) {
@@ -217,26 +220,11 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
         }
       }
 
-      // Rota B: Fallback via Canvas -> scanFile do Html5Qrcode (universal: iOS Safari, Firefox, WebView)
+      // Rota B: Fallback via Canvas -> scanFile/scanFileV2 do Html5Qrcode (universal: iOS Safari, Firefox, WebView)
       const canvas = hiddenCanvasRef.current || document.createElement('canvas')
       hiddenCanvasRef.current = canvas
 
-      // Reduz resolução máxima de amostragem para 640px para manter alto FPS e baixo uso de CPU no mobile
-      const scale = Math.min(1, 640 / Math.max(videoWidth, videoHeight))
-      const targetW = Math.round(videoWidth * scale)
-      const targetH = Math.round(videoHeight * scale)
-
-      if (canvas.width !== targetW || canvas.height !== targetH) {
-        canvas.width = targetW
-        canvas.height = targetH
-      }
-
-      const ctx = canvas.getContext('2d', { willReadFrequently: true })
-      if (!ctx) return
-
-      ctx.drawImage(video, 0, 0, targetW, targetH)
-
-      // Garante uma instância oculta do Html5Qrcode para decode de imagem
+      // Garante uma instância do Html5Qrcode para decode de imagem
       if (!decoderInstanceRef.current) {
         try {
           decoderInstanceRef.current = new Html5Qrcode(hiddenContainerId.current, {
@@ -252,21 +240,78 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
       }
 
       const decoder = decoderInstanceRef.current
-      if (decoder && typeof decoder.scanFile === 'function') {
-        const blob = await new Promise<Blob | null>((resolve) => {
-          canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.8)
-        })
+      if (!decoder) return
 
-        if (blob && isOpenRef.current && !isProcessingRef.current) {
-          const file = new File([blob], 'frame.jpg', { type: 'image/jpeg' })
-          try {
-            const decodedText = await decoder.scanFile(file, false)
-            if (decodedText && isOpenRef.current) {
-              handleDetectedCode(decodedText)
-              return
-            }
-          } catch {
-            // Nenhum QR detectado neste frame — comportamento normal do loop
+      // Função utilitária para decodificar um canvas via Html5Qrcode
+      const decodeCanvas = async (sourceCanvas: HTMLCanvasElement): Promise<string | null> => {
+        const blob = await new Promise<Blob | null>((resolve) => {
+          sourceCanvas.toBlob((b) => resolve(b), 'image/jpeg', 0.92)
+        })
+        if (!blob || !isOpenRef.current || isProcessingRef.current) return null
+        const file = new File([blob], 'frame.jpg', { type: 'image/jpeg' })
+        try {
+          // @ts-expect-error scanFileV2 exists on Html5Qrcode runtime
+          if (typeof decoder.scanFileV2 === 'function') {
+            // @ts-expect-error scanFileV2 runtime call
+            const result = await decoder.scanFileV2(file, false)
+            return result?.decodedText || null
+          }
+          if (typeof decoder.scanFile === 'function') {
+            return await decoder.scanFile(file, false)
+          }
+        } catch {
+          // Nenhum QR detectado neste frame
+        }
+        return null
+      }
+
+      loopCycleCountRef.current = (loopCycleCountRef.current + 1) % 4
+      const isCropCycle = loopCycleCountRef.current % 2 === 1
+
+      // Estratégia dual de amostragem:
+      // Ciclos pares: Full frame (até 900px) para QR Codes médios/grandes ou enquadramento livre.
+      // Ciclos ímpares: Recorte central 65% (alta resolução nativa) para QR Codes compactos 40x40mm.
+      if (isCropCycle) {
+        const cropCanvas = cropCanvasRef.current || document.createElement('canvas')
+        cropCanvasRef.current = cropCanvas
+
+        const cropRatio = 0.65
+        const cropSize = Math.round(Math.min(videoWidth, videoHeight) * cropRatio)
+        const cropX = Math.round((videoWidth - cropSize) / 2)
+        const cropY = Math.round((videoHeight - cropSize) / 2)
+
+        if (cropCanvas.width !== cropSize || cropCanvas.height !== cropSize) {
+          cropCanvas.width = cropSize
+          cropCanvas.height = cropSize
+        }
+
+        const cropCtx = cropCanvas.getContext('2d', { willReadFrequently: true })
+        if (cropCtx) {
+          cropCtx.drawImage(video, cropX, cropY, cropSize, cropSize, 0, 0, cropSize, cropSize)
+          const detected = await decodeCanvas(cropCanvas)
+          if (detected && isOpenRef.current) {
+            handleDetectedCode(detected)
+            return
+          }
+        }
+      } else {
+        const maxDim = Math.max(videoWidth, videoHeight)
+        const scale = maxDim > 900 ? 900 / maxDim : 1
+        const targetW = Math.round(videoWidth * scale)
+        const targetH = Math.round(videoHeight * scale)
+
+        if (canvas.width !== targetW || canvas.height !== targetH) {
+          canvas.width = targetW
+          canvas.height = targetH
+        }
+
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, targetW, targetH)
+          const detected = await decodeCanvas(canvas)
+          if (detected && isOpenRef.current) {
+            handleDetectedCode(detected)
+            return
           }
         }
       }
@@ -574,12 +619,22 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
       }}
     >
       <DialogContent className="sm:max-w-[460px] p-0 overflow-hidden">
-        {/* Container oculto estático para o Html5Qrcode instance de decode por arquivo/canvas */}
+        {/* Container auxiliar no DOM para o Html5Qrcode instance de decode por arquivo/canvas.
+            IMPORTANTE: NÃO usar display: 'none' nem width/height 0, pois o Html5Qrcode.scanFile
+            calcula clientWidth/clientHeight do elemento raiz e pode gerar canvas invisível com dimensões zeradas */}
         <div
           id={hiddenContainerId.current}
           aria-hidden="true"
-          className="hidden"
-          style={{ display: 'none', position: 'absolute', width: 0, height: 0, opacity: 0 }}
+          style={{
+            position: 'fixed',
+            top: -9999,
+            left: -9999,
+            width: 320,
+            height: 320,
+            opacity: 0,
+            pointerEvents: 'none',
+            overflow: 'hidden',
+          }}
         />
 
         <DialogHeader className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/80">
