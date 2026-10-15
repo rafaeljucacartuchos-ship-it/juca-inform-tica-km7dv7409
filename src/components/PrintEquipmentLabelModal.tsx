@@ -102,20 +102,16 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
       if (found) return found
     }
     if (initialEquipment) return initialEquipment
-    // Fallback: objeto construído a partir dos dados gravados diretamente na OS
-    if (
-      order.equipment_type ||
-      order.equipment_brand ||
-      order.equipment_model ||
-      order.serial_number
-    ) {
+    // Fallback: se existir expand.equipment_ref na OS
+    if (order.expand?.equipment_ref) {
+      return order.expand.equipment_ref
+    }
+    // Fallback secundário: objeto construído a partir de order.equipment
+    if (order.equipment) {
       return {
         id: order.equipment_ref || 'os_equip',
-        customer_id: order.customer_id,
-        type: order.equipment_type || '',
-        brand: order.equipment_brand || '',
-        model: order.equipment_model || '',
-        serial_number: order.serial_number || '',
+        customer: order.customer,
+        name: order.equipment,
         notes: '',
         created: order.created,
         updated: order.updated,
@@ -196,7 +192,7 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
       <html lang="pt-BR">
       <head>
         <meta charset="utf-8" />
-        <title>Etiqueta OS ${order.order_number || order.id.slice(0, 6)} - JUCA INFORMÁTICA</title>
+        <title>Etiqueta OS ${order.number || order.id.slice(0, 6)} - JUCA INFORMÁTICA</title>
         <style>
           @page {
             size: ${widthMm}mm ${heightMm}mm ${orientation};
@@ -288,7 +284,7 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
                 <DialogTitle className="text-lg font-bold flex items-center gap-2">
                   Etiqueta de Equipamento
                   <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                    OS #{order.order_number || order.id.slice(0, 6)}
+                    OS #{order.number || order.id.slice(0, 6)}
                   </span>
                 </DialogTitle>
                 <p className="text-xs text-muted-foreground mt-0.5">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Wrench,
   Lock,
@@ -74,6 +74,7 @@ export default function Login() {
   const { signIn } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => {
     let isMounted = true
@@ -162,10 +163,16 @@ export default function Login() {
         title: 'Bem-vindo ao sistema!',
         description: 'Acesso autorizado com sucesso.',
       })
-      // Redireciona conforme papel do usuário autenticado:
+      // Se houver um redirecionamento salvo em location.state.from (ex: vindo do escaneamento do QR Code da etiqueta)
+      const fromPath = (location.state as { from?: { pathname?: string; search?: string } })?.from
+      const redirectTarget = fromPath ? `${fromPath.pathname || ''}${fromPath.search || ''}` : null
+
+      // Se não houver redirectTarget específico, redireciona conforme papel:
       // Técnico → /ordens | Admin / Atendente → /dashboard
       const loggedUser = pb.authStore.record as { role?: string } | null
-      const targetRoute = loggedUser?.role === 'technician' ? '/ordens' : '/dashboard'
+      const defaultRoute = loggedUser?.role === 'technician' ? '/ordens' : '/dashboard'
+      const targetRoute =
+        redirectTarget && redirectTarget !== '/login' ? redirectTarget : defaultRoute
       navigate(targetRoute, { replace: true })
     }
   }

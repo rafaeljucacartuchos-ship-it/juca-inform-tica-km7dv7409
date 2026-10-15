@@ -31,6 +31,7 @@ import {
   Loader2,
   Monitor,
   ImageIcon,
+  QrCode,
 } from 'lucide-react'
 import { formatPhone } from '@/lib/phones'
 import { OrcamentoItemModal } from '@/components/OrcamentoItemModal'
@@ -114,7 +115,8 @@ import { NewEquipmentModal } from '@/components/NewEquipmentModal'
 import { EditEquipmentModal } from '@/components/EditEquipmentModal'
 import { TransferTechnicianModal } from '@/components/TransferTechnicianModal'
 import { RescheduleOrderModal } from '@/components/RescheduleOrderModal'
-import { getEquipmentItem } from '@/services/equipment'
+import { getEquipmentItem, getEquipmentByCustomer } from '@/services/equipment'
+import { PrintEquipmentLabelModal } from '@/components/PrintEquipmentLabelModal'
 import { RecordActionsMenu, RecordActionItem } from '@/components/RecordActionsMenu'
 import { useAuth } from '@/hooks/use-auth'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -153,6 +155,8 @@ export default function OrdemDetail() {
   const [editEquipmentModalOpen, setEditEquipmentModalOpen] = useState(false)
   const [editEquipmentTab, setEditEquipmentTab] = useState<'edit' | 'photos'>('edit')
   const [activeEquipmentDetail, setActiveEquipmentDetail] = useState<Equipment | null>(null)
+  const [customerEquipments, setCustomerEquipments] = useState<Equipment[]>([])
+  const [labelModalOpen, setLabelModalOpen] = useState(false)
   const [transferModalOpen, setTransferModalOpen] = useState(false)
   const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false)
   const [confirmDeleteOsOpen, setConfirmDeleteOsOpen] = useState(false)
@@ -316,6 +320,12 @@ export default function OrdemDetail() {
       setEditOsDescription(o.description || '')
       setHistory(h)
       setServiceReport(o.service_report || '')
+
+      if (o.customer) {
+        getEquipmentByCustomer(o.customer)
+          .then(setCustomerEquipments)
+          .catch(() => {})
+      }
 
       // Inicializa estados de equipe e divisão da OS
       setDivisionTech1(o.technician || '')
@@ -1658,6 +1668,12 @@ export default function OrdemDetail() {
             triggerClassName="min-h-[44px] min-w-[44px] h-11 w-11 sm:h-9 sm:w-9 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 shadow-xs rounded-md touch-manipulation"
             items={[
               {
+                key: 'print_label',
+                label: 'Imprimir Etiqueta (Térmica / QR)',
+                icon: QrCode,
+                onClick: () => setLabelModalOpen(true),
+              },
+              {
                 key: 'print',
                 label: 'Imprimir PDF (A4)',
                 icon: Printer,
@@ -2026,11 +2042,24 @@ export default function OrdemDetail() {
                   <div className="flex flex-wrap items-center gap-2 mt-0.5">
                     {order.equipment_ref ||
                     (order.equipment && order.equipment.trim().length > 0) ? (
-                      <p className="font-medium text-slate-900">
-                        {order.equipment ||
-                          order.expand?.equipment_ref?.name ||
-                          'Equipamento vinculado'}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium text-slate-900">
+                          {order.equipment ||
+                            order.expand?.equipment_ref?.name ||
+                            'Equipamento vinculado'}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setLabelModalOpen(true)}
+                          className="h-6 text-[11px] font-medium border-slate-300 text-slate-700 bg-white hover:bg-slate-50 px-2 gap-1 rounded"
+                          title="Imprimir ou reimprimir etiqueta com QR Code para este equipamento"
+                        >
+                          <QrCode className="h-3 w-3 text-indigo-600" />
+                          <span>Etiqueta</span>
+                        </Button>
+                      </div>
                     ) : (
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-amber-600 font-semibold italic text-xs">
@@ -3093,6 +3122,24 @@ export default function OrdemDetail() {
         onOpenChange={setEquipmentModalOpen}
         onCreated={handleEquipmentCreated}
         defaultCustomerId={order.customer}
+      />
+
+      <PrintEquipmentLabelModal
+        open={labelModalOpen}
+        onOpenChange={setLabelModalOpen}
+        order={order}
+        customer={order.expand?.customer}
+        equipmentsList={
+          customerEquipments.length > 0
+            ? customerEquipments
+            : order.expand?.equipment_ref
+              ? [order.expand.equipment_ref]
+              : []
+        }
+        initialEquipment={activeEquipmentDetail || order.expand?.equipment_ref || null}
+        attendanceTypeLabel={order.expand?.attendance_type?.name}
+        technicianName={order.expand?.technician?.name}
+        context={user?.role === 'technician' ? 'external_attendance' : 'detail'}
       />
 
       <EditEquipmentModal

@@ -19,6 +19,7 @@ import {
   Share2,
   ArrowUpDown,
   SlidersHorizontal,
+  QrCode,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -56,6 +57,7 @@ import { NewOrderModal } from '@/components/NewOrderModal'
 import { TransferTechnicianModal } from '@/components/TransferTechnicianModal'
 import { RescheduleOrderModal } from '@/components/RescheduleOrderModal'
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
+import { PrintEquipmentLabelModal } from '@/components/PrintEquipmentLabelModal'
 import { RecordActionsMenu, RecordActionItem } from '@/components/RecordActionsMenu'
 import { useAuth } from '@/hooks/use-auth'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -147,6 +149,8 @@ export default function OrdensDeServico() {
   )
   const [newModalOpen, setNewModalOpen] = useState(false)
   const [deleteOrderTarget, setDeleteOrderTarget] = useState<ServiceOrder | null>(null)
+  const [labelModalOpen, setLabelModalOpen] = useState(false)
+  const [orderToLabel, setOrderToLabel] = useState<ServiceOrder | null>(null)
   const [transferModalOpen, setTransferModalOpen] = useState(false)
   const [orderToTransfer, setOrderToTransfer] = useState<ServiceOrder | null>(null)
   const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false)
@@ -443,6 +447,15 @@ export default function OrdensDeServico() {
       label: 'Abrir O.S.',
       icon: ExternalLink,
       onClick: () => navigate(`/ordens/${o.id}`),
+    },
+    {
+      key: 'label',
+      label: 'Etiqueta (Térmica / QR)',
+      icon: QrCode,
+      onClick: () => {
+        setOrderToLabel(o)
+        setLabelModalOpen(true)
+      },
     },
     {
       key: 'reschedule',
@@ -1575,6 +1588,25 @@ export default function OrdensDeServico() {
         title="Excluir Ordem de Serviço"
         description={`Tem certeza que deseja excluir a ordem #${deleteOrderTarget?.number}? Esta ação não pode ser desfeita e removerá os dados vinculados.`}
       />
+
+      {orderToLabel && (
+        <PrintEquipmentLabelModal
+          open={labelModalOpen}
+          onOpenChange={(isOpen) => {
+            setLabelModalOpen(isOpen)
+            if (!isOpen) setOrderToLabel(null)
+          }}
+          order={orderToLabel}
+          customer={orderToLabel.expand?.customer}
+          equipmentsList={
+            orderToLabel.expand?.equipment_ref ? [orderToLabel.expand.equipment_ref] : []
+          }
+          initialEquipment={orderToLabel.expand?.equipment_ref || null}
+          attendanceTypeLabel={orderToLabel.expand?.attendance_type?.name}
+          technicianName={orderToLabel.expand?.technician?.name}
+          context={user?.role === 'technician' ? 'external_attendance' : 'detail'}
+        />
+      )}
     </div>
   )
 }

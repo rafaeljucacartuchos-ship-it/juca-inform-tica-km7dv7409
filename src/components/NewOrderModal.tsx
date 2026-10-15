@@ -334,23 +334,53 @@ export function NewOrderModal({ open, onOpenChange, onCreated }: NewOrderModalPr
       }
 
       // Prepara os dados para impressão imediata da etiqueta sem sair da tela
+      const createdRecord = created as {
+        data?: Record<string, any>
+        number?: string
+        created?: string
+      }
+      const orderNumber =
+        createdRecord.number ||
+        (createdRecord.data?.number as string | undefined) ||
+        `OS-${created.id.slice(0, 6)}`
+      const orderCreatedDate =
+        createdRecord.created ||
+        (createdRecord.data?.created as string | undefined) ||
+        new Date().toISOString()
+
       const fullCreatedOrder: ServiceOrder = {
-        ...created,
         id: created.id,
-        order_number: (created as any).order_number || `OS-${created.id.slice(0, 6)}`,
-        customer_id: formData.customer,
-        customer_name: selectedDisplayName,
-        equipment_type: eqItem?.type,
-        equipment_brand: eqItem?.brand,
-        equipment_model: eqItem?.model,
-        serial_number: eqItem?.serial_number,
-        attendance_type: formData.attendance_type,
+        number: orderNumber,
+        title: formData.title,
+        description: formData.description,
+        priority: formData.priority,
         status: 'open',
-        created: new Date().toISOString(),
-      } as unknown as ServiceOrder
+        customer: formData.customer,
+        equipment_ref: eqItem?.id || formData.equipment_ref || undefined,
+        equipment: eqItem
+          ? `${eqItem.name || ''} ${eqItem.brand || ''} ${eqItem.model || ''}`.trim()
+          : undefined,
+        attendance_type: formData.attendance_type,
+        attendance_date: formData.attendance_date,
+        attendance_time: formData.attendance_time,
+        technician: formData.technician || undefined,
+        second_technician: secondTechnician || undefined,
+        seller: seller || undefined,
+        division_model: divisionModel,
+        division_details: currentDivisionDetails || undefined,
+        created: orderCreatedDate,
+        updated: orderCreatedDate,
+        expand: {
+          customer: selectedCustomer || undefined,
+          equipment_ref: eqItem || undefined,
+          attendance_type: serviceTypes.find((st) => st.id === formData.attendance_type),
+          technician: technicians.find((t) => t.id === formData.technician),
+        },
+      }
 
       setLastCreatedOrder(fullCreatedOrder)
-      setLastCreatedEquipments(eqItem ? [eqItem] : equipment)
+      // Passa a lista completa de equipamentos do cliente para permitir seleção caso haja mais de um
+      setLastCreatedEquipments(equipment.length > 0 ? equipment : eqItem ? [eqItem] : [])
 
       const balcaoDefault = serviceTypes.find((t) => t.name.trim().toLowerCase() === 'balcão')
       setFormData({

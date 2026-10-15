@@ -25,30 +25,43 @@ export const EquipmentLabelContent: React.FC<EquipmentLabelContentProps> = ({
 }) => {
   const { order, equipment, customer, attendanceTypeLabel, technicianName } = data
 
-  const orderNumber = order.order_number || `OS-${order.id.slice(0, 6)}`
-  const clientName = customer?.name || order.customer_name || 'CLIENTE NÃO IDENTIFICADO'
+  const orderNumber = order.number || `OS-${order.id.slice(0, 6)}`
+  const clientName =
+    customer?.nome_fantasia ||
+    customer?.razao_social ||
+    customer?.name ||
+    order.expand?.customer?.name ||
+    'CLIENTE NÃO IDENTIFICADO'
 
   // Identificação do equipamento
-  const equipType = equipment?.type || order.equipment_type || 'Equipamento'
-  const equipBrand = equipment?.brand || order.equipment_brand || ''
-  const equipModel = equipment?.model || order.equipment_model || ''
-  const equipSerial = equipment?.serial_number || order.serial_number || ''
-  const equipInternalCode = equipment?.internal_id || equipment?.id?.slice(0, 8) || ''
+  const equipType = equipment?.type || order.expand?.equipment_ref?.type || 'Equipamento'
+  const equipBrand = equipment?.brand || order.expand?.equipment_ref?.brand || ''
+  const equipModel = equipment?.model || order.expand?.equipment_ref?.model || ''
+  const equipSerial = equipment?.serial_number || order.expand?.equipment_ref?.serial_number || ''
+  const equipInternalCode = equipment?.id?.slice(0, 8) || ''
 
   const fullEquipmentDesc =
-    [equipType, equipBrand, equipModel].filter(Boolean).join(' ') || 'Equipamento'
+    [equipType, equipBrand, equipModel].filter(Boolean).join(' ') ||
+    order.equipment ||
+    equipment?.name ||
+    'Equipamento'
 
   // Data formatada de entrada / recolhimento
   const formattedDate = useMemo(() => {
-    const rawDate = order.created || order.start_date
+    const rawDate = order.attendance_date || order.created
     if (!rawDate) return ''
     try {
+      // Se for formato YYYY-MM-DD
+      if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+        const [y, m, d] = rawDate.split('-')
+        return `${d}/${m}/${y}`
+      }
       const d = new Date(rawDate)
       return d.toLocaleDateString('pt-BR')
     } catch {
       return ''
     }
-  }, [order.created, order.start_date])
+  }, [order.attendance_date, order.created])
 
   // URL segura para a OS (sem parâmetros confidenciais, apenas direcionamento à OS no sistema)
   const orderUrl = useMemo(() => {
