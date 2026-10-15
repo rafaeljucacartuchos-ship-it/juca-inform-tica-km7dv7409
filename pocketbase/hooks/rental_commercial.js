@@ -611,6 +611,14 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
           included: true,
         })
       }
+      const precoOficialRaw = p.get('preco_oficial')
+      const precoOficial =
+        precoOficialRaw !== null && precoOficialRaw !== undefined ? Number(precoOficialRaw) : null
+      const hasPrecoOficial =
+        typeof precoOficial === 'number' && Number.isFinite(precoOficial) && precoOficial > 0
+
+      const premissas = json(p.get('premissas_precificacao')) || {}
+
       const input = {
         printerId: p.id,
         modelo: p.getString('modelo'),
@@ -629,8 +637,49 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
       if (!calc.valid) {
         throw new Error('CADASTRO')
       }
-      const excess = Math.round((calc.cppVenda + rate) * 1000000) / 1000000
-      const monthly = Math.round((calc.faturamentoTotalMensal + rate * pages) * 100) / 100
+
+      let excess
+      let monthly
+      let margemContratoPct
+
+      if (hasPrecoOficial) {
+        monthly = Math.round(precoOficial * 100) / 100
+
+        // Excedente proporcional com base nas premissas homologadas e taxa de reserva
+        const cppPremissas =
+          typeof premissas.cpp_suprimentos === 'number' &&
+          Number.isFinite(premissas.cpp_suprimentos) &&
+          premissas.cpp_suprimentos > 0
+            ? premissas.cpp_suprimentos
+            : calc.cppSuprimentos
+
+        const markupPremissas =
+          typeof premissas.markup_calculado === 'number' &&
+          Number.isFinite(premissas.markup_calculado) &&
+          premissas.markup_calculado >= 1
+            ? premissas.markup_calculado
+            : typeof calc.markUpAplicado === 'number' && calc.markUpAplicado >= 1
+              ? calc.markUpAplicado
+              : 1.45
+
+        const cppVendaOficial = cppPremissas * markupPremissas
+        excess = Math.round((cppVendaOficial + rate) * 1000000) / 1000000
+
+        const margemRef = p.get('margem_referencia')
+        margemContratoPct =
+          margemRef !== null && margemRef !== undefined && Number.isFinite(Number(margemRef))
+            ? Math.round(Number(margemRef))
+            : premissas.margem_porcentagem !== null &&
+                premissas.margem_porcentagem !== undefined &&
+                Number.isFinite(Number(premissas.margem_porcentagem))
+              ? Math.round(Number(premissas.margem_porcentagem))
+              : Math.round((markupPremissas - 1) * 100)
+      } else {
+        excess = Math.round((calc.cppVenda + rate) * 1000000) / 1000000
+        monthly = Math.round((calc.faturamentoTotalMensal + rate * pages) * 100) / 100
+        margemContratoPct = Math.round((input.markUpRevenda - 1) * 100)
+      }
+
       if (!Number.isFinite(excess) || !Number.isFinite(monthly) || monthly <= 0)
         throw new Error('CADASTRO')
       const commercial = {
@@ -683,15 +732,19 @@ routerAdd('POST', '/backend/v1/rental-commercial', (e) => {
           scanner_dados: body.scanner,
           payback_meses: payback,
           software_printway_mensal: input.valorSoftwarePrintway,
-          margem_pct: Math.round((input.markUpRevenda - 1) * 100),
+          margem_pct: margemContratoPct,
           maquinas_comparadas: [commercial],
           resultados: {
             pricingSnapshot: {
-              regra: 'servidor-planilha-reserva-v3',
+              regra: hasPrecoOficial
+                ? 'servidor-preco-oficial-reserva-v1'
+                : 'servidor-planilha-reserva-v3',
               input,
               reserva_por_pagina: rate,
               reserva_referencia: rates[0].id,
               calculation: calc,
+              precoOficialAplicado: hasPrecoOficial ? monthly : null,
+              premissasOficiais: hasPrecoOficial ? premissas : null,
             },
           },
           token_acesso: $security.randomString(48),
