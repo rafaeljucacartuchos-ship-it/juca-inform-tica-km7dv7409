@@ -378,6 +378,29 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
       )
       .join('')
 
+    // Flag para garantir fechamento único e sem duplicidades
+    let handled = false
+    const closeLabelModal = () => {
+      if (handled) return
+      handled = true
+      onOpenChange(false)
+    }
+
+    try {
+      printWindow.addEventListener('afterprint', closeLabelModal, { once: true })
+    } catch {
+      /* se o navegador restringir acesso direto ao objeto window aberto, o script interno cuidará */
+    }
+
+    // Canal bidirecional via postMessage para navegadores que isolam contextos popup
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'JUCA_AFTER_PRINT') {
+        window.removeEventListener('message', onMessage)
+        closeLabelModal()
+      }
+    }
+    window.addEventListener('message', onMessage)
+
     printWindow.document.write(`
       <!DOCTYPE html>
       <html lang="pt-BR">
@@ -497,12 +520,32 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
         </div>
         ${copiesHtml}
         <script>
-          window.onload = function() {
-            setTimeout(function() {
-              window.focus();
-              window.print();
-            }, 350);
-          };
+          (function() {
+            var finished = false;
+            function notifyParentAndClose() {
+              if (finished) return;
+              finished = true;
+              try {
+                if (window.opener && !window.opener.closed) {
+                  window.opener.postMessage({ type: 'JUCA_AFTER_PRINT' }, '*');
+                }
+              } catch { /* intentionally ignored */ }
+              try {
+                window.close();
+              } catch { /* intentionally ignored */ }
+            }
+
+            window.addEventListener('afterprint', function() {
+              setTimeout(notifyParentAndClose, 100);
+            }, { once: true });
+
+            window.onload = function() {
+              setTimeout(function() {
+                window.focus();
+                window.print();
+              }, 350);
+            };
+          })();
         </script>
       </body>
       </html>
