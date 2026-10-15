@@ -335,6 +335,12 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
     const copiesCount = Math.max(1, copies || 1)
     const copiesArray = Array.from({ length: copiesCount })
 
+    // REGRA 40 × 40 MM (etiqueta quadrada): NENHUMA rotação/orientação automática é aplicada.
+    // Em página quadrada o keyword "landscape" no @page faz o Chrome/driver girarem o conteúdo
+    // em 90° (conteúdo deitado e deslocado). Aqui a orientação é FORÇADA para retrato explícito.
+    const isSquare40x40 = Math.abs(widthMm - 40) <= 0.5 && Math.abs(heightMm - 40) <= 0.5
+    const pageOrientationKeyword = isSquare40x40 ? 'portrait' : orientation
+
     // Conteúdo HTML da etiqueta estilizada
     const labelHtml = printAreaRef.current?.innerHTML || ''
     const copiesHtml = copiesArray
@@ -354,10 +360,18 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
         <meta charset="utf-8" />
         <title>Etiqueta OS ${order.number || order.id.slice(0, 6)} - JUCA INFORMÁTICA</title>
         <style>
-          /* REQUISITO UNIVERSAL: Impressão milimétrica direta para Zebra, Argox, Elgin, Brother, TSC, Datamax e genéricas */
+          /* REQUISITO UNIVERSAL: Impressão milimétrica direta para Zebra, Argox, Elgin, Brother, TSC, Datamax e genéricas.
+             A orientação da página fica EXPLICITAMENTE fixada (retrato) para o tamanho 40 × 40 mm:
+             em etiqueta quadrada o keyword "landscape" faz navegador/driver girarem o conteúdo em 90°. */
           @page {
-            size: ${widthMm}mm ${heightMm}mm ${orientation};
+            size: ${widthMm}mm ${heightMm}mm ${pageOrientationKeyword};
             margin: 0 !important;
+          }
+          @media print {
+            @page {
+              size: ${widthMm}mm ${heightMm}mm ${pageOrientationKeyword};
+              margin: 0 !important;
+            }
           }
           * {
             box-sizing: border-box !important;
@@ -374,13 +388,13 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
             -webkit-font-smoothing: antialiased;
             text-rendering: geometricPrecision;
+            /* ANTI-PÁGINA-EM-BRANCO: nada pode transbordar e criar uma folha extra */
+            height: auto !important;
+            overflow: hidden !important;
           }
           .thermal-label-sheet {
             width: ${widthMm}mm !important;
             height: ${heightMm}mm !important;
-            page-break-after: always;
-            page-break-inside: avoid;
-            break-after: page;
             display: flex;
             align-items: stretch;
             justify-content: stretch;
@@ -388,6 +402,26 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
             padding: 0 !important;
             overflow: hidden;
             background: #ffffff;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          /* A ÚLTIMA cópia NÃO recebe quebra de página — quebra após a última etiqueta é o que
+             gerava a etiqueta/página EM BRANCO EXTRA antes/imediatamente após o conteúdo. */
+          .thermal-label-sheet:last-child {
+            page-break-after: auto !important;
+            break-after: auto !important;
+          }
+          .thermal-label-sheet:not(:last-child) {
+            page-break-after: always !important;
+            break-after: page !important;
+          }
+          /* Sem bordas/sombras na impressão: qualquer pixel extra fora dos mm da etiqueta vira página em branco */
+          @media print {
+            .thermal-label-sheet {
+              border: none !important;
+              box-shadow: none !important;
+              border-radius: 0 !important;
+            }
           }
           /* Garante alto contraste térmico e sem sombras */
           svg {
@@ -453,9 +487,12 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
 
   // Gerar PDF / Exportar milimetricamente
   const handleDownloadPDF = () => {
+    const is40x40 = Math.abs(config.widthMm - 40) <= 0.5 && Math.abs(config.heightMm - 40) <= 0.5
     toast({
       title: 'Gerando PDF com dimensões exatas',
-      description: `Na janela aberta, escolha "Salvar como PDF" com tamanho ${config.widthMm} × ${config.heightMm} mm e margens "Nenhuma".`,
+      description: `Na janela aberta, escolha "Salvar como PDF" com tamanho ${config.widthMm} × ${config.heightMm} mm, margens "Nenhuma" e orientação ${
+        is40x40 ? 'RETRATO (fixa — etiqueta quadrada, sem rotação)' : 'igual à configurada'
+      }.`,
     })
     handlePrint()
   }
@@ -828,24 +865,33 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
 
                 <div className="space-y-1">
                   <Label className="text-xs">Orientação</Label>
-                  <Select
-                    value={config.orientation}
-                    onValueChange={(val: 'landscape' | 'portrait') =>
-                      setConfig((prev) => ({ ...prev, orientation: val }))
-                    }
-                  >
-                    <SelectTrigger className="h-8 text-xs bg-white dark:bg-slate-900">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="landscape" className="text-xs">
-                        Paisagem (Horizontal)
-                      </SelectItem>
-                      <SelectItem value="portrait" className="text-xs">
-                        Retrato (Vertical)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {Math.abs(config.widthMm - 40) <= 0.5 && Math.abs(config.heightMm - 40) <= 0.5 ? (
+                    <div
+                      className="h-8 flex items-center px-2 rounded-md border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-[11px] font-semibold text-emerald-800 dark:text-emerald-300"
+                      title="Etiqueta quadrada 40 × 40 mm: a orientação é sempre retrato (sem rotação de 90°)."
+                    >
+                      Retrato (fixo — quadrada)
+                    </div>
+                  ) : (
+                    <Select
+                      value={config.orientation}
+                      onValueChange={(val: 'landscape' | 'portrait') =>
+                        setConfig((prev) => ({ ...prev, orientation: val }))
+                      }
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-white dark:bg-slate-900">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="landscape" className="text-xs">
+                          Paisagem (Horizontal)
+                        </SelectItem>
+                        <SelectItem value="portrait" className="text-xs">
+                          Retrato (Vertical)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
               </div>
             </div>

@@ -160,7 +160,11 @@ export const EquipmentLabelContent: React.FC<EquipmentLabelContentProps> = ({
     lineHeight: 1.15,
     overflow: 'hidden',
     position: 'relative',
-    pageBreakAfter: 'always',
+    // ANTI-ETIQUETA-EM-BRANCO: a quebra de página é controlada pelo contêiner .thermal-label-sheet
+    // na janela de impressão. Um "page-break-after: always" aqui gerava uma etiqueta/página vazia
+    // extra antes do conteúdo em impressoras térmicas.
+    pageBreakAfter: 'auto',
+    pageBreakBefore: 'auto',
     pageBreakInside: 'avoid',
     WebkitPrintColorAdjust: 'exact',
     printColorAdjust: 'exact',
