@@ -15,6 +15,13 @@ export interface LabelPreset {
 
 export const PRESET_LABEL_SIZES: LabelPreset[] = [
   {
+    id: '40x40',
+    name: '40 × 40 mm',
+    widthMm: 40,
+    heightMm: 40,
+    description: 'Térmica quadrada (Nome do cliente + QR Code OS centralizado)',
+  },
+  {
     id: '40x30',
     name: '40 × 30 mm',
     widthMm: 40,

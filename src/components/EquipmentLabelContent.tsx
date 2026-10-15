@@ -72,7 +72,28 @@ export const EquipmentLabelContent: React.FC<EquipmentLabelContentProps> = ({
   // Fator de escala fina configurado pelo operador (padrão 100% = 1.0)
   const scale = (config.scalePercent || 100) / 100
 
-  // SVG do QR Code de alto contraste (módulo preto nítido sobre fundo branco)
+  // Detecta se é o formato especial 40 × 40 mm (largura 40mm e altura 40mm com tolerância de 0.5mm)
+  const is40x40 = Math.abs(config.widthMm - 40) <= 0.5 && Math.abs(config.heightMm - 40) <= 0.5
+
+  // QR Code específico para o modelo 40x40 mm (dimensão equilibrada, quietZone segura de 2 módulos)
+  const qrSvg40x40 = useMemo(() => {
+    if (!is40x40) return null
+    try {
+      const matrix = generateQrMatrix(orderUrl)
+      // No modelo 40x40 mm: largura útil ~ 36mm (com margens padrão 2mm de cada lado).
+      // Altura disponível após cliente (~8mm) é ~28mm.
+      // 25mm a ~3.78 px/mm (96 DPI) = ~95px; multiplicando por scale (padrão 100% = 1.0)
+      const basePx = 92
+      const sizePx = Math.max(60, Math.min(130, Math.round(basePx * scale)))
+      // quietZone = 2 garante margem branca ao redor para facilitar leitura imediata por celulares
+      return qrMatrixToSvg(matrix, sizePx, 2)
+    } catch (err) {
+      console.error('Erro ao gerar QR Code 40x40:', err)
+      return null
+    }
+  }, [is40x40, orderUrl, scale])
+
+  // SVG do QR Code de alto contraste para os demais modelos
   const qrSvg = useMemo(() => {
     if (config.codeType === 'barcode') return null
     try {
@@ -145,6 +166,81 @@ export const EquipmentLabelContent: React.FC<EquipmentLabelContentProps> = ({
     printColorAdjust: 'exact',
   }
 
+  // LAYOUT ESPECÍFICO 40 × 40 MM (Solicitação expressa do usuário / JUCA INFORMÁTICA):
+  // Apresentar exclusivamente:
+  // 1. Nome do cliente na parte superior, centralizado horizontalmente (até 2 linhas, sem corte).
+  // 2. QR Code centralizado horizontalmente e verticalmente no espaço disponível, direcionando à OS.
+  // Nenhum outro elemento (sem OS, sem nome da empresa, sem modelo, sem data, sem rodapés).
+  if (is40x40) {
+    const clientNameFontSize = `${(8.5 * scale).toFixed(1)}pt`
+
+    return (
+      <div
+        className={`equipment-label-printable thermal-high-contrast thermal-40x40 ${isPrintMode ? 'print-direct' : ''}`}
+        style={{
+          ...containerStyle,
+          justifyContent: 'flex-start',
+          alignItems: 'center',
+        }}
+      >
+        {/* NOME DO CLIENTE: SUPERIOR E CENTRALIZADO HORIZONTALMENTE */}
+        <div
+          style={{
+            width: '100%',
+            textAlign: 'center',
+            fontSize: clientNameFontSize,
+            fontWeight: 800,
+            lineHeight: 1.15,
+            color: '#000000',
+            textTransform: 'uppercase',
+            letterSpacing: '0.01em',
+            wordBreak: 'break-word',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            paddingLeft: '0.5mm',
+            paddingRight: '0.5mm',
+            boxSizing: 'border-box',
+            flexShrink: 0,
+            marginBottom: `${(1.0 * scale).toFixed(2)}mm`,
+          }}
+          title={clientName}
+        >
+          {clientName}
+        </div>
+
+        {/* QR CODE: CENTRALIZADO HORIZONTALMENTE E EQUILIBRADO NO CENTRO DA ÁREA RESTANTE */}
+        <div
+          style={{
+            width: '100%',
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: 0,
+            overflow: 'hidden',
+          }}
+        >
+          {qrSvg40x40 && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto',
+                backgroundColor: '#ffffff',
+              }}
+              dangerouslySetInnerHTML={{ __html: qrSvg40x40 }}
+            />
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // DEMAIS MODELOS DE ETIQUETA (40x30, 50x30, 60x40, 100x50, personalizados, etc.) PRESERVADOS INTEGRALMENTE
   return (
     <div
       className={`equipment-label-printable thermal-high-contrast ${isPrintMode ? 'print-direct' : ''}`}

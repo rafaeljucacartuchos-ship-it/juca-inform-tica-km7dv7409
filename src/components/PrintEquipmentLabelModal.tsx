@@ -357,7 +357,7 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
           /* REQUISITO UNIVERSAL: Impressão milimétrica direta para Zebra, Argox, Elgin, Brother, TSC, Datamax e genéricas */
           @page {
             size: ${widthMm}mm ${heightMm}mm ${orientation};
-            margin: 0mm !important;
+            margin: 0 !important;
           }
           * {
             box-sizing: border-box !important;
@@ -368,6 +368,7 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
           html, body {
             margin: 0 !important;
             padding: 0 !important;
+            width: ${widthMm}mm !important;
             background: #ffffff !important;
             color: #000000 !important;
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
@@ -375,8 +376,8 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
             text-rendering: geometricPrecision;
           }
           .thermal-label-sheet {
-            width: ${widthMm}mm;
-            height: ${heightMm}mm;
+            width: ${widthMm}mm !important;
+            height: ${heightMm}mm !important;
             page-break-after: always;
             page-break-inside: avoid;
             break-after: page;
@@ -432,7 +433,7 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
         <div class="screen-hint">
           <strong>Preparando impressão térmica universal...</strong>
           <p style="margin: 4px 0 0; font-size: 11px; color: #64748b;">
-            No diálogo de impressão: selecione a sua impressora térmica (ou "Salvar como PDF"), defina as margens como <strong>Nenhuma</strong> e a escala como <strong>Padrão (100%)</strong>.
+            No diálogo de impressão: selecione a sua impressora térmica (ou "Salvar como PDF"), defina as margens como <strong>Nenhuma</strong> e a escala como <strong>Padrão (100%)</strong> (desmarque "Ajustar à página" / "Fit to page" para evitar deslocamento).
           </p>
         </div>
         ${copiesHtml}
@@ -575,6 +576,14 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
               <div className="text-xs text-muted-foreground text-center flex items-center gap-2">
                 <span>Visualização em escala real com as dimensões configuradas:</span>
               </div>
+
+              {/* ALERTA INFORMATIVO CASO O TAMANHO SEJA 40x40 MM */}
+              {Math.abs(config.widthMm - 40) <= 0.5 && Math.abs(config.heightMm - 40) <= 0.5 && (
+                <div className="w-full max-w-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-lg p-2.5 text-xs text-emerald-900 dark:text-emerald-200 text-center">
+                  <strong>Layout Simplificado 40 × 40 mm Ativo:</strong> Exibição exclusiva do Nome
+                  do Cliente e QR Code centralizado da OS.
+                </div>
+              )}
 
               {/* MOLDURA DE VISUALIZAÇÃO COM SOMBRA E BORDA SIMULANDO A ETIQUETA ADESIVA */}
               <div className="p-4 bg-white dark:bg-neutral-900 border border-slate-300 dark:border-neutral-700 rounded-lg shadow-md flex items-center justify-center max-w-full overflow-auto">
@@ -1121,7 +1130,8 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
                 <p>
                   ✓ <strong>No diálogo de impressão do navegador:</strong> configure{' '}
                   <em>Margens</em> como <strong>Nenhuma</strong> (ou <em>Personalizada: 0</em>) e{' '}
-                  <em>Ajustar à página / Escala</em> como <strong>Padrão (100%)</strong>.
+                  <em>Ajustar à página / Escala</em> como <strong>Padrão (100%)</strong>. Desmarque
+                  opções como "Ajustar à área de impressão" que provocam deslocamentos assimétricos.
                 </p>
                 <p>
                   ✓ <strong>Nas propriedades do driver da impressora térmica:</strong> certifique-se
