@@ -2085,6 +2085,17 @@ export default function OrdemDetail() {
                             <span>Vincular / Cadastrar</span>
                           </Button>
                         )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setLabelModalOpen(true)}
+                          className="h-6 text-[11px] font-medium border-slate-300 text-slate-700 bg-white hover:bg-slate-50 px-2 gap-1 rounded"
+                          title="Imprimir etiqueta com QR Code para esta O.S."
+                        >
+                          <QrCode className="h-3 w-3 text-indigo-600" />
+                          <span>Etiqueta</span>
+                        </Button>
                       </div>
                     )}
                   </div>

@@ -40,11 +40,22 @@ export const EquipmentLabelContent: React.FC<EquipmentLabelContentProps> = ({
   const equipSerial = equipment?.serial_number || order.expand?.equipment_ref?.serial_number || ''
   const equipInternalCode = equipment?.id?.slice(0, 8) || ''
 
-  const fullEquipmentDesc =
-    [equipType, equipBrand, equipModel].filter(Boolean).join(' ') ||
-    order.equipment ||
+  const hasEquipment = Boolean(
     equipment?.name ||
-    'Equipamento'
+    equipment?.type ||
+    equipment?.brand ||
+    equipment?.model ||
+    order.equipment_ref ||
+    order.expand?.equipment_ref?.name ||
+    (order.equipment && order.equipment.trim().length > 0),
+  )
+
+  const fullEquipmentDesc = hasEquipment
+    ? [equipType, equipBrand, equipModel].filter(Boolean).join(' ') ||
+      order.equipment ||
+      equipment?.name ||
+      'Equipamento'
+    : ''
 
   // Data formatada de entrada / recolhimento
   const formattedDate = useMemo(() => {
@@ -369,20 +380,22 @@ export const EquipmentLabelContent: React.FC<EquipmentLabelContentProps> = ({
             {clientName}
           </div>
 
-          {/* EQUIPAMENTO (Tipo, Marca, Modelo) */}
-          <div
-            style={{
-              fontSize: equipFontSize,
-              fontWeight: 700,
-              color: '#000000',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-            title={fullEquipmentDesc}
-          >
-            {fullEquipmentDesc}
-          </div>
+          {/* EQUIPAMENTO (Tipo, Marca, Modelo) — renderizado somente se houver equipamento vinculado */}
+          {hasEquipment && fullEquipmentDesc ? (
+            <div
+              style={{
+                fontSize: equipFontSize,
+                fontWeight: 700,
+                color: '#000000',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+              title={fullEquipmentDesc}
+            >
+              {fullEquipmentDesc}
+            </div>
+          ) : null}
 
           {/* DADOS OPCIONAIS (N/S, Cód. Interno, Técnico) */}
           <div
