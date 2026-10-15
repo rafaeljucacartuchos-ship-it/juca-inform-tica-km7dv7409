@@ -256,6 +256,26 @@ export function SimplifiedPrinterPricingPanel({
     }
   }, [precoFinalValido, precoFinalNum, custoTotalMensal])
 
+  // 8. Prazo do contrato considerado para a projeção acumulada (usa prazo definido no modelo ou 12 meses)
+  const mesesContratoProjecao = prazoMeses > 0 ? prazoMeses : 12
+
+  // 9. Projeção acumulada do contrato (ex: 12 meses):
+  // - Total pago pelo cliente (preço final × meses)
+  // - Total de custo do contrato (custo mensal consolidado × meses)
+  // - Total de lucro estimado do contrato (lucro mensal estimado × meses)
+  const projecaoContrato = useMemo(() => {
+    const totalCliente = precoFinalValido ? precoFinalNum * mesesContratoProjecao : null
+    const totalCusto = custoTotalMensal > 0 ? custoTotalMensal * mesesContratoProjecao : 0
+    const totalLucro = lucroEstimado !== null ? lucroEstimado * mesesContratoProjecao : null
+
+    return {
+      meses: mesesContratoProjecao,
+      totalCliente,
+      totalCusto,
+      totalLucro,
+    }
+  }, [precoFinalValido, precoFinalNum, custoTotalMensal, lucroEstimado, mesesContratoProjecao])
+
   // Formatação de moeda BRL
   const moeda = (val: number | null | undefined) => {
     if (val === null || val === undefined || isNaN(val)) return '—'
@@ -543,6 +563,84 @@ export function SimplifiedPrinterPricingPanel({
                     {markupCalculado !== null ? `${markupCalculado.toFixed(2)}x` : '—'}
                   </strong>
                 </span>
+              </div>
+            </div>
+          </div>
+
+          {/* BLOCO COMPACTO: PROJEÇÃO TOTAL DO CONTRATO (12 MESES) */}
+          <div className="bg-slate-50/90 border border-slate-200 rounded-xl p-3 sm:p-4 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-200/70 pb-2">
+              <div className="flex items-center gap-1.5">
+                <TrendingUp className="h-4 w-4 text-indigo-600" />
+                <span className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                  Projeção do Contrato ({projecaoContrato.meses} meses)
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-500">
+                Recalculado ao vivo · Base: {projecaoContrato.meses} parcelas mensais
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              {/* TOTAL DO CONTRATO (CLIENTE PAGA) */}
+              <div className="bg-white rounded-lg border border-slate-200 p-2.5 sm:p-3 space-y-0.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block">
+                  Total do Contrato ({projecaoContrato.meses} meses)
+                </span>
+                <div className="text-lg sm:text-xl font-black font-mono text-indigo-950">
+                  {projecaoContrato.totalCliente !== null
+                    ? moeda(projecaoContrato.totalCliente)
+                    : '—'}
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  {precoFinalValido
+                    ? `${moeda(precoFinalNum)}/mês × ${projecaoContrato.meses} meses`
+                    : 'Aguardando preço final'}
+                </p>
+              </div>
+
+              {/* TOTAL DE CUSTO DO CONTRATO */}
+              <div className="bg-white rounded-lg border border-slate-200 p-2.5 sm:p-3 space-y-0.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block">
+                  Total de Custo ({projecaoContrato.meses} meses)
+                </span>
+                <div className="text-lg sm:text-xl font-black font-mono text-slate-800">
+                  {moeda(projecaoContrato.totalCusto)}
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  {moeda(custoTotalMensal)}/mês × {projecaoContrato.meses} meses
+                </p>
+              </div>
+
+              {/* TOTAL DE LUCRO ESTIMADO DO CONTRATO */}
+              <div
+                className={`rounded-lg border p-2.5 sm:p-3 space-y-0.5 ${
+                  statusResultado === 'prejuizo'
+                    ? 'bg-rose-50/50 border-rose-200'
+                    : statusResultado === 'lucro'
+                      ? 'bg-emerald-50/50 border-emerald-200'
+                      : 'bg-white border-slate-200'
+                }`}
+              >
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 block">
+                  Total de Lucro Estimado ({projecaoContrato.meses} meses)
+                </span>
+                <div
+                  className={`text-lg sm:text-xl font-black font-mono ${
+                    statusResultado === 'prejuizo'
+                      ? 'text-rose-700'
+                      : statusResultado === 'lucro'
+                        ? 'text-emerald-700'
+                        : 'text-slate-700'
+                  }`}
+                >
+                  {projecaoContrato.totalLucro !== null ? moeda(projecaoContrato.totalLucro) : '—'}
+                </div>
+                <p className="text-[10px] text-slate-500">
+                  {lucroEstimado !== null
+                    ? `${moeda(lucroEstimado)}/mês × ${projecaoContrato.meses} meses`
+                    : 'Aguardando preço e custos'}
+                </p>
               </div>
             </div>
           </div>
