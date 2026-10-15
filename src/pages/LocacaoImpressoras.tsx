@@ -12,6 +12,7 @@ import { validateContractPhotos, type RentalContractPhoto } from '@/lib/rental-c
 import {
   Printer,
   Calculator,
+  DollarSign,
   FileText,
   FileSignature,
   Layers,
@@ -31,6 +32,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ModernRentalSimulator } from '@/components/pricing/ModernRentalSimulator'
+import { SimplifiedPrinterPricingPanel } from '@/components/pricing/SimplifiedPrinterPricingPanel'
+import { UnsavedChangesGuard } from '@/components/pricing/UnsavedChangesGuard'
 import { RentalProposalPrintView } from '@/components/RentalProposalPrintView'
 import { RentalContractPrintView } from '@/components/RentalContractPrintView'
 import { RentalContractsList } from '@/components/RentalContractsList'
@@ -108,9 +111,12 @@ export default function LocacaoImpressoras() {
   // Permissões: Admin bypass total; edição restrita a gerência/admin
   const canEditPricing = isAdmin || hasPermission('precificacao')
 
-  // Aba ativa simplificada: 'simulador' | 'proposta' | 'propostas_lista' | 'contrato' | 'contratos_lista'
+  // Aba ativa simplificada: 'precificar' | 'simulador' | 'proposta' | 'propostas_lista' | 'contrato' | 'contratos_lista'
   // Suprimentos, Impressoras e Parâmetros & Auditoria agora ficam em cascata dentro do Simulador
   const [activeTab, setActiveTab] = useState<string>('simulador')
+
+  // Modelo selecionado na tela simplificada de precificação (administrador)
+  const [pricingPrinter, setPricingPrinter] = useState<ImpressoraRecord | null>(null)
   const [simulatorCascadeSection, setSimulatorCascadeSection] = useState<string>('')
 
   // Proposta ativa no visualizador
@@ -504,6 +510,7 @@ export default function LocacaoImpressoras() {
           {deepLinkError}
         </p>
       )}
+      {/* AVISO DE ALTERAÇÕES NÃO SALVAS NO NAVEGADOR (impede perda acidental ao trocar de aba) */}
       {/* CABEÇALHO DO MÓDULO */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm print:hidden">
         <div className="flex items-center gap-3">
@@ -541,6 +548,9 @@ export default function LocacaoImpressoras() {
         </div>
       </div>
 
+      {/* GUARDA DE ALTERAÇÕES NÃO SALVAS (antes de recarregar/sair da página) */}
+      <UnsavedChangesGuard dirty={false} />
+
       {/* TABS PRINCIPAIS DO MÓDULO (SIMPLIFICADAS PARA LIBERAR ESPAÇO) */}
       <Tabs
         value={activeTab}
@@ -550,6 +560,15 @@ export default function LocacaoImpressoras() {
         className="space-y-4"
       >
         <TabsList className="bg-slate-100 p-1 rounded-xl flex flex-wrap gap-1 max-w-full print:hidden">
+          {isAdmin && (
+            <TabsTrigger
+              value="precificar"
+              className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm gap-1.5"
+            >
+              <DollarSign className="h-3.5 w-3.5" />
+              <span>Precificar Modelo</span>
+            </TabsTrigger>
+          )}
           <TabsTrigger
             value="simulador"
             className="text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm gap-1.5"
@@ -592,6 +611,27 @@ export default function LocacaoImpressoras() {
             <span>Contratos ({contractsList.length})</span>
           </TabsTrigger>
         </TabsList>
+
+        {/* 0. TELA SIMPLIFICADA DE PRECIFICAÇÃO POR MODELO — SOMENTE ADMINISTRADOR */}
+        <TabsContent value="precificar">
+          {isAdmin ? (
+            <SimplifiedPrinterPricingPanel
+              printers={printersList}
+              supplies={suppliesList}
+              parametros={parametros}
+              selectedPrinter={pricingPrinter}
+              onSelectPrinter={setPricingPrinter}
+              onPricingSaved={loadPricingData}
+            />
+          ) : (
+            <div className="p-8 text-center bg-white rounded-xl border border-slate-200">
+              <p className="text-xs text-slate-500">
+                Apenas administradores podem definir a precificação dos modelos. Use o Simulador
+                Comercial para simular valores com os preços oficiais já homologados.
+              </p>
+            </div>
+          )}
+        </TabsContent>
 
         {/* 1. SIMULADOR COM MOTOR PRECISO E OPÇÕES DE CONSULTA EM CASCATA */}
         <TabsContent value="simulador">

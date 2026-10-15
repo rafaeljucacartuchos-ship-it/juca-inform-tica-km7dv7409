@@ -88,6 +88,21 @@ export interface ImpressoraRecord {
   custo_mensal_software?: number | null
   preco_oficial?: number | null
   margem_referencia?: number | null
+  premissas_precificacao?: {
+    custo_total_mensal?: number
+    custo_equipamento_mensal?: number
+    custo_suprimentos_mensal?: number
+    custo_software_mensal?: number
+    franquia_paginas?: number
+    prazo_meses?: number
+    markup_calculado?: number
+    lucro_estimado_reais?: number
+    margem_porcentagem?: number
+    data_precificacao?: string
+    usuario_responsavel?: string
+    versao_registro?: string
+    [key: string]: any
+  } | null
   suprimento_1?: string | null
   suprimento_2?: string | null
   suprimento_3?: string | null
@@ -642,24 +657,74 @@ export async function saveOfficialPricing(params: {
   printerId: string
   newPrice: number
   newMargin: number
+  premissas?: Record<string, any>
+  updatedCustos?: {
+    valor_compra?: number | null
+    custo_mensal_software?: number | null
+    vida_util_meses?: number
+  }
   oldRecord?: ImpressoraRecord | null
+  expectedUpdatedAt?: string
   usuarioNome?: string
 }): Promise<ImpressoraRecord> {
-  const { printerId, newPrice, newMargin, oldRecord, usuarioNome } = params
-  const current = oldRecord || (await getImpressoraById(printerId))
+  const {
+    printerId,
+    newPrice,
+    newMargin,
+    premissas,
+    updatedCustos,
+    oldRecord,
+    expectedUpdatedAt,
+    usuarioNome,
+  } = params
+
+  // Busca o registro mais recente do banco para proteger concorrência
+  const latest = await getImpressoraById(printerId)
+  if (!latest) {
+    throw new Error('Equipamento não encontrado.')
+  }
+
+  // Verificação de concorrência otimista (se expectedUpdatedAt foi fornecido)
+  if (expectedUpdatedAt && latest.updated && latest.updated !== expectedUpdatedAt) {
+    throw new Error(
+      'Este modelo foi modificado por outro usuário enquanto você editava. Os dados foram atualizados para evitar sobrescrever as alterações.',
+    )
+  }
+
   const user =
     usuarioNome ||
     (pb.authStore.model as any)?.name ||
     (pb.authStore.model as any)?.username ||
     'Administrador'
 
-  const oldPrice = current?.preco_oficial ?? null
-  const oldMargin = current?.margem_referencia ?? null
+  const oldPrice = latest.preco_oficial ?? null
+  const oldMargin = latest.margem_referencia ?? null
 
-  const updated = await pb.collection('impressoras').update<ImpressoraRecord>(printerId, {
+  const payload: Partial<ImpressoraRecord> = {
     preco_oficial: newPrice,
     margem_referencia: newMargin,
-  })
+    premissas_precificacao: {
+      ...(premissas || {}),
+      data_precificacao: new Date().toISOString(),
+      usuario_responsavel: user,
+      versao_registro: latest.updated,
+    },
+  }
+
+  // Se o usuário revisou e editou custos da impressora (compra, software printway, vida útil)
+  if (updatedCustos) {
+    if (updatedCustos.valor_compra !== undefined) {
+      payload.valor_compra = updatedCustos.valor_compra
+    }
+    if (updatedCustos.custo_mensal_software !== undefined) {
+      payload.custo_mensal_software = updatedCustos.custo_mensal_software
+    }
+    if (updatedCustos.vida_util_meses !== undefined) {
+      payload.vida_util_meses = updatedCustos.vida_util_meses
+    }
+  }
+
+  const updated = await pb.collection('impressoras').update<ImpressoraRecord>(printerId, payload)
 
   // Registra na auditoria_precos
   await logPriceAudit({
@@ -679,6 +744,19 @@ export async function saveOfficialPricing(params: {
     valorNovo: `${Number(newMargin).toFixed(2)}%`,
     usuario: user,
   })
+
+  if (premissas) {
+    await logPriceAudit({
+      tabela: 'impressoras',
+      idRegistro: printerId,
+      campo: 'premissas_precificacao',
+      valorAntigo: latest.premissas_precificacao
+        ? JSON.stringify(latest.premissas_precificacao)
+        : null,
+      valorNovo: JSON.stringify(payload.premissas_precificacao),
+      usuario: user,
+    })
+  }
 
   return updated
 }
