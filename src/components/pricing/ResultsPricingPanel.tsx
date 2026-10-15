@@ -775,39 +775,45 @@ function AdminRentalProfit({
         <h4 className="font-bold">Com a mensalidade atual</h4>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <p className="text-sm">Cliente paga por mês</p>
+            <p className="text-sm">Valor mensal pago pelo cliente</p>
             <strong className="text-xl">
               {validoFinal ? moeda(calculation.faturamentoTotalMensal) : 'Complete a precificação'}
             </strong>
-          </div>
-          <div>
-            <p className="text-sm">Custos e reserva por mês</p>
-            <strong className="text-xl">
-              {resultadoCompleto ? moeda(custoTotal / contratoMeses) : 'Pendente'}
-            </strong>
             <p className="text-xs">
-              Inclui impostos e{' '}
-              {origem === 'parque' ? 'reserva por página' : 'compra e reserva por página'}.
+              Valor previsto a ser pago mensalmente pelo cliente conforme as condições da locação.
             </p>
           </div>
           <div>
-            <p className="text-sm">Resultado antes da reserva por mês</p>
+            <p className="text-sm">Lucro estimado antes da reserva para despesas futuras</p>
             <strong className="text-xl">
               {resultadoCompleto ? moeda(sobraCaixa / contratoMeses) : 'Pendente'}
             </strong>
-            <p className="text-xs">Previsão após pagamentos; não é saldo bancário.</p>
+            <p className="text-xs">
+              Previsão mensal após custos diretos; estimativa de gestão, não representa saldo
+              bancário imediato.
+            </p>
           </div>
           <div>
-            <p className="text-sm">
-              {origem === 'parque'
-                ? 'Resultado após reserva por mês'
-                : 'Retorno após compra e reserva por mês'}
+            <p className="text-sm">Reserva mensal prevista</p>
+            <strong className="text-xl">
+              {resultadoCompleto ? moeda(reservaPagina * producaoMensal) : 'Pendente'}
+            </strong>
+            <p className="text-xs">
+              Parcela mensal considerada no planejamento para futuras despesas operacionais (não é
+              depósito retido).
             </p>
+          </div>
+          <div>
+            <p className="text-sm">Lucro final estimado da locação</p>
             <strong
               className={resultado < 0 ? 'text-2xl text-red-700' : 'text-2xl text-emerald-800'}
             >
               {resultadoCompleto ? moeda(resultado / contratoMeses) : 'Pendente'}
             </strong>
+            <p className="text-xs">
+              Resultado mensal estimado após considerar os custos e a provisão da reserva para o
+              período.
+            </p>
           </div>
         </div>
         {resultadoCompleto && (
@@ -824,20 +830,43 @@ function AdminRentalProfit({
       </section>
       <section aria-label="Resultado total do contrato" className="rounded-lg border p-4">
         <h4 className="font-bold">No contrato inteiro — {contratoMeses} meses</h4>
-        <div className="grid gap-3 sm:grid-cols-3 mt-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mt-3">
           <div>
-            <p className="text-sm">Receita total</p>
-            <strong>{validoFinal ? moeda(receita) : 'Pendente'}</strong>
-          </div>
-          <div>
-            <p className="text-sm">Resultado antes da reserva</p>
-            <strong>{resultadoCompleto ? moeda(sobraCaixa) : 'Pendente'}</strong>
-          </div>
-          <div>
-            <p className="text-sm">
-              {origem === 'parque' ? 'Resultado após reserva' : 'Retorno após compra e reserva'}
+            <p className="text-sm">Valor total que o cliente pagará durante o contrato</p>
+            <strong className="text-xl">{validoFinal ? moeda(receita) : 'Pendente'}</strong>
+            <p className="text-xs">
+              Receita total prevista com os pagamentos do cliente durante todo o período de locação.
             </p>
-            <strong>{resultadoCompleto ? moeda(resultado) : 'Pendente'}</strong>
+          </div>
+          <div>
+            <p className="text-sm">Lucro estimado antes da reserva para despesas futuras</p>
+            <strong className="text-xl">
+              {resultadoCompleto ? moeda(sobraCaixa) : 'Pendente'}
+            </strong>
+            <p className="text-xs">
+              Valor previsto após descontar os custos considerados durante o contrato, antes de
+              separar a reserva para despesas futuras.
+            </p>
+          </div>
+          <div>
+            <p className="text-sm">Reserva total prevista durante o contrato</p>
+            <strong className="text-xl">
+              {resultadoCompleto ? moeda(reservaContrato) : 'Pendente'}
+            </strong>
+            <p className="text-xs">
+              Valor considerado no planejamento financeiro para futuras despesas durante o período
+              contratado (não significa que esse dinheiro já foi depositado ou separado).
+            </p>
+          </div>
+          <div>
+            <p className="text-sm">Lucro final estimado do contrato</p>
+            <strong className={resultado < 0 ? 'text-xl text-red-700' : 'text-xl text-emerald-800'}>
+              {resultadoCompleto ? moeda(resultado) : 'Pendente'}
+            </strong>
+            <p className="text-xs">
+              Resultado financeiro previsto para todo o contrato, depois de descontos e considerando
+              a reserva para despesas futuras.
+            </p>
           </div>
         </div>
         <p className="text-xs mt-3">
