@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { sanitizeInternalRedirect } from '@/lib/qr-order-utils'
 import {
   Wrench,
   Lock,
@@ -164,15 +165,30 @@ export default function Login() {
         description: 'Acesso autorizado com sucesso.',
       })
       // Se houver um redirecionamento salvo em location.state.from (ex: vindo do escaneamento do QR Code da etiqueta)
-      const fromPath = (location.state as { from?: { pathname?: string; search?: string } })?.from
-      const redirectTarget = fromPath ? `${fromPath.pathname || ''}${fromPath.search || ''}` : null
+      const fromState = (
+        location.state as { from?: { pathname?: string; search?: string; hash?: string } | string }
+      )?.from
+      const rawTarget =
+        typeof fromState === 'string'
+          ? fromState
+          : fromState
+            ? `${fromState.pathname || ''}${fromState.search || ''}${fromState.hash || ''}`
+            : null
 
-      // Se não houver redirectTarget específico, redireciona conforme papel:
       // Técnico → /ordens | Admin / Atendente → /dashboard
       const loggedUser = pb.authStore.record as { role?: string } | null
       const defaultRoute = loggedUser?.role === 'technician' ? '/ordens' : '/dashboard'
-      const targetRoute =
-        redirectTarget && redirectTarget !== '/login' ? redirectTarget : defaultRoute
+
+      // Validação rigorosa do destino de retorno para impedir redirecionamento a sites externos
+      // ou URLs absolutas/maliciosas
+      let targetRoute = defaultRoute
+      if (rawTarget && rawTarget !== '/login') {
+        const sanitized = sanitizeInternalRedirect(rawTarget, defaultRoute)
+        if (sanitized && sanitized !== '/login') {
+          targetRoute = sanitized
+        }
+      }
+
       navigate(targetRoute, { replace: true })
     }
   }

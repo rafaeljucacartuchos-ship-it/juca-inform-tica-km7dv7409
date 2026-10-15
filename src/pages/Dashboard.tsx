@@ -7,6 +7,8 @@ import { StatusBadge } from '@/components/StatusBadge'
 import { DashboardProductSearchModal } from '@/components/DashboardProductSearchModal'
 import { ExportReportsModal } from '@/components/ExportReportsModal'
 import { ExportOrdersListModal } from '@/components/ExportOrdersListModal'
+import { QrOrderScannerModal } from '@/components/QrOrderScannerModal'
+import { QrCode } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -135,6 +137,7 @@ export default function Dashboard() {
   const [productOpen, setProductOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [listOpen, setListOpen] = useState(false)
+  const [qrScannerOpen, setQrScannerOpen] = useState(false)
   const request = useRef(0)
   const load = useCallback(async () => {
     if (!user?.id) return
@@ -345,6 +348,14 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setQrScannerOpen(true)}
+            className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-semibold gap-1.5"
+          >
+            <QrCode className="h-4 w-4 text-indigo-600" />
+            Ler QR Code
+          </Button>
           <Button variant="outline" onClick={load} disabled={loading}>
             Atualizar
           </Button>
@@ -644,6 +655,7 @@ export default function Dashboard() {
           </p>
         </>
       )}
+      <QrOrderScannerModal open={qrScannerOpen} onOpenChange={setQrScannerOpen} />
       <DashboardProductSearchModal open={productOpen} onOpenChange={setProductOpen} />
       <ExportReportsModal
         open={exportOpen}
