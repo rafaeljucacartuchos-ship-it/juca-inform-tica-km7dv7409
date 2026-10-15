@@ -41,6 +41,7 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
   const isStoppingRef = useRef(false)
   const isProcessingRef = useRef(false)
   const isOpenRef = useRef(open)
+  const videoFixIntervalRef = useRef<number | null>(null)
 
   const [error, setError] = useState<string>('')
   const [warningMessage, setWarningMessage] = useState<string>('')
@@ -52,6 +53,101 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
   useEffect(() => {
     isOpenRef.current = open
   }, [open])
+
+  // Interrompe o polling de correção de vídeo iOS
+  const stopVideoFixer = useCallback(() => {
+    if (videoFixIntervalRef.current !== null) {
+      window.clearInterval(videoFixIntervalRef.current)
+      videoFixIntervalRef.current = null
+    }
+  }, [])
+
+  // Força os atributos obrigatórios no iOS Safari e Android para evitar tela preta
+  // (playsinline, webkit-playsinline, muted, autoplay e video.play() explícito)
+  const enforceVideoInlinePlayback = useCallback(() => {
+    try {
+      const container = document.getElementById(containerId)
+      if (!container) return
+
+      // Remove shaded regions nativos do html5-qrcode caso tenham sido injetados
+      const shaded = container.querySelector('#qr-shaded-region')
+      if (shaded) {
+        ;(shaded as HTMLElement).style.display = 'none'
+      }
+
+      const videos = container.querySelectorAll('video')
+      videos.forEach((video) => {
+        // Atributos vitais para iOS WebKit reproduzir inline e sem tela preta
+        if (!video.hasAttribute('playsinline')) {
+          video.setAttribute('playsinline', 'true')
+        }
+        if (!video.hasAttribute('webkit-playsinline')) {
+          video.setAttribute('webkit-playsinline', 'true')
+        }
+        if (!video.hasAttribute('autoplay')) {
+          video.setAttribute('autoplay', 'true')
+        }
+        if (!video.muted) {
+          video.muted = true
+          video.setAttribute('muted', 'true')
+        }
+        // Propriedades do DOM para Safari / Chrome móvel
+        // @ts-expect-error webkitPlaysInline is non-standard WebKit property
+        video.webkitPlaysInline = true
+        video.playsInline = true
+        video.autoplay = true
+
+        // Garante que o CSS não oculte nem distorça o vídeo
+        video.style.setProperty('width', '100%', 'important')
+        video.style.setProperty('max-width', '100%', 'important')
+        video.style.setProperty('height', '100%', 'important')
+        video.style.setProperty('max-height', '100%', 'important')
+        video.style.setProperty('object-fit', 'cover', 'important')
+        video.style.setProperty('display', 'block', 'important')
+        video.style.setProperty('opacity', '1', 'important')
+        video.style.setProperty('visibility', 'visible', 'important')
+
+        // Se o vídeo estiver pausado ou congelado com frame inicial preto, dispara play()
+        if (video.paused && typeof video.play === 'function') {
+          const playPromise = video.play()
+          if (playPromise && typeof playPromise.catch === 'function') {
+            playPromise.catch((err) => {
+              // AbortError e NotAllowedError são ignorados se autoplay já foi disparado
+              console.debug('[QrOrderScanner] video.play() autotrigger info:', err)
+            })
+          }
+        }
+      })
+    } catch (e) {
+      console.warn('[QrOrderScanner] Erro ao forçar playback inline do vídeo:', e)
+    }
+  }, [containerId])
+
+  // Inicia monitoramento ativo do elemento de vídeo para aplicar as flags assim que ele entrar no DOM
+  const startVideoFixer = useCallback(() => {
+    stopVideoFixer()
+    // Execução imediata
+    enforceVideoInlinePlayback()
+
+    // Polling rápido durante os primeiros 3 segundos de inicialização da câmera
+    let ticks = 0
+    const interval = window.setInterval(() => {
+      ticks++
+      enforceVideoInlinePlayback()
+      if (ticks > 20) {
+        // Após 4 segundos a câmera já deve estar estável, reduz frequência
+        if (videoFixIntervalRef.current === interval) {
+          window.clearInterval(interval)
+          // Intervalo de manutenção lento caso o iOS tente pausar ao trocar abas/redimensionar
+          videoFixIntervalRef.current = window.setInterval(() => {
+            enforceVideoInlinePlayback()
+          }, 1500)
+        }
+      }
+    }, 200)
+
+    videoFixIntervalRef.current = interval
+  }, [enforceVideoInlinePlayback, stopVideoFixer])
 
   // Liberação estrita de todas as tracks de câmera ativas
   const stopAllMediaTracks = useCallback(() => {
@@ -70,6 +166,11 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
               }
             })
           }
+          try {
+            v.pause()
+          } catch {
+            /* ignore */
+          }
           v.srcObject = null
         })
       }
@@ -79,6 +180,8 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
   }, [containerId])
 
   const stopScanner = useCallback(async () => {
+    stopVideoFixer()
+
     if (isStoppingRef.current) return
     isStoppingRef.current = true
 
@@ -104,7 +207,7 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
 
     setScanning(false)
     isStoppingRef.current = false
-  }, [stopAllMediaTracks])
+  }, [stopAllMediaTracks, stopVideoFixer])
 
   // Tratamento de resultado reconhecido
   const handleDetectedCode = (rawCode: string) => {
@@ -205,8 +308,10 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
         if (backCam) {
           selectedCameraTarget = backCam.id
         } else {
-          selectedCameraTarget = cameras[cameras.length - 1]?.id || {
-            facingMode: 'environment',
+          // Se não houver rótulo explícito (iOS frequentemente mascara rótulos antes da permissão),
+          // usar facingMode { ideal: 'environment' } para o sistema escolher a traseira
+          selectedCameraTarget = {
+            facingMode: { ideal: 'environment' },
           }
         }
       }
@@ -216,8 +321,10 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
         instance = new Html5Qrcode(containerId, {
           formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
           verbose: false,
+          // Não força BarcodeDetector experimental pois Safari iOS possui implementação incompleta/desabilitada
+          // que pode congelar o render surface ou deixar frames pretos
           experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true,
+            useBarCodeDetectorIfSupported: false,
           },
         })
         scannerRef.current = instance
@@ -255,6 +362,9 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
           return
         }
 
+        // Ativa o reforço contínuo dos atributos de vídeo para iOS e Android
+        startVideoFixer()
+
         setScanning(true)
       } catch (startErr: unknown) {
         console.warn(
@@ -264,18 +374,58 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
 
         // Fallback genérico para facingMode: environment simples
         try {
+          await instance.start(
+            { facingMode: { ideal: 'environment' } },
+            scanConfig,
+            onSuccess,
+            onError,
+          )
+          if (!isOpenRef.current) {
+            await stopScanner()
+            return
+          }
+          // Garante flags de playback no stream de fallback
+          startVideoFixer()
+          setScanning(true)
+          return
+        } catch (fbErr) {
+          console.warn(
+            '[QrOrderScanner] Fallback environment ideal também falhou, tentando facingMode environment:',
+            fbErr,
+          )
+        }
+
+        // Terceiro fallback: constraints mínimas { facingMode: 'environment' }
+        try {
           await instance.start({ facingMode: 'environment' }, scanConfig, onSuccess, onError)
           if (!isOpenRef.current) {
             await stopScanner()
             return
           }
+          startVideoFixer()
           setScanning(true)
           return
-        } catch (fbErr) {
+        } catch (fbErr2) {
           console.warn(
-            '[QrOrderScanner] Fallback environment também falhou, tentando qualquer câmera:',
-            fbErr,
+            '[QrOrderScanner] Fallback environment simples falhou, tentando câmera genérica:',
+            fbErr2,
           )
+        }
+
+        // Quarto fallback: qualquer câmera disponível sem restrições de facingMode
+        if (cameras && cameras.length > 0) {
+          try {
+            await instance.start(cameras[0].id, scanConfig, onSuccess, onError)
+            if (!isOpenRef.current) {
+              await stopScanner()
+              return
+            }
+            startVideoFixer()
+            setScanning(true)
+            return
+          } catch (fbErr3) {
+            console.warn('[QrOrderScanner] Fallback por ID da primeira câmera falhou:', fbErr3)
+          }
         }
 
         await stopScanner()
@@ -306,7 +456,7 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
             )
           } else {
             setError(
-              'Permissão de acesso à câmera negada. Permita o uso da câmera nas configurações do navegador ou celular e tente novamente.',
+              'Permissão de acesso à câmera negada. Permita o uso da câmera nas configurações do Safari/Chrome ou celular e toque em Tentar Novamente.',
             )
           }
         } else if (
@@ -322,6 +472,13 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
         ) {
           setError(
             'A câmera já está sendo utilizada por outro aplicativo ou aba. Feche outros apps e tente novamente.',
+          )
+        } else if (
+          errName === 'OverconstrainedError' ||
+          errMsg.toLowerCase().includes('overconstrained')
+        ) {
+          setError(
+            'As configurações da câmera exigidas não são suportadas pelo sensor. Toque em Tentar Novamente para usar modo padrão.',
           )
         } else {
           setError(
@@ -348,15 +505,17 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
     setError('')
     setWarningMessage('')
 
+    // Delay para garantir que a animação de entrada do Dialog concluiu
+    // e o elemento container no DOM possui dimensões reais calculadas
     const timer = setTimeout(() => {
       if (isOpenRef.current) {
-        startScanner()
+        void startScanner()
       }
-    }, 280)
+    }, 320)
 
     return () => {
       clearTimeout(timer)
-      stopScanner()
+      void stopScanner()
     }
   }, [open, startScanner, stopScanner])
 
@@ -450,13 +609,14 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
           {/* Área da Câmera */}
           <div className="space-y-3">
             <div className="relative rounded-xl overflow-hidden bg-slate-950 aspect-square max-h-[290px] mx-auto shadow-inner border border-slate-800 flex items-center justify-center">
+              {/* O container deve permitir que o elemento video interno expanda e ocupe todo o viewport */}
               <div
                 id={containerId}
-                className="w-full h-full [&_video]:w-full [&_video]:h-full [&_video]:object-cover [&_img]:hidden [&_button]:hidden [&_select]:hidden [&_br]:hidden"
+                className="w-full h-full [&_video]:!w-full [&_video]:!h-full [&_video]:!max-w-full [&_video]:!max-h-full [&_video]:!object-cover [&_video]:!block [&_canvas]:!w-full [&_canvas]:!h-full [&_img]:hidden [&_button]:hidden [&_select]:hidden [&_br]:hidden [&_#qr-shaded-region]:hidden"
               />
 
               {!error && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                   <div className="w-56 h-56 border-2 border-indigo-400/90 rounded-2xl shadow-[0_0_20px_rgba(99,102,241,0.35)] bg-indigo-500/5 relative flex items-center justify-center">
                     <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-indigo-400 -mt-0.5 -ml-0.5 rounded-tl-sm" />
                     <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-indigo-400 -mt-0.5 -mr-0.5 rounded-tr-sm" />
@@ -467,7 +627,7 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
               )}
 
               {scanning && !error && (
-                <span className="absolute top-2.5 right-2.5 text-[10px] font-medium bg-emerald-600 text-white px-2.5 py-0.5 rounded-full shadow-sm flex items-center gap-1.5 z-10">
+                <span className="absolute top-2.5 right-2.5 text-[10px] font-medium bg-emerald-600 text-white px-2.5 py-0.5 rounded-full shadow-sm flex items-center gap-1.5 z-20">
                   <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                   Câmera ativa
                 </span>
