@@ -21,7 +21,7 @@ import {
   Keyboard,
   ShieldAlert,
 } from 'lucide-react'
-import { parseJucaOrderQr } from '@/lib/qr-order-utils'
+import { parseJucaOrderQr, ParsedQrOrderResult } from '@/lib/qr-order-utils'
 import { useToast } from '@/hooks/use-toast'
 
 interface QrOrderScannerModalProps {
@@ -107,26 +107,14 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
   }, [stopAllMediaTracks])
 
   // Tratamento de resultado reconhecido
-  const handleDetectedCode = useCallback(
-    async (rawCode: string) => {
-      const trimmed = rawCode.trim()
-      if (!trimmed || isProcessingRef.current) return
-      isProcessingRef.current = true
+  const handleDetectedCode = (rawCode: string) => {
+    const trimmed = rawCode.trim()
+    if (!trimmed || isProcessingRef.current) return
+    isProcessingRef.current = true
 
-      const parsed = parseJucaOrderQr(trimmed)
+    const parsed: ParsedQrOrderResult = parseJucaOrderQr(trimmed)
 
-      if (parsed.valid) {
-        // Encerra imediatamente a câmera antes de navegar
-        await stopScanner()
-        onOpenChange(false)
-        toast({
-          title: 'QR Code reconhecido!',
-          description: `Abrindo Ordem de Serviço #${parsed.orderId.slice(0, 8)}...`,
-        })
-        navigate(parsed.targetPath)
-        return
-      }
-
+    if (parsed.valid === false) {
       // Se o QR não for uma OS válida do JUCA
       isProcessingRef.current = false
       if (parsed.reason === 'invalid_domain') {
@@ -142,9 +130,23 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
           'QR Code não reconhecido como uma Ordem de Serviço do JUCA INFORMÁTICA. Verifique se apontou para a etiqueta correta.',
         )
       }
-    },
-    [navigate, onOpenChange, stopScanner, toast],
-  )
+      return
+    }
+
+    if (parsed.valid && parsed.targetPath && parsed.orderId) {
+      const orderId = parsed.orderId
+      const targetPath = parsed.targetPath
+      // Encerra imediatamente a câmera antes de navegar
+      void stopScanner().then(() => {
+        onOpenChange(false)
+        toast({
+          title: 'QR Code reconhecido!',
+          description: `Abrindo Ordem de Serviço #${orderId.slice(0, 8)}...`,
+        })
+        navigate(targetPath)
+      })
+    }
+  }
 
   const startScanner = useCallback(async () => {
     if (isStartingRef.current) return
@@ -193,7 +195,7 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
 
       // Preferência explícita por câmera traseira (facingMode: 'environment')
       let selectedCameraTarget: string | MediaTrackConstraints = {
-        facingMode: { ideal: 'environment' } as any,
+        facingMode: { ideal: 'environment' },
       }
 
       if (cameras && cameras.length > 0) {

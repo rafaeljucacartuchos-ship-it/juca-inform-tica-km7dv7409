@@ -50,9 +50,12 @@ export function sanitizeInternalRedirect(target: unknown, fallback = '/ordens'):
 /**
  * Resultado do reconhecimento do QR Code
  */
-export type ParsedQrOrderResult =
-  | { valid: true; orderId: string; targetPath: string }
-  | { valid: false; reason: 'invalid_domain' | 'invalid_path' | 'invalid_id' | 'unrecognized' }
+export type ParsedQrOrderResult = {
+  valid: boolean
+  orderId?: string
+  targetPath?: string
+  reason?: 'invalid_domain' | 'invalid_path' | 'invalid_id' | 'unrecognized'
+}
 
 /**
  * Analisa o texto escaneado pelo QR Code e garante que seja EXCLUSIVAMENTE

@@ -58,6 +58,7 @@ import { TransferTechnicianModal } from '@/components/TransferTechnicianModal'
 import { RescheduleOrderModal } from '@/components/RescheduleOrderModal'
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog'
 import { PrintEquipmentLabelModal } from '@/components/PrintEquipmentLabelModal'
+import { QrOrderScannerModal } from '@/components/QrOrderScannerModal'
 import { RecordActionsMenu, RecordActionItem } from '@/components/RecordActionsMenu'
 import { useAuth } from '@/hooks/use-auth'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -148,6 +149,7 @@ export default function OrdensDeServico() {
     'attendance_desc',
   )
   const [newModalOpen, setNewModalOpen] = useState(false)
+  const [qrScannerOpen, setQrScannerOpen] = useState(false)
   const [deleteOrderTarget, setDeleteOrderTarget] = useState<ServiceOrder | null>(null)
   const [labelModalOpen, setLabelModalOpen] = useState(false)
   const [orderToLabel, setOrderToLabel] = useState<ServiceOrder | null>(null)
@@ -567,6 +569,16 @@ export default function OrdensDeServico() {
               <List className="h-4 w-4 sm:h-3.5 sm:w-3.5 mr-1" /> Lista
             </Button>
           </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setQrScannerOpen(true)}
+            className="w-full sm:w-auto min-h-[44px] h-11 border-indigo-200 text-indigo-700 hover:bg-indigo-50 gap-1.5 text-xs sm:text-sm touch-manipulation active:scale-[0.98] font-semibold"
+          >
+            <QrCode className="h-4 w-4 text-indigo-600" />
+            <span>Ler QR Code</span>
+          </Button>
 
           {user?.role !== 'technician' && (
             <Button
@@ -1564,6 +1576,8 @@ export default function OrdensDeServico() {
           </CardContent>
         </Card>
       )}
+
+      <QrOrderScannerModal open={qrScannerOpen} onOpenChange={setQrScannerOpen} />
 
       <NewOrderModal open={newModalOpen} onOpenChange={setNewModalOpen} onCreated={loadData} />
 
