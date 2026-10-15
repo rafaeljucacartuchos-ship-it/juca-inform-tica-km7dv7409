@@ -71,6 +71,12 @@ export interface LabelCustomProfile {
   marginLeftMm?: number
   marginRightMm?: number
   scalePercent?: number
+  /** Calibração manual de driver: rotação do conteúdo (0° ou 90°) */
+  rotationDeg?: number
+  /** Deslocamento fino horizontal em mm (-10 a +10) */
+  offsetXmm?: number
+  /** Deslocamento fino vertical em mm (-10 a +10) */
+  offsetYmm?: number
   codeType?: LabelCodeType
   description?: string
   createdAt?: string
@@ -86,6 +92,12 @@ export interface LabelPrintConfig {
   marginLeftMm: number
   marginRightMm: number
   scalePercent: number // 50% a 150% (escala fina para calibração térmica milimétrica)
+  /** Calibração manual de driver: rotação do conteúdo impresso (0° padrão ou 90°) */
+  rotationDeg: number
+  /** Deslocamento fino horizontal em mm (-10 a +10, padrão 0) */
+  offsetXmm: number
+  /** Deslocamento fino vertical em mm (-10 a +10, padrão 0) */
+  offsetYmm: number
   copies: number
   codeType: LabelCodeType
   showSerialNumber: boolean
@@ -105,6 +117,9 @@ export const DEFAULT_LABEL_CONFIG: LabelPrintConfig = {
   marginLeftMm: 2,
   marginRightMm: 2,
   scalePercent: 100,
+  rotationDeg: 0,
+  offsetXmm: 0,
+  offsetYmm: 0,
   copies: 1,
   codeType: 'qr',
   showSerialNumber: true,
@@ -133,6 +148,11 @@ export async function getEquipmentLabelConfig(): Promise<LabelPrintConfig> {
         ...DEFAULT_LABEL_CONFIG,
         ...parsed,
         scalePercent: typeof parsed.scalePercent === 'number' ? parsed.scalePercent : 100,
+        rotationDeg: parsed.rotationDeg === 90 ? 90 : 0,
+        offsetXmm:
+          typeof parsed.offsetXmm === 'number' ? Math.max(-10, Math.min(10, parsed.offsetXmm)) : 0,
+        offsetYmm:
+          typeof parsed.offsetYmm === 'number' ? Math.max(-10, Math.min(10, parsed.offsetYmm)) : 0,
         customProfiles: Array.isArray(parsed.customProfiles) ? parsed.customProfiles : [],
       }
     }
@@ -153,6 +173,15 @@ export async function getEquipmentLabelConfig(): Promise<LabelPrintConfig> {
         ...serverConfig,
         scalePercent:
           typeof serverConfig.scalePercent === 'number' ? serverConfig.scalePercent : 100,
+        rotationDeg: serverConfig.rotationDeg === 90 ? 90 : 0,
+        offsetXmm:
+          typeof serverConfig.offsetXmm === 'number'
+            ? Math.max(-10, Math.min(10, serverConfig.offsetXmm))
+            : 0,
+        offsetYmm:
+          typeof serverConfig.offsetYmm === 'number'
+            ? Math.max(-10, Math.min(10, serverConfig.offsetYmm))
+            : 0,
         customProfiles: Array.isArray(serverConfig.customProfiles)
           ? serverConfig.customProfiles
           : localConfig?.customProfiles || [],
@@ -185,6 +214,9 @@ export async function saveEquipmentLabelConfig(config: LabelPrintConfig): Promis
     marginLeftMm: Math.max(0, Math.min(20, Number(config.marginLeftMm) || 0)),
     marginRightMm: Math.max(0, Math.min(20, Number(config.marginRightMm) || 0)),
     scalePercent: Math.max(50, Math.min(150, Math.round(Number(config.scalePercent) || 100))),
+    rotationDeg: config.rotationDeg === 90 ? 90 : 0,
+    offsetXmm: Math.max(-10, Math.min(10, Number(config.offsetXmm) || 0)),
+    offsetYmm: Math.max(-10, Math.min(10, Number(config.offsetYmm) || 0)),
     copies: Math.max(1, Math.min(50, Math.round(Number(config.copies) || 1))),
     customProfiles: Array.isArray(config.customProfiles) ? config.customProfiles : [],
   }

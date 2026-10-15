@@ -33,6 +33,7 @@ import {
   Info,
   Sliders,
   RotateCcw,
+  RotateCw,
   CheckCircle2,
 } from 'lucide-react'
 import { ServiceOrder, Equipment, Customer } from '@/types'
@@ -47,6 +48,9 @@ import {
 } from '@/services/equipment-labels'
 import { EquipmentLabelContent } from './EquipmentLabelContent'
 import { toast } from '@/hooks/use-toast'
+
+/** Limita o deslocamento fino ao intervalo seguro de calibração (-10 a +10 mm), em passos de 0,5 mm */
+const clampOffsetMm = (v: number) => Math.max(-10, Math.min(10, Math.round(v * 2) / 2))
 
 export interface PrintEquipmentLabelModalProps {
   open: boolean
@@ -82,6 +86,16 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
   const [newProfileName, setNewProfileName] = useState('')
   const [showSaveProfileDialog, setShowSaveProfileDialog] = useState(false)
   const printAreaRef = useRef<HTMLDivElement>(null)
+
+  // Etiqueta quadrada 40 × 40 mm (orientação fixa em retrato + nota de calibração de driver)
+  const isSquare40x40 =
+    Math.abs(config.widthMm - 40) <= 0.5 && Math.abs(config.heightMm - 40) <= 0.5
+
+  // Transform de calibração: rotação manual (0°/90°) + deslocamento fino em mm.
+  // A ordem "translate antes de rotate" mantém o deslocamento nos eixos visuais da etiqueta,
+  // exatamente como o usuário vê na pré-visualização. A página física continua inalterada —
+  // apenas o conteúdo gira/desloca dentro dela (compensa drivers que giram a impressão).
+  const calibrationTransform = `translate(${config.offsetXmm || 0}mm, ${config.offsetYmm || 0}mm) rotate(${config.rotationDeg === 90 ? 90 : 0}deg)`
 
   // Carrega configurações persistidas ao abrir
   useEffect(() => {
@@ -175,6 +189,9 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
         marginLeftMm: foundCustom.marginLeftMm ?? prev.marginLeftMm,
         marginRightMm: foundCustom.marginRightMm ?? prev.marginRightMm,
         scalePercent: foundCustom.scalePercent ?? prev.scalePercent,
+        rotationDeg: foundCustom.rotationDeg === 90 ? 90 : 0,
+        offsetXmm: typeof foundCustom.offsetXmm === 'number' ? foundCustom.offsetXmm : 0,
+        offsetYmm: typeof foundCustom.offsetYmm === 'number' ? foundCustom.offsetYmm : 0,
         codeType: foundCustom.codeType || prev.codeType,
       }))
       toast({
@@ -225,6 +242,9 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
       marginLeftMm: config.marginLeftMm,
       marginRightMm: config.marginRightMm,
       scalePercent: config.scalePercent,
+      rotationDeg: config.rotationDeg === 90 ? 90 : 0,
+      offsetXmm: config.offsetXmm || 0,
+      offsetYmm: config.offsetYmm || 0,
       codeType: config.codeType,
       description: `${trimmed} (${config.widthMm} × ${config.heightMm} mm • ${config.scalePercent}%)`,
       createdAt: new Date().toISOString(),
@@ -291,11 +311,14 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
       marginLeftMm: 2,
       marginRightMm: 2,
       scalePercent: 100,
+      rotationDeg: 0,
+      offsetXmm: 0,
+      offsetYmm: 0,
     }))
     toast({
-      title: 'Margens e escala redefinidas',
+      title: 'Calibração redefinida',
       description:
-        'Valores restaurados para o padrão seguro de impressão térmica (margens 1.5/2mm e escala 100%).',
+        'Valores restaurados para o padrão seguro: margens 1.5/2mm, escala 100%, rotação 0° e deslocamento 0mm.',
     })
   }
 
@@ -338,7 +361,6 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
     // REGRA 40 × 40 MM (etiqueta quadrada): NENHUMA rotação/orientação automática é aplicada.
     // Em página quadrada o keyword "landscape" no @page faz o Chrome/driver girarem o conteúdo
     // em 90° (conteúdo deitado e deslocado). Aqui a orientação é FORÇADA para retrato explícito.
-    const isSquare40x40 = Math.abs(widthMm - 40) <= 0.5 && Math.abs(heightMm - 40) <= 0.5
     const pageOrientationKeyword = isSquare40x40 ? 'portrait' : orientation
 
     // Conteúdo HTML da etiqueta estilizada
@@ -593,6 +615,15 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
               </span>
               <span>•</span>
               <span className="text-[11px]">Escala: {config.scalePercent || 100}%</span>
+              {(config.rotationDeg === 90 || config.offsetXmm || config.offsetYmm) && (
+                <>
+                  <span>•</span>
+                  <span className="text-[11px]">
+                    Rotação {config.rotationDeg === 90 ? '90°' : '0°'} • Desloc.{' '}
+                    {config.offsetXmm || 0} / {config.offsetYmm || 0} mm
+                  </span>
+                </>
+              )}
               <span>•</span>
               <span className="capitalize font-medium text-foreground">
                 {config.codeType === 'qr'
@@ -631,18 +662,33 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
                     width: `${config.widthMm}mm`,
                     height: `${config.heightMm}mm`,
                     boxSizing: 'border-box',
+                    // Igual à janela de impressão (.thermal-label-sheet): conteúdo fora dos
+                    // milímetros físicos da etiqueta é cortado, na tela e no papel.
+                    overflow: 'hidden',
                   }}
                 >
-                  <EquipmentLabelContent
-                    data={{
-                      order,
-                      equipment: currentEquipment,
-                      customer,
-                      attendanceTypeLabel,
-                      technicianName,
+                  {/* CALIBRAÇÃO: rotação 0°/90° e deslocamento fino aplicados DENTRO da página
+                      física — o wrapper entra no innerHTML capturado pela janela de impressão,
+                      então pré-visualização e papel recebem exatamente o mesmo transform. */}
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      transform: calibrationTransform,
+                      transformOrigin: 'center center',
                     }}
-                    config={config}
-                  />
+                  >
+                    <EquipmentLabelContent
+                      data={{
+                        order,
+                        equipment: currentEquipment,
+                        customer,
+                        attendanceTypeLabel,
+                        technicianName,
+                      }}
+                      config={config}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1029,6 +1075,105 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
               </div>
             </div>
 
+            {/* ROTAÇÃO E DESLOCAMENTO FINO (CALIBRAÇÃO DE DRIVER TÉRMICO) */}
+            <div className="space-y-3 pt-2 border-t border-border">
+              <div>
+                <Label className="text-xs font-semibold flex items-center gap-1.5">
+                  <RotateCw className="w-3.5 h-3.5 text-primary" />
+                  Rotação da Impressão e Deslocamento (Calibração do Driver)
+                </Label>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Use quando a etiqueta sair girada em 90° ou deslocada no papel: o driver da
+                  impressora térmica pode girar a impressão independentemente do sistema. A
+                  pré-visualização reflete o ajuste em escala real.
+                </p>
+              </div>
+
+              {isSquare40x40 && (
+                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5 text-[11px] text-amber-900 dark:text-amber-200">
+                  <strong>40 × 40 mm:</strong> Se a etiqueta sair girada ou deslocada na impressora,
+                  ajuste <strong>Rotação</strong> e <strong>Deslocamento</strong> aqui até calibrar
+                  com o seu driver. (Orientação permanece fixa em retrato para etiqueta quadrada.)
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 dark:bg-slate-900/40 p-3.5 rounded-lg border border-border">
+                <div className="space-y-1">
+                  <Label className="text-[11px]">Rotação da impressão</Label>
+                  <Select
+                    value={config.rotationDeg === 90 ? '90' : '0'}
+                    onValueChange={(val) =>
+                      setConfig((prev) => ({ ...prev, rotationDeg: val === '90' ? 90 : 0 }))
+                    }
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-white dark:bg-slate-900">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0" className="text-xs">
+                        0° (padrão)
+                      </SelectItem>
+                      <SelectItem value="90" className="text-xs">
+                        90° (compensa driver que gira a impressão)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="offsetXmm" className="text-[11px]">
+                    Deslocamento horizontal (mm)
+                  </Label>
+                  <Input
+                    id="offsetXmm"
+                    type="number"
+                    step="0.5"
+                    min="-10"
+                    max="10"
+                    value={config.offsetXmm || 0}
+                    onChange={(e) => {
+                      const raw = e.target.value
+                      if (raw === '' || raw === '-') {
+                        setConfig((prev) => ({ ...prev, offsetXmm: 0 }))
+                        return
+                      }
+                      const parsed = parseFloat(raw)
+                      if (Number.isFinite(parsed)) {
+                        setConfig((prev) => ({ ...prev, offsetXmm: clampOffsetMm(parsed) }))
+                      }
+                    }}
+                    className="h-8 text-xs bg-white dark:bg-slate-900"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="offsetYmm" className="text-[11px]">
+                    Deslocamento vertical (mm)
+                  </Label>
+                  <Input
+                    id="offsetYmm"
+                    type="number"
+                    step="0.5"
+                    min="-10"
+                    max="10"
+                    value={config.offsetYmm || 0}
+                    onChange={(e) => {
+                      const raw = e.target.value
+                      if (raw === '' || raw === '-') {
+                        setConfig((prev) => ({ ...prev, offsetYmm: 0 }))
+                        return
+                      }
+                      const parsed = parseFloat(raw)
+                      if (Number.isFinite(parsed)) {
+                        setConfig((prev) => ({ ...prev, offsetYmm: clampOffsetMm(parsed) }))
+                      }
+                    }}
+                    className="h-8 text-xs bg-white dark:bg-slate-900"
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* TIPO DE CÓDIGO (QR CODE OU CÓDIGO DE BARRAS) */}
             <div className="space-y-2 pt-2 border-t border-border">
               <Label className="text-xs font-semibold">Identificador Escaneável</Label>
@@ -1188,6 +1333,14 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
                   ✓ Utilize o controle de <strong>Calibração de Margens e Escala</strong> na aba
                   anterior para pequenos desvios físicos causados pelo sensor gap/black mark do rolo
                   de etiquetas.
+                </p>
+                <p>
+                  ✓{' '}
+                  <strong>Se o conteúdo sair girado em 90° ou deslocado para uma das bordas</strong>
+                  (o driver pode girar/deslocar a imagem independentemente do sistema), use{' '}
+                  <strong>Rotação da Impressão (0°/90°)</strong> e{' '}
+                  <strong>Deslocamento Horizontal/Vertical (mm)</strong> na aba de configuração até
+                  a etiqueta sair alinhada no papel.
                 </p>
               </div>
             </div>
