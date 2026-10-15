@@ -800,7 +800,7 @@ export const QrOrderScannerModal: React.FC<QrOrderScannerModalProps> = ({ open, 
             <form onSubmit={handleManualSubmit} className="flex items-center gap-2">
               <Input
                 type="text"
-                placeholder="Cole a URL (/ordens/...) ou o ID da OS..."
+                placeholder="Cole o link (https://.../ordens/...) ou o ID da OS..."
                 value={manualCode}
                 onChange={(e) => setManualCode(e.target.value)}
                 className="h-9 text-xs font-mono"
