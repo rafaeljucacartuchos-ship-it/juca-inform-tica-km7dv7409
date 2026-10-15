@@ -24,6 +24,7 @@ import {
   X,
   UserCheck,
   AlertTriangle,
+  Package,
 } from 'lucide-react'
 import { openWhatsApp, buildOrcamentoRetomadaNegociacaoMessage } from '@/lib/whatsapp'
 import { RecordActionsMenu, RecordActionItem } from '@/components/RecordActionsMenu'
@@ -103,6 +104,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useIsMobile } from '@/hooks/use-mobile'
 import OrcamentoDetail from '@/pages/OrcamentoDetail'
+import { ProductLookupModal } from '@/components/ProductLookupModal'
 
 const STATUS_CONFIG: Record<
   OrcamentoStatus,
@@ -169,6 +171,7 @@ export default function OrcamentosList() {
   const initialResponsavel = searchParams.get('responsavel') || ''
   const [statusFilter, setStatusFilter] = useState<string>(initialStatus)
   const [responsavelFilter, setResponsavelFilter] = useState<string>(initialResponsavel)
+  const [productLookupOpen, setProductLookupOpen] = useState(false)
 
   // Sincroniza se a URL mudar (ex: link do dashboard)
   useEffect(() => {
@@ -723,26 +726,39 @@ export default function OrcamentosList() {
           </p>
         </div>
 
-        <Button
-          onClick={() => {
-            setVincularOs(false)
-            setSelectedOsId('')
-            setSelectedOsObject(null)
-            setSelectedCustomer(null)
-            setClienteSearch('')
-            setNomeClienteLivre('')
-            setTelefoneClienteLivre('')
-            setSelectedResponsavelId(user?.id || '')
-            setEquipamentoIndependente('')
-            setDefeitoIndependente('')
-            setValidade(15)
-            setObservacoes('')
-            setCreateModalOpen(true)
-          }}
-          className="min-h-[44px] h-11 px-4 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-sm w-full sm:w-auto justify-center touch-manipulation active:scale-[0.98]"
-        >
-          <Plus className="h-4 w-4" /> Novo Orçamento
-        </Button>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setProductLookupOpen(true)}
+            className="min-h-[44px] h-11 px-4 text-xs font-bold border-indigo-200 text-indigo-700 hover:bg-indigo-50 gap-2 shadow-sm w-full sm:w-auto justify-center touch-manipulation active:scale-[0.98]"
+            title="Consultar produtos no estoque por descrição ou código de barras"
+          >
+            <Package className="h-4 w-4 text-indigo-600" />
+            <span>Consultar Produto</span>
+          </Button>
+
+          <Button
+            onClick={() => {
+              setVincularOs(false)
+              setSelectedOsId('')
+              setSelectedOsObject(null)
+              setSelectedCustomer(null)
+              setClienteSearch('')
+              setNomeClienteLivre('')
+              setTelefoneClienteLivre('')
+              setSelectedResponsavelId(user?.id || '')
+              setEquipamentoIndependente('')
+              setDefeitoIndependente('')
+              setValidade(15)
+              setObservacoes('')
+              setCreateModalOpen(true)
+            }}
+            className="min-h-[44px] h-11 px-4 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-sm w-full sm:w-auto justify-center touch-manipulation active:scale-[0.98]"
+          >
+            <Plus className="h-4 w-4" /> Novo Orçamento
+          </Button>
+        </div>
       </div>
 
       {/* Cartões de Status / Filtros Rápidos */}
@@ -1505,6 +1521,13 @@ export default function OrcamentosList() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal Consultar Produto (somente leitura sem perder dados do orçamento) */}
+      <ProductLookupModal
+        open={productLookupOpen}
+        onOpenChange={setProductLookupOpen}
+        originContext="Lista de Orçamentos"
+      />
     </div>
   )
 }

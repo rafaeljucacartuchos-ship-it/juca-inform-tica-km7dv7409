@@ -32,6 +32,7 @@ import {
   Monitor,
   ImageIcon,
   QrCode,
+  Package,
 } from 'lucide-react'
 import { formatPhone } from '@/lib/phones'
 import { OrcamentoItemModal } from '@/components/OrcamentoItemModal'
