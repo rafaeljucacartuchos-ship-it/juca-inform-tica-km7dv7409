@@ -28,10 +28,18 @@ import {
   Laptop,
   Check,
   FileDown,
+  BookmarkPlus,
+  Trash2,
+  Info,
+  Sliders,
+  RotateCcw,
+  CheckCircle2,
 } from 'lucide-react'
 import { ServiceOrder, Equipment, Customer } from '@/types'
 import {
   LabelPrintConfig,
+  LabelPreset,
+  LabelCustomProfile,
   PRESET_LABEL_SIZES,
   getEquipmentLabelConfig,
   saveEquipmentLabelConfig,
@@ -69,8 +77,10 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
   const [config, setConfig] = useState<LabelPrintConfig>(DEFAULT_LABEL_CONFIG)
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<string>('')
   const [isSavingConfig, setIsSavingConfig] = useState(false)
-  const [activeTab, setActiveTab] = useState<'preview' | 'config'>('preview')
+  const [activeTab, setActiveTab] = useState<'preview' | 'config' | 'guide'>('preview')
   const [isCopiedLink, setIsCopiedLink] = useState(false)
+  const [newProfileName, setNewProfileName] = useState('')
+  const [showSaveProfileDialog, setShowSaveProfileDialog] = useState(false)
   const printAreaRef = useRef<HTMLDivElement>(null)
 
   // Carrega configurações persistidas ao abrir
@@ -79,6 +89,8 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
       getEquipmentLabelConfig().then((loaded) => {
         setConfig(loaded)
       })
+      setShowSaveProfileDialog(false)
+      setNewProfileName('')
     }
   }, [open])
 
@@ -120,10 +132,60 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
     return null
   }, [selectedEquipmentId, equipmentsList, initialEquipment, order])
 
-  // Presets de tamanho
-  const handlePresetChange = (presetId: string) => {
-    const found = PRESET_LABEL_SIZES.find((p) => p.id === presetId)
-    if (found) {
+  // Lista unificada de perfis (Padrões de fábrica + Perfis customizados salvos pelo usuário)
+  const allProfiles: Array<{
+    id: string
+    name: string
+    widthMm: number
+    heightMm: number
+    description: string
+    isDefault?: boolean
+    isCustom?: boolean
+    profileData?: LabelCustomProfile
+  }> = React.useMemo(() => {
+    const standard = PRESET_LABEL_SIZES.map((p) => ({
+      ...p,
+      isCustom: p.id === 'custom',
+    }))
+    const customs = (config.customProfiles || []).map((cp) => ({
+      id: `profile_${cp.id}`,
+      name: cp.name,
+      widthMm: cp.widthMm,
+      heightMm: cp.heightMm,
+      description: cp.description || `Perfil salvo: ${cp.widthMm} × ${cp.heightMm} mm`,
+      isDefault: false,
+      isCustom: true,
+      profileData: cp,
+    }))
+    return [...standard, ...customs]
+  }, [config.customProfiles])
+
+  // Presets de tamanho ou seleção de perfil salvo
+  const handleProfileSelect = (presetId: string) => {
+    const foundCustom = config.customProfiles?.find((cp) => `profile_${cp.id}` === presetId)
+    if (foundCustom) {
+      setConfig((prev) => ({
+        ...prev,
+        presetId,
+        widthMm: foundCustom.widthMm,
+        heightMm: foundCustom.heightMm,
+        orientation: foundCustom.orientation || prev.orientation,
+        marginTopMm: foundCustom.marginTopMm ?? prev.marginTopMm,
+        marginBottomMm: foundCustom.marginBottomMm ?? prev.marginBottomMm,
+        marginLeftMm: foundCustom.marginLeftMm ?? prev.marginLeftMm,
+        marginRightMm: foundCustom.marginRightMm ?? prev.marginRightMm,
+        scalePercent: foundCustom.scalePercent ?? prev.scalePercent,
+        codeType: foundCustom.codeType || prev.codeType,
+      }))
+      toast({
+        title: `Perfil "${foundCustom.name}" aplicado`,
+        description: `${foundCustom.widthMm} × ${foundCustom.heightMm} mm com margens e escala personalizadas.`,
+      })
+      return
+    }
+
+    const foundStandard = PRESET_LABEL_SIZES.find((p) => p.id === presetId)
+    if (foundStandard) {
       if (presetId === 'custom') {
         setConfig((prev) => ({
           ...prev,
@@ -133,11 +195,108 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
         setConfig((prev) => ({
           ...prev,
           presetId,
-          widthMm: found.widthMm,
-          heightMm: found.heightMm,
+          widthMm: foundStandard.widthMm,
+          heightMm: foundStandard.heightMm,
         }))
       }
     }
+  }
+
+  // Salvar a configuração atual como um novo perfil personalizado
+  const handleCreateCustomProfile = () => {
+    const trimmed = newProfileName.trim()
+    if (!trimmed) {
+      toast({
+        title: 'Nome obrigatório',
+        description: 'Informe um nome para o perfil (ex: Argox 50x30, Zebra Gaveta, Balcão Mini).',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const newProfile: LabelCustomProfile = {
+      id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      name: trimmed,
+      widthMm: config.widthMm,
+      heightMm: config.heightMm,
+      orientation: config.orientation,
+      marginTopMm: config.marginTopMm,
+      marginBottomMm: config.marginBottomMm,
+      marginLeftMm: config.marginLeftMm,
+      marginRightMm: config.marginRightMm,
+      scalePercent: config.scalePercent,
+      codeType: config.codeType,
+      description: `${trimmed} (${config.widthMm} × ${config.heightMm} mm • ${config.scalePercent}%)`,
+      createdAt: new Date().toISOString(),
+    }
+
+    const updatedProfiles = [...(config.customProfiles || []), newProfile]
+    const updatedConfig: LabelPrintConfig = {
+      ...config,
+      presetId: `profile_${newProfile.id}`,
+      customProfiles: updatedProfiles,
+    }
+
+    setConfig(updatedConfig)
+    setNewProfileName('')
+    setShowSaveProfileDialog(false)
+
+    // Persiste imediatamente
+    saveEquipmentLabelConfig(updatedConfig)
+      .then(() => {
+        toast({
+          title: 'Perfil de etiqueta salvo!',
+          description: `"${newProfile.name}" agora está disponível na lista de modelos.`,
+        })
+      })
+      .catch(() => {
+        toast({
+          title: 'Perfil salvo localmente',
+          description: 'Disponível neste dispositivo.',
+        })
+      })
+  }
+
+  // Excluir um perfil personalizado
+  const handleDeleteCustomProfile = (
+    profileId: string,
+    profileName: string,
+    e: React.MouseEvent,
+  ) => {
+    e.stopPropagation()
+    const updatedProfiles = (config.customProfiles || []).filter((cp) => cp.id !== profileId)
+    const isCurrent = config.presetId === `profile_${profileId}`
+    const updatedConfig: LabelPrintConfig = {
+      ...config,
+      presetId: isCurrent ? '60x40' : config.presetId,
+      widthMm: isCurrent ? 60 : config.widthMm,
+      heightMm: isCurrent ? 40 : config.heightMm,
+      customProfiles: updatedProfiles,
+    }
+    setConfig(updatedConfig)
+    saveEquipmentLabelConfig(updatedConfig).then(() => {
+      toast({
+        title: 'Perfil removido',
+        description: `O perfil "${profileName}" foi excluído.`,
+      })
+    })
+  }
+
+  // Redefinir margens e escala para padrão universal (evita cortes)
+  const handleResetCalibration = () => {
+    setConfig((prev) => ({
+      ...prev,
+      marginTopMm: 1.5,
+      marginBottomMm: 1.5,
+      marginLeftMm: 2,
+      marginRightMm: 2,
+      scalePercent: 100,
+    }))
+    toast({
+      title: 'Margens e escala redefinidas',
+      description:
+        'Valores restaurados para o padrão seguro de impressão térmica (margens 1.5/2mm e escala 100%).',
+    })
   }
 
   // Salvar preferências
@@ -160,9 +319,9 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
     }
   }
 
-  // Disparo da impressão nativa ajustada para milímetros exatos da etiqueta térmica
+  // Disparo da impressão nativa universal com CSS @page em milímetros exatos
   const handlePrint = () => {
-    const printWindow = window.open('', '_blank', 'width=750,height=600')
+    const printWindow = window.open('', '_blank', 'width=800,height=650')
     if (!printWindow) {
       toast({
         title: 'Bloqueador de pop-ups detectado',
@@ -173,14 +332,15 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
     }
 
     const { widthMm, heightMm, orientation, copies } = config
-    const copiesArray = Array.from({ length: Math.max(1, copies) })
+    const copiesCount = Math.max(1, copies || 1)
+    const copiesArray = Array.from({ length: copiesCount })
 
-    // Cria elementos clonados para as cópias
+    // Conteúdo HTML da etiqueta estilizada
     const labelHtml = printAreaRef.current?.innerHTML || ''
     const copiesHtml = copiesArray
       .map(
         () => `
-      <div class="label-page">
+      <div class="thermal-label-sheet">
         ${labelHtml}
       </div>
     `,
@@ -194,57 +354,94 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
         <meta charset="utf-8" />
         <title>Etiqueta OS ${order.number || order.id.slice(0, 6)} - JUCA INFORMÁTICA</title>
         <style>
+          /* REQUISITO UNIVERSAL: Impressão milimétrica direta para Zebra, Argox, Elgin, Brother, TSC, Datamax e genéricas */
           @page {
             size: ${widthMm}mm ${heightMm}mm ${orientation};
-            margin: 0;
+            margin: 0mm !important;
           }
           * {
-            box-sizing: border-box;
+            box-sizing: border-box !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+            color-adjust: exact !important;
           }
           html, body {
-            margin: 0;
-            padding: 0;
-            background: #ffffff;
-            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: geometricPrecision;
           }
-          .label-page {
+          .thermal-label-sheet {
             width: ${widthMm}mm;
             height: ${heightMm}mm;
             page-break-after: always;
             page-break-inside: avoid;
+            break-after: page;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto;
+            align-items: stretch;
+            justify-content: stretch;
+            margin: 0 !important;
+            padding: 0 !important;
             overflow: hidden;
+            background: #ffffff;
+          }
+          /* Garante alto contraste térmico e sem sombras */
+          svg {
+            shape-rendering: crispEdges !important;
           }
           @media screen {
             body {
-              background: #e2e8f0;
-              padding: 20px;
+              background: #f1f5f9;
+              padding: 24px;
               display: flex;
               flex-direction: column;
               align-items: center;
-              gap: 20px;
+              gap: 16px;
             }
-            .label-page {
+            .thermal-label-sheet {
               background: #ffffff;
-              box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-              border-radius: 4px;
+              box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+              border: 1px dashed #cbd5e1;
+              border-radius: 3px;
+            }
+            .screen-hint {
+              background: #ffffff;
+              border: 1px solid #cbd5e1;
+              border-radius: 8px;
+              padding: 12px 18px;
+              max-width: 500px;
+              font-size: 13px;
+              color: #334155;
+              text-align: center;
+            }
+          }
+          @media print {
+            .screen-hint {
+              display: none !important;
+            }
+            body {
+              background: #ffffff !important;
             }
           }
         </style>
       </head>
       <body>
+        <div class="screen-hint">
+          <strong>Preparando impressão térmica universal...</strong>
+          <p style="margin: 4px 0 0; font-size: 11px; color: #64748b;">
+            No diálogo de impressão: selecione a sua impressora térmica (ou "Salvar como PDF"), defina as margens como <strong>Nenhuma</strong> e a escala como <strong>Padrão (100%)</strong>.
+          </p>
+        </div>
         ${copiesHtml}
         <script>
           window.onload = function() {
             setTimeout(function() {
               window.focus();
               window.print();
-            }, 300);
+            }, 350);
           };
         </script>
       </body>
@@ -253,9 +450,12 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
     printWindow.document.close()
   }
 
-  // Gerar PDF / Exportar
+  // Gerar PDF / Exportar milimetricamente
   const handleDownloadPDF = () => {
-    // Abrir o diálogo de impressão do navegador permite "Salvar como PDF" com as dimensões exatas da página configurada
+    toast({
+      title: 'Gerando PDF com dimensões exatas',
+      description: `Na janela aberta, escolha "Salvar como PDF" com tamanho ${config.widthMm} × ${config.heightMm} mm e margens "Nenhuma".`,
+    })
     handlePrint()
   }
 
@@ -331,26 +531,32 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
 
         <Tabs
           value={activeTab}
-          onValueChange={(val) => setActiveTab(val as 'preview' | 'config')}
+          onValueChange={(val) => setActiveTab(val as 'preview' | 'config' | 'guide')}
           className="flex-1 flex flex-col overflow-hidden"
         >
           <div className="px-6 pt-3 pb-1 border-b border-border bg-background flex items-center justify-between">
-            <TabsList className="grid grid-cols-2 w-56 h-8">
+            <TabsList className="grid grid-cols-3 w-80 h-8">
               <TabsTrigger value="preview" className="text-xs font-medium">
                 Pré-visualização
               </TabsTrigger>
               <TabsTrigger value="config" className="text-xs font-medium flex items-center gap-1.5">
                 <Settings2 className="w-3.5 h-3.5" />
-                Tamanho / Layout
+                Tamanho / Margens
+              </TabsTrigger>
+              <TabsTrigger value="guide" className="text-xs font-medium flex items-center gap-1.5">
+                <Info className="w-3.5 h-3.5" />
+                Compatibilidade
               </TabsTrigger>
             </TabsList>
 
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">
+            <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
                 {config.widthMm} × {config.heightMm} mm
               </span>
               <span>•</span>
-              <span className="capitalize">
+              <span className="text-[11px]">Escala: {config.scalePercent || 100}%</span>
+              <span>•</span>
+              <span className="capitalize font-medium text-foreground">
                 {config.codeType === 'qr'
                   ? 'QR Code'
                   : config.codeType === 'barcode'
@@ -432,136 +638,344 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
             </div>
           </TabsContent>
 
-          {/* ABA 2: CONFIGURAÇÕES DE TAMANHO E PRESETS */}
+          {/* ABA 2: CONFIGURAÇÕES DE TAMANHO, PERFIS, MARGENS E ESCALA */}
           <TabsContent
             value="config"
             className="flex-1 overflow-y-auto p-6 space-y-6 m-0 bg-background"
           >
-            {/* SELEÇÃO DE PRESET */}
+            {/* PERFIS DE ETIQUETAS (PADRÕES + SALVOS) */}
             <div className="space-y-3">
-              <Label className="text-sm font-semibold">
-                Tamanho da Etiqueta (Presets Térmicos)
-              </Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {PRESET_LABEL_SIZES.map((preset) => {
-                  const isSelected = config.presetId === preset.id
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-semibold">
+                    Perfis de Etiquetas Térmicas (Compatibilidade Universal)
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Selecione um tamanho predefinido ou escolha um perfil salvo para sua impressora.
+                  </p>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowSaveProfileDialog((prev) => !prev)}
+                  className="h-8 text-xs gap-1.5"
+                >
+                  <BookmarkPlus className="w-3.5 h-3.5 text-primary" />
+                  Salvar Perfil Atual
+                </Button>
+              </div>
+
+              {/* FORMULÁRIO RÁPIDO PARA SALVAR PERFIL */}
+              {showSaveProfileDialog && (
+                <div className="p-3.5 rounded-lg border border-primary/30 bg-primary/5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-primary">
+                      Salvar medidas atuais ({config.widthMm} × {config.heightMm} mm) como novo
+                      perfil:
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-muted-foreground"
+                      onClick={() => setShowSaveProfileDialog(false)}
+                    >
+                      ×
+                    </Button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Ex: Argox Balcão, Zebra Gaveta, 50x30 Compacta"
+                      value={newProfileName}
+                      onChange={(e) => setNewProfileName(e.target.value)}
+                      className="h-8 text-xs bg-white dark:bg-slate-900"
+                    />
+                    <Button
+                      size="sm"
+                      className="h-8 text-xs gap-1 shrink-0"
+                      onClick={handleCreateCustomProfile}
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      Salvar
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* GRID DE PERFIS */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                {allProfiles.map((profile) => {
+                  const isSelected = config.presetId === profile.id
                   return (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => handlePresetChange(preset.id)}
-                      className={`text-left p-3 rounded-lg border text-xs transition-all flex flex-col justify-between ${
+                    <div
+                      key={profile.id}
+                      onClick={() => handleProfileSelect(profile.id)}
+                      className={`text-left p-3 rounded-lg border text-xs transition-all flex flex-col justify-between cursor-pointer relative ${
                         isSelected
                           ? 'border-primary bg-primary/5 ring-1 ring-primary'
                           : 'border-border hover:bg-muted/40'
                       }`}
                     >
-                      <div className="font-bold flex items-center justify-between">
-                        <span>{preset.name}</span>
-                        {preset.isDefault && (
-                          <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                            Recomendado
+                      <div className="flex items-start justify-between gap-1">
+                        <span className="font-bold text-foreground">{profile.name}</span>
+                        {profile.isDefault && (
+                          <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold">
+                            Padrão
                           </span>
                         )}
+                        {profile.profileData && (
+                          <button
+                            type="button"
+                            title="Remover perfil salvo"
+                            className="text-muted-foreground hover:text-destructive p-1"
+                            onClick={(e) =>
+                              handleDeleteCustomProfile(
+                                profile.profileData!.id,
+                                profile.profileData!.name,
+                                e,
+                              )
+                            }
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
-                      <span className="text-muted-foreground mt-1 text-[11px]">
-                        {preset.description}
+                      <span className="text-muted-foreground mt-1.5 text-[11px] line-clamp-2">
+                        {profile.description}
                       </span>
-                    </button>
+                    </div>
                   )
                 })}
               </div>
             </div>
 
-            {/* DIMENSÕES MANUAIS / PERSONALIZADAS */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-900/40 p-3.5 rounded-lg border border-border">
-              <div className="space-y-1">
-                <Label htmlFor="widthMm" className="text-xs">
-                  Largura (mm)
-                </Label>
-                <Input
-                  id="widthMm"
-                  type="number"
-                  min="20"
-                  max="150"
-                  value={config.widthMm}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      presetId: 'custom',
-                      widthMm: Math.max(20, Number(e.target.value) || 20),
-                    }))
-                  }
-                  className="h-8 text-xs"
-                />
-              </div>
+            {/* DIMENSÕES MANUAIS, CÓPIAS E ORIENTAÇÃO */}
+            <div className="space-y-3 pt-2 border-t border-border">
+              <Label className="text-xs font-semibold">
+                Dimensões Físicas da Etiqueta (em milímetros)
+              </Label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-900/40 p-3.5 rounded-lg border border-border">
+                <div className="space-y-1">
+                  <Label htmlFor="widthMm" className="text-xs">
+                    Largura (mm)
+                  </Label>
+                  <Input
+                    id="widthMm"
+                    type="number"
+                    min="15"
+                    max="200"
+                    value={config.widthMm}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        presetId: 'custom',
+                        widthMm: Math.max(15, Number(e.target.value) || 15),
+                      }))
+                    }
+                    className="h-8 text-xs bg-white dark:bg-slate-900"
+                  />
+                </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="heightMm" className="text-xs">
-                  Altura (mm)
-                </Label>
-                <Input
-                  id="heightMm"
-                  type="number"
-                  min="15"
-                  max="150"
-                  value={config.heightMm}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      presetId: 'custom',
-                      heightMm: Math.max(15, Number(e.target.value) || 15),
-                    }))
-                  }
-                  className="h-8 text-xs"
-                />
-              </div>
+                <div className="space-y-1">
+                  <Label htmlFor="heightMm" className="text-xs">
+                    Altura (mm)
+                  </Label>
+                  <Input
+                    id="heightMm"
+                    type="number"
+                    min="10"
+                    max="200"
+                    value={config.heightMm}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        presetId: 'custom',
+                        heightMm: Math.max(10, Number(e.target.value) || 10),
+                      }))
+                    }
+                    className="h-8 text-xs bg-white dark:bg-slate-900"
+                  />
+                </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="copies" className="text-xs">
-                  Cópias
-                </Label>
-                <Input
-                  id="copies"
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={config.copies}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      copies: Math.max(1, Math.min(10, Number(e.target.value) || 1)),
-                    }))
-                  }
-                  className="h-8 text-xs"
-                />
-              </div>
+                <div className="space-y-1">
+                  <Label htmlFor="copies" className="text-xs">
+                    Quantidade de Cópias
+                  </Label>
+                  <Input
+                    id="copies"
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={config.copies}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        copies: Math.max(1, Math.min(50, Number(e.target.value) || 1)),
+                      }))
+                    }
+                    className="h-8 text-xs bg-white dark:bg-slate-900"
+                  />
+                </div>
 
-              <div className="space-y-1">
-                <Label className="text-xs">Orientação</Label>
-                <Select
-                  value={config.orientation}
-                  onValueChange={(val: 'landscape' | 'portrait') =>
-                    setConfig((prev) => ({ ...prev, orientation: val }))
-                  }
+                <div className="space-y-1">
+                  <Label className="text-xs">Orientação</Label>
+                  <Select
+                    value={config.orientation}
+                    onValueChange={(val: 'landscape' | 'portrait') =>
+                      setConfig((prev) => ({ ...prev, orientation: val }))
+                    }
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-white dark:bg-slate-900">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="landscape" className="text-xs">
+                        Paisagem (Horizontal)
+                      </SelectItem>
+                      <SelectItem value="portrait" className="text-xs">
+                        Retrato (Vertical)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            {/* CONTROLE DE MARGENS E ESCALA (ANTI-CORTE TÉRMICO) */}
+            <div className="space-y-3 pt-2 border-t border-border">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-xs font-semibold flex items-center gap-1.5">
+                    <Sliders className="w-3.5 h-3.5 text-primary" />
+                    Calibração de Margens e Escala (Anti-Corte e Ajuste Fino)
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Ajuste fino caso a cabeça de impressão da sua impressora corte as bordas ou o
+                    sensor de etiqueta desloque a área útil.
+                  </p>
+                </div>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleResetCalibration}
+                  className="h-7 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
                 >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="landscape" className="text-xs">
-                      Paisagem
-                    </SelectItem>
-                    <SelectItem value="portrait" className="text-xs">
-                      Retrato
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                  <RotateCcw className="w-3 h-3" />
+                  Redefinir
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 bg-slate-50 dark:bg-slate-900/40 p-3.5 rounded-lg border border-border">
+                <div className="space-y-1">
+                  <Label htmlFor="marginTopMm" className="text-[11px]">
+                    Margem Sup. (mm)
+                  </Label>
+                  <Input
+                    id="marginTopMm"
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    max="15"
+                    value={config.marginTopMm}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        marginTopMm: Math.max(0, Number(e.target.value) || 0),
+                      }))
+                    }
+                    className="h-8 text-xs bg-white dark:bg-slate-900"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="marginBottomMm" className="text-[11px]">
+                    Margem Inf. (mm)
+                  </Label>
+                  <Input
+                    id="marginBottomMm"
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    max="15"
+                    value={config.marginBottomMm}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        marginBottomMm: Math.max(0, Number(e.target.value) || 0),
+                      }))
+                    }
+                    className="h-8 text-xs bg-white dark:bg-slate-900"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="marginLeftMm" className="text-[11px]">
+                    Margem Esq. (mm)
+                  </Label>
+                  <Input
+                    id="marginLeftMm"
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    max="15"
+                    value={config.marginLeftMm}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        marginLeftMm: Math.max(0, Number(e.target.value) || 0),
+                      }))
+                    }
+                    className="h-8 text-xs bg-white dark:bg-slate-900"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="marginRightMm" className="text-[11px]">
+                    Margem Dir. (mm)
+                  </Label>
+                  <Input
+                    id="marginRightMm"
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    max="15"
+                    value={config.marginRightMm}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        marginRightMm: Math.max(0, Number(e.target.value) || 0),
+                      }))
+                    }
+                    className="h-8 text-xs bg-white dark:bg-slate-900"
+                  />
+                </div>
+
+                <div className="space-y-1 col-span-2 sm:col-span-1">
+                  <Label htmlFor="scalePercent" className="text-[11px]">
+                    Escala Conteúdo (%)
+                  </Label>
+                  <Input
+                    id="scalePercent"
+                    type="number"
+                    step="5"
+                    min="50"
+                    max="150"
+                    value={config.scalePercent || 100}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        scalePercent: Math.max(50, Math.min(150, Number(e.target.value) || 100)),
+                      }))
+                    }
+                    className="h-8 text-xs bg-white dark:bg-slate-900 font-semibold"
+                  />
+                </div>
               </div>
             </div>
 
             {/* TIPO DE CÓDIGO (QR CODE OU CÓDIGO DE BARRAS) */}
-            <div className="space-y-2">
+            <div className="space-y-2 pt-2 border-t border-border">
               <Label className="text-xs font-semibold">Identificador Escaneável</Label>
               <div className="grid grid-cols-3 gap-2">
                 <button
@@ -574,7 +988,7 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
                   }`}
                 >
                   <QrCode className="w-4 h-4" />
-                  QR Code (Link OS)
+                  QR Code (Link Seguro OS)
                 </button>
                 <button
                   type="button"
@@ -586,7 +1000,7 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
                   }`}
                 >
                   <Barcode className="w-4 h-4" />
-                  Código de Barras (128)
+                  Cód. Barras (128)
                 </button>
                 <button
                   type="button"
@@ -597,14 +1011,14 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
                       : 'border-border hover:bg-muted/30'
                   }`}
                 >
-                  Ambos (Etiqueta Larga)
+                  Ambos (QR + Barras)
                 </button>
               </div>
             </div>
 
             {/* ELEMENTOS OPCIONAIS */}
             <div className="space-y-3 pt-2 border-t border-border">
-              <Label className="text-xs font-semibold">Campos e Detalhes Opcionais</Label>
+              <Label className="text-xs font-semibold">Campos e Detalhes da Etiqueta</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="flex items-center justify-between p-2 rounded border border-border">
                   <span className="text-xs">Número de Série (S/N)</span>
@@ -651,10 +1065,88 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
                 size="sm"
                 onClick={handleSavePreferences}
                 disabled={isSavingConfig}
-                className="text-xs"
+                className="text-xs gap-1.5"
               >
+                <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
                 {isSavingConfig ? 'Salvando...' : 'Salvar como padrão para a empresa'}
               </Button>
+            </div>
+          </TabsContent>
+
+          {/* ABA 3: GUIA TÉCNICO DE COMPATIBILIDADE UNIVERSAL & LIMITAÇÕES */}
+          <TabsContent
+            value="guide"
+            className="flex-1 overflow-y-auto p-6 space-y-4 m-0 bg-background text-xs"
+          >
+            <div className="border border-blue-200 dark:border-blue-900 bg-blue-50/60 dark:bg-blue-950/30 p-4 rounded-lg space-y-2">
+              <h4 className="font-bold text-sm text-blue-950 dark:text-blue-100 flex items-center gap-2">
+                <Printer className="w-4 h-4 text-blue-600" />
+                Arquitetura Universal de Impressão Térmica JUCA
+              </h4>
+              <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                O módulo foi projetado para operar com{' '}
+                <strong>qualquer impressora térmica do mercado</strong> (Zebra, Argox, Elgin,
+                Brother, TSC, Datamax, Bematech, G-Printer, Xprinter e genéricas), sem criar amarras
+                com comandos exclusivos de um fabricante (ZPL, EPL, TSPL ou ESC/POS).
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <h5 className="font-semibold text-slate-900 dark:text-slate-100">
+                1. Tipos de Conexão Compatíveis:
+              </h5>
+              <ul className="list-disc list-inside space-y-1.5 text-muted-foreground">
+                <li>
+                  <strong>USB:</strong> Instale o driver oficial do fabricante ou driver genérico
+                  texto/gráfico do Windows/macOS/Linux. A impressão é enviada via spooler padrão do
+                  sistema operacional.
+                </li>
+                <li>
+                  <strong>Rede / Wi-Fi / Ethernet:</strong> Compartilhe a impressora via IP ou fila
+                  de rede do Windows/Samba. O navegador imprime diretamente na fila configurada.
+                </li>
+                <li>
+                  <strong>Bluetooth:</strong> Emparelhe a impressora térmica portátil no computador
+                  ou tablet. O sistema operacional gera uma porta virtual de impressora reconhecida
+                  pelo navegador.
+                </li>
+              </ul>
+            </div>
+
+            <div className="space-y-3 pt-2 border-t border-border">
+              <h5 className="font-semibold text-slate-900 dark:text-slate-100">
+                2. Como Evitar Desperdício e Cortes de Bordas:
+              </h5>
+              <div className="bg-slate-100 dark:bg-slate-900 p-3 rounded-md space-y-1.5 text-slate-700 dark:text-slate-300">
+                <p>
+                  ✓ <strong>No diálogo de impressão do navegador:</strong> configure{' '}
+                  <em>Margens</em> como <strong>Nenhuma</strong> (ou <em>Personalizada: 0</em>) e{' '}
+                  <em>Ajustar à página / Escala</em> como <strong>Padrão (100%)</strong>.
+                </p>
+                <p>
+                  ✓ <strong>Nas propriedades do driver da impressora térmica:</strong> certifique-se
+                  de que o tamanho do papel cadastrado no driver (ex: 60 × 40 mm) coincide com as
+                  medidas configuradas aqui no sistema.
+                </p>
+                <p>
+                  ✓ Utilize o controle de <strong>Calibração de Margens e Escala</strong> na aba
+                  anterior para pequenos desvios físicos causados pelo sensor gap/black mark do rolo
+                  de etiquetas.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-border">
+              <h5 className="font-semibold text-slate-900 dark:text-slate-100">
+                3. Transparência Técnica sobre Comandos Nativos (ZPL / EPL / TSPL):
+              </h5>
+              <p className="text-muted-foreground leading-relaxed">
+                Navegadores web executam em ambiente seguro (sandbox) e não possuem acesso direto a
+                portas de hardware para enviar comandos binários puros de protocolo proprietário
+                (como ZPL ou TSPL) sem auxílio de softwares locais (como QZ Tray ou Zebra Browser
+                Print). A solução universal via drivers de sistema operacional garante que a JUCA
+                possa trocar qualquer equipamento sem precisar refazer código.
+              </p>
             </div>
           </TabsContent>
         </Tabs>

@@ -69,44 +69,58 @@ export const EquipmentLabelContent: React.FC<EquipmentLabelContentProps> = ({
     return `${base}/ordens/${order.id}`
   }, [order.id])
 
-  // SVG do QR Code
+  // Fator de escala fina configurado pelo operador (padrão 100% = 1.0)
+  const scale = (config.scalePercent || 100) / 100
+
+  // SVG do QR Code de alto contraste (módulo preto nítido sobre fundo branco)
   const qrSvg = useMemo(() => {
     if (config.codeType === 'barcode') return null
     try {
       const matrix = generateQrMatrix(orderUrl)
-      // Ajuste proporcional do tamanho do QR conforme a altura da etiqueta
-      const sizePx = Math.max(50, Math.min(140, Math.round(config.heightMm * 2.8)))
+      // Ajuste proporcional do tamanho do QR conforme a altura e largura disponíveis
+      const effectiveHeight = Math.max(
+        15,
+        config.heightMm - (config.marginTopMm + config.marginBottomMm),
+      )
+      const rawPx = Math.round(effectiveHeight * 2.7 * scale)
+      const sizePx = Math.max(42, Math.min(150, rawPx))
+      // quietZone 1 garante alto contraste e sem cortes nas bordas térmicas
       return qrMatrixToSvg(matrix, sizePx, 1)
     } catch (err) {
       console.error('Erro ao gerar QR Code:', err)
       return null
     }
-  }, [orderUrl, config.codeType, config.heightMm])
+  }, [orderUrl, config.codeType, config.heightMm, config.marginTopMm, config.marginBottomMm, scale])
 
   // SVG do Código de Barras Code 128
   const barcodeSvg = useMemo(() => {
     if (config.codeType === 'qr') return null
     try {
-      // Código de barras usa o identificador da OS
       const barcodeText = String(orderNumber).replace(/[^a-zA-Z0-9-]/g, '')
-      const barHeight = config.heightMm <= 30 ? 22 : 32
-      const moduleWidth = config.widthMm < 50 ? 0.8 : 1.05
+      const barHeight = Math.max(16, Math.round((config.heightMm <= 30 ? 20 : 30) * scale))
+      const moduleWidth = (config.widthMm < 50 ? 0.75 : 0.95) * scale
       return code128ToSvg(barcodeText, barHeight, moduleWidth, true)
     } catch (err) {
       console.error('Erro ao gerar Barcode:', err)
       return null
     }
-  }, [orderNumber, config.codeType, config.heightMm, config.widthMm])
+  }, [orderNumber, config.codeType, config.heightMm, config.widthMm, scale])
 
-  // Escalas e dimensionamento de fontes para impressoras térmicas
-  const isCompact = config.widthMm <= 40 || config.heightMm <= 30
+  // Escalas e dimensionamento de fontes para impressoras térmicas (100% puro preto #000 sobre #fff)
+  const isCompact = config.widthMm <= 42 || config.heightMm <= 32
   const isLarge = config.widthMm >= 90 && config.heightMm >= 45
 
-  const headerFontSize = isCompact ? '6.5pt' : isLarge ? '10pt' : '8pt'
-  const osNumberFontSize = isCompact ? '9pt' : isLarge ? '14pt' : '11pt'
-  const clientFontSize = isCompact ? '8pt' : isLarge ? '11pt' : '9pt'
-  const equipFontSize = isCompact ? '7pt' : isLarge ? '9.5pt' : '8pt'
-  const detailsFontSize = isCompact ? '5.5pt' : isLarge ? '7.5pt' : '6.5pt'
+  const baseHeaderPt = isCompact ? 6.5 : isLarge ? 10 : 8
+  const baseOsNumberPt = isCompact ? 9 : isLarge ? 14 : 11
+  const baseClientPt = isCompact ? 7.5 : isLarge ? 11 : 9
+  const baseEquipPt = isCompact ? 6.8 : isLarge ? 9.5 : 8
+  const baseDetailsPt = isCompact ? 5.2 : isLarge ? 7.5 : 6.2
+
+  const headerFontSize = `${(baseHeaderPt * scale).toFixed(1)}pt`
+  const osNumberFontSize = `${(baseOsNumberPt * scale).toFixed(1)}pt`
+  const clientFontSize = `${(baseClientPt * scale).toFixed(1)}pt`
+  const equipFontSize = `${(baseEquipPt * scale).toFixed(1)}pt`
+  const detailsFontSize = `${(baseDetailsPt * scale).toFixed(1)}pt`
 
   const containerStyle: React.CSSProperties = {
     width: `${config.widthMm}mm`,
@@ -121,36 +135,40 @@ export const EquipmentLabelContent: React.FC<EquipmentLabelContentProps> = ({
     justifyContent: 'space-between',
     backgroundColor: '#ffffff',
     color: '#000000',
-    fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif',
+    fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
     lineHeight: 1.15,
     overflow: 'hidden',
     position: 'relative',
     pageBreakAfter: 'always',
     pageBreakInside: 'avoid',
+    WebkitPrintColorAdjust: 'exact',
+    printColorAdjust: 'exact',
   }
 
   return (
     <div
-      className={`equipment-label-printable ${isPrintMode ? 'print-direct' : ''}`}
+      className={`equipment-label-printable thermal-high-contrast ${isPrintMode ? 'print-direct' : ''}`}
       style={containerStyle}
     >
       {/* CABEÇALHO: NOME DA EMPRESA E TIPO DE ATENDIMENTO */}
       <div
         style={{
           borderBottom: '1px solid #000000',
-          paddingBottom: '1mm',
-          marginBottom: '1mm',
+          paddingBottom: `${(0.8 * scale).toFixed(2)}mm`,
+          marginBottom: `${(0.8 * scale).toFixed(2)}mm`,
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'baseline',
+          flexShrink: 0,
         }}
       >
         <span
           style={{
-            fontWeight: 800,
+            fontWeight: 900,
             fontSize: headerFontSize,
             letterSpacing: '0.04em',
             textTransform: 'uppercase',
+            color: '#000000',
           }}
         >
           JUCA INFORMÁTICA
@@ -159,13 +177,14 @@ export const EquipmentLabelContent: React.FC<EquipmentLabelContentProps> = ({
         {attendanceTypeLabel && !isCompact && (
           <span
             style={{
-              fontSize: '6pt',
-              fontWeight: 700,
+              fontSize: `${(5.8 * scale).toFixed(1)}pt`,
+              fontWeight: 800,
               textTransform: 'uppercase',
               backgroundColor: '#000000',
               color: '#ffffff',
-              padding: '0.5mm 1.5mm',
-              borderRadius: '1mm',
+              padding: '0.4mm 1.2mm',
+              borderRadius: '0.6mm',
+              letterSpacing: '0.02em',
             }}
           >
             {attendanceTypeLabel}
@@ -176,8 +195,8 @@ export const EquipmentLabelContent: React.FC<EquipmentLabelContentProps> = ({
           <span
             style={{
               fontSize: detailsFontSize,
-              fontWeight: 600,
-              color: '#222222',
+              fontWeight: 700,
+              color: '#000000',
             }}
           >
             {formattedDate}
@@ -191,8 +210,9 @@ export const EquipmentLabelContent: React.FC<EquipmentLabelContentProps> = ({
           display: 'flex',
           flex: 1,
           alignItems: 'center',
-          gap: '2mm',
+          gap: `${(1.5 * scale).toFixed(2)}mm`,
           minHeight: 0,
+          overflow: 'hidden',
         }}
       >
         {/* COLUNA ESQUERDA: NÚMERO DA OS, CLIENTE E EQUIPAMENTO */}
@@ -204,28 +224,34 @@ export const EquipmentLabelContent: React.FC<EquipmentLabelContentProps> = ({
             justifyContent: 'space-around',
             minWidth: 0,
             height: '100%',
+            overflow: 'hidden',
           }}
         >
-          {/* NÚMERO DA ORDEM DE SERVIÇO */}
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '1.5mm' }}>
-            <span style={{ fontSize: '6.5pt', fontWeight: 700, color: '#444' }}>OS:</span>
+          {/* NÚMERO DA ORDEM DE SERVIÇO (Destaque máximo para leitura visual imediata) */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '1.2mm' }}>
+            <span
+              style={{ fontSize: `${(6 * scale).toFixed(1)}pt`, fontWeight: 800, color: '#000000' }}
+            >
+              OS:
+            </span>
             <span
               style={{
                 fontSize: osNumberFontSize,
                 fontWeight: 900,
                 letterSpacing: '-0.02em',
                 lineHeight: 1,
+                color: '#000000',
               }}
             >
               {orderNumber}
             </span>
           </div>
 
-          {/* CLIENTE (Prioritário para legibilidade rápida) */}
+          {/* CLIENTE (Prioritário para triagem no balcão) */}
           <div
             style={{
               fontSize: clientFontSize,
-              fontWeight: 700,
+              fontWeight: 800,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -241,8 +267,8 @@ export const EquipmentLabelContent: React.FC<EquipmentLabelContentProps> = ({
           <div
             style={{
               fontSize: equipFontSize,
-              fontWeight: 600,
-              color: '#111111',
+              fontWeight: 700,
+              color: '#000000',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -257,25 +283,26 @@ export const EquipmentLabelContent: React.FC<EquipmentLabelContentProps> = ({
             style={{
               display: 'flex',
               flexWrap: 'wrap',
-              gap: '1.5mm',
+              gap: `${(1.2 * scale).toFixed(2)}mm`,
               fontSize: detailsFontSize,
-              color: '#333333',
-              marginTop: '0.5mm',
+              color: '#000000',
+              marginTop: '0.4mm',
+              lineHeight: 1.1,
             }}
           >
             {config.showSerialNumber && equipSerial && (
               <span style={{ whiteSpace: 'nowrap' }}>
-                <strong>S/N:</strong> {equipSerial}
+                <strong style={{ fontWeight: 800 }}>S/N:</strong> {equipSerial}
               </span>
             )}
             {config.showInternalId && equipInternalCode && !isCompact && (
               <span style={{ whiteSpace: 'nowrap' }}>
-                <strong>ID:</strong> {equipInternalCode}
+                <strong style={{ fontWeight: 800 }}>ID:</strong> {equipInternalCode}
               </span>
             )}
             {config.showTechnician && technicianName && (
               <span style={{ whiteSpace: 'nowrap' }}>
-                <strong>Téc:</strong> {technicianName}
+                <strong style={{ fontWeight: 800 }}>Téc:</strong> {technicianName}
               </span>
             )}
           </div>
@@ -298,17 +325,18 @@ export const EquipmentLabelContent: React.FC<EquipmentLabelContentProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                backgroundColor: '#ffffff',
               }}
               dangerouslySetInnerHTML={{ __html: qrSvg }}
             />
             <span
               style={{
-                fontSize: '4.5pt',
-                fontWeight: 700,
+                fontSize: `${(4.5 * scale).toFixed(1)}pt`,
+                fontWeight: 900,
                 textTransform: 'uppercase',
-                marginTop: '0.5mm',
-                color: '#555',
-                letterSpacing: '0.02em',
+                marginTop: '0.3mm',
+                color: '#000000',
+                letterSpacing: '0.04em',
               }}
             >
               SCAN OS
@@ -324,7 +352,7 @@ export const EquipmentLabelContent: React.FC<EquipmentLabelContentProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-              maxWidth: '48%',
+              maxWidth: '50%',
             }}
           >
             <div dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
@@ -336,23 +364,30 @@ export const EquipmentLabelContent: React.FC<EquipmentLabelContentProps> = ({
       {config.codeType === 'both' && (
         <div
           style={{
-            borderTop: '1px dashed #777777',
-            paddingTop: '1mm',
-            marginTop: '1mm',
+            borderTop: '1px solid #000000',
+            paddingTop: '0.8mm',
+            marginTop: '0.8mm',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            flexShrink: 0,
           }}
         >
           {qrSvg && (
             <div
-              style={{ width: '22mm', height: '22mm' }}
+              style={{
+                width: `${(20 * scale).toFixed(1)}mm`,
+                height: `${(20 * scale).toFixed(1)}mm`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
               dangerouslySetInnerHTML={{ __html: qrSvg }}
             />
           )}
           {barcodeSvg && (
             <div
-              style={{ flex: 1, marginLeft: '2mm' }}
+              style={{ flex: 1, marginLeft: '2mm', overflow: 'hidden' }}
               dangerouslySetInnerHTML={{ __html: barcodeSvg }}
             />
           )}
