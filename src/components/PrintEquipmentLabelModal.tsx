@@ -359,9 +359,12 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
     const copiesArray = Array.from({ length: copiesCount })
 
     // REGRA 40 × 40 MM (etiqueta quadrada): NENHUMA rotação/orientação automática é aplicada.
-    // Em página quadrada o keyword "landscape" no @page faz o Chrome/driver girarem o conteúdo
-    // em 90° (conteúdo deitado e deslocado). Aqui a orientação é FORÇADA para retrato explícito.
-    const pageOrientationKeyword = isSquare40x40 ? 'portrait' : orientation
+    // Para 40×40 mm a sintaxe @page com keyword de orientação misturada a comprimentos (ex: "40mm 40mm portrait")
+    // é inválida segundo o CSS Paged Media. Usa-se estritamente "size: 40mm 40mm;" com "margin: 0;" sem keyword de orientação.
+    // Demais tamanhos mantêm sua declaração com orientação configurada.
+    const pageSizeDeclaration = isSquare40x40
+      ? `${widthMm}mm ${heightMm}mm`
+      : `${widthMm}mm ${heightMm}mm ${orientation}`
 
     // Conteúdo HTML da etiqueta estilizada
     const labelHtml = printAreaRef.current?.innerHTML || ''
@@ -383,15 +386,15 @@ export const PrintEquipmentLabelModal: React.FC<PrintEquipmentLabelModalProps> =
         <title>Etiqueta OS ${order.number || order.id.slice(0, 6)} - JUCA INFORMÁTICA</title>
         <style>
           /* REQUISITO UNIVERSAL: Impressão milimétrica direta para Zebra, Argox, Elgin, Brother, TSC, Datamax e genéricas.
-             A orientação da página fica EXPLICITAMENTE fixada (retrato) para o tamanho 40 × 40 mm:
-             em etiqueta quadrada o keyword "landscape" faz navegador/driver girarem o conteúdo em 90°. */
+             Para o ramo 40 × 40 mm a regra CSS @page é estritamente "size: 40mm 40mm; margin: 0;",
+             sem keyword de orientação inválida, evitando qualquer rotação involuntária do driver/navegador. */
           @page {
-            size: ${widthMm}mm ${heightMm}mm ${pageOrientationKeyword};
+            size: ${pageSizeDeclaration};
             margin: 0 !important;
           }
           @media print {
             @page {
-              size: ${widthMm}mm ${heightMm}mm ${pageOrientationKeyword};
+              size: ${pageSizeDeclaration};
               margin: 0 !important;
             }
           }
