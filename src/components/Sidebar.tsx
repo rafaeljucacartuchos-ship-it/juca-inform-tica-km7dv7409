@@ -92,6 +92,8 @@ export function Sidebar({ onNavClick }: SidebarProps) {
   }, [isCadastroActive])
 
   const mainNavItems = [
+    { label: 'Central de gestão', path: '/central', icon: Headphones, show: user?.role === 'admin' },
+    { label: 'Central WhatsApp', path: '/central/whatsapp', icon: Headphones, show: user?.role === 'admin' },
     {
       label: 'Dashboard',
       path: '/dashboard',
@@ -370,3 +372,4 @@ export function Sidebar({ onNavClick }: SidebarProps) {
     </aside>
   )
 }
+
