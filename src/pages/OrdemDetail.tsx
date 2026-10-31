@@ -3,6 +3,7 @@ import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
   ArrowLeft,
   AlertCircle,
+  Search,
   Play,
   CheckCircle,
   CheckCircle2,
@@ -112,7 +113,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { OrderPhotos } from '@/components/OrderPhotos'
-import { NewEquipmentModal } from '@/components/NewEquipmentModal'
+import { OrderEquipmentModal } from '@/components/OrderEquipmentModal'
 import { EditEquipmentModal } from '@/components/EditEquipmentModal'
 import { TransferTechnicianModal } from '@/components/TransferTechnicianModal'
 import { RescheduleOrderModal } from '@/components/RescheduleOrderModal'
@@ -1751,12 +1752,17 @@ export default function OrdemDetail() {
                 onClick: () => window.open(`/share/${order.id}`, '_blank'),
               },
               {
-                key: 'equipment_record',
-                label: order.equipment_ref
-                  ? 'Cadastro do Equipamento (Editar/Fotos)'
-                  : 'Vincular/Cadastrar Equipamento',
-                icon: Monitor,
+                key: 'equipment_search_or_new',
+                label: 'Buscar / Cadastrar Equipamento',
+                icon: Search,
                 separatorBefore: true,
+                onClick: () => setEquipmentModalOpen(true),
+              },
+              {
+                key: 'equipment_record',
+                label: 'Detalhes / Fotos do Equipamento',
+                icon: Monitor,
+                hidden: !order.equipment_ref,
                 onClick: () => handleOpenEquipmentModal('edit'),
               },
               {
@@ -2068,42 +2074,109 @@ export default function OrdemDetail() {
                 </div>
                 <div>
                   <span className="font-semibold text-slate-500">Equipamento:</span>
-                  <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                  <div className="mt-1">
                     {order.equipment_ref ||
                     (order.equipment && order.equipment.trim().length > 0) ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium text-slate-900">
-                          {order.equipment ||
-                            order.expand?.equipment_ref?.name ||
-                            'Equipamento vinculado'}
-                        </p>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setLabelModalOpen(true)}
-                          className="h-6 text-[11px] font-medium border-slate-300 text-slate-700 bg-white hover:bg-slate-50 px-2 gap-1 rounded"
-                          title="Imprimir ou reimprimir etiqueta com QR Code para este equipamento"
-                        >
-                          <QrCode className="h-3 w-3 text-indigo-600" />
-                          <span>Etiqueta</span>
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-amber-600 font-semibold italic text-xs">
-                          Não vinculado (Obrigatório ao fechar)
-                        </span>
-                        {canEdit && (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg border border-indigo-100 bg-indigo-50/40">
+                        <div className="min-w-0 space-y-0.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-xs sm:text-sm text-slate-900 truncate">
+                              {order.expand?.equipment_ref?.name ||
+                                order.equipment ||
+                                'Equipamento vinculado'}
+                            </span>
+                            {order.expand?.equipment_ref?.type && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] bg-white text-slate-600 uppercase font-mono px-1.5 py-0"
+                              >
+                                {order.expand.equipment_ref.type}
+                              </Badge>
+                            )}
+                          </div>
+                          {(order.expand?.equipment_ref?.brand ||
+                            order.expand?.equipment_ref?.model ||
+                            order.expand?.equipment_ref?.serial_number) && (
+                            <div className="flex items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-600 flex-wrap">
+                              {(order.expand.equipment_ref.brand ||
+                                order.expand.equipment_ref.model) && (
+                                <span>
+                                  <strong className="text-slate-500 font-semibold">
+                                    Marca/Modelo:
+                                  </strong>{' '}
+                                  {[
+                                    order.expand.equipment_ref.brand,
+                                    order.expand.equipment_ref.model,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' ')}
+                                </span>
+                              )}
+                              {order.expand.equipment_ref.serial_number && (
+                                <span className="font-mono">
+                                  <strong className="text-slate-500 font-semibold font-sans">
+                                    Nº Série:
+                                  </strong>{' '}
+                                  {order.expand.equipment_ref.serial_number}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0 pt-1 sm:pt-0">
+                          {canEdit && !fieldsLocked && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setEquipmentModalOpen(true)}
+                              className="h-7 text-[11px] font-medium border-indigo-200 text-indigo-700 bg-white hover:bg-indigo-50 px-2 gap-1 rounded shadow-xs"
+                              title="Trocar ou cadastrar outro equipamento para esta O.S."
+                            >
+                              <Search className="h-3 w-3 text-indigo-600" />
+                              <span>Trocar</span>
+                            </Button>
+                          )}
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
+                            onClick={() => handleOpenEquipmentModal('edit')}
+                            className="h-7 text-[11px] font-medium border-slate-300 text-slate-700 bg-white hover:bg-slate-50 px-2 gap-1 rounded shadow-xs"
+                            title="Ver ou editar dados completos e fotos do equipamento"
+                          >
+                            <Monitor className="h-3 w-3 text-slate-600" />
+                            <span>Detalhes</span>
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setLabelModalOpen(true)}
+                            className="h-7 text-[11px] font-medium border-slate-300 text-slate-700 bg-white hover:bg-slate-50 px-2 gap-1 rounded shadow-xs"
+                            title="Imprimir ou reimprimir etiqueta com QR Code para este equipamento"
+                          >
+                            <QrCode className="h-3 w-3 text-indigo-600" />
+                            <span>Etiqueta</span>
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg border border-amber-200 bg-amber-50/50">
+                        <span className="text-amber-800 font-semibold italic text-xs flex items-center gap-1">
+                          <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                          <span>Não vinculado (Obrigatório ao fechar)</span>
+                        </span>
+                        {canEdit && (
+                          <Button
+                            type="button"
+                            size="sm"
                             onClick={() => setEquipmentModalOpen(true)}
-                            className="h-6 text-[11px] font-medium border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 px-2 gap-1 rounded"
+                            className="h-7 text-[11px] font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 gap-1 rounded shadow-xs"
                           >
                             <Plus className="h-3 w-3" />
-                            <span>Vincular / Cadastrar</span>
+                            <span>Buscar / Cadastrar Equipamento</span>
                           </Button>
                         )}
                         <Button
@@ -2111,7 +2184,7 @@ export default function OrdemDetail() {
                           variant="outline"
                           size="sm"
                           onClick={() => setLabelModalOpen(true)}
-                          className="h-6 text-[11px] font-medium border-slate-300 text-slate-700 bg-white hover:bg-slate-50 px-2 gap-1 rounded"
+                          className="h-7 text-[11px] font-medium border-slate-300 text-slate-700 bg-white hover:bg-slate-50 px-2 gap-1 rounded"
                           title="Imprimir etiqueta com QR Code para esta O.S."
                         >
                           <QrCode className="h-3 w-3 text-indigo-600" />
@@ -3157,11 +3230,17 @@ export default function OrdemDetail() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <NewEquipmentModal
+      <OrderEquipmentModal
         open={equipmentModalOpen}
         onOpenChange={setEquipmentModalOpen}
-        onCreated={handleEquipmentCreated}
-        defaultCustomerId={order.customer}
+        currentCustomerId={order.customer}
+        currentCustomerName={
+          order.expand?.customer?.nome_fantasia ||
+          order.expand?.customer?.razao_social ||
+          order.expand?.customer?.name
+        }
+        currentEquipmentRef={order.equipment_ref}
+        onSelectEquipment={handleEquipmentCreated}
       />
 
       <PrintEquipmentLabelModal
