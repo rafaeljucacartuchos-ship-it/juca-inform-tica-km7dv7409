@@ -227,47 +227,46 @@ export function PrintOrderDocument({
   const cust = order.expand?.customer
   const tech = order.expand?.technician
 
-  // Coleta fotos do equipamento e atendimento sem duplicação
+  // Coleta fotos do equipamento e atendimento sem duplicação (resolução alta para nitidez no A4)
   const rawEquipmentPhotos = (eq?.photos || []).map((p) =>
-    getFileUrl(eq!.id, p, 'equipment', '300x300'),
+    getFileUrl(eq!.id, p, 'equipment', '800x800'),
   )
 
   const orderAttachmentPhotos = (attachments || []).map((a) => ({
-    url: getFileUrl(a.id, a.file, 'service_attachments', '300x300'),
+    url: getFileUrl(a.id, a.file, 'service_attachments', '800x800'),
     caption: a.caption || 'Foto do Atendimento',
   }))
 
   const orcamentoPhotos = (orcamentoAnexos || []).map((a) => ({
-    url: getFileUrl(a.id, a.caminho_arquivo, 'orcamento_anexos', '300x300'),
+    url: getFileUrl(a.id, a.caminho_arquivo, 'orcamento_anexos', '800x800'),
     caption: a.legenda || (a.tipo === 'foto_defeito' ? 'Defeito' : 'Equipamento'),
   }))
 
-  // Fotos para check-in (até 2 fotos para não estourar a altura)
+  // Foto de check-in: 1 foto destacada e nítida do equipamento para identificação imediata
   const checkInPhotos =
     rawEquipmentPhotos.length > 0
-      ? rawEquipmentPhotos.slice(0, 2)
-      : orderAttachmentPhotos.slice(0, 2).map((a) => a.url)
+      ? rawEquipmentPhotos.slice(0, 1)
+      : orderAttachmentPhotos.slice(0, 1).map((a) => a.url)
 
   // Registros fotográficos adicionais na grade inferior:
-  // Compacta para caber em 1 única folha A4 (máximo 4 miniaturas em linha única)
+  // Prioriza até 2 fotos grandes e legíveis em 2 colunas (~100-112px / h-24/h-28)
+  // para permitir identificar perfeitamente o equipamento sem estourar 1 folha A4.
   const extraPhotos: Array<{ url: string; caption?: string }> = []
-  // Se sobrou fotos do equipamento
-  if (rawEquipmentPhotos.length > 2) {
-    rawEquipmentPhotos.slice(2).forEach((url) => {
+  if (rawEquipmentPhotos.length > 1) {
+    rawEquipmentPhotos.slice(1).forEach((url) => {
       extraPhotos.push({ url, caption: 'Equipamento' })
     })
   }
-  // Fotos de orcamento/anexos
   orcamentoPhotos.forEach((a) => {
     extraPhotos.push(a)
   })
-  if (orderAttachmentPhotos.length > 2) {
-    orderAttachmentPhotos.slice(2).forEach((a) => {
+  if (orderAttachmentPhotos.length > 1) {
+    orderAttachmentPhotos.slice(1).forEach((a) => {
       extraPhotos.push(a)
     })
   }
-  // Limita a 4 miniaturas em uma só linha compacta para garantir que caiba em folha única
-  const displayExtraPhotos = extraPhotos.slice(0, 4)
+  // Exibe até 2 fotos maiores para garantir que fiquem 100% legíveis e caibam estritamente em 1 folha A4
+  const displayExtraPhotos = extraPhotos.slice(0, 2)
 
   // Cálculo financeiro unificado:
   // Se houver orçamento vinculado com itens, a discriminação financeira segue a do orçamento
@@ -340,7 +339,7 @@ export function PrintOrderDocument({
         {/* CABEÇALHO COM LOGOMARCA OFICIAL JUCA (COMPACTADO PARA 1 FOLHA) */}
         <div className="mb-1 flex items-center justify-between border-b-2 border-slate-900 pb-1">
           <div className="flex items-center gap-2">
-            <div className="h-9 w-22 sm:h-10 sm:w-26 shrink-0 overflow-hidden rounded bg-slate-950 p-1 flex items-center justify-center border border-slate-800">
+            <div className="h-8 w-20 sm:h-9 sm:w-24 shrink-0 overflow-hidden rounded bg-slate-950 p-1 flex items-center justify-center border border-slate-800">
               <img
                 src={JUCA_LOGO_URL}
                 alt="JUCA Informática"
@@ -351,36 +350,36 @@ export function PrintOrderDocument({
               />
             </div>
             <div>
-              <h1 className="text-xs sm:text-sm font-extrabold tracking-tight text-slate-900 leading-none">
+              <h1 className="text-xs sm:text-[13px] font-extrabold tracking-tight text-slate-900 leading-none">
                 {COMPANY_DATA.nomeFantasia || 'JUCA INFORMÁTICA'}
               </h1>
-              <p className="text-[9px] font-semibold text-slate-700 leading-tight mt-0.5">
+              <p className="text-[8.5px] font-semibold text-slate-700 leading-tight mt-0.5">
                 {COMPANY_DATA.razaoSocial}
               </p>
-              <p className="text-[8px] text-slate-600 leading-tight">{COMPANY_DATA.endereco}</p>
-              <p className="text-[8px] text-slate-600 leading-tight">
+              <p className="text-[7.5px] text-slate-600 leading-tight">{COMPANY_DATA.endereco}</p>
+              <p className="text-[7.5px] text-slate-600 leading-tight">
                 <strong>Telefones:</strong> {COMPANY_DATA.telefones}
               </p>
             </div>
           </div>
           <div className="text-right">
             <div className="inline-block rounded bg-slate-900 px-2 py-0.5 text-white">
-              <span className="font-mono text-xs sm:text-sm font-black tracking-wider">
+              <span className="font-mono text-xs sm:text-[13px] font-black tracking-wider">
                 {orcamento?.numero_orcamento
                   ? `${order.number} · ${orcamento.numero_orcamento}`
                   : `OS ${order.number}`}
               </span>
             </div>
-            <p className="mt-0.5 text-[8px] font-medium text-slate-600 leading-tight">
+            <p className="mt-0.5 text-[7.5px] font-medium text-slate-600 leading-tight">
               <strong>Emissão O.S.:</strong> {fmtDate(order.created)}
             </p>
             {orcamento && (
-              <p className="text-[8px] text-slate-600 leading-tight">
+              <p className="text-[7.5px] text-slate-600 leading-tight">
                 <strong>Validade Orçamento:</strong> {orcamento.validade || 15} dias
               </p>
             )}
             {order.attendance_date && (
-              <p className="text-[8px] text-slate-600 leading-tight">
+              <p className="text-[7.5px] text-slate-600 leading-tight">
                 <strong>Atendimento:</strong> {fmtDate(order.attendance_date)}{' '}
                 {order.attendance_time || ''}
               </p>
@@ -389,7 +388,7 @@ export function PrintOrderDocument({
         </div>
 
         {/* FAIXA DE STATUS E IDENTIFICAÇÃO RÁPIDA */}
-        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1.5 rounded bg-slate-50 border border-slate-200 px-2 py-0.5 text-[8.5px]">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-1.5 rounded bg-slate-50 border border-slate-200 px-2 py-0.5 text-[8px]">
           <div>
             <span className="text-slate-500 font-medium">Status O.S.: </span>
             <span className="font-bold text-slate-900 uppercase">
@@ -415,9 +414,9 @@ export function PrintOrderDocument({
         </div>
 
         {/* DADOS DO CLIENTE E TÉCNICO */}
-        <div className="mb-1.5 grid grid-cols-2 gap-2 text-[9.5px]">
-          <div className="rounded border border-slate-200 p-1.5">
-            <h3 className="mb-0.5 border-b border-slate-200 pb-0.5 text-[9.5px] font-bold text-slate-900 uppercase tracking-wide">
+        <div className="mb-1 grid grid-cols-2 gap-1.5 text-[9px]">
+          <div className="rounded border border-slate-200 p-1">
+            <h3 className="mb-0.5 border-b border-slate-200 pb-0.5 text-[9px] font-bold text-slate-900 uppercase tracking-wide">
               Dados do Cliente
             </h3>
             <div className="space-y-0.5 leading-tight">
@@ -457,8 +456,8 @@ export function PrintOrderDocument({
             </div>
           </div>
 
-          <div className="rounded border border-slate-200 p-1.5">
-            <h3 className="mb-0.5 border-b border-slate-200 pb-0.5 text-[9.5px] font-bold text-slate-900 uppercase tracking-wide">
+          <div className="rounded border border-slate-200 p-1">
+            <h3 className="mb-0.5 border-b border-slate-200 pb-0.5 text-[9px] font-bold text-slate-900 uppercase tracking-wide">
               Atendimento Técnico
             </h3>
             <div className="space-y-0.5 leading-tight">
@@ -558,19 +557,19 @@ export function PrintOrderDocument({
               )}
             </div>
 
-            {/* Foto de identificação/check-in do equipamento (compacto) */}
+            {/* Foto de identificação/check-in do equipamento (legível e nítida) */}
             {checkInPhotos.length > 0 && (
               <div className="flex flex-col items-center justify-center border-t md:border-t-0 md:border-l border-slate-200 pt-1 md:pt-0 md:pl-2">
-                <span className="mb-0.5 text-[8px] font-bold text-slate-500 uppercase tracking-wider">
+                <span className="mb-1 text-[8px] font-bold text-slate-600 uppercase tracking-wider">
                   Foto do Check-in
                 </span>
-                <div className="flex flex-wrap items-center justify-center gap-1">
+                <div className="flex items-center justify-center w-full">
                   {checkInPhotos.map((photoUrl, idx) => (
                     <img
                       key={idx}
                       src={photoUrl}
                       alt="Foto do Equipamento"
-                      className="h-11 w-16 rounded border border-slate-300 object-cover shadow-2xs"
+                      className="h-20 sm:h-22 w-full max-w-[140px] rounded-md border border-slate-300 object-cover shadow-2xs"
                     />
                   ))}
                 </div>
@@ -773,22 +772,38 @@ export function PrintOrderDocument({
           )
         })()}
 
-        {/* REGISTROS FOTOGRÁFICOS (COMPACTO - MÁX 4 EM LINHA ÚNICA) */}
+        {/* REGISTROS FOTOGRÁFICOS (AMPLIADO - 2 COLUNAS LEGÍVEIS, ~100-110px DE ALTURA) */}
         {displayExtraPhotos.length > 0 && (
-          <div className="page-break-inside-avoid mb-1 rounded border border-slate-200 p-1 text-[8px]">
-            <h3 className="mb-0.5 text-[8px] font-bold text-slate-900 uppercase tracking-wide">
-              Registros Fotográficos (Atendimento / Orçamento)
-            </h3>
-            <div className="grid grid-cols-4 gap-1">
+          <div className="page-break-inside-avoid mb-1 rounded border border-slate-200 p-1.5 text-[8.5px]">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-[8.5px] font-bold text-slate-900 uppercase tracking-wide">
+                Registros Fotográficos (Atendimento / Orçamento)
+              </h3>
+              {extraPhotos.length > displayExtraPhotos.length && (
+                <span className="text-[7.5px] text-slate-500 italic">
+                  Exibindo {displayExtraPhotos.length} de {extraPhotos.length} fotos
+                </span>
+              )}
+            </div>
+            <div
+              className={`grid gap-2 ${
+                displayExtraPhotos.length === 1 ? 'grid-cols-1 max-w-sm mx-auto' : 'grid-cols-2'
+              }`}
+            >
               {displayExtraPhotos.map((a, i) => (
-                <div key={i} className="text-center">
+                <div
+                  key={i}
+                  className="flex flex-col items-center rounded bg-slate-50/60 p-1 border border-slate-200/80"
+                >
                   <img
                     src={a.url}
-                    alt={a.caption || 'Foto'}
-                    className="h-9 w-full rounded border border-slate-200 object-cover"
+                    alt={a.caption || 'Foto do Equipamento'}
+                    className="h-24 sm:h-28 w-full rounded border border-slate-300 object-cover shadow-2xs"
                   />
                   {a.caption && (
-                    <p className="mt-0.5 truncate text-[7px] text-slate-500">{a.caption}</p>
+                    <p className="mt-1 truncate w-full text-center text-[8px] font-medium text-slate-700">
+                      {a.caption}
+                    </p>
                   )}
                 </div>
               ))}
@@ -811,48 +826,48 @@ export function PrintOrderDocument({
         </div>
 
         {/* ASSINATURAS (COMPACTAS NO RODAPÉ DA MESMA PÁGINA) */}
-        <div className="page-break-inside-avoid mt-1 grid grid-cols-2 gap-4 text-[8.5px]">
+        <div className="page-break-inside-avoid mt-0.5 grid grid-cols-2 gap-3 text-[8px]">
           <div className="text-center">
-            <div className="flex h-8 items-end justify-center border-b border-slate-400 pb-0.5">
+            <div className="flex h-7 items-end justify-center border-b border-slate-400 pb-0.5">
               {techSig ? (
                 <img
                   src={techSig}
                   alt="Assinatura do Técnico"
-                  className="max-h-7 max-w-[140px] object-contain"
+                  className="max-h-6 max-w-[130px] object-contain"
                 />
               ) : (
-                <div className="text-slate-300 italic text-[7.5px]">Assinatura não coletada</div>
+                <div className="text-slate-300 italic text-[7px]">Assinatura não coletada</div>
               )}
             </div>
-            <p className="mt-0.5 font-bold text-slate-800 text-[8.5px] leading-tight">
+            <p className="mt-0.5 font-bold text-slate-800 text-[8px] leading-tight">
               {tech?.name ? `Técnico: ${tech.name}` : 'Técnico Responsável'}
             </p>
-            <p className="text-[7px] text-slate-500 leading-tight">{COMPANY_DATA.nomeFantasia}</p>
+            <p className="text-[6.5px] text-slate-500 leading-tight">{COMPANY_DATA.nomeFantasia}</p>
           </div>
 
           <div className="text-center">
-            <div className="flex h-8 items-end justify-center border-b border-slate-400 pb-0.5">
+            <div className="flex h-7 items-end justify-center border-b border-slate-400 pb-0.5">
               {custSig ? (
                 <img
                   src={custSig}
                   alt="Assinatura do Cliente"
-                  className="max-h-7 max-w-[140px] object-contain"
+                  className="max-h-6 max-w-[130px] object-contain"
                 />
               ) : (
-                <div className="text-slate-300 italic text-[7.5px]">Assinatura não coletada</div>
+                <div className="text-slate-300 italic text-[7px]">Assinatura não coletada</div>
               )}
             </div>
-            <p className="mt-0.5 font-bold text-slate-800 text-[8.5px] leading-tight">
+            <p className="mt-0.5 font-bold text-slate-800 text-[8px] leading-tight">
               {cust?.name || cust?.razao_social || 'Assinatura do Cliente'}
             </p>
-            <p className="text-[7px] text-slate-500 leading-tight">
+            <p className="text-[6.5px] text-slate-500 leading-tight">
               Declaro o recebimento e conferência do equipamento
             </p>
           </div>
         </div>
 
         {/* RODAPÉ DO DOCUMENTO */}
-        <div className="page-break-inside-avoid mt-1 border-t border-slate-200 pt-0.5 text-center text-[7.5px] text-slate-500">
+        <div className="page-break-inside-avoid mt-0.5 border-t border-slate-200 pt-0.5 text-center text-[7px] text-slate-500">
           <p className="font-bold text-slate-700 leading-tight">
             {COMPANY_DATA.razaoSocial} — {COMPANY_DATA.slogan}
           </p>
