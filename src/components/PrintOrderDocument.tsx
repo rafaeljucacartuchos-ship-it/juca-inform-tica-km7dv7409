@@ -227,18 +227,16 @@ export function PrintOrderDocument({
   const cust = order.expand?.customer
   const tech = order.expand?.technician
 
-  // Coleta fotos do equipamento e atendimento sem duplicação (resolução alta para nitidez no A4)
-  const rawEquipmentPhotos = (eq?.photos || []).map((p) =>
-    getFileUrl(eq!.id, p, 'equipment', '800x800'),
-  )
+  // Coleta fotos do equipamento e atendimento sem duplicação (arquivo original ou fit proporcional para nitidez e sem crop)
+  const rawEquipmentPhotos = (eq?.photos || []).map((p) => getFileUrl(eq!.id, p, 'equipment'))
 
   const orderAttachmentPhotos = (attachments || []).map((a) => ({
-    url: getFileUrl(a.id, a.file, 'service_attachments', '800x800'),
+    url: getFileUrl(a.id, a.file, 'service_attachments'),
     caption: a.caption || 'Foto do Atendimento',
   }))
 
   const orcamentoPhotos = (orcamentoAnexos || []).map((a) => ({
-    url: getFileUrl(a.id, a.caminho_arquivo, 'orcamento_anexos', '800x800'),
+    url: getFileUrl(a.id, a.caminho_arquivo, 'orcamento_anexos'),
     caption: a.legenda || (a.tipo === 'foto_defeito' ? 'Defeito' : 'Equipamento'),
   }))
 
@@ -557,7 +555,7 @@ export function PrintOrderDocument({
               )}
             </div>
 
-            {/* Foto de identificação/check-in do equipamento (legível e nítida) */}
+            {/* Foto de identificação/check-in do equipamento (proporção preservada, sem deformar) */}
             {checkInPhotos.length > 0 && (
               <div className="flex flex-col items-center justify-center border-t md:border-t-0 md:border-l border-slate-200 pt-1 md:pt-0 md:pl-2">
                 <span className="mb-1 text-[8px] font-bold text-slate-600 uppercase tracking-wider">
@@ -565,12 +563,16 @@ export function PrintOrderDocument({
                 </span>
                 <div className="flex items-center justify-center w-full">
                   {checkInPhotos.map((photoUrl, idx) => (
-                    <img
+                    <div
                       key={idx}
-                      src={photoUrl}
-                      alt="Foto do Equipamento"
-                      className="h-20 sm:h-22 w-full max-w-[140px] rounded-md border border-slate-300 object-cover shadow-2xs"
-                    />
+                      className="flex h-20 sm:h-22 w-full max-w-[160px] items-center justify-center overflow-hidden rounded-md border border-slate-300 bg-slate-100/70 p-0.5 shadow-2xs"
+                    >
+                      <img
+                        src={photoUrl}
+                        alt="Foto do Equipamento"
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    </div>
                   ))}
                 </div>
               </div>
@@ -772,7 +774,7 @@ export function PrintOrderDocument({
           )
         })()}
 
-        {/* REGISTROS FOTOGRÁFICOS (AMPLIADO - 2 COLUNAS LEGÍVEIS, ~100-110px DE ALTURA) */}
+        {/* REGISTROS FOTOGRÁFICOS (PROPORÇÃO ORIGINAL PRESERVADA, SEM DEFORMAÇÃO / OBJECT-CONTAIN, MÁX. 2 FOTOS LEGÍVEIS) */}
         {displayExtraPhotos.length > 0 && (
           <div className="page-break-inside-avoid mb-1 rounded border border-slate-200 p-1.5 text-[8.5px]">
             <div className="flex items-center justify-between mb-1">
@@ -787,7 +789,7 @@ export function PrintOrderDocument({
             </div>
             <div
               className={`grid gap-2 ${
-                displayExtraPhotos.length === 1 ? 'grid-cols-1 max-w-sm mx-auto' : 'grid-cols-2'
+                displayExtraPhotos.length === 1 ? 'grid-cols-1 max-w-md mx-auto' : 'grid-cols-2'
               }`}
             >
               {displayExtraPhotos.map((a, i) => (
@@ -795,13 +797,15 @@ export function PrintOrderDocument({
                   key={i}
                   className="flex flex-col items-center rounded bg-slate-50/60 p-1 border border-slate-200/80"
                 >
-                  <img
-                    src={a.url}
-                    alt={a.caption || 'Foto do Equipamento'}
-                    className="h-24 sm:h-28 w-full rounded border border-slate-300 object-cover shadow-2xs"
-                  />
+                  <div className="flex h-28 sm:h-32 w-full items-center justify-center overflow-hidden rounded border border-slate-300 bg-slate-100/60 p-0.5 shadow-2xs">
+                    <img
+                      src={a.url}
+                      alt={a.caption || 'Foto do Equipamento'}
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </div>
                   {a.caption && (
-                    <p className="mt-1 truncate w-full text-center text-[8px] font-medium text-slate-700">
+                    <p className="mt-0.5 truncate w-full text-center text-[8px] font-medium text-slate-700">
                       {a.caption}
                     </p>
                   )}
