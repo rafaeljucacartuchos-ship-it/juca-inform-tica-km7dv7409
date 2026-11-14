@@ -34,6 +34,7 @@ import {
   ImageIcon,
   QrCode,
   Package,
+  UserCog,
 } from 'lucide-react'
 import { formatPhone } from '@/lib/phones'
 import { OrcamentoItemModal } from '@/components/OrcamentoItemModal'
@@ -65,6 +66,7 @@ import {
   Orcamento,
   OrcamentoItem,
   LaudoTecnico,
+  Customer,
 } from '@/types'
 import { getLaudosByOs, createLaudo, buildSnapshotFromOrderAndEquipment } from '@/services/laudos'
 import {
@@ -117,6 +119,7 @@ import { OrderEquipmentModal } from '@/components/OrderEquipmentModal'
 import { EditEquipmentModal } from '@/components/EditEquipmentModal'
 import { TransferTechnicianModal } from '@/components/TransferTechnicianModal'
 import { RescheduleOrderModal } from '@/components/RescheduleOrderModal'
+import { ChangeCustomerModal } from '@/components/ChangeCustomerModal'
 import { getEquipmentItem, getEquipmentByCustomer } from '@/services/equipment'
 import { PrintEquipmentLabelModal } from '@/components/PrintEquipmentLabelModal'
 import { QrOrderScannerModal } from '@/components/QrOrderScannerModal'
@@ -166,6 +169,7 @@ export default function OrdemDetail() {
   const [confirmDeleteOsOpen, setConfirmDeleteOsOpen] = useState(false)
   const [deletingOs, setDeletingOs] = useState(false)
   const [qrScannerOpen, setQrScannerOpen] = useState(false)
+  const [changeCustomerOpen, setChangeCustomerOpen] = useState(false)
   const [productLookupOpen, setProductLookupOpen] = useState(false)
 
   const handleDeleteOs = async () => {
@@ -264,6 +268,9 @@ export default function OrdemDetail() {
   )
   const canEdit = user?.role === 'admin' || (isTechnician && (!order?.technician || isOrderOwner))
   const canDeleteOs = user?.role === 'admin' || hasPermission('os_delete')
+  // Troca de cliente em O.S. já lançada: admin por padrão, ou permissão granular
+  // liberada pelo administrador na tela de permissões.
+  const canChangeCustomer = user?.role === 'admin' || hasPermission('os_trocar_cliente')
   // Antes de iniciar o atendimento (started_at vazio), os campos editáveis
   // ficam bloqueados para o técnico. Após iniciar, ficam liberados.
   const notStarted = !order?.started_at
@@ -381,6 +388,28 @@ export default function OrdemDetail() {
   useEffect(() => {
     loadAll()
   }, [id])
+
+  // Após a troca de cliente: atualiza a O.S. em memória (sem recarregar a rota)
+  // e recarrega dados auxiliares (histórico de status e equipamentos do cliente).
+  const handleCustomerChanged = (newCustomer: Customer) => {
+    setOrder((prev) =>
+      prev
+        ? { ...prev, customer: newCustomer.id, expand: { ...prev.expand, customer: newCustomer } }
+        : prev,
+    )
+    if (id) {
+      getStatusHistory(id)
+        .then(setHistory)
+        .catch(() => {})
+    }
+    getEquipmentByCustomer(newCustomer.id)
+      .then(setCustomerEquipments)
+      .catch(() => {})
+    toast({
+      title: 'Cliente alterado com sucesso!',
+      description: `A O.S. agora pertence a ${getCustomerDisplayName(newCustomer)}.`,
+    })
+  }
 
   useRealtime('service_orders', (e) => {
     if (e.record?.id === id && e.action === 'update') {
@@ -1893,16 +1922,29 @@ export default function OrdemDetail() {
                     Dados do Cliente
                   </span>
                   {order.customer && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => navigate(`/clientes/${order.customer}`)}
-                      className="h-6 text-[11px] text-indigo-600 hover:text-indigo-800 p-0 font-semibold gap-1"
-                    >
-                      Ver cadastro completo
-                      <ExternalLink className="h-3 w-3" />
-                    </Button>
+                    <>
+                      {canChangeCustomer && (
+                        <button
+                          type="button"
+                          onClick={() => setChangeCustomerOpen(true)}
+                          className="text-[11px] text-violet-600 hover:text-violet-800 font-semibold flex items-center gap-1"
+                          title="Trocar o cliente desta O.S. já lançada"
+                        >
+                          <UserCog className="h-3 w-3" />
+                          Trocar cliente
+                        </button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/clientes/${order.customer}`)}
+                        className="h-6 text-[11px] text-indigo-600 hover:text-indigo-800 p-0 font-semibold gap-1"
+                      >
+                        Ver cadastro completo
+                        <ExternalLink className="h-3 w-3" />
+                      </Button>
+                    </>
                   )}
                 </div>
 
@@ -3283,6 +3325,15 @@ export default function OrdemDetail() {
         order={order}
         onRescheduled={loadAll}
       />
+
+      {order && (
+        <ChangeCustomerModal
+          open={changeCustomerOpen}
+          onOpenChange={setChangeCustomerOpen}
+          order={order}
+          onCustomerChanged={handleCustomerChanged}
+        />
+      )}
 
       {activeOrcamento && (
         <OrcamentoItemModal

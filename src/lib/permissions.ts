@@ -8,6 +8,7 @@ export type PermissionModule =
   | 'dashboard'
   | 'clientes'
   | 'os_create'
+  | 'os_trocar_cliente'
   | 'agendamentos'
   | 'ordens'
   | 'os_delete'
@@ -37,6 +38,7 @@ export const PERMISSION_LABELS: Record<PermissionModule, string> = {
   dashboard: 'Dashboard (Painel Inicial)',
   clientes: 'Cadastro de Clientes',
   os_create: 'Cadastro de Ordens de Serviço (criar OS)',
+  os_trocar_cliente: 'O.S. — Trocar cliente após lançamento',
   agendamentos: 'Atendimentos / Agendamentos',
   ordens: 'Ordens de Serviço (Listagem e Detalhe)',
   os_delete: 'Exclusão de Ordens de Serviço (Excluir OS)',
@@ -65,6 +67,7 @@ export const ALL_PERMISSION_MODULES: PermissionModule[] = [
   'dashboard',
   'clientes',
   'os_create',
+  'os_trocar_cliente',
   'agendamentos',
   'ordens',
   'os_delete',
@@ -96,6 +99,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         dashboard: true,
         clientes: true,
         os_create: true,
+        os_trocar_cliente: true,
         agendamentos: true,
         ordens: true,
         os_delete: true,
@@ -124,6 +128,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         dashboard: true,
         clientes: true,
         os_create: true,
+        os_trocar_cliente: false,
         agendamentos: true,
         ordens: true,
         os_delete: false,
@@ -152,6 +157,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         dashboard: true,
         clientes: true,
         os_create: true,
+        os_trocar_cliente: false,
         agendamentos: true,
         ordens: true,
         os_delete: false,
@@ -180,6 +186,7 @@ export function getDefaultPermissions(role: UserRole): UserPermissions {
         dashboard: false,
         clientes: false,
         os_create: false,
+        os_trocar_cliente: false,
         agendamentos: false,
         ordens: false,
         os_delete: false,
