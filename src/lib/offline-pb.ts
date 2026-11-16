@@ -1,5 +1,6 @@
 import pb from '@/lib/pocketbase/client'
 import { addToQueue, getQueueCount, onQueueChange, processQueue } from './offline-queue'
+import { syncSessionStorage } from './auth-session'
 
 /**
  * Wrapper do PocketBase que opera de forma transparente:
@@ -49,6 +50,10 @@ export const offlinePb = {
   ): Promise<OfflineCreateResult<T>> {
     ensureSyncListener()
 
+    // Guarda de troca de sessão: se o authStore em memória e o storage
+    // persistido divergem (sessão antiga órfã), corrige ANTES de usar o token.
+    syncSessionStorage()
+
     if (navigator.onLine) {
       const created = await pb.collection(collection).create<T>(data)
       return { id: (created as { id?: string }).id || tempId(), queued: false, data: created }
@@ -77,6 +82,9 @@ export const offlinePb = {
   ): Promise<OfflineCreateResult<T>> {
     ensureSyncListener()
 
+    // Guarda de troca de sessão (mesma proteção do create).
+    syncSessionStorage()
+
     if (navigator.onLine) {
       const updated = await pb.collection(collection).update<T>(id, data)
       return { id, queued: false, data: updated }
@@ -99,6 +107,9 @@ export const offlinePb = {
    */
   async delete(collection: string, id: string): Promise<{ id: string; queued: boolean }> {
     ensureSyncListener()
+
+    // Guarda de troca de sessão (mesma proteção do create).
+    syncSessionStorage()
 
     if (navigator.onLine) {
       await pb.collection(collection).delete(id)

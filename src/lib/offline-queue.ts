@@ -105,6 +105,18 @@ export async function getQueueCount(): Promise<number> {
   }
 }
 
+/**
+ * Remove TODAS as operações pendentes da fila. Usada no logout: mutações feitas
+ * pelo usuário anterior não podem ser sincronizadas com a sessão seguinte.
+ */
+export async function clearQueue(): Promise<void> {
+  try {
+    await tx('readwrite', (store) => store.clear() as unknown as IDBRequest<undefined>)
+  } finally {
+    notifyQueueChange()
+  }
+}
+
 export interface ProcessResult {
   processed: number
   failed: QueueEntry | null
@@ -118,6 +130,12 @@ export interface ProcessResult {
 export async function processQueue(): Promise<ProcessResult> {
   const queue = await getQueue()
   let processed = 0
+  // Sem sessão válida nenhuma operação pode sair: entraria com token vazio (ou
+  // com o de outra sessão, no caso raro de storage divergente) e falharia no
+  // backend. Aguarda o próximo sync() — chamado pela UI após o novo login.
+  if (!pb.authStore.isValid) {
+    return { processed: 0, failed: null, error: new Error('sem sessão válida para sincronizar') }
+  }
   for (const entry of queue) {
     try {
       await executeEntry(entry)

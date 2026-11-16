@@ -1,6 +1,12 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import pb from '@/lib/pocketbase/client'
 import { User } from '@/types'
+import {
+  clearAllSession,
+  debugSessionState,
+  persistCurrentSession,
+  syncSessionStorage,
+} from '@/lib/auth-session'
 
 const QUICK_ACCESS_EMAILS: Record<string, string> = {
   administrador: 'rafaeljucacartuchos@gmail.com',
@@ -14,7 +20,7 @@ interface AuthContextType {
   isAuthenticated: boolean
   signIn: (registrationCode: string, pass: string) => Promise<{ error: any }>
   signUp: (name: string, pass: string, role: string) => Promise<{ error: any }>
-  signOut: () => void
+  signOut: () => Promise<void>
   loading: boolean
 }
 
@@ -26,6 +32,18 @@ export function useAuth() {
   return context
 }
 
+/** Log de diagnóstico: mostra no console se o storage divergiu do authStore. */
+function logSessionState(label: string): void {
+  try {
+    const state = debugSessionState()
+    if (state.divergent || import.meta.env.DEV) {
+      console.info(`[sessão] ${label}:`, state)
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(
     pb.authStore.isValid ? (pb.authStore.record as unknown as User) : null,
@@ -34,8 +52,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsubscribe = pb.authStore.onChange((_token, record) => {
-      setUser(pb.authStore.isValid ? (record as unknown as User) : null)
+    // Sessão restaurada do storage no boot: garante que o storage reflete o
+    // authStore (e limpa registro órfão caso o authStore tenha descartado).
+    syncSessionStorage()
+
+    const unsubscribe = pb.authStore.onChange(() => {
+      // Fonte da verdade é o próprio authStore; o storage é sincronizado logo
+      // abaixo (no signIn/signUp via persistCurrentSession, e no signOut via
+      // clearAllSession).
+      setUser(pb.authStore.isValid ? (pb.authStore.record as unknown as User) : null)
       setIsAuthenticated(pb.authStore.isValid)
     })
 
@@ -45,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .then(() => {
           pb.realtime.unsubscribe()
           setUser(pb.authStore.record as unknown as User)
+          persistCurrentSession()
         })
         .catch(() => pb.authStore.clear())
         .finally(() => setLoading(false))
@@ -59,18 +85,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (registrationCode: string, pass: string) => {
     const identity = registrationCode.trim()
+    const applySession = (record: unknown) => {
+      // 1) grava o token NOVO no storage (sobrescreve a sessão anterior)
+      persistCurrentSession()
+      // 2) invalida realtime/SSE da sessão anterior
+      pb.realtime.unsubscribe()
+      // 3) atualiza o estado React — todas as telas passam a usar o token novo
+      setUser(record as unknown as User)
+    }
     try {
       const res = await pb.collection('users').authWithPassword(identity, pass)
-      pb.realtime.unsubscribe()
-      setUser(res.record as unknown as User)
+      applySession(res.record)
+      logSessionState('login')
       return { error: null }
     } catch (error) {
       const fallbackEmail = QUICK_ACCESS_EMAILS[identity.toLowerCase()]
       if (fallbackEmail) {
         try {
           const res = await pb.collection('users').authWithPassword(fallbackEmail, pass)
-          pb.realtime.unsubscribe()
-          setUser(res.record as unknown as User)
+          applySession(res.record)
+          logSessionState('login (fallback)')
           return { error: null }
         } catch (fallbackError) {
           return { error: fallbackError }
@@ -87,16 +121,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .create<User>({ password: pass, passwordConfirm: pass, name, role })
       const loginName = created.username || name
       const res = await pb.collection('users').authWithPassword(loginName, pass)
+      persistCurrentSession()
       pb.realtime.unsubscribe()
       setUser(res.record as unknown as User)
+      logSessionState('signup')
       return { error: null }
     } catch (error) {
       return { error }
     }
   }
 
-  const signOut = () => {
-    pb.authStore.clear()
+  const signOut = async () => {
+    await clearAllSession()
     setUser(null)
     setIsAuthenticated(false)
   }
