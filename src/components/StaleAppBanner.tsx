@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X, RefreshCw } from 'lucide-react'
 import { useStaleApp } from '@/hooks/use-app-version'
+import { forceActivateUpdate } from '@/lib/register-sw'
 
 /**
  * Banner fixo no topo (z-index acima de tudo) que avisa quando o app carregado
@@ -31,7 +32,7 @@ export function StaleAppBanner() {
       </span>
       <button
         type="button"
-        onClick={() => window.location.reload()}
+        onClick={() => void forceActivateUpdate()}
         className="flex items-center gap-1 rounded-md bg-white/20 px-3 py-1 text-xs font-semibold text-white transition hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white/60"
       >
         <RefreshCw className="h-3 w-3" />

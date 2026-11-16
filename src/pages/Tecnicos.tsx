@@ -52,6 +52,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
+import { APP_VERSION } from '@/lib/app-version'
 
 const roleLabels: Record<UserRole, string> = {
   admin: 'Administrador',
@@ -300,7 +301,7 @@ export default function Tecnicos() {
               variant="outline"
               className="border-indigo-200 bg-indigo-50 text-indigo-700 text-[10px] font-bold"
             >
-              v0.0.248
+              v{APP_VERSION}
             </Badge>
           </div>
           <p className="text-xs sm:text-sm text-slate-500">

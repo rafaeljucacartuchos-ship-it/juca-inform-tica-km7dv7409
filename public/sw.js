@@ -35,11 +35,12 @@ const ASSET_EXTENSIONS = /\.(?:png|jpe?g|gif|webp|avif|ico|svg|woff2?|ttf|eot|cs
 
 // --- Install: precache the app shell ----------------------------------------
 self.addEventListener('install', (event) => {
-  // NOTA: não chamamos self.skipWaiting() aqui. O novo SW deve entrar no
-  // estado "waiting" naturalmente, para que o hook usePwaUpdate consiga
-  // detectá-lo e exibir o banner de atualização. A ativação imediata só
-  // acontece quando o usuário clica no banner, que envia
-  // postMessage({ type: 'SKIP_WAITING' }) — tratado no listener de message.
+  // Assume o controle IMEDIATAMENTE após ativar: um worker novo nunca fica
+  // preso em "waiting" esperando todas as abas fecharem (clientes travados na
+  // versão antiga não têm código capaz de enviar SKIP_WAITING ao banner).
+  // A página reage ao take-over via 'controllerchange' (register-sw.ts),
+  // recarregando uma única vez sobre a versão nova.
+  self.skipWaiting()
   event.waitUntil(
     caches
       .open(APP_SHELL_CACHE)

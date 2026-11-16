@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { usePwaUpdate } from '@/hooks/use-pwa-update'
+import { forceActivateUpdate } from '@/lib/register-sw'
 
 /**
  * Banner fixo no topo da página que avisa quando há uma nova versão do PWA
@@ -27,7 +28,12 @@ export function PwaUpdateBanner() {
       <span className="text-sm font-medium">⬆️ Nova versão disponível! Clique para atualizar.</span>
       <button
         type="button"
-        onClick={updateApp}
+        onClick={() => {
+          updateApp()
+          // Reforço: promove o worker waiting explicitamente (caso o fluxo do
+          // hook não encontre nenhum waiting e só recarregue).
+          void forceActivateUpdate()
+        }}
         className="rounded-md bg-white/20 px-3 py-1 text-xs font-semibold text-white transition hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white/60"
       >
         Atualizar agora
