@@ -135,16 +135,22 @@ export default function Clientes() {
       <Card className="border-slate-200 shadow-sm">
         <CardContent className="p-0">
           <div className="overflow-x-auto w-full">
-            <table className="w-full text-left text-xs table-auto border-separate border-spacing-0">
+            <table className="w-full text-left text-xs table-fixed border-separate border-spacing-0">
               <thead className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider z-20 relative [&_th]:border-b [&_th]:border-slate-200">
                 <tr>
-                  <th className="py-3 px-4">Razão Social</th>
-                  <th className="py-3 px-4">Nome Fantasia</th>
-                  <th className="py-3 px-4 hidden sm:table-cell">Endereço</th>
-                  <th className="py-3 px-4 hidden md:table-cell">Bairro</th>
-                  <th className="py-3 px-4">Celular</th>
-                  <th className="py-3 px-4 hidden xl:table-cell">RG/IE</th>
-                  <th className="py-3 px-4 hidden lg:table-cell">CPF/CNPJ</th>
+                  <th className="py-3 px-3 w-[34%] sm:w-[26%] lg:w-[22%] xl:w-[20%]">
+                    Razão Social
+                  </th>
+                  <th className="py-3 px-3 w-[26%] sm:w-[18%] lg:w-[15%] xl:w-[14%]">
+                    Nome Fantasia
+                  </th>
+                  <th className="py-3 px-3 hidden sm:table-cell sm:w-[18%] lg:w-[14%] xl:w-[13%]">
+                    Endereço
+                  </th>
+                  <th className="py-3 px-3 hidden md:table-cell md:w-[10%] xl:w-[9%]">Bairro</th>
+                  <th className="py-3 px-3 w-[20%] sm:w-[16%] lg:w-[13%] xl:w-[12%]">Celular</th>
+                  <th className="py-3 px-3 hidden xl:table-cell xl:w-[10%]">RG/IE</th>
+                  <th className="py-3 px-3 hidden lg:table-cell lg:w-[14%] xl:w-[12%]">CPF/CNPJ</th>
                   <th className="py-3 px-4 text-right sticky right-0 z-10 bg-slate-50 border-l border-slate-200 shadow-[-4px_0_8px_-4px_rgba(15,23,42,0.18)]">
                     Ações
                   </th>
@@ -165,31 +171,30 @@ export default function Clientes() {
                   return (
                     <tr key={c.id} className="group hover:bg-slate-50 transition-colors">
                       <td
-                        className="py-3 px-4 font-bold text-slate-900 max-w-[200px] truncate"
+                        className="py-3 px-3 font-bold text-slate-900 truncate"
                         title={razaoSocial}
                       >
                         {razaoSocial}
                       </td>
-                      <td
-                        className="py-3 px-4 text-slate-700 max-w-[180px] truncate"
-                        title={nomeFantasia}
-                      >
+                      <td className="py-3 px-3 text-slate-700 truncate" title={nomeFantasia}>
                         {nomeFantasia}
                       </td>
                       <td
-                        className="py-3 px-4 text-slate-600 max-w-[220px] truncate hidden sm:table-cell"
+                        className="py-3 px-3 text-slate-600 truncate hidden sm:table-cell"
                         title={endereco}
                       >
                         {endereco}
                       </td>
-                      <td className="py-3 px-4 text-slate-600 hidden md:table-cell">{bairro}</td>
-                      <td className="py-3 px-4 font-mono text-slate-700 font-medium">
+                      <td className="py-3 px-3 text-slate-600 hidden md:table-cell truncate">
+                        {bairro}
+                      </td>
+                      <td className="py-3 px-3 font-mono text-slate-700 font-medium whitespace-nowrap">
                         {celularFormatted}
                       </td>
-                      <td className="py-3 px-4 font-mono text-slate-600 hidden xl:table-cell">
+                      <td className="py-3 px-3 font-mono text-slate-600 hidden xl:table-cell truncate">
                         {rgIe}
                       </td>
-                      <td className="py-3 px-4 font-mono text-slate-700 hidden lg:table-cell">
+                      <td className="py-3 px-3 font-mono text-slate-700 hidden lg:table-cell truncate">
                         {cpfCnpj}
                       </td>
                       <td className="py-3 px-4 text-right sticky right-0 z-10 bg-white group-hover:bg-slate-50 border-l border-slate-200 shadow-[-4px_0_8px_-4px_rgba(15,23,42,0.18)] transition-colors">

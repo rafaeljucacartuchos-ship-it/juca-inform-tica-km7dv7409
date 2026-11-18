@@ -402,15 +402,21 @@ export default function Produtos() {
       <Card className="border-slate-200 shadow-sm overflow-hidden">
         <CardContent className="p-0">
           <div className="overflow-x-auto w-full">
-            <table className="w-full text-left text-xs table-auto border-separate border-spacing-0">
+            <table className="w-full text-left text-xs table-fixed border-separate border-spacing-0">
               <thead className="bg-slate-100/80 text-slate-700 font-bold uppercase tracking-wider z-20 relative [&_th]:border-b [&_th]:border-slate-200">
                 <tr>
-                  <th className="py-3 px-4">Tipo</th>
-                  <th className="py-3 px-4 hidden lg:table-cell">Código (SKU)</th>
-                  <th className="py-3 px-4">Nome</th>
-                  <th className="py-3 px-4 hidden sm:table-cell">Quantidade (Estoque)</th>
-                  <th className="py-3 px-4">Preço de Venda</th>
-                  <th className="py-3 px-4 hidden xl:table-cell">Código de Barras</th>
+                  <th className="py-3 px-3 w-[14%] sm:w-[10%] lg:w-[9%] xl:w-[8%]">Tipo</th>
+                  <th className="py-3 px-3 hidden lg:table-cell lg:w-[12%] xl:w-[10%]">
+                    Código (SKU)
+                  </th>
+                  <th className="py-3 px-3 w-[38%] sm:w-[34%] lg:w-[30%] xl:w-[26%]">Nome</th>
+                  <th className="py-3 px-3 hidden sm:table-cell sm:w-[14%] lg:w-[12%] xl:w-[10%]">
+                    Quantidade (Estoque)
+                  </th>
+                  <th className="py-3 px-3 w-[18%] sm:w-[14%] lg:w-[12%] xl:w-[10%]">
+                    Preço de Venda
+                  </th>
+                  <th className="py-3 px-3 hidden xl:table-cell xl:w-[12%]">Código de Barras</th>
                   <th className="py-3 px-4 text-right sticky right-0 z-10 bg-slate-100 border-l border-slate-200 shadow-[-4px_0_8px_-4px_rgba(15,23,42,0.18)]">
                     Ações
                   </th>
@@ -427,7 +433,7 @@ export default function Produtos() {
                         isInactive ? 'bg-slate-50/50 opacity-75' : ''
                       }`}
                     >
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-3">
                         <span
                           className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${
                             p.type === 'servico'
@@ -438,12 +444,12 @@ export default function Produtos() {
                           {p.type === 'servico' ? 'Serviço' : 'Produto'}
                         </span>
                       </td>
-                      <td className="py-3 px-4 font-mono font-bold text-slate-700 hidden lg:table-cell">
+                      <td className="py-3 px-3 font-mono font-bold text-slate-700 hidden lg:table-cell truncate">
                         {p.sku || '-'}
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-3">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-bold text-slate-900">{p.name}</span>
+                          <span className="font-bold text-slate-900 truncate">{p.name}</span>
                           {p.fabricante && (
                             <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
                               {p.fabricante}
@@ -461,7 +467,7 @@ export default function Produtos() {
                           </span>
                         )}
                       </td>
-                      <td className="py-3 px-4 hidden sm:table-cell">
+                      <td className="py-3 px-3 hidden sm:table-cell whitespace-nowrap">
                         <span
                           className={`font-mono font-bold px-2 py-0.5 rounded ${
                             isZeroStock
@@ -474,13 +480,13 @@ export default function Produtos() {
                           {p.stock_quantity ?? 0}
                         </span>
                       </td>
-                      <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                      <td className="py-3 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">
                         R$ {(p.price || 0).toFixed(2)}
                       </td>
-                      <td className="py-3 px-4 font-mono text-slate-600 text-[11px] font-medium hidden xl:table-cell">
+                      <td className="py-3 px-3 font-mono text-slate-600 text-[11px] font-medium hidden xl:table-cell truncate">
                         {p.barcode || p.codigo_barras || '-'}
                       </td>
-                      <td className="py-3 px-4 text-right whitespace-nowrap sticky right-0 z-[1] bg-white group-hover:bg-slate-50 border-l border-slate-200 shadow-[-4px_0_8px_-4px_rgba(15,23,42,0.18)] transition-colors">
+                      <td className="py-3 px-4 text-right whitespace-nowrap sticky right-0 z-10 bg-white group-hover:bg-slate-50 border-l border-slate-200 shadow-[-4px_0_8px_-4px_rgba(15,23,42,0.18)] transition-colors">
                         <div className="flex items-center justify-end gap-1.5">
                           {/* Ação de Precificação direta */}
                           <Button
