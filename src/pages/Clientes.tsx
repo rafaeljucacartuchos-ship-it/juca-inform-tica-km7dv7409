@@ -135,20 +135,22 @@ export default function Clientes() {
       <Card className="border-slate-200 shadow-sm">
         <CardContent className="p-0">
           <div className="overflow-x-auto w-full">
-            <table className="w-full text-left text-xs whitespace-nowrap">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+            <table className="w-full text-left text-xs table-auto border-separate border-spacing-0">
+              <thead className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider z-20 relative [&_th]:border-b [&_th]:border-slate-200">
                 <tr>
                   <th className="py-3 px-4">Razão Social</th>
                   <th className="py-3 px-4">Nome Fantasia</th>
-                  <th className="py-3 px-4">Endereço</th>
-                  <th className="py-3 px-4">Bairro</th>
+                  <th className="py-3 px-4 hidden sm:table-cell">Endereço</th>
+                  <th className="py-3 px-4 hidden md:table-cell">Bairro</th>
                   <th className="py-3 px-4">Celular</th>
-                  <th className="py-3 px-4">RG/IE</th>
-                  <th className="py-3 px-4">CPF/CNPJ</th>
-                  <th className="py-3 px-4 text-right">Ações</th>
+                  <th className="py-3 px-4 hidden xl:table-cell">RG/IE</th>
+                  <th className="py-3 px-4 hidden lg:table-cell">CPF/CNPJ</th>
+                  <th className="py-3 px-4 text-right sticky right-0 z-10 bg-slate-50 border-l border-slate-200 shadow-[-4px_0_8px_-4px_rgba(15,23,42,0.18)]">
+                    Ações
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="[&_td]:border-b [&_td]:border-slate-100 [&>tr:last-child>td]:border-b-0">
                 {customers.map((c) => {
                   const razaoSocial = c.razao_social || c.name || '-'
                   const nomeFantasia = c.nome_fantasia || c.razao_social || c.name || '-'
@@ -161,7 +163,7 @@ export default function Clientes() {
                   const displayName = c.nome_fantasia || c.razao_social || c.name || 'Cliente'
 
                   return (
-                    <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                    <tr key={c.id} className="group hover:bg-slate-50 transition-colors">
                       <td
                         className="py-3 px-4 font-bold text-slate-900 max-w-[200px] truncate"
                         title={razaoSocial}
@@ -175,18 +177,22 @@ export default function Clientes() {
                         {nomeFantasia}
                       </td>
                       <td
-                        className="py-3 px-4 text-slate-600 max-w-[220px] truncate"
+                        className="py-3 px-4 text-slate-600 max-w-[220px] truncate hidden sm:table-cell"
                         title={endereco}
                       >
                         {endereco}
                       </td>
-                      <td className="py-3 px-4 text-slate-600">{bairro}</td>
+                      <td className="py-3 px-4 text-slate-600 hidden md:table-cell">{bairro}</td>
                       <td className="py-3 px-4 font-mono text-slate-700 font-medium">
                         {celularFormatted}
                       </td>
-                      <td className="py-3 px-4 font-mono text-slate-600">{rgIe}</td>
-                      <td className="py-3 px-4 font-mono text-slate-700">{cpfCnpj}</td>
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-3 px-4 font-mono text-slate-600 hidden xl:table-cell">
+                        {rgIe}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-slate-700 hidden lg:table-cell">
+                        {cpfCnpj}
+                      </td>
+                      <td className="py-3 px-4 text-right sticky right-0 z-10 bg-white group-hover:bg-slate-50 border-l border-slate-200 shadow-[-4px_0_8px_-4px_rgba(15,23,42,0.18)] transition-colors">
                         <div className="flex items-center justify-end gap-1">
                           {/* 1 Ação Principal visível fora do menu */}
                           <Link to={`/clientes/${c.id}`}>

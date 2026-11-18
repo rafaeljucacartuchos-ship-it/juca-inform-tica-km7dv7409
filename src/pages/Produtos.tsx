@@ -402,26 +402,28 @@ export default function Produtos() {
       <Card className="border-slate-200 shadow-sm overflow-hidden">
         <CardContent className="p-0">
           <div className="overflow-x-auto w-full">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-100/80 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider">
+            <table className="w-full text-left text-xs table-auto border-separate border-spacing-0">
+              <thead className="bg-slate-100/80 text-slate-700 font-bold uppercase tracking-wider z-20 relative [&_th]:border-b [&_th]:border-slate-200">
                 <tr>
                   <th className="py-3 px-4">Tipo</th>
-                  <th className="py-3 px-4">Código (SKU)</th>
+                  <th className="py-3 px-4 hidden lg:table-cell">Código (SKU)</th>
                   <th className="py-3 px-4">Nome</th>
-                  <th className="py-3 px-4">Quantidade (Estoque)</th>
+                  <th className="py-3 px-4 hidden sm:table-cell">Quantidade (Estoque)</th>
                   <th className="py-3 px-4">Preço de Venda</th>
-                  <th className="py-3 px-4">Código de Barras</th>
-                  <th className="py-3 px-4 text-right">Ações</th>
+                  <th className="py-3 px-4 hidden xl:table-cell">Código de Barras</th>
+                  <th className="py-3 px-4 text-right sticky right-0 z-10 bg-slate-100 border-l border-slate-200 shadow-[-4px_0_8px_-4px_rgba(15,23,42,0.18)]">
+                    Ações
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="[&_td]:border-b [&_td]:border-slate-100 [&>tr:last-child>td]:border-b-0">
                 {filteredProducts.map((p) => {
                   const isZeroStock = (p.stock_quantity ?? 0) <= 0
                   const isInactive = p.active === false
                   return (
                     <tr
                       key={p.id}
-                      className={`hover:bg-slate-50 transition-colors ${
+                      className={`group hover:bg-slate-50 transition-colors ${
                         isInactive ? 'bg-slate-50/50 opacity-75' : ''
                       }`}
                     >
@@ -436,7 +438,7 @@ export default function Produtos() {
                           {p.type === 'servico' ? 'Serviço' : 'Produto'}
                         </span>
                       </td>
-                      <td className="py-3 px-4 font-mono font-bold text-slate-700">
+                      <td className="py-3 px-4 font-mono font-bold text-slate-700 hidden lg:table-cell">
                         {p.sku || '-'}
                       </td>
                       <td className="py-3 px-4">
@@ -459,7 +461,7 @@ export default function Produtos() {
                           </span>
                         )}
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 hidden sm:table-cell">
                         <span
                           className={`font-mono font-bold px-2 py-0.5 rounded ${
                             isZeroStock
@@ -475,10 +477,10 @@ export default function Produtos() {
                       <td className="py-3 px-4 font-mono font-bold text-slate-900">
                         R$ {(p.price || 0).toFixed(2)}
                       </td>
-                      <td className="py-3 px-4 font-mono text-slate-600 text-[11px] font-medium">
+                      <td className="py-3 px-4 font-mono text-slate-600 text-[11px] font-medium hidden xl:table-cell">
                         {p.barcode || p.codigo_barras || '-'}
                       </td>
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                      <td className="py-3 px-4 text-right whitespace-nowrap sticky right-0 z-[1] bg-white group-hover:bg-slate-50 border-l border-slate-200 shadow-[-4px_0_8px_-4px_rgba(15,23,42,0.18)] transition-colors">
                         <div className="flex items-center justify-end gap-1.5">
                           {/* Ação de Precificação direta */}
                           <Button
