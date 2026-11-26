@@ -204,6 +204,10 @@ interface PricingLocationState {
   } | null
 }
 
+// Chave de sessão: guarda o location.key da navegação que já anexou o item da Precificação
+// ao rascunho, para que recarregar a página não duplique o item.
+const PRICING_CONSUMED_KEY = 'juca:pricing-consumed-key'
+
 export interface OrcamentoDetailProps {
   orcamentoId?: string
   onClose?: () => void
@@ -316,18 +320,25 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
 
     // Se for modo criação (isNew), monta rascunho em memória sem nenhuma chamada ao banco
     if (isNew) {
-      const initialItems: OrcamentoItem[] = []
-      const pricingItem = navState?.pricingItem || navState?.item
+      let initialItems: OrcamentoItem[] = []
+      // Item da Precificação já anexado nesta navegação (ex.: recarregar a página) não é anexado de novo
+      const pricingAlreadyApplied =
+        typeof window !== 'undefined' &&
+        window.sessionStorage.getItem(PRICING_CONSUMED_KEY) === location.key
+      const pricingItem = pricingAlreadyApplied
+        ? undefined
+        : navState?.pricingItem || navState?.item
 
-      // Se houver rascunho gravado no localStorage e não veio de transição explícita com novo pricingItem
+      // Rascunho gravado no localStorage, válido para o mesmo contexto (O.S. de origem)
       const savedDraftData = draftOrcamentoNovo?.formData
-      const shouldUseSavedDraft =
-        !pricingItem &&
-        savedDraftData &&
+      const savedDraftMatches =
+        Boolean(savedDraftData) &&
         Array.isArray(savedDraftData.items) &&
         (savedDraftData.orcamento?.id_os || '') === (navState?.id_os || navState?.fromOs || '')
+      const baseItems: OrcamentoItem[] = savedDraftMatches ? savedDraftData.items : []
 
-      if (shouldUseSavedDraft) {
+      // Sem item novo da Precificação: restaura o rascunho como antes
+      if (!pricingItem && savedDraftMatches) {
         setOrcamento(savedDraftData.orcamento)
         setItems(savedDraftData.items || [])
         setAnexos([])
@@ -343,23 +354,53 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
           pricingItem.quantidade && pricingItem.quantidade > 0 ? pricingItem.quantidade : 1
         const itemUnit = pricingItem.valor_unitario || 0
         const itemTotal = pricingItem.valor_total_item ?? itemQtd * itemUnit
+        const itemDescricao =
+          pricingItem.descricao ||
+          (itemTipo === 'servico' ? 'Serviço Precificado' : 'Item Precificado')
 
-        initialItems.push({
-          id: `draft-item-${Date.now()}`,
-          id_orcamento: 'novo',
-          tipo: itemTipo,
-          id_produto: pricingItem.id_produto || undefined,
-          descricao:
-            pricingItem.descricao ||
-            (itemTipo === 'servico' ? 'Serviço Precificado' : 'Item Precificado'),
-          quantidade: itemQtd,
-          valor_unitario: itemUnit,
-          desconto_item: 0,
-          desconto_item_tipo: 'valor',
-          valor_total_item: itemTotal,
-          created: new Date().toISOString(),
-          updated: new Date().toISOString(),
-        } as OrcamentoItem)
+        // Mesmo produto, descrição e valor já no rascunho: soma a quantidade em vez de duplicar a linha
+        const sameItemIdx = pricingItem.id_produto
+          ? baseItems.findIndex(
+              (it) =>
+                it.id_produto === pricingItem.id_produto &&
+                it.descricao === itemDescricao &&
+                Number(it.valor_unitario) === itemUnit,
+            )
+          : -1
+
+        if (sameItemIdx >= 0) {
+          initialItems = baseItems.map((it, idx) =>
+            idx === sameItemIdx
+              ? {
+                  ...it,
+                  quantidade: (Number(it.quantidade) || 0) + itemQtd,
+                  valor_total_item: (Number(it.valor_total_item) || 0) + itemTotal,
+                  updated: new Date().toISOString(),
+                }
+              : it,
+          )
+        } else {
+          // Anexa o item da Precificação ao final dos itens já existentes no rascunho
+          initialItems = [
+            ...baseItems,
+            {
+              id: `draft-item-${Date.now()}`,
+              id_orcamento: 'novo',
+              tipo: itemTipo,
+              id_produto: pricingItem.id_produto || undefined,
+              descricao: itemDescricao,
+              quantidade: itemQtd,
+              valor_unitario: itemUnit,
+              desconto_item: 0,
+              desconto_item_tipo: 'valor',
+              valor_total_item: itemTotal,
+              created: new Date().toISOString(),
+              updated: new Date().toISOString(),
+            } as OrcamentoItem,
+          ]
+        }
+      } else {
+        initialItems = baseItems
       }
 
       const initialSubtotal = initialItems.reduce((acc, it) => acc + (it.valor_total_item || 0), 0)
@@ -404,11 +445,40 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
           : undefined,
       } as Orcamento
 
-      setOrcamento(draftOrcamento)
+      if (savedDraftMatches && savedDraftData.orcamento) {
+        // Rascunho + item da Precificação: mantém cliente, parcelas, descontos e justificativa do rascunho
+        const savedOrc = savedDraftData.orcamento as Orcamento
+        const rascunhoTemCliente = Boolean(savedOrc.cliente_id || savedOrc.nome_cliente_livre)
+        setOrcamento({
+          ...savedOrc,
+          ...(rascunhoTemCliente
+            ? {}
+            : {
+                cliente_id: draftOrcamento.cliente_id,
+                nome_cliente_livre: draftOrcamento.nome_cliente_livre,
+                telefone_cliente_livre: draftOrcamento.telefone_cliente_livre,
+                expand: draftOrcamento.expand,
+              }),
+          subtotal: initialSubtotal,
+          total_geral: initialSubtotal,
+          restante: initialSubtotal,
+        })
+        setParcelasInput(String(Math.max(1, savedOrc.parcelas || 1)))
+        setJustificativaDesconto(savedOrc.justificativa_desconto || '')
+      } else {
+        setOrcamento(draftOrcamento)
+        setParcelasInput('1')
+        setJustificativaDesconto('')
+      }
+      if (pricingItem) {
+        try {
+          window.sessionStorage.setItem(PRICING_CONSUMED_KEY, location.key)
+        } catch {
+          /* armazenamento indisponível: segue sem a proteção contra recarga */
+        }
+      }
       setItems(initialItems)
       setAnexos([])
-      setParcelasInput('1')
-      setJustificativaDesconto('')
       setLoading(false)
       return
     }
@@ -449,7 +519,7 @@ export default function OrcamentoDetail({ orcamentoId, onClose }: OrcamentoDetai
     } finally {
       setLoading(false)
     }
-  }, [id, isNew, navState, toast, user?.id])
+  }, [id, isNew, navState, location.key, toast, user?.id])
 
   useEffect(() => {
     loadAll()
