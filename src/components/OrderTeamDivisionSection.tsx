@@ -375,21 +375,21 @@ export function OrderTeamDivisionSection({
 
         {/* Tabela de Ajuste de Percentuais (se Custom) e Prévia de Valores Atribuídos */}
         <div className="bg-white rounded-md border border-slate-200 overflow-hidden">
-          <div className="p-2.5 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center justify-between text-xs">
+          <div className="p-2.5 bg-slate-100 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs">
             <span className="font-semibold text-slate-800">
               Resumo e Prévia da Produção Atribuída
             </span>
-            <div className="flex items-center gap-3 text-[11px] text-slate-600">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-600">
               <span>
                 Serviços:{' '}
                 <strong className="font-mono text-indigo-700">{formatBRL(totalServices)}</strong>
               </span>
-              <span>•</span>
+              <span className="hidden sm:inline">•</span>
               <span>
                 Produtos:{' '}
                 <strong className="font-mono text-emerald-700">{formatBRL(totalProducts)}</strong>
               </span>
-              <span>•</span>
+              <span className="hidden sm:inline">•</span>
               <span>
                 Total OS:{' '}
                 <strong className="font-mono text-slate-900">{formatBRL(orderTotal)}</strong>
@@ -398,15 +398,21 @@ export function OrderTeamDivisionSection({
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full table-fixed text-left text-xs">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
                 <tr>
-                  <th className="py-2 px-3">Participante / Papel</th>
-                  <th className="py-2 px-3 text-center">Partic. Serviços (%)</th>
-                  <th className="py-2 px-3 text-right">Valor Serviços</th>
-                  <th className="py-2 px-3 text-center">Partic. Produtos (%)</th>
-                  <th className="py-2 px-3 text-right">Valor Produtos</th>
-                  <th className="py-2 px-3 text-right font-bold">Total Atribuído</th>
+                  <th className="w-[24%] min-w-[120px] py-2 px-3">Participante / Papel</th>
+                  <th className="py-2 px-2 text-center">
+                    Partic. Serviços (%)<span className="md:hidden"> Serv.</span>
+                  </th>
+                  <th className="hidden sm:table-cell py-2 px-2 text-right">Valor Serviços</th>
+                  <th className="hidden xs:table-cell py-2 px-2 text-center">
+                    Partic. Produtos (%)<span className="md:hidden"> Prod.</span>
+                  </th>
+                  <th className="hidden sm:table-cell py-2 px-2 text-right">Valor Produtos</th>
+                  <th className="hidden sm:table-cell py-2 px-2 text-right font-bold">
+                    Total Atribuído
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -453,7 +459,7 @@ export function OrderTeamDivisionSection({
                       </td>
 
                       {/* % Serviços */}
-                      <td className="py-2.5 px-3 text-center">
+                      <td className="py-2.5 px-2 text-center">
                         {isCustom && !readOnly ? (
                           <div className="flex items-center justify-center gap-1">
                             <Input
@@ -489,12 +495,12 @@ export function OrderTeamDivisionSection({
                       </td>
 
                       {/* Valor Serviços */}
-                      <td className="py-2.5 px-3 text-right font-mono text-indigo-600 font-medium">
+                      <td className="hidden sm:table-cell py-2.5 px-2 text-right font-mono text-indigo-600 font-medium">
                         {formatBRL(p.servicesAmount)}
                       </td>
 
                       {/* % Produtos */}
-                      <td className="py-2.5 px-3 text-center">
+                      <td className="hidden xs:table-cell py-2.5 px-2 text-center">
                         {isCustom && !readOnly ? (
                           <div className="flex items-center justify-center gap-1">
                             <Input
@@ -530,12 +536,12 @@ export function OrderTeamDivisionSection({
                       </td>
 
                       {/* Valor Produtos */}
-                      <td className="py-2.5 px-3 text-right font-mono text-emerald-600 font-medium">
+                      <td className="hidden sm:table-cell py-2.5 px-2 text-right font-mono text-emerald-600 font-medium">
                         {formatBRL(p.productsAmount)}
                       </td>
 
                       {/* Total */}
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                      <td className="hidden sm:table-cell py-2.5 px-2 text-right font-mono font-bold text-slate-900">
                         {formatBRL(p.totalAmount)}
                       </td>
                     </tr>
