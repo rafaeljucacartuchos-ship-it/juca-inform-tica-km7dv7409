@@ -7,10 +7,7 @@ onRecordUpdateRequest((e) => {
   }
 
   var isSuper = auth ? (typeof auth.isSuperuser === 'function' ? auth.isSuperuser() : false) : false
-  var currentRole =
-    auth && auth.record && typeof auth.record.getString === 'function'
-      ? auth.record.getString('role')
-      : ''
+  var currentRole = typeof auth.getString === 'function' ? auth.getString('role') : ''
   var isAdmin = isSuper || currentRole === 'admin'
 
   var body = e.requestInfo().body
@@ -26,7 +23,7 @@ onRecordUpdateRequest((e) => {
     }
 
     // 2. Não pode editar dados de outros usuários
-    if (auth.record && auth.record.id !== e.record.id) {
+    if (auth.id !== e.record.id) {
       return e.forbiddenError('Apenas administradores podem gerenciar outros usuarios')
     }
   }
@@ -42,10 +39,7 @@ onRecordCreateRequest((e) => {
   }
 
   var isSuper = auth ? (typeof auth.isSuperuser === 'function' ? auth.isSuperuser() : false) : false
-  var currentRole =
-    auth && auth.record && typeof auth.record.getString === 'function'
-      ? auth.record.getString('role')
-      : ''
+  var currentRole = typeof auth.getString === 'function' ? auth.getString('role') : ''
   var isAdmin = isSuper || currentRole === 'admin'
 
   if (!isAdmin) {
